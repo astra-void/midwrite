@@ -1,0 +1,591 @@
+{
+  "kind": "commitrift.model-check",
+  "schemaVersion": 1,
+  "modelVersion": "1.0.0",
+  "tool": {
+    "name": "commitrift",
+    "version": "0.1.0"
+  },
+  "scenario": {
+    "name": "inventory-oversell",
+    "description": "Two concurrent purchases of the last unit; read-modify-write without a transaction (extracted from src/purchase.ts).",
+    "scenarioVersion": 1,
+    "file": "fixtures/concurrency/scenarios/inventory-oversell.json"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "products",
+        "columns": [
+          "id",
+          "stock"
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "unique": [],
+        "checks": [],
+        "initialRows": [
+          {
+            "id": "product-1",
+            "stock": 1
+          }
+        ]
+      },
+      {
+        "name": "orders",
+        "columns": [
+          "id",
+          "product"
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "unique": [],
+        "checks": [],
+        "initialRows": []
+      }
+    ]
+  },
+  "actors": [
+    {
+      "name": "A",
+      "function": "purchase",
+      "file": "src/purchase.ts",
+      "arguments": [
+        [
+          "productId",
+          "product-1"
+        ],
+        [
+          "orderId",
+          "order-A"
+        ]
+      ],
+      "process": "A",
+      "origin": "extracted",
+      "tasks": 1,
+      "operations": 6,
+      "sourceRefs": [
+        {
+          "origin": "extracted",
+          "file": "src/purchase.ts",
+          "line": 8,
+          "column": 25,
+          "function": "purchase",
+          "effectId": 0,
+          "text": "db.query.products.findFirst({ where: eq(products.id, productId), })"
+        },
+        {
+          "origin": "extracted",
+          "file": "src/purchase.ts",
+          "line": 16,
+          "column": 9,
+          "function": "purchase",
+          "effectId": 1,
+          "diagnostics": [
+            "CP1004@166f863403c68081"
+          ],
+          "text": "db .update(products) .set({ stock: product.stock - 1 }) .where(eq(products.id..."
+        },
+        {
+          "origin": "extracted",
+          "file": "src/purchase.ts",
+          "line": 21,
+          "column": 9,
+          "function": "purchase",
+          "effectId": 2,
+          "diagnostics": [
+            "CP1004@166f863403c68081"
+          ],
+          "text": "db.insert(orders).values({ id: orderId, product: productId })"
+        }
+      ]
+    },
+    {
+      "name": "B",
+      "function": "purchase",
+      "file": "src/purchase.ts",
+      "arguments": [
+        [
+          "productId",
+          "product-1"
+        ],
+        [
+          "orderId",
+          "order-B"
+        ]
+      ],
+      "process": "B",
+      "origin": "extracted",
+      "tasks": 1,
+      "operations": 6,
+      "sourceRefs": [
+        {
+          "origin": "extracted",
+          "file": "src/purchase.ts",
+          "line": 8,
+          "column": 25,
+          "function": "purchase",
+          "effectId": 0,
+          "text": "db.query.products.findFirst({ where: eq(products.id, productId), })"
+        },
+        {
+          "origin": "extracted",
+          "file": "src/purchase.ts",
+          "line": 16,
+          "column": 9,
+          "function": "purchase",
+          "effectId": 1,
+          "diagnostics": [
+            "CP1004@166f863403c68081"
+          ],
+          "text": "db .update(products) .set({ stock: product.stock - 1 }) .where(eq(products.id..."
+        },
+        {
+          "origin": "extracted",
+          "file": "src/purchase.ts",
+          "line": 21,
+          "column": 9,
+          "function": "purchase",
+          "effectId": 2,
+          "diagnostics": [
+            "CP1004@166f863403c68081"
+          ],
+          "text": "db.insert(orders).values({ id: orderId, product: productId })"
+        }
+      ]
+    }
+  ],
+  "bounds": {
+    "declared": {
+      "maxActors": 4,
+      "maxSteps": 40,
+      "maxStates": 100000,
+      "maxCrashes": 0,
+      "maxRetries": 0,
+      "maxContextSwitches": null,
+      "maxTransitions": null,
+      "maxWallMs": null,
+      "maxMemoryBytes": null
+    },
+    "partialOrderReduction": true,
+    "strategy": "dfs"
+  },
+  "exploration": {
+    "verdict": "COUNTEREXAMPLE_FOUND",
+    "complete": true,
+    "truncation": {
+      "maxStates": false,
+      "maxTransitions": false,
+      "maxWallTime": false,
+      "maxMemory": false,
+      "maxSteps": false,
+      "maxContextSwitches": false
+    },
+    "metrics": {
+      "states": 11,
+      "transitions": 10,
+      "terminalStates": 2,
+      "duplicateStateHits": 0,
+      "sleepPrunedTransitions": 0,
+      "contextPrunedTransitions": 0,
+      "maxDepth": 6,
+      "schedulesInExploredGraph": 3,
+      "visitedBytes": 6190
+    },
+    "unsupported": [],
+    "stuckStates": 0
+  },
+  "invariants": [
+    {
+      "name": "successful-purchases-within-initial-stock",
+      "when": "final",
+      "formula": "purchase:ok <= initial(products[id=\"product-1\"].stock)",
+      "description": "the number of successful purchases never exceeds the stock the product started with",
+      "status": "violated"
+    }
+  ],
+  "counterexample": {
+    "invariant": "successful-purchases-within-initial-stock",
+    "formula": "purchase:ok <= initial(products[id=\"product-1\"].stock)",
+    "when": "final",
+    "initialTables": {
+      "orders": [],
+      "products": [
+        {
+          "id": "product-1",
+          "stock": 1
+        }
+      ]
+    },
+    "steps": [
+      {
+        "index": 1,
+        "actor": "B",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "read",
+            "text": "SELECT products WHERE (@id = \"product-1\") → {id=\"product-1\", stock=1}",
+            "result": {
+              "id": "product-1",
+              "stock": 1
+            },
+            "src": {
+              "origin": "extracted",
+              "file": "src/purchase.ts",
+              "line": 8,
+              "column": 25,
+              "function": "purchase",
+              "effectId": 0,
+              "text": "db.query.products.findFirst({ where: eq(products.id, productId), })"
+            }
+          },
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "local",
+            "text": "CHECK (!_row1 or (_row1.stock <= 0)) → false",
+            "result": false,
+            "src": {
+              "origin": "extracted",
+              "file": "src/purchase.ts",
+              "line": 12,
+              "column": 7,
+              "function": "purchase",
+              "text": "!product || product.stock <= 0"
+            }
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "actor": "A",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "read",
+            "text": "SELECT products WHERE (@id = \"product-1\") → {id=\"product-1\", stock=1}",
+            "result": {
+              "id": "product-1",
+              "stock": 1
+            },
+            "src": {
+              "origin": "extracted",
+              "file": "src/purchase.ts",
+              "line": 8,
+              "column": 25,
+              "function": "purchase",
+              "effectId": 0,
+              "text": "db.query.products.findFirst({ where: eq(products.id, productId), })"
+            }
+          },
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "local",
+            "text": "CHECK (!_row1 or (_row1.stock <= 0)) → false",
+            "result": false,
+            "src": {
+              "origin": "extracted",
+              "file": "src/purchase.ts",
+              "line": 12,
+              "column": 7,
+              "function": "purchase",
+              "text": "!product || product.stock <= 0"
+            }
+          }
+        ]
+      },
+      {
+        "index": 3,
+        "actor": "A",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "write",
+            "text": "UPDATE products SET stock = 0 WHERE (@id = \"product-1\") → 1 row",
+            "result": 1,
+            "src": {
+              "origin": "extracted",
+              "file": "src/purchase.ts",
+              "line": 16,
+              "column": 9,
+              "function": "purchase",
+              "effectId": 1,
+              "diagnostics": [
+                "CP1004@166f863403c68081"
+              ],
+              "text": "db .update(products) .set({ stock: product.stock - 1 }) .where(eq(products.id..."
+            }
+          }
+        ]
+      },
+      {
+        "index": 4,
+        "actor": "A",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "write",
+            "text": "INSERT orders {id=\"order-A\", product=\"product-1\"} → 1 row",
+            "result": 1,
+            "src": {
+              "origin": "extracted",
+              "file": "src/purchase.ts",
+              "line": 21,
+              "column": 9,
+              "function": "purchase",
+              "effectId": 2,
+              "diagnostics": [
+                "CP1004@166f863403c68081"
+              ],
+              "text": "db.insert(orders).values({ id: orderId, product: productId })"
+            }
+          },
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "local",
+            "text": "return (success)"
+          }
+        ]
+      },
+      {
+        "index": 5,
+        "actor": "B",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "write",
+            "text": "UPDATE products SET stock = 0 WHERE (@id = \"product-1\") → 1 row",
+            "result": 1,
+            "src": {
+              "origin": "extracted",
+              "file": "src/purchase.ts",
+              "line": 16,
+              "column": 9,
+              "function": "purchase",
+              "effectId": 1,
+              "diagnostics": [
+                "CP1004@166f863403c68081"
+              ],
+              "text": "db .update(products) .set({ stock: product.stock - 1 }) .where(eq(products.id..."
+            }
+          }
+        ]
+      },
+      {
+        "index": 6,
+        "actor": "B",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "write",
+            "text": "INSERT orders {id=\"order-B\", product=\"product-1\"} → 1 row",
+            "result": 1,
+            "src": {
+              "origin": "extracted",
+              "file": "src/purchase.ts",
+              "line": 21,
+              "column": 9,
+              "function": "purchase",
+              "effectId": 2,
+              "diagnostics": [
+                "CP1004@166f863403c68081"
+              ],
+              "text": "db.insert(orders).values({ id: orderId, product: productId })"
+            }
+          },
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "local",
+            "text": "return (success)"
+          }
+        ]
+      }
+    ],
+    "finalState": {
+      "tables": {
+        "orders": [
+          {
+            "id": "order-A",
+            "product": "product-1"
+          },
+          {
+            "id": "order-B",
+            "product": "product-1"
+          }
+        ],
+        "products": [
+          {
+            "id": "product-1",
+            "stock": 0
+          }
+        ]
+      },
+      "actors": [
+        [
+          "A",
+          "ok"
+        ],
+        [
+          "B",
+          "ok"
+        ]
+      ],
+      "externalEffects": [],
+      "terms": [
+        {
+          "term": "purchase:ok",
+          "value": 2
+        },
+        {
+          "term": "initial(products[id=\"product-1\"].stock)",
+          "value": 1
+        }
+      ],
+      "quiescent": true
+    },
+    "contextSwitches": 2,
+    "minimized": true,
+    "originalLength": 6
+  },
+  "evidence": {
+    "level": "postgres-confirmed-schedule",
+    "summary": "the schedule was replayed on PostgreSQL: all 6 database outcomes matched the model's predictions and the final committed rows are identical; the invariant also reads actor outcomes, external effects or in-process state, which the replay derives from the model's application logic given these database results (not observed in a running application)"
+  },
+  "runtime": {
+    "performed": true,
+    "status": "confirmed",
+    "postgresVersion": "postgres (PostgreSQL) 17.11 (Homebrew)",
+    "observations": [
+      {
+        "transition": 1,
+        "actor": "B",
+        "sql": "SELECT row_to_json(t) FROM (SELECT * FROM \"products\" WHERE (\"id\" = 'product-1') ORDER BY \"id\" LIMIT 1) t;",
+        "predicted": "{id=\"product-1\", stock=1}",
+        "observed": "{id=\"product-1\", stock=1}",
+        "agree": true
+      },
+      {
+        "transition": 2,
+        "actor": "A",
+        "sql": "SELECT row_to_json(t) FROM (SELECT * FROM \"products\" WHERE (\"id\" = 'product-1') ORDER BY \"id\" LIMIT 1) t;",
+        "predicted": "{id=\"product-1\", stock=1}",
+        "observed": "{id=\"product-1\", stock=1}",
+        "agree": true
+      },
+      {
+        "transition": 3,
+        "actor": "A",
+        "sql": "WITH r AS (UPDATE \"products\" SET \"stock\" = 0 WHERE (\"id\" = 'product-1') RETURNING 1) SELECT count(*) FROM r;",
+        "predicted": "1 row(s)",
+        "observed": "1 row(s)",
+        "agree": true
+      },
+      {
+        "transition": 4,
+        "actor": "A",
+        "sql": "WITH r AS (INSERT INTO \"orders\" (\"id\", \"product\") VALUES ('order-A', 'product-1') RETURNING 1) SELECT count(*) FROM r;",
+        "predicted": "1 row(s)",
+        "observed": "1 row(s)",
+        "agree": true
+      },
+      {
+        "transition": 5,
+        "actor": "B",
+        "sql": "WITH r AS (UPDATE \"products\" SET \"stock\" = 0 WHERE (\"id\" = 'product-1') RETURNING 1) SELECT count(*) FROM r;",
+        "predicted": "1 row(s)",
+        "observed": "1 row(s)",
+        "agree": true
+      },
+      {
+        "transition": 6,
+        "actor": "B",
+        "sql": "WITH r AS (INSERT INTO \"orders\" (\"id\", \"product\") VALUES ('order-B', 'product-1') RETURNING 1) SELECT count(*) FROM r;",
+        "predicted": "1 row(s)",
+        "observed": "1 row(s)",
+        "agree": true
+      }
+    ],
+    "sqlstates": [],
+    "tablesAgree": true,
+    "modelTables": {
+      "orders": [
+        {
+          "id": "order-A",
+          "product": "product-1"
+        },
+        {
+          "id": "order-B",
+          "product": "product-1"
+        }
+      ],
+      "products": [
+        {
+          "id": "product-1",
+          "stock": 0
+        }
+      ]
+    },
+    "postgresTables": {
+      "orders": [
+        {
+          "id": "order-A",
+          "product": "product-1"
+        },
+        {
+          "id": "order-B",
+          "product": "product-1"
+        }
+      ],
+      "products": [
+        {
+          "id": "product-1",
+          "stock": 0
+        }
+      ]
+    },
+    "sqlOrigin": {
+      "A": "model-derived (extracted from source)",
+      "B": "model-derived (extracted from source)"
+    },
+    "note": "Each actor ran on its own PostgreSQL connection (a psql process) against a private, disposable cluster; the model's schedule decided which session sent its next statement, and a statement counts as blocked only when the server reported a lock wait. Deadlock victim choice depends on PostgreSQL's deadlock timer and is steered with delays. Not exercised: the original TypeScript/Drizzle code, application-level retries, external services."
+  },
+  "assumptions": [
+    "database default isolation: read-committed (PostgreSQL semantics, see docs/phase6/POSTGRES-ISOLATION.md)",
+    "a database statement is atomic unless it must wait for another transaction; waiting statements resume with their original snapshot",
+    "autocommit (root `db`) statements are single-statement transactions at the default isolation level",
+    "local computation is not a scheduling point; it is folded into the preceding transition",
+    "rows are read in primary-key order for LIMIT 1 (the declared programs and generated SQL both use ORDER BY the primary key)",
+    "tasks of different actors never share a transaction, connection or event loop; actors listed with the same process share in-process variables and crash together",
+    "a process crash rolls back open transactions and loses local state; committed data and performed external effects remain",
+    "actor A: relational query `findFirst` assumed to be `SELECT ... LIMIT 1`",
+    "actor A: no orderBy: the first row in primary-key order is taken",
+    "actor B: relational query `findFirst` assumed to be `SELECT ... LIMIT 1`",
+    "actor B: no orderBy: the first row in primary-key order is taken"
+  ],
+  "diagnostics": [
+    {
+      "code": "CP7001",
+      "severity": "warning",
+      "message": "invariant `successful-purchases-within-initial-stock` can be violated by a bounded schedule of 6 transitions (2 context switches); evidence: postgres-confirmed-schedule"
+    }
+  ]
+}

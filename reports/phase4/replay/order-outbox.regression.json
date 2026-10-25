@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "kind": "commitrift.regression",
+  "tool": {
+    "name": "commitrift",
+    "version": "0.1.0"
+  },
+  "harness": "order-outbox",
+  "baselineManifestHash": "220a5638b001868a",
+  "currentManifestHash": "220a5638b001868a",
+  "source": {
+    "revision": null,
+    "dirty": null
+  },
+  "environment": {
+    "os": "macos",
+    "arch": "aarch64",
+    "postgres": "postgres (PostgreSQL) 17.11 (Homebrew)",
+    "runtime": "bun 1.3.3",
+    "networkIsolation": "sandbox-exec: IP networking denied; Unix sockets and file writes limited to the replay directory",
+    "isolation": "sandbox-exec",
+    "database": "ephemeral-postgres: private cluster, Unix socket only (listen_addresses=''), trust authentication for a local test user, fresh database per run, deleted afterwards",
+    "environmentVariables": [
+      "COMMITRIFT_REPLAY",
+      "COMMITRIFT_REPLAY_EVENT_LOG",
+      "COMMITRIFT_REPLAY_INPUT",
+      "COMMITRIFT_REPLAY_PG_DATABASE",
+      "COMMITRIFT_REPLAY_PG_SOCKET",
+      "COMMITRIFT_REPLAY_PG_USER",
+      "COMMITRIFT_REPLAY_PROTOCOL",
+      "COMMITRIFT_REPLAY_ROOT",
+      "COMMITRIFT_REPLAY_SCENARIO",
+      "COMMITRIFT_REPLAY_SOCKET",
+      "HOME",
+      "LANG",
+      "NO_COLOR",
+      "PATH",
+      "TMPDIR"
+    ]
+  },
+  "entries": [
+    {
+      "key": "order-outbox/kill-before-tx-commit",
+      "findingId": null,
+      "traceId": null,
+      "code": null,
+      "failureMode": "processKill",
+      "checkpoint": {
+        "name": "before-tx-commit",
+        "occurrence": 1
+      },
+      "baseline": "RUNTIME_NOT_REPRODUCED",
+      "current": "RUNTIME_NOT_REPRODUCED",
+      "status": "stillNotReproduced",
+      "reproducedRuns": 0,
+      "runs": 1,
+      "violatedInvariants": []
+    },
+    {
+      "key": "order-outbox/kill-after-tx-commit",
+      "findingId": null,
+      "traceId": null,
+      "code": null,
+      "failureMode": "processKill",
+      "checkpoint": {
+        "name": "after-db-commit",
+        "occurrence": 1,
+        "label": "transaction"
+      },
+      "baseline": "RUNTIME_NOT_REPRODUCED",
+      "current": "RUNTIME_NOT_REPRODUCED",
+      "status": "stillNotReproduced",
+      "reproducedRuns": 0,
+      "runs": 1,
+      "violatedInvariants": []
+    },
+    {
+      "key": "order-outbox/kill-relay-before-publish",
+      "findingId": null,
+      "traceId": null,
+      "code": null,
+      "failureMode": "processKill",
+      "checkpoint": {
+        "name": "before-event-publish",
+        "occurrence": 1
+      },
+      "baseline": "RUNTIME_NOT_REPRODUCED",
+      "current": "RUNTIME_NOT_REPRODUCED",
+      "status": "stillNotReproduced",
+      "reproducedRuns": 0,
+      "runs": 1,
+      "violatedInvariants": []
+    },
+    {
+      "key": "order-outbox/kill-relay-after-publish-before-ack",
+      "findingId": "c5a525f7e0afe68a",
+      "traceId": "tr-7b10c5c47ad42c1d",
+      "code": "CP1002",
+      "failureMode": "processKill",
+      "checkpoint": {
+        "name": "after-event-publish",
+        "occurrence": 1
+      },
+      "baseline": "RUNTIME_NOT_REPRODUCED",
+      "current": "RUNTIME_NOT_REPRODUCED",
+      "status": "stillNotReproduced",
+      "reproducedRuns": 0,
+      "runs": 1,
+      "violatedInvariants": []
+    },
+    {
+      "key": "order-outbox/exception-relay-after-publish-before-ack",
+      "findingId": "c5a525f7e0afe68a",
+      "traceId": "tr-7b10c5c47ad42c1d",
+      "code": "CP1002",
+      "failureMode": "exception",
+      "checkpoint": {
+        "name": "after-event-publish",
+        "occurrence": 1
+      },
+      "baseline": "RUNTIME_NOT_REPRODUCED",
+      "current": "RUNTIME_NOT_REPRODUCED",
+      "status": "stillNotReproduced",
+      "reproducedRuns": 0,
+      "runs": 1,
+      "violatedInvariants": []
+    }
+  ],
+  "summary": {
+    "cases": 5,
+    "stillReproduced": 0,
+    "noLongerReproduced": 0,
+    "newlyReproduced": 0,
+    "stillNotReproduced": 5,
+    "inconclusive": 0,
+    "notExecuted": 0,
+    "notInBaseline": 0
+  }
+}

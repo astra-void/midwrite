@@ -1,0 +1,619 @@
+{
+  "kind": "commitrift.model-check",
+  "schemaVersion": 1,
+  "modelVersion": "1.0.0",
+  "tool": {
+    "name": "commitrift",
+    "version": "0.1.0"
+  },
+  "scenario": {
+    "name": "job-double-processing",
+    "description": "Two workers receive the same queue message (at-least-once delivery). Each checks the job, publishes an event and marks it done. One may crash after publishing and the message is redelivered.",
+    "scenarioVersion": 1,
+    "file": "fixtures/concurrency/scenarios/job-double-processing.json"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "jobs",
+        "columns": [
+          "id",
+          "status"
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "unique": [],
+        "checks": [],
+        "initialRows": [
+          {
+            "id": "job-1",
+            "status": "pending"
+          }
+        ]
+      }
+    ]
+  },
+  "actors": [
+    {
+      "name": "W1",
+      "function": "processJob",
+      "file": "src/jobs.ts",
+      "arguments": [
+        [
+          "jobId",
+          "job-1"
+        ]
+      ],
+      "process": "W1",
+      "retry": "OnCrash",
+      "origin": "extracted",
+      "tasks": 1,
+      "operations": 7,
+      "sourceRefs": [
+        {
+          "origin": "extracted",
+          "file": "src/jobs.ts",
+          "line": 9,
+          "column": 21,
+          "function": "processJob",
+          "effectId": 0,
+          "text": "db.query.jobs.findFirst({ where: eq(jobs.id, jobId) })"
+        },
+        {
+          "origin": "extracted",
+          "file": "src/jobs.ts",
+          "line": 13,
+          "column": 9,
+          "function": "processJob",
+          "effectId": 1,
+          "diagnostics": [
+            "CP1001@5bd7efd8a487a92a"
+          ],
+          "text": "db.update(jobs).set({ status: \"processing\" }).where(eq(jobs.id, jobId))"
+        },
+        {
+          "origin": "extracted",
+          "file": "src/jobs.ts",
+          "line": 14,
+          "column": 9,
+          "function": "processJob",
+          "effectId": 2,
+          "diagnostics": [
+            "CP1001@5bd7efd8a487a92a",
+            "CP1002@3115e055a4e0f985"
+          ],
+          "text": "publishEvent(\"job.processed\", jobId)"
+        },
+        {
+          "origin": "extracted",
+          "file": "src/jobs.ts",
+          "line": 15,
+          "column": 9,
+          "function": "processJob",
+          "effectId": 3,
+          "diagnostics": [
+            "CP1002@3115e055a4e0f985"
+          ],
+          "text": "db.update(jobs).set({ status: \"done\" }).where(eq(jobs.id, jobId))"
+        }
+      ]
+    },
+    {
+      "name": "W2",
+      "function": "processJob",
+      "file": "src/jobs.ts",
+      "arguments": [
+        [
+          "jobId",
+          "job-1"
+        ]
+      ],
+      "process": "W2",
+      "origin": "extracted",
+      "tasks": 1,
+      "operations": 7,
+      "sourceRefs": [
+        {
+          "origin": "extracted",
+          "file": "src/jobs.ts",
+          "line": 9,
+          "column": 21,
+          "function": "processJob",
+          "effectId": 0,
+          "text": "db.query.jobs.findFirst({ where: eq(jobs.id, jobId) })"
+        },
+        {
+          "origin": "extracted",
+          "file": "src/jobs.ts",
+          "line": 13,
+          "column": 9,
+          "function": "processJob",
+          "effectId": 1,
+          "diagnostics": [
+            "CP1001@5bd7efd8a487a92a"
+          ],
+          "text": "db.update(jobs).set({ status: \"processing\" }).where(eq(jobs.id, jobId))"
+        },
+        {
+          "origin": "extracted",
+          "file": "src/jobs.ts",
+          "line": 14,
+          "column": 9,
+          "function": "processJob",
+          "effectId": 2,
+          "diagnostics": [
+            "CP1001@5bd7efd8a487a92a",
+            "CP1002@3115e055a4e0f985"
+          ],
+          "text": "publishEvent(\"job.processed\", jobId)"
+        },
+        {
+          "origin": "extracted",
+          "file": "src/jobs.ts",
+          "line": 15,
+          "column": 9,
+          "function": "processJob",
+          "effectId": 3,
+          "diagnostics": [
+            "CP1002@3115e055a4e0f985"
+          ],
+          "text": "db.update(jobs).set({ status: \"done\" }).where(eq(jobs.id, jobId))"
+        }
+      ]
+    }
+  ],
+  "bounds": {
+    "declared": {
+      "maxActors": 4,
+      "maxSteps": 60,
+      "maxStates": 200000,
+      "maxCrashes": 1,
+      "maxRetries": 1,
+      "maxContextSwitches": null,
+      "maxTransitions": null,
+      "maxWallMs": null,
+      "maxMemoryBytes": null
+    },
+    "partialOrderReduction": true,
+    "strategy": "dfs"
+  },
+  "exploration": {
+    "verdict": "COUNTEREXAMPLE_FOUND",
+    "complete": true,
+    "truncation": {
+      "maxStates": false,
+      "maxTransitions": false,
+      "maxWallTime": false,
+      "maxMemory": false,
+      "maxSteps": false,
+      "maxContextSwitches": false
+    },
+    "metrics": {
+      "states": 28,
+      "transitions": 33,
+      "terminalStates": 7,
+      "duplicateStateHits": 6,
+      "sleepPrunedTransitions": 1,
+      "contextPrunedTransitions": 0,
+      "maxDepth": 8,
+      "schedulesInExploredGraph": 11,
+      "visitedBytes": 14062
+    },
+    "unsupported": [],
+    "stuckStates": 0
+  },
+  "invariants": [
+    {
+      "name": "event-published-at-most-once",
+      "when": "final",
+      "formula": "externals(job-events) <= 1",
+      "description": "the downstream event for a job is published at most once",
+      "status": "violated"
+    }
+  ],
+  "counterexample": {
+    "invariant": "event-published-at-most-once",
+    "formula": "externals(job-events) <= 1",
+    "when": "final",
+    "initialTables": {
+      "jobs": [
+        {
+          "id": "job-1",
+          "status": "pending"
+        }
+      ]
+    },
+    "steps": [
+      {
+        "index": 1,
+        "actor": "W2",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "read",
+            "text": "SELECT jobs WHERE (@id = \"job-1\") → {id=\"job-1\", status=\"pending\"}",
+            "result": {
+              "id": "job-1",
+              "status": "pending"
+            },
+            "src": {
+              "origin": "extracted",
+              "file": "src/jobs.ts",
+              "line": 9,
+              "column": 21,
+              "function": "processJob",
+              "effectId": 0,
+              "text": "db.query.jobs.findFirst({ where: eq(jobs.id, jobId) })"
+            }
+          },
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "local",
+            "text": "CHECK (!_row1 or (_row1.status != \"pending\")) → false",
+            "result": false,
+            "src": {
+              "origin": "extracted",
+              "file": "src/jobs.ts",
+              "line": 10,
+              "column": 7,
+              "function": "processJob",
+              "text": "!job || job.status !== \"pending\""
+            }
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "actor": "W1",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "read",
+            "text": "SELECT jobs WHERE (@id = \"job-1\") → {id=\"job-1\", status=\"pending\"}",
+            "result": {
+              "id": "job-1",
+              "status": "pending"
+            },
+            "src": {
+              "origin": "extracted",
+              "file": "src/jobs.ts",
+              "line": 9,
+              "column": 21,
+              "function": "processJob",
+              "effectId": 0,
+              "text": "db.query.jobs.findFirst({ where: eq(jobs.id, jobId) })"
+            }
+          },
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "local",
+            "text": "CHECK (!_row1 or (_row1.status != \"pending\")) → false",
+            "result": false,
+            "src": {
+              "origin": "extracted",
+              "file": "src/jobs.ts",
+              "line": 10,
+              "column": 7,
+              "function": "processJob",
+              "text": "!job || job.status !== \"pending\""
+            }
+          }
+        ]
+      },
+      {
+        "index": 3,
+        "actor": "W1",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "write",
+            "text": "UPDATE jobs SET status = \"processing\" WHERE (@id = \"job-1\") → 1 row",
+            "result": 1,
+            "src": {
+              "origin": "extracted",
+              "file": "src/jobs.ts",
+              "line": 13,
+              "column": 9,
+              "function": "processJob",
+              "effectId": 1,
+              "diagnostics": [
+                "CP1001@5bd7efd8a487a92a"
+              ],
+              "text": "db.update(jobs).set({ status: \"processing\" }).where(eq(jobs.id, jobId))"
+            }
+          }
+        ]
+      },
+      {
+        "index": 4,
+        "actor": "W1",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "external",
+            "text": "EXTERNAL job-events key=\"job-1\"",
+            "src": {
+              "origin": "extracted",
+              "file": "src/jobs.ts",
+              "line": 14,
+              "column": 9,
+              "function": "processJob",
+              "effectId": 2,
+              "diagnostics": [
+                "CP1001@5bd7efd8a487a92a",
+                "CP1002@3115e055a4e0f985"
+              ],
+              "text": "publishEvent(\"job.processed\", jobId)"
+            }
+          }
+        ]
+      },
+      {
+        "index": 5,
+        "actor": "W1",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "write",
+            "text": "UPDATE jobs SET status = \"done\" WHERE (@id = \"job-1\") → 1 row",
+            "result": 1,
+            "src": {
+              "origin": "extracted",
+              "file": "src/jobs.ts",
+              "line": 15,
+              "column": 9,
+              "function": "processJob",
+              "effectId": 3,
+              "diagnostics": [
+                "CP1002@3115e055a4e0f985"
+              ],
+              "text": "db.update(jobs).set({ status: \"done\" }).where(eq(jobs.id, jobId))"
+            }
+          },
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "local",
+            "text": "return (success)"
+          }
+        ]
+      },
+      {
+        "index": 6,
+        "actor": "W2",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "write",
+            "text": "UPDATE jobs SET status = \"processing\" WHERE (@id = \"job-1\") → 1 row",
+            "result": 1,
+            "src": {
+              "origin": "extracted",
+              "file": "src/jobs.ts",
+              "line": 13,
+              "column": 9,
+              "function": "processJob",
+              "effectId": 1,
+              "diagnostics": [
+                "CP1001@5bd7efd8a487a92a"
+              ],
+              "text": "db.update(jobs).set({ status: \"processing\" }).where(eq(jobs.id, jobId))"
+            }
+          }
+        ]
+      },
+      {
+        "index": 7,
+        "actor": "W2",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "external",
+            "text": "EXTERNAL job-events key=\"job-1\"",
+            "src": {
+              "origin": "extracted",
+              "file": "src/jobs.ts",
+              "line": 14,
+              "column": 9,
+              "function": "processJob",
+              "effectId": 2,
+              "diagnostics": [
+                "CP1001@5bd7efd8a487a92a",
+                "CP1002@3115e055a4e0f985"
+              ],
+              "text": "publishEvent(\"job.processed\", jobId)"
+            }
+          }
+        ]
+      },
+      {
+        "index": 8,
+        "actor": "W2",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "write",
+            "text": "UPDATE jobs SET status = \"done\" WHERE (@id = \"job-1\") → 1 row",
+            "result": 1,
+            "src": {
+              "origin": "extracted",
+              "file": "src/jobs.ts",
+              "line": 15,
+              "column": 9,
+              "function": "processJob",
+              "effectId": 3,
+              "diagnostics": [
+                "CP1002@3115e055a4e0f985"
+              ],
+              "text": "db.update(jobs).set({ status: \"done\" }).where(eq(jobs.id, jobId))"
+            }
+          },
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "local",
+            "text": "return (success)"
+          }
+        ]
+      }
+    ],
+    "finalState": {
+      "tables": {
+        "jobs": [
+          {
+            "id": "job-1",
+            "status": "done"
+          }
+        ]
+      },
+      "actors": [
+        [
+          "W1",
+          "ok"
+        ],
+        [
+          "W2",
+          "ok"
+        ]
+      ],
+      "externalEffects": [
+        "job-events by W1 key=\"job-1\"",
+        "job-events by W2 key=\"job-1\""
+      ],
+      "terms": [
+        {
+          "term": "externals(job-events)",
+          "value": 2
+        }
+      ],
+      "quiescent": true
+    },
+    "contextSwitches": 2,
+    "minimized": true,
+    "originalLength": 8
+  },
+  "evidence": {
+    "level": "postgres-confirmed-schedule",
+    "summary": "the schedule was replayed on PostgreSQL: all 6 database outcomes matched the model's predictions and the final committed rows are identical; the invariant also reads actor outcomes, external effects or in-process state, which the replay derives from the model's application logic given these database results (not observed in a running application)"
+  },
+  "runtime": {
+    "performed": true,
+    "status": "confirmed",
+    "postgresVersion": "postgres (PostgreSQL) 17.11 (Homebrew)",
+    "observations": [
+      {
+        "transition": 1,
+        "actor": "W2",
+        "sql": "SELECT row_to_json(t) FROM (SELECT * FROM \"jobs\" WHERE (\"id\" = 'job-1') ORDER BY \"id\" LIMIT 1) t;",
+        "predicted": "{id=\"job-1\", status=\"pending\"}",
+        "observed": "{id=\"job-1\", status=\"pending\"}",
+        "agree": true
+      },
+      {
+        "transition": 2,
+        "actor": "W1",
+        "sql": "SELECT row_to_json(t) FROM (SELECT * FROM \"jobs\" WHERE (\"id\" = 'job-1') ORDER BY \"id\" LIMIT 1) t;",
+        "predicted": "{id=\"job-1\", status=\"pending\"}",
+        "observed": "{id=\"job-1\", status=\"pending\"}",
+        "agree": true
+      },
+      {
+        "transition": 3,
+        "actor": "W1",
+        "sql": "WITH r AS (UPDATE \"jobs\" SET \"status\" = 'processing' WHERE (\"id\" = 'job-1') RETURNING 1) SELECT count(*) FROM r;",
+        "predicted": "1 row(s)",
+        "observed": "1 row(s)",
+        "agree": true
+      },
+      {
+        "transition": 5,
+        "actor": "W1",
+        "sql": "WITH r AS (UPDATE \"jobs\" SET \"status\" = 'done' WHERE (\"id\" = 'job-1') RETURNING 1) SELECT count(*) FROM r;",
+        "predicted": "1 row(s)",
+        "observed": "1 row(s)",
+        "agree": true
+      },
+      {
+        "transition": 6,
+        "actor": "W2",
+        "sql": "WITH r AS (UPDATE \"jobs\" SET \"status\" = 'processing' WHERE (\"id\" = 'job-1') RETURNING 1) SELECT count(*) FROM r;",
+        "predicted": "1 row(s)",
+        "observed": "1 row(s)",
+        "agree": true
+      },
+      {
+        "transition": 8,
+        "actor": "W2",
+        "sql": "WITH r AS (UPDATE \"jobs\" SET \"status\" = 'done' WHERE (\"id\" = 'job-1') RETURNING 1) SELECT count(*) FROM r;",
+        "predicted": "1 row(s)",
+        "observed": "1 row(s)",
+        "agree": true
+      }
+    ],
+    "sqlstates": [],
+    "tablesAgree": true,
+    "modelTables": {
+      "jobs": [
+        {
+          "id": "job-1",
+          "status": "done"
+        }
+      ]
+    },
+    "postgresTables": {
+      "jobs": [
+        {
+          "id": "job-1",
+          "status": "done"
+        }
+      ]
+    },
+    "sqlOrigin": {
+      "W1": "model-derived (extracted from source)",
+      "W2": "model-derived (extracted from source)"
+    },
+    "note": "Each actor ran on its own PostgreSQL connection (a psql process) against a private, disposable cluster; the model's schedule decided which session sent its next statement, and a statement counts as blocked only when the server reported a lock wait. Deadlock victim choice depends on PostgreSQL's deadlock timer and is steered with delays. Not exercised: the original TypeScript/Drizzle code, application-level retries, external services."
+  },
+  "assumptions": [
+    "database default isolation: read-committed (PostgreSQL semantics, see docs/phase6/POSTGRES-ISOLATION.md)",
+    "a database statement is atomic unless it must wait for another transaction; waiting statements resume with their original snapshot",
+    "autocommit (root `db`) statements are single-statement transactions at the default isolation level",
+    "local computation is not a scheduling point; it is folded into the preceding transition",
+    "rows are read in primary-key order for LIMIT 1 (the declared programs and generated SQL both use ORDER BY the primary key)",
+    "tasks of different actors never share a transaction, connection or event loop; actors listed with the same process share in-process variables and crash together",
+    "a process crash rolls back open transactions and loses local state; committed data and performed external effects remain",
+    "actor W1: relational query `findFirst` assumed to be `SELECT ... LIMIT 1`",
+    "actor W1: no orderBy: the first row in primary-key order is taken",
+    "actor W1: payload of `publishEvent` is not an object literal and is modeled as empty",
+    "actor W2: relational query `findFirst` assumed to be `SELECT ... LIMIT 1`",
+    "actor W2: no orderBy: the first row in primary-key order is taken",
+    "actor W2: payload of `publishEvent` is not an object literal and is modeled as empty"
+  ],
+  "diagnostics": [
+    {
+      "code": "CP7001",
+      "severity": "warning",
+      "message": "invariant `event-published-at-most-once` can be violated by a bounded schedule of 8 transitions (2 context switches); evidence: postgres-confirmed-schedule"
+    }
+  ]
+}

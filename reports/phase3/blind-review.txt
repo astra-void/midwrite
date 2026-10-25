@@ -1,0 +1,34 @@
+Blind automated re-review (separate model session, same model family; NOT an independent human review).
+Sample: 18 findings, deterministic stratified selection (first by fingerprint in each class): midday 5 TP, 5 IR, 4 FP; saas-starter 2 TP, 2 IR.
+The reviewer saw the findings and the source only, not the Phase 2 labels.
+
+  n project       finding              code    Phase 2 label   blind review    agree
+  1 midday        7152316730e65b31-2   CP1001  false-positive  false-positive  yes
+  2 midday        30b45470f9206870     CP1002  false-positive  intended-risk   NO
+  3 midday        07eca3c2866c3e58     CP1001  intended-risk   intended-risk   yes
+  4 saas-starter  16189ff765b0a14f     CP1005  intended-risk   intended-risk   yes
+  5 saas-starter  18738dffc8a36517     CP1004  true-positive   true-positive   yes
+  6 midday        1158bbb561efdd18     CP1001  true-positive   false-positive  NO
+  7 midday        00cf4d5e2d54ce6b     CP1001  intended-risk   intended-risk   yes
+  8 midday        204f4ab8e0eff974     CP1002  true-positive   intended-risk   NO
+  9 midday        d6cc779a0da27f5a     CP1002  false-positive  intended-risk   NO
+ 10 midday        de2c2b657c4a7d57     CP1005  false-positive  intended-risk   NO
+ 11 midday        00cf4d5e2d54ce6b-2   CP1001  intended-risk   intended-risk   yes
+ 12 midday        04d6562eb1e4c94b     CP1001  intended-risk   intended-risk   yes
+ 13 saas-starter  159fa7e04a352475     CP1004  true-positive   true-positive   yes
+ 14 midday        09b879a17dc26ef1     CP1004  true-positive   true-positive   yes
+ 15 saas-starter  195b9868a6374702     CP1004  intended-risk   intended-risk   yes
+ 16 midday        282b3d4d6e290aef     CP1001  true-positive   intended-risk   NO
+ 17 midday        1706a3e9bf495af0     CP1001  intended-risk   intended-risk   yes
+ 18 midday        17dd88ef91007e7c     CP1001  true-positive   intended-risk   NO
+
+exact agreement: 11/18
+Cohen's kappa: 0.38
+agreement on 'likely bug' vs not: 14/18
+confusion (Phase 2 label -> blind review):
+   ('false-positive', 'false-positive') 1
+   ('false-positive', 'intended-risk') 3
+   ('intended-risk', 'intended-risk') 7
+   ('true-positive', 'false-positive') 1
+   ('true-positive', 'intended-risk') 3
+   ('true-positive', 'true-positive') 3

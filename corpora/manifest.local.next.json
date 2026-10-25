@@ -1,0 +1,21 @@
+{
+  "$comment": "Same projects as manifest.local.json, with configurations written AFTER the Phase 2 review to exercise getDb() handles, bestEffort/firstArgument and exclude. Not an independent measurement.",
+  "projects": [
+    {
+      "name": "school-ledger",
+      "category": "nextjs-drizzle",
+      "origin": "local",
+      "revision": "4b97f34",
+      "path": "/Users/returnf4lse/Desktop/Workspace/nextjs/school-ledger",
+      "config": "configs/school-ledger.next.json"
+    },
+    {
+      "name": "unnamed-ai-project",
+      "category": "nextjs-drizzle-http",
+      "origin": "local",
+      "revision": "39fcfc7",
+      "path": "/Users/returnf4lse/Desktop/Workspace/nextjs/unnamed-ai-project",
+      "config": "configs/unnamed-ai-project.json"
+    }
+  ]
+}

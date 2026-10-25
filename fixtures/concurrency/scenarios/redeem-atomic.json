@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "name": "redeem-atomic",
+  "description": "INSERT ... ON CONFLICT DO NOTHING keyed by the code (the primary key id = code).",
+  "extraction": {
+    "root": "../project"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "redemptions",
+        "columns": [
+          {
+            "name": "id",
+            "type": "text",
+            "notNull": true
+          },
+          {
+            "name": "code",
+            "type": "text"
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ]
+      }
+    ],
+    "initialState": {
+      "redemptions": []
+    }
+  },
+  "actors": [
+    {
+      "name": "A",
+      "function": "redeemCodeAtomically",
+      "file": "src/redeem.ts",
+      "arguments": [
+        "SAVE10"
+      ]
+    },
+    {
+      "name": "B",
+      "function": "redeemCodeAtomically",
+      "file": "src/redeem.ts",
+      "arguments": [
+        "SAVE10"
+      ]
+    }
+  ],
+  "bounds": {
+    "maxSteps": 40
+  },
+  "invariants": [
+    {
+      "name": "redeemed-at-most-once",
+      "when": "final",
+      "assert": {
+        "le": [
+          {
+            "count": {
+              "table": "redemptions",
+              "where": {
+                "code": "SAVE10"
+              }
+            }
+          },
+          1
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "databaseReceivers": ["db"],
+  "transactionMethods": ["transaction"],
+  "externalEffects": [
+    { "function": "fetch", "category": "http-request" }
+  ]
+}

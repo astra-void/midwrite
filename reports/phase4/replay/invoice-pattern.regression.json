@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "kind": "commitrift.regression",
+  "tool": {
+    "name": "commitrift",
+    "version": "0.1.0"
+  },
+  "harness": "invoice-pattern",
+  "baselineManifestHash": "01898d7085caa417",
+  "currentManifestHash": "01898d7085caa417",
+  "source": {
+    "revision": null,
+    "dirty": null
+  },
+  "environment": {
+    "os": "macos",
+    "arch": "aarch64",
+    "postgres": "postgres (PostgreSQL) 17.11 (Homebrew)",
+    "runtime": "bun 1.3.3",
+    "networkIsolation": "sandbox-exec: IP networking denied; Unix sockets and file writes limited to the replay directory",
+    "isolation": "sandbox-exec",
+    "database": "ephemeral-postgres: private cluster, Unix socket only (listen_addresses=''), trust authentication for a local test user, fresh database per run, deleted afterwards",
+    "environmentVariables": [
+      "COMMITRIFT_REPLAY",
+      "COMMITRIFT_REPLAY_EVENT_LOG",
+      "COMMITRIFT_REPLAY_INPUT",
+      "COMMITRIFT_REPLAY_PG_DATABASE",
+      "COMMITRIFT_REPLAY_PG_SOCKET",
+      "COMMITRIFT_REPLAY_PG_USER",
+      "COMMITRIFT_REPLAY_PROTOCOL",
+      "COMMITRIFT_REPLAY_ROOT",
+      "COMMITRIFT_REPLAY_SCENARIO",
+      "COMMITRIFT_REPLAY_SOCKET",
+      "HOME",
+      "LANG",
+      "NO_COLOR",
+      "PATH",
+      "TMPDIR"
+    ]
+  },
+  "entries": [
+    {
+      "key": "invoice-pattern/kill-after-status-commit",
+      "findingId": "32607db8e8375329",
+      "traceId": "tr-be731e2287dba016",
+      "code": "CP1001",
+      "failureMode": "processKill",
+      "checkpoint": {
+        "name": "after-db-commit",
+        "occurrence": 1,
+        "label": "invoices"
+      },
+      "baseline": "RUNTIME_REPRODUCED",
+      "current": "RUNTIME_REPRODUCED",
+      "status": "stillReproduced",
+      "reproducedRuns": 1,
+      "runs": 1,
+      "violatedInvariants": [
+        "finalized-invoice-has-generation-job"
+      ]
+    },
+    {
+      "key": "invoice-pattern/enqueue-fails-after-status-commit",
+      "findingId": "32607db8e8375329",
+      "traceId": "tr-be731e2287dba016",
+      "code": "CP1001",
+      "failureMode": "exception",
+      "checkpoint": {
+        "name": "before-event-publish",
+        "occurrence": 1,
+        "label": "generate-invoice"
+      },
+      "baseline": "RUNTIME_REPRODUCED",
+      "current": "RUNTIME_REPRODUCED",
+      "status": "stillReproduced",
+      "reproducedRuns": 1,
+      "runs": 1,
+      "violatedInvariants": [
+        "finalized-invoice-has-generation-job"
+      ]
+    },
+    {
+      "key": "invoice-pattern/client-retry-repairs",
+      "findingId": "32607db8e8375329",
+      "traceId": "tr-be731e2287dba016",
+      "code": "CP1001",
+      "failureMode": "processKill",
+      "checkpoint": {
+        "name": "after-db-commit",
+        "occurrence": 1,
+        "label": "invoices"
+      },
+      "baseline": "RUNTIME_REPRODUCED",
+      "current": "RUNTIME_REPRODUCED",
+      "status": "stillReproduced",
+      "reproducedRuns": 1,
+      "runs": 1,
+      "violatedInvariants": [
+        "finalized-invoice-has-generation-job"
+      ]
+    }
+  ],
+  "summary": {
+    "cases": 3,
+    "stillReproduced": 3,
+    "noLongerReproduced": 0,
+    "newlyReproduced": 0,
+    "stillNotReproduced": 0,
+    "inconclusive": 0,
+    "notExecuted": 0,
+    "notInBaseline": 0
+  }
+}

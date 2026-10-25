@@ -1,0 +1,1140 @@
+//! Differential validation against a real PostgreSQL.
+//!
+//! The oracle replays a model *schedule* in lockstep against a disposable,
+//! private PostgreSQL cluster: for every transition the model executed, the
+//! physical actions it implies (`BEGIN`, a statement, `COMMIT`, a crash...)
+//! are sent to real server sessions (one `psql` process per session, so each
+//! actor owns a separate connection), and what PostgreSQL does (result,
+//! SQLSTATE, whether the statement waits for a lock and for whom) is compared
+//! with what the model predicted. Nothing is forced into the model's
+//! categories: the first disagreement is recorded as it was observed.
+//!
+//! Coordination is explicit, not timing-based: the schedule decides which
+//! session sends its next statement; a statement is classified as *blocked*
+//! only when the server's own wait state says so (`pg_stat_activity`,
+//! `pg_blocking_pids`). The only timing dependence is PostgreSQL's deadlock
+//! detector, which the oracle steers by delaying a statement relative to the
+//! deadlock timeout (documented in `docs/phase6/POSTGRES-VALIDATION.md`).
+
+use std::collections::BTreeMap;
+use std::io::{BufRead, BufReader, Write};
+use std::path::Path;
+use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, channel};
+use std::time::{Duration, Instant};
+
+use commitrift_replay::postgres::{Binaries, Cluster, USER};
+use commitrift_replay::safety::ReplayRoot;
+use serde::{Deserialize, Serialize};
+
+use crate::engine::{Action, Expect, Recorder, apply, initial_state};
+use crate::exec::StmtResult;
+use crate::ir::{Conn, LockMode, OnConflict, Op, Origin, StmtKind};
+use crate::model::Model;
+pub use crate::oracle_types::Observation;
+use crate::state::{ClosedStmt, TKind, Transition};
+use crate::value::{BinOp, Expr, Row, Value};
+
+/// PostgreSQL's `deadlock_timeout` used by the oracle's sessions.
+pub const DEADLOCK_TIMEOUT_MS: u64 = 500;
+const PORT: &str = "5432";
+
+// ---------------------------------------------------------------------
+// SQL generation
+// ---------------------------------------------------------------------
+
+fn quote_ident(name: &str) -> String {
+    format!("\"{}\"", name.replace('"', "\"\""))
+}
+
+fn quote_literal(text: &str) -> String {
+    format!("'{}'", text.replace('\'', "''"))
+}
+
+fn value_sql(v: &Value) -> Result<String, String> {
+    Ok(match v {
+        Value::Null => "NULL".into(),
+        Value::Bool(b) => if *b { "TRUE" } else { "FALSE" }.into(),
+        Value::Int(n) => n.to_string(),
+        Value::Str(s) => quote_literal(s),
+        Value::Row(_) => return Err("a row value cannot be used in SQL".into()),
+    })
+}
+
+pub fn expr_sql(e: &Expr) -> Result<String, String> {
+    Ok(match e {
+        Expr::Lit(v) => value_sql(v)?,
+        Expr::Col(c) => quote_ident(c),
+        Expr::Not(x) => format!("(NOT {})", expr_sql(x)?),
+        Expr::IsNull(x) => format!("({} IS NULL)", expr_sql(x)?),
+        Expr::Bin(op, a, b) => {
+            let sym = match op {
+                BinOp::Add => "+",
+                BinOp::Sub => "-",
+                BinOp::Mul => "*",
+                BinOp::Eq => "=",
+                BinOp::Ne => "<>",
+                BinOp::Lt => "<",
+                BinOp::Le => "<=",
+                BinOp::Gt => ">",
+                BinOp::Ge => ">=",
+                BinOp::And => "AND",
+                BinOp::Or => "OR",
+            };
+            format!("({} {sym} {})", expr_sql(a)?, expr_sql(b)?)
+        }
+        Expr::Local(n) => return Err(format!("unresolved local `{n}`")),
+        Expr::Field(..) => return Err("property access in SQL".into()),
+        Expr::Unknown(d) => return Err(format!("unsupported expression: {d}")),
+    })
+}
+
+fn pk_order(model: &Model, table: u16) -> String {
+    let t = model.schema.table(table);
+    let cols: Vec<String> = if t.primary_key.is_empty() {
+        t.columns.iter().map(|c| quote_ident(&c.name)).collect()
+    } else {
+        t.primary_key.iter().map(|c| quote_ident(c)).collect()
+    };
+    cols.join(", ")
+}
+
+/// The SQL text a statement is sent as. Reads wrap their result so that the
+/// oracle can parse it uniformly (a JSON row, or a count).
+pub fn stmt_sql(model: &Model, stmt: &ClosedStmt) -> Result<String, String> {
+    let name = |t: u16| quote_ident(&model.schema.table(t).name);
+    Ok(match stmt {
+        ClosedStmt::Select { table, pred, lock } => format!(
+            "SELECT row_to_json(t) FROM (SELECT * FROM {} WHERE {} ORDER BY {} LIMIT 1{}) t;",
+            name(*table),
+            expr_sql(pred)?,
+            pk_order(model, *table),
+            match lock {
+                LockMode::None => "",
+                LockMode::ForUpdate => " FOR UPDATE",
+                LockMode::SkipLocked => " FOR UPDATE SKIP LOCKED",
+                LockMode::NoWait => " FOR UPDATE NOWAIT",
+            }
+        ),
+        ClosedStmt::Count { table, pred } => {
+            format!(
+                "SELECT count(*) FROM {} WHERE {};",
+                name(*table),
+                expr_sql(pred)?
+            )
+        }
+        ClosedStmt::Update { table, pred, set } => {
+            let sets: Result<Vec<String>, String> = set
+                .iter()
+                .map(|(c, e)| Ok(format!("{} = {}", quote_ident(c), expr_sql(e)?)))
+                .collect();
+            format!(
+                "WITH r AS (UPDATE {} SET {} WHERE {} RETURNING 1) SELECT count(*) FROM r;",
+                name(*table),
+                sets?.join(", "),
+                expr_sql(pred)?
+            )
+        }
+        ClosedStmt::Insert {
+            table,
+            values,
+            on_conflict,
+        } => {
+            let cols: Vec<String> = values.keys().map(|c| quote_ident(c)).collect();
+            let vals: Result<Vec<String>, String> = values.values().map(value_sql).collect();
+            format!(
+                "WITH r AS (INSERT INTO {} ({}) VALUES ({}){} RETURNING 1) SELECT count(*) FROM r;",
+                name(*table),
+                cols.join(", "),
+                vals?.join(", "),
+                if *on_conflict == OnConflict::DoNothing {
+                    " ON CONFLICT DO NOTHING"
+                } else {
+                    ""
+                }
+            )
+        }
+        ClosedStmt::Delete { table, pred } => format!(
+            "WITH r AS (DELETE FROM {} WHERE {} RETURNING 1) SELECT count(*) FROM r;",
+            name(*table),
+            expr_sql(pred)?
+        ),
+    })
+}
+
+fn value_type(v: &Value) -> Option<&'static str> {
+    match v {
+        Value::Int(_) => Some("bigint"),
+        Value::Str(_) => Some("text"),
+        Value::Bool(_) => Some("boolean"),
+        _ => None,
+    }
+}
+
+fn expr_type(e: &Expr, args: &BTreeMap<String, Value>) -> Option<&'static str> {
+    match e {
+        Expr::Lit(v) => value_type(v),
+        Expr::Local(n) => args.get(n).and_then(value_type),
+        Expr::Bin(BinOp::Add | BinOp::Sub | BinOp::Mul, ..) => Some("bigint"),
+        _ => None,
+    }
+}
+
+fn predicate_hints(
+    e: &Expr,
+    args: &BTreeMap<String, Value>,
+    hint: &mut dyn FnMut(&str, Option<&'static str>),
+) {
+    match e {
+        Expr::Bin(op, a, b) => {
+            if matches!(
+                op,
+                BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge
+            ) {
+                if let Expr::Col(c) = &**a {
+                    hint(c, expr_type(b, args));
+                }
+                if let Expr::Col(c) = &**b {
+                    hint(c, expr_type(a, args));
+                }
+            }
+            predicate_hints(a, args, hint);
+            predicate_hints(b, args, hint);
+        }
+        Expr::Not(x) | Expr::IsNull(x) => predicate_hints(x, args, hint),
+        _ => {}
+    }
+}
+
+/// Column types for the oracle's DDL: declared, else inferred from initial
+/// rows, literals and actor arguments, else `text`.
+fn column_types(model: &Model) -> Vec<Vec<&'static str>> {
+    let mut out = Vec::new();
+    for (ti, t) in model.schema.tables.iter().enumerate() {
+        let mut types: BTreeMap<String, &'static str> = BTreeMap::new();
+        for c in &t.columns {
+            match c.sql_type.as_deref() {
+                Some("int") => {
+                    types.insert(c.name.clone(), "bigint");
+                }
+                Some("text") => {
+                    types.insert(c.name.clone(), "text");
+                }
+                Some("bool") => {
+                    types.insert(c.name.clone(), "boolean");
+                }
+                _ => {}
+            }
+        }
+        let mut hint = |col: &str, ty: Option<&'static str>| {
+            if let Some(ty) = ty {
+                types.entry(col.to_owned()).or_insert(ty);
+            }
+        };
+        for row in &model.initial_rows[ti] {
+            for (c, v) in row {
+                hint(c, value_type(v));
+            }
+        }
+        for actor in &model.actors {
+            let args: BTreeMap<String, Value> = actor.arguments.iter().cloned().collect();
+            for step in actor.codes.iter().flatten() {
+                let Op::Db { stmt } = &step.op else { continue };
+                if model.schema.index(stmt.kind.table()) != Some(ti as u16) {
+                    continue;
+                }
+                match &stmt.kind {
+                    StmtKind::Insert { values, .. } => {
+                        for (c, e) in values {
+                            hint(c, expr_type(e, &args));
+                        }
+                    }
+                    StmtKind::Update { pred, set, .. } => {
+                        for (c, e) in set {
+                            hint(c, expr_type(e, &args));
+                        }
+                        predicate_hints(pred, &args, &mut hint);
+                    }
+                    StmtKind::Select { pred, .. }
+                    | StmtKind::SelectCount { pred, .. }
+                    | StmtKind::Delete { pred, .. } => predicate_hints(pred, &args, &mut hint),
+                }
+            }
+        }
+        out.push(
+            t.columns
+                .iter()
+                .map(|c| types.get(&c.name).copied().unwrap_or("text"))
+                .collect(),
+        );
+    }
+    out
+}
+
+fn ddl(model: &Model) -> Result<String, String> {
+    let types = column_types(model);
+    let mut out = String::new();
+    for (ti, t) in model.schema.tables.iter().enumerate() {
+        let mut parts: Vec<String> = Vec::new();
+        for (ci, c) in t.columns.iter().enumerate() {
+            let not_null = c.not_null || t.primary_key.contains(&c.name);
+            parts.push(format!(
+                "{} {}{}",
+                quote_ident(&c.name),
+                types[ti][ci],
+                if not_null { " NOT NULL" } else { "" }
+            ));
+        }
+        if !t.primary_key.is_empty() {
+            parts.push(format!(
+                "PRIMARY KEY ({})",
+                t.primary_key
+                    .iter()
+                    .map(|c| quote_ident(c))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+        for u in &t.unique {
+            parts.push(format!(
+                "UNIQUE ({})",
+                u.iter()
+                    .map(|c| quote_ident(c))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+        for check in &t.checks {
+            parts.push(format!("CHECK {}", expr_sql(check)?));
+        }
+        out.push_str(&format!(
+            "CREATE TABLE {} ({});\n",
+            quote_ident(&t.name),
+            parts.join(", ")
+        ));
+    }
+    Ok(out)
+}
+
+fn seed_sql(model: &Model) -> Result<String, String> {
+    let mut out = String::new();
+    let names: Vec<String> = model
+        .schema
+        .tables
+        .iter()
+        .map(|t| quote_ident(&t.name))
+        .collect();
+    out.push_str(&format!("TRUNCATE {};\n", names.join(", ")));
+    for (ti, t) in model.schema.tables.iter().enumerate() {
+        for row in &model.initial_rows[ti] {
+            let cols: Vec<String> = row.keys().map(|c| quote_ident(c)).collect();
+            let vals: Result<Vec<String>, String> = row.values().map(value_sql).collect();
+            out.push_str(&format!(
+                "INSERT INTO {} ({}) VALUES ({});\n",
+                quote_ident(&t.name),
+                cols.join(", "),
+                vals?.join(", ")
+            ));
+        }
+    }
+    Ok(out)
+}
+
+// ---------------------------------------------------------------------
+// Sessions
+// ---------------------------------------------------------------------
+
+struct Session {
+    child: Child,
+    stdin: ChildStdin,
+    rx: Receiver<String>,
+    pid: i64,
+    sent: u64,
+    inflight: Option<(String, Vec<String>)>,
+    waiting_since: Option<Instant>,
+    actor: Option<u16>,
+}
+
+impl Session {
+    fn open(
+        bins: &Binaries,
+        socket_dir: &Path,
+        db: &str,
+        default_iso: Option<&str>,
+        actor: Option<u16>,
+    ) -> Result<Self, String> {
+        let mut command = Command::new("sh");
+        command
+            .arg("-c")
+            .arg("exec \"$0\" \"$@\" 2>&1")
+            .arg(bins.dir.join("psql"))
+            .args([
+                "-X",
+                "-q",
+                "-A",
+                "-t",
+                "-F",
+                "\u{1f}",
+                "-v",
+                "ON_ERROR_STOP=0",
+            ])
+            .arg("-h")
+            .arg(socket_dir)
+            .args(["-p", PORT, "-U", USER, "-d", db])
+            .env_clear()
+            .env("LC_ALL", "C")
+            .env("PGCONNECT_TIMEOUT", "10")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null());
+        if let Some(path) = std::env::var_os("PATH") {
+            command.env("PATH", path);
+        }
+        let mut child = command
+            .spawn()
+            .map_err(|e| format!("cannot start psql: {e}"))?;
+        let stdin = child.stdin.take().expect("piped stdin");
+        let stdout = child.stdout.take().expect("piped stdout");
+        let (tx, rx) = channel();
+        std::thread::spawn(move || {
+            for line in BufReader::new(stdout).lines() {
+                match line {
+                    Ok(l) => {
+                        if tx.send(l).is_err() {
+                            break;
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+        let mut s = Self {
+            child,
+            stdin,
+            rx,
+            pid: 0,
+            sent: 0,
+            inflight: None,
+            waiting_since: None,
+            actor,
+        };
+        let mut init = String::from("\\set VERBOSITY verbose\n");
+        init.push_str(&format!(
+            "SET deadlock_timeout = '{DEADLOCK_TIMEOUT_MS}ms';\n"
+        ));
+        if let Some(iso) = default_iso {
+            init.push_str(&format!("SET default_transaction_isolation = '{iso}';\n"));
+        }
+        init.push_str("SELECT pg_backend_pid();\n");
+        let lines = s.exec(&init, Duration::from_secs(10))?;
+        s.pid = lines
+            .iter()
+            .find_map(|l| l.trim().parse::<i64>().ok())
+            .ok_or_else(|| format!("no backend pid from psql: {lines:?}"))?;
+        Ok(s)
+    }
+
+    fn send(&mut self, text: &str) -> Result<(), String> {
+        self.sent += 1;
+        let sentinel = format!("@@END-{}@@", self.sent);
+        self.inflight = Some((sentinel.clone(), Vec::new()));
+        self.waiting_since = None;
+        let payload = format!("{text}\n\\echo {sentinel}\n");
+        self.stdin
+            .write_all(payload.as_bytes())
+            .and_then(|()| self.stdin.flush())
+            .map_err(|e| format!("cannot write to psql: {e}"))
+    }
+
+    /// Wait up to `wait` for the in-flight statement; its output lines.
+    fn try_complete(&mut self, wait: Duration) -> Option<Vec<String>> {
+        let deadline = Instant::now() + wait;
+        loop {
+            let (sentinel, _) = self.inflight.as_ref()?;
+            let sentinel = sentinel.clone();
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            match self.rx.recv_timeout(remaining) {
+                Ok(line) => {
+                    if line == sentinel {
+                        return self.inflight.take().map(|(_, buf)| buf);
+                    }
+                    if let Some((_, buf)) = &mut self.inflight {
+                        buf.push(line);
+                    }
+                }
+                Err(RecvTimeoutError::Timeout) => return None,
+                Err(RecvTimeoutError::Disconnected) => {
+                    return self.inflight.take().map(|(_, mut buf)| {
+                        buf.push("ERROR:  08006: connection to psql lost".into());
+                        buf
+                    });
+                }
+            }
+        }
+    }
+
+    fn exec(&mut self, text: &str, timeout: Duration) -> Result<Vec<String>, String> {
+        self.send(text)?;
+        self.try_complete(timeout)
+            .ok_or_else(|| format!("timeout waiting for PostgreSQL: {text}"))
+    }
+
+    fn kill(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+impl Drop for Session {
+    fn drop(&mut self) {
+        self.kill();
+    }
+}
+
+/// SQLSTATE of the first `ERROR:` line of verbose psql output.
+fn error_code(lines: &[String]) -> Option<String> {
+    lines.iter().find_map(|l| {
+        let rest = l.strip_prefix("ERROR:")?;
+        let rest = rest.trim_start();
+        let code = rest.split(':').next()?.trim();
+        (code.len() == 5).then(|| code.to_owned())
+    })
+}
+
+fn data_lines(lines: &[String]) -> Vec<&String> {
+    lines
+        .iter()
+        .filter(|l| {
+            !l.is_empty()
+                && !l.starts_with("ERROR:")
+                && !l.starts_with("WARNING:")
+                && !l.starts_with("NOTICE:")
+                && !l.starts_with("LOCATION:")
+                && !l.starts_with("DETAIL:")
+                && !l.starts_with("HINT:")
+                && !l.starts_with("CONTEXT:")
+                && !l.starts_with("STATEMENT:")
+                && !l.starts_with("QUERY:")
+        })
+        .collect()
+}
+
+fn json_to_value(v: &serde_json::Value) -> Value {
+    match v {
+        serde_json::Value::Null => Value::Null,
+        serde_json::Value::Bool(b) => Value::Bool(*b),
+        serde_json::Value::Number(n) => Value::Int(n.as_i64().unwrap_or(i64::MAX)),
+        serde_json::Value::String(s) => Value::Str(s.clone()),
+        serde_json::Value::Object(o) => Value::Row(
+            o.iter()
+                .map(|(k, v)| (k.clone(), json_to_value(v)))
+                .collect(),
+        ),
+        serde_json::Value::Array(_) => Value::Null,
+    }
+}
+
+fn parse_result(stmt: &ClosedStmt, lines: &[String]) -> Result<StmtResult, String> {
+    let data = data_lines(lines);
+    match stmt {
+        ClosedStmt::Select { .. } => match data.as_slice() {
+            [] => Ok(StmtResult::Row(None)),
+            [one] => {
+                let json: serde_json::Value =
+                    serde_json::from_str(one).map_err(|e| format!("bad row JSON `{one}`: {e}"))?;
+                match json_to_value(&json) {
+                    Value::Row(r) => Ok(StmtResult::Row(Some(r))),
+                    other => Err(format!("unexpected row value {other:?}")),
+                }
+            }
+            more => Err(format!("{} rows for LIMIT 1", more.len())),
+        },
+        ClosedStmt::Count { .. } => parse_count(&data).map(StmtResult::Count),
+        _ => parse_count(&data).map(StmtResult::Affected),
+    }
+}
+
+fn parse_count(data: &[&String]) -> Result<i64, String> {
+    match data {
+        [one] => one
+            .trim()
+            .parse()
+            .map_err(|_| format!("not a count: `{one}`")),
+        other => Err(format!("expected one count row, got {other:?}")),
+    }
+}
+
+// ---------------------------------------------------------------------
+// Environment
+// ---------------------------------------------------------------------
+
+pub struct PgEnv {
+    _root: ReplayRoot,
+    cluster: Cluster,
+    bins: Binaries,
+    counter: u32,
+}
+
+pub struct Database {
+    name: String,
+    seed: String,
+}
+
+impl PgEnv {
+    /// Start a private cluster. `Err` means PostgreSQL is unavailable (the
+    /// caller reports a blocked validation, never a passed one).
+    pub fn start() -> Result<Self, String> {
+        let bins = Binaries::discover()?;
+        let root = ReplayRoot::create(false)?;
+        let cluster = Cluster::start(bins.clone(), &root.path)?;
+        Ok(Self {
+            _root: root,
+            cluster,
+            bins,
+            counter: 0,
+        })
+    }
+
+    pub fn version(&self) -> &str {
+        self.cluster.version()
+    }
+
+    fn open(&self, db: &str, iso: Option<&str>, actor: Option<u16>) -> Result<Session, String> {
+        Session::open(&self.bins, self.cluster.socket_dir(), db, iso, actor)
+    }
+
+    /// Create a database with the model's schema.
+    pub fn database(&mut self, model: &Model) -> Result<Database, String> {
+        self.counter += 1;
+        let name = format!("model{}", self.counter);
+        self.cluster.create_database(&name)?;
+        let mut s = self.open(&name, None, None)?;
+        let lines = s.exec(&ddl(model)?, Duration::from_secs(10))?;
+        if let Some(code) = error_code(&lines) {
+            return Err(format!("DDL failed with SQLSTATE {code}: {lines:?}"));
+        }
+        Ok(Database {
+            name,
+            seed: seed_sql(model)?,
+        })
+    }
+
+    pub fn table_contents(
+        &self,
+        db: &Database,
+        model: &Model,
+    ) -> Result<BTreeMap<String, Vec<Row>>, String> {
+        let mut s = self.open(&db.name, None, None)?;
+        read_tables(&mut s, model)
+    }
+}
+
+fn read_tables(s: &mut Session, model: &Model) -> Result<BTreeMap<String, Vec<Row>>, String> {
+    let mut out = BTreeMap::new();
+    for (i, t) in model.schema.tables.iter().enumerate() {
+        let lines = s.exec(
+            &format!(
+                "SELECT row_to_json(t) FROM (SELECT * FROM {} ORDER BY {}) t;",
+                quote_ident(&t.name),
+                pk_order(model, i as u16)
+            ),
+            Duration::from_secs(10),
+        )?;
+        let mut rows = Vec::new();
+        for l in data_lines(&lines) {
+            let json: serde_json::Value =
+                serde_json::from_str(l).map_err(|e| format!("bad row JSON `{l}`: {e}"))?;
+            if let Value::Row(r) = json_to_value(&json) {
+                rows.push(r);
+            }
+        }
+        out.insert(t.name.clone(), rows);
+    }
+    Ok(out)
+}
+
+// ---------------------------------------------------------------------
+// Lockstep run
+// ---------------------------------------------------------------------
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OracleRun {
+    pub agree: bool,
+    pub observations: Vec<Observation>,
+    /// SQLSTATE codes PostgreSQL returned, in order.
+    pub sqlstates: Vec<String>,
+    pub model_tables: BTreeMap<String, Vec<Row>>,
+    pub postgres_tables: BTreeMap<String, Vec<Row>>,
+    pub tables_agree: bool,
+    /// Actors whose statements came from extraction versus the scenario.
+    pub sql_origin: BTreeMap<String, String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Key {
+    Tx(u16),
+    Pool(u16, u16),
+}
+
+struct Run<'a> {
+    env: &'a PgEnv,
+    db: &'a Database,
+    model: &'a Model,
+    sessions: BTreeMap<Key, Session>,
+    monitor: Session,
+    observations: Vec<Observation>,
+    sqlstates: Vec<String>,
+    /// Transition indexes at which a deadlock victim is chosen, with the
+    /// victim, for steering the detector's timers.
+    victims: Vec<(usize, u16, u16)>,
+}
+
+fn describe_result(r: &StmtResult) -> String {
+    match r {
+        StmtResult::Row(Some(row)) => Value::Row(row.clone()).render(),
+        StmtResult::Row(None) => "no row".into(),
+        StmtResult::Count(n) => format!("count {n}"),
+        StmtResult::Affected(n) => format!("{n} row(s)"),
+    }
+}
+
+fn describe_expect(e: &Expect, model: &Model) -> String {
+    match e {
+        Expect::Done(r) => describe_result(r),
+        Expect::Blocked(a) => format!("blocked by {}", model.actors[*a as usize].name),
+        Expect::Error(c) => format!("error {c}"),
+        Expect::Ok => "ok".into(),
+    }
+}
+
+impl Run<'_> {
+    fn session(&mut self, key: Key, actor: u16) -> Result<&mut Session, String> {
+        if !self.sessions.contains_key(&key) {
+            let iso = match key {
+                Key::Pool(..) => Some(self.model.isolation.sql().to_ascii_lowercase()),
+                Key::Tx(_) => None,
+            };
+            let s = self.env.open(&self.db.name, iso.as_deref(), Some(actor))?;
+            self.sessions.insert(key, s);
+        }
+        Ok(self.sessions.get_mut(&key).expect("just inserted"))
+    }
+
+    /// (waiting for a lock, blocking backends) of a backend.
+    fn wait_state(&mut self, pid: i64) -> Result<(bool, Vec<i64>), String> {
+        let lines = self.monitor.exec(
+            &format!(
+                "SELECT coalesce(wait_event_type, ''), array_to_string(pg_blocking_pids(pid), ',') FROM pg_stat_activity WHERE pid = {pid};"
+            ),
+            Duration::from_secs(5),
+        )?;
+        let Some(line) = data_lines(&lines).first().map(|l| l.to_string()) else {
+            return Ok((false, Vec::new()));
+        };
+        let mut parts = line.split('\u{1f}');
+        let waiting = parts.next() == Some("Lock");
+        let blockers = parts
+            .next()
+            .unwrap_or("")
+            .split(',')
+            .filter_map(|p| p.trim().parse().ok())
+            .collect();
+        Ok((waiting, blockers))
+    }
+
+    fn actors_of(&self, pids: &[i64]) -> Vec<u16> {
+        let mut out: Vec<u16> = self
+            .sessions
+            .values()
+            .filter(|s| pids.contains(&s.pid))
+            .filter_map(|s| s.actor)
+            .collect();
+        out.sort_unstable();
+        out.dedup();
+        out
+    }
+
+    /// Wait for a statement outcome. `expect_block` selects the wait policy:
+    /// a blocked statement is recognized as soon as the server reports a
+    /// lock wait; for statements expected to finish a lock wait only counts
+    /// if it persists.
+    fn observe(&mut self, key: Key, expect_block: bool) -> Result<Observed, String> {
+        let deadline = Instant::now() + Duration::from_secs(if expect_block { 4 } else { 8 });
+        let mut waiting_since: Option<Instant> = None;
+        loop {
+            let (done, pid) = {
+                let s = self.sessions.get_mut(&key).expect("session exists");
+                (s.try_complete(Duration::from_millis(20)), s.pid)
+            };
+            if let Some(lines) = done {
+                if let Some(s) = self.sessions.get_mut(&key) {
+                    s.waiting_since = None;
+                }
+                return Ok(Observed::Completed(lines));
+            }
+            let (waiting, blockers) = self.wait_state(pid)?;
+            if waiting {
+                let since = *waiting_since.get_or_insert_with(Instant::now);
+                let stable =
+                    since.elapsed() >= Duration::from_millis(if expect_block { 0 } else { 250 });
+                if stable {
+                    if let Some(s) = self.sessions.get_mut(&key) {
+                        s.waiting_since.get_or_insert_with(Instant::now);
+                    }
+                    return Ok(Observed::Blocked(self.actors_of(&blockers)));
+                }
+            } else {
+                waiting_since = None;
+            }
+            if Instant::now() > deadline {
+                return Ok(Observed::Timeout);
+            }
+        }
+    }
+
+    fn record(
+        &mut self,
+        i: usize,
+        actor: u16,
+        sql: &str,
+        predicted: String,
+        observed: String,
+        agree: bool,
+    ) {
+        self.observations.push(Observation {
+            transition: i + 1,
+            actor: self.model.actors[actor as usize].name.clone(),
+            sql: sql.to_owned(),
+            predicted,
+            observed,
+            agree,
+        });
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn stmt(
+        &mut self,
+        i: usize,
+        actor: u16,
+        thread: u16,
+        conn: Conn,
+        stmt: &ClosedStmt,
+        resumed: bool,
+        expect: &Expect,
+    ) -> Result<bool, String> {
+        let key = match conn {
+            Conn::Tx => Key::Tx(actor),
+            Conn::Pool => Key::Pool(actor, thread),
+        };
+        let sql = stmt_sql(self.model, stmt)?;
+        self.session(key, actor)?;
+        let expect_block = matches!(expect, Expect::Blocked(_));
+        if !resumed {
+            // Steer PostgreSQL's deadlock detector when this statement is
+            // the one the model later aborts as the victim: the earlier
+            // waiter's timer must already have fired.
+            if expect_block
+                && self
+                    .victims
+                    .iter()
+                    .any(|(j, a, t)| *j > i && (*a, *t) == (actor, thread))
+            {
+                let oldest = self.sessions.values().filter_map(|s| s.waiting_since).min();
+                if let Some(since) = oldest {
+                    let need = Duration::from_millis(DEADLOCK_TIMEOUT_MS * 3 / 2);
+                    let spent = since.elapsed();
+                    if spent < need {
+                        std::thread::sleep(need - spent);
+                    }
+                }
+            }
+            self.sessions.get_mut(&key).expect("exists").send(&sql)?;
+        }
+        let observed = self.observe(key, expect_block)?;
+        let (text, agree) = match (&observed, expect) {
+            (Observed::Blocked(by), Expect::Blocked(a)) => (
+                format!(
+                    "blocked by {}",
+                    by.iter()
+                        .map(|x| self.model.actors[*x as usize].name.clone())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+                by.contains(a),
+            ),
+            (Observed::Blocked(by), _) => (
+                format!(
+                    "blocked by {}",
+                    by.iter()
+                        .map(|x| self.model.actors[*x as usize].name.clone())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+                false,
+            ),
+            (Observed::Timeout, _) => ("no result and no lock wait (timeout)".into(), false),
+            (Observed::Completed(lines), exp) => {
+                let code = error_code(lines);
+                if let Some(c) = &code {
+                    self.sqlstates.push(c.clone());
+                }
+                match (exp, code) {
+                    (Expect::Error(want), Some(got)) => (format!("error {got}"), *want == got),
+                    (Expect::Error(_), None) => ("completed without error".into(), false),
+                    (_, Some(got)) => (format!("error {got}"), false),
+                    (Expect::Done(want), None) => match parse_result(stmt, lines) {
+                        Ok(got) => (describe_result(&got), got == *want),
+                        Err(e) => (format!("unparsable: {e}"), false),
+                    },
+                    (Expect::Blocked(_), None) => ("completed without waiting".into(), false),
+                    (Expect::Ok, None) => ("ok".into(), true),
+                }
+            }
+        };
+        let predicted = describe_expect(expect, self.model);
+        self.record(i, actor, &sql, predicted, text, agree);
+        Ok(agree)
+    }
+
+    fn simple(&mut self, key: Key, actor: u16, sql: &str) -> Result<Vec<String>, String> {
+        self.session(key, actor)?;
+        let s = self.sessions.get_mut(&key).expect("exists");
+        s.exec(sql, Duration::from_secs(10))
+    }
+
+    fn action(&mut self, i: usize, action: &Action) -> Result<bool, String> {
+        match action {
+            Action::Begin { actor, iso } => {
+                let sql = format!("BEGIN ISOLATION LEVEL {};", iso.sql());
+                let lines = self.simple(Key::Tx(*actor), *actor, &sql)?;
+                let code = error_code(&lines);
+                let agree = code.is_none();
+                self.record(
+                    i,
+                    *actor,
+                    &sql,
+                    "ok".into(),
+                    code.map_or("ok".into(), |c| format!("error {c}")),
+                    agree,
+                );
+                Ok(agree)
+            }
+            Action::Stmt {
+                actor,
+                thread,
+                conn,
+                stmt,
+                resumed,
+                expect,
+            } => self.stmt(i, *actor, *thread, *conn, stmt, *resumed, expect),
+            Action::Commit { actor, expect, .. } => {
+                let lines = self.simple(Key::Tx(*actor), *actor, "COMMIT;")?;
+                let code = error_code(&lines);
+                if let Some(c) = &code {
+                    self.sqlstates.push(c.clone());
+                }
+                let (observed, agree) = match (expect, &code) {
+                    (Expect::Ok, None) => ("ok".to_owned(), true),
+                    (Expect::Error(want), Some(got)) => (format!("error {got}"), want == got),
+                    (_, Some(got)) => (format!("error {got}"), false),
+                    (_, None) => ("ok".to_owned(), false),
+                };
+                self.record(
+                    i,
+                    *actor,
+                    "COMMIT;",
+                    describe_expect(expect, self.model),
+                    observed,
+                    agree,
+                );
+                Ok(agree)
+            }
+            Action::Rollback { actor } => {
+                self.simple(Key::Tx(*actor), *actor, "ROLLBACK;")?;
+                Ok(true)
+            }
+            Action::Abort { actor, conn } => {
+                if *conn == Conn::Tx && self.sessions.contains_key(&Key::Tx(*actor)) {
+                    self.simple(Key::Tx(*actor), *actor, "ROLLBACK;")?;
+                }
+                Ok(true)
+            }
+            Action::Victim {
+                actor,
+                thread,
+                conn,
+            } => {
+                let key = match conn {
+                    Conn::Tx => Key::Tx(*actor),
+                    Conn::Pool => Key::Pool(*actor, *thread),
+                };
+                let Some(s) = self.sessions.get_mut(&key) else {
+                    return Ok(false);
+                };
+                let done = s.try_complete(Duration::from_millis(DEADLOCK_TIMEOUT_MS * 4 + 3000));
+                let (observed, agree) = match done {
+                    Some(lines) => {
+                        let code = error_code(&lines);
+                        if let Some(c) = &code {
+                            self.sqlstates.push(c.clone());
+                        }
+                        let agree = code.as_deref() == Some("40P01");
+                        (
+                            code.map_or("completed without error".into(), |c| format!("error {c}")),
+                            agree,
+                        )
+                    }
+                    None => ("no deadlock error within the timeout".into(), false),
+                };
+                self.record(
+                    i,
+                    *actor,
+                    "(deadlock detection)",
+                    "error 40P01 (victim)".into(),
+                    observed,
+                    agree,
+                );
+                Ok(agree)
+            }
+            Action::Crash { actor } => {
+                let keys: Vec<Key> = self
+                    .sessions
+                    .iter()
+                    .filter(|(_, s)| s.actor == Some(*actor))
+                    .map(|(k, _)| *k)
+                    .collect();
+                for k in keys {
+                    if let Some(mut s) = self.sessions.remove(&k) {
+                        let pid = s.pid;
+                        s.kill();
+                        // Wait until the server noticed the lost connection
+                        // and rolled the transaction back.
+                        let deadline = Instant::now() + Duration::from_secs(5);
+                        loop {
+                            let lines = self.monitor.exec(
+                                &format!(
+                                    "SELECT count(*) FROM pg_stat_activity WHERE pid = {pid};"
+                                ),
+                                Duration::from_secs(5),
+                            )?;
+                            if data_lines(&lines).first().is_some_and(|l| l.trim() == "0") {
+                                break;
+                            }
+                            if Instant::now() > deadline {
+                                return Err("backend of a crashed session did not exit".into());
+                            }
+                            std::thread::sleep(Duration::from_millis(10));
+                        }
+                    }
+                }
+                self.record(
+                    i,
+                    *actor,
+                    "(process killed)",
+                    "connection lost, transaction rolled back".into(),
+                    "backend exited".into(),
+                    true,
+                );
+                Ok(true)
+            }
+        }
+    }
+}
+
+enum Observed {
+    Completed(Vec<String>),
+    Blocked(Vec<u16>),
+    Timeout,
+}
+
+/// Replay `schedule` on a fresh copy of the model's initial state in real
+/// PostgreSQL, comparing every physical action with the model's prediction.
+/// `Err` is an infrastructure failure (PostgreSQL could not be driven); a
+/// model/PostgreSQL disagreement is reported in the `OracleRun`.
+pub fn run_schedule(
+    env: &PgEnv,
+    db: &Database,
+    model: &Model,
+    schedule: &[Transition],
+) -> Result<OracleRun, String> {
+    // Execute the model first to learn every transition's physical actions.
+    let mut state = initial_state(model);
+    let mut per_transition: Vec<Vec<Action>> = Vec::new();
+    let mut victims = Vec::new();
+    for (i, t) in schedule.iter().enumerate() {
+        let mut rec = Recorder::on();
+        let applied = apply(model, &state, *t, &mut rec)
+            .map_err(|u| format!("the schedule reaches unsupported behavior: {}", u.detail))?;
+        state = applied.state;
+        if t.kind == TKind::Deadlock {
+            victims.push((i, t.actor, t.thread));
+        }
+        per_transition.push(rec.actions);
+    }
+    // Reset the data.
+    let mut setup = env.open(&db.name, None, None)?;
+    let lines = setup.exec(&db.seed, Duration::from_secs(10))?;
+    if let Some(code) = error_code(&lines) {
+        return Err(format!("cannot seed the database: SQLSTATE {code}"));
+    }
+    drop(setup);
+    let monitor = env.open("postgres", None, None)?;
+    let mut run = Run {
+        env,
+        db,
+        model,
+        sessions: BTreeMap::new(),
+        monitor,
+        observations: Vec::new(),
+        sqlstates: Vec::new(),
+        victims,
+    };
+    let mut agree = true;
+    'outer: for (i, actions) in per_transition.iter().enumerate() {
+        for a in actions {
+            if !run.action(i, a)? {
+                agree = false;
+                break 'outer;
+            }
+        }
+    }
+    let mut reader = env.open(&db.name, None, None)?;
+    let postgres_tables = read_tables(&mut reader, model)?;
+    let mut model_tables = BTreeMap::new();
+    for (i, t) in model.schema.tables.iter().enumerate() {
+        model_tables.insert(t.name.clone(), state.committed_rows(model, i as u16));
+    }
+    // Rows are compared as sets of images in key order; the final tables are
+    // only meaningful when every prior action agreed.
+    let tables_agree = agree && model_tables == postgres_tables;
+    let mut sql_origin = BTreeMap::new();
+    for a in &model.actors {
+        let extracted = a
+            .codes
+            .iter()
+            .flatten()
+            .any(|s| matches!(s.op, Op::Db { .. }) && s.src.origin == Origin::Extracted);
+        sql_origin.insert(
+            a.name.clone(),
+            if extracted {
+                "model-derived (extracted from source)"
+            } else {
+                "fixture-declared"
+            }
+            .to_owned(),
+        );
+    }
+    let observations = std::mem::take(&mut run.observations);
+    let sqlstates = std::mem::take(&mut run.sqlstates);
+    drop(run);
+    Ok(OracleRun {
+        agree: agree && tables_agree,
+        observations,
+        sqlstates,
+        model_tables,
+        postgres_tables,
+        tables_agree,
+        sql_origin,
+    })
+}

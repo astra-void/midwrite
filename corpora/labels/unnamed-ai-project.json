@@ -1,0 +1,50 @@
+[
+  {
+    "findingId": "16c846879778bf43",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "getOrCreate of the profile (idempotent), then the patch; a retry completes it."
+  },
+  {
+    "findingId": "f1a614005e8dcbe7",
+    "classification": "false-positive",
+    "reviewed": true,
+    "notes": "The insert in getOrCreateChatProfile cannot run here: the profile was created or found earlier in the same request (correlation through database state, which is not modeled)."
+  },
+  {
+    "findingId": "4afb2e025364c2e9",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Idempotent profile creation, then the conversation insert."
+  },
+  {
+    "findingId": "f3f7d808bf86411d",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Conversation inserted, then the first user message (onConflictDoNothing); a retry with the same conversation id inserts it."
+  },
+  {
+    "findingId": "fd4b259143f84b19",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Message insert, then an updatedAt bump."
+  },
+  {
+    "findingId": "88460d99525f3781",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Assistant message insert, then an updatedAt bump."
+  },
+  {
+    "findingId": "ebe9dd6a84cff3e9",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "Conversation deletion removes the messages, then the conversation, without a transaction; a failure leaves an existing conversation with its history deleted."
+  },
+  {
+    "findingId": "bb729d61e15a4f5c",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "Conversation inserted before its system prompt and greeting messages; a failure leaves a conversation without its character setup."
+  }
+]

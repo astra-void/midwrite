@@ -1,0 +1,92 @@
+[
+  {
+    "findingId": "cc06f76745f58b3a",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Seed script: users/teams are inserted, then Stripe products are created. A partial seed is real but seeds are run manually and re-run."
+  },
+  {
+    "findingId": "5fbd9bb83c39a8aa",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "Sign-up: the user row commits before the invitation is accepted, without a transaction. A failure leaves a user whose retry fails with 'user exists'."
+  },
+  {
+    "findingId": "8a880adfccaceddd",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Accepting the invitation, then an activity-log insert: a missing audit row is an accepted best-effort tradeoff."
+  },
+  {
+    "findingId": "27429e3a04c78e28",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "Sign-up: the user commits before its team is created. A failure leaves a team-less user that cannot sign up again."
+  },
+  {
+    "findingId": "f5d506a6fe20a7d7",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Team creation, then an activity-log insert (best-effort audit)."
+  },
+  {
+    "findingId": "159fa7e04a352475",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "Sign-up: the team-member insert (inside Promise.all) may not happen after the user and team committed; the reported predecessor is an activity log, the alternatives list the team insert. The whole sign-up needs one transaction."
+  },
+  {
+    "findingId": "497f2e1cce42b12c",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Activity log before the soft delete: a log row for an incomplete deletion is low impact."
+  },
+  {
+    "findingId": "18738dffc8a36517",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "Account deletion: the user is soft-deleted before the team membership is removed; a failure leaves a deleted user who is still a team member."
+  },
+  {
+    "findingId": "e6a82426b7f287e6",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Member removal, then an activity-log insert (best-effort audit)."
+  },
+  {
+    "findingId": "8b8f0eede69d9781",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Invitation insert, then an activity-log insert (best-effort audit)."
+  },
+  {
+    "findingId": "195b9868a6374702",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Seed script."
+  },
+  {
+    "findingId": "7d54170b5121f0da",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Seed script."
+  },
+  {
+    "findingId": "d56c08550b1bb12b",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Seed script: Stripe product then price."
+  },
+  {
+    "findingId": "16189ff765b0a14f",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Seed script: Stripe price then next product."
+  },
+  {
+    "findingId": "d56c08550b1bb12b-2",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Seed script: Stripe product then price."
+  }
+]

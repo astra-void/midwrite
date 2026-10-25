@@ -1,0 +1,708 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "commitrift.verification.v2",
+  "title": "CommitRift verification report (commitrift replay --format json), schema version 2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "tool",
+    "harness",
+    "source",
+    "environment",
+    "control",
+    "cases",
+    "summary",
+    "limitations"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 2
+    },
+    "kind": {
+      "const": "commitrift.verification"
+    },
+    "tool": {
+      "type": "object",
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "harness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "description",
+        "manifest",
+        "manifestHash",
+        "command"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "manifest": {
+          "type": "string"
+        },
+        "manifestHash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "command": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revision",
+        "dirty"
+      ],
+      "properties": {
+        "revision": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dirty": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "os",
+        "arch",
+        "postgres",
+        "runtime",
+        "networkIsolation",
+        "database",
+        "environmentVariables"
+      ],
+      "properties": {
+        "os": {
+          "type": "string"
+        },
+        "arch": {
+          "type": "string"
+        },
+        "postgres": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "runtime": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "networkIsolation": {
+          "type": "string"
+        },
+        "database": {
+          "type": "string"
+        },
+        "environmentVariables": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          }
+        },
+        "isolation": {
+          "type": "string",
+          "enum": [
+            "sandbox-exec",
+            "bubblewrap",
+            "none"
+          ]
+        }
+      }
+    },
+    "control": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/definitions/run"
+        }
+      ]
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/case"
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cases",
+        "reproduced",
+        "notReproduced",
+        "inconclusive",
+        "matchedExpectations",
+        "mismatchedExpectations"
+      ],
+      "properties": {
+        "cases": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reproduced": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "notReproduced": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inconclusive": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "matchedExpectations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mismatchedExpectations": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "definitions": {
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run",
+        "scenario",
+        "failureMode",
+        "injected",
+        "checkpoints",
+        "preInjectionChecks",
+        "exit",
+        "outcome",
+        "observations",
+        "invariants",
+        "prediction",
+        "recovery",
+        "durationMs",
+        "verification",
+        "reason",
+        "logs"
+      ],
+      "properties": {
+        "run": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "scenario": {
+          "type": "string"
+        },
+        "failureMode": {
+          "enum": [
+            "none",
+            "exception",
+            "processKill"
+          ]
+        },
+        "injected": {
+          "type": "boolean"
+        },
+        "checkpoints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "seq",
+              "name",
+              "action"
+            ],
+            "properties": {
+              "seq": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "action": {
+                "enum": [
+                  "continue",
+                  "throw",
+                  "kill",
+                  "abort"
+                ]
+              }
+            }
+          }
+        },
+        "preInjectionChecks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "description",
+              "holds",
+              "observed"
+            ],
+            "properties": {
+              "description": {
+                "type": "string"
+              },
+              "holds": {
+                "type": "boolean"
+              },
+              "observed": {}
+            }
+          }
+        },
+        "exit": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "code",
+            "signal"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "exited",
+                "signaled",
+                "timedOut",
+                "notStarted"
+              ]
+            },
+            "code": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "signal": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          }
+        },
+        "outcome": {
+          "enum": [
+            "returned",
+            "threw",
+            "killed",
+            "timedOut",
+            "crashed",
+            "notStarted",
+            "unknown"
+          ]
+        },
+        "error": {
+          "type": "string"
+        },
+        "observations": {
+          "type": "object",
+          "propertyNames": {
+            "enum": [
+              "before",
+              "after",
+              "afterRecovery"
+            ]
+          },
+          "additionalProperties": {
+            "type": "object"
+          }
+        },
+        "invariants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "stage",
+              "holds",
+              "detail"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "stage": {
+                "type": "string"
+              },
+              "holds": {
+                "type": "boolean"
+              },
+              "detail": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "prediction": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "observation",
+              "expected",
+              "observed",
+              "matches"
+            ],
+            "properties": {
+              "observation": {
+                "type": "string"
+              },
+              "expected": {},
+              "observed": {},
+              "matches": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "recovery": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "scenario",
+              "outcome",
+              "exit"
+            ],
+            "properties": {
+              "scenario": {
+                "type": "string"
+              },
+              "outcome": {
+                "type": "string"
+              },
+              "exit": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "code",
+                  "signal"
+                ],
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "exited",
+                      "signaled",
+                      "timedOut",
+                      "notStarted"
+                    ]
+                  },
+                  "code": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "signal": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "verification": {
+          "enum": [
+            "STATIC_CANDIDATE",
+            "SIMULATED",
+            "RUNTIME_REPRODUCED",
+            "RUNTIME_NOT_REPRODUCED",
+            "INCONCLUSIVE"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "logs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "stdout",
+            "stderr",
+            "truncated"
+          ],
+          "properties": {
+            "stdout": {
+              "type": "string"
+            },
+            "stderr": {
+              "type": "string"
+            },
+            "truncated": {
+              "type": "boolean"
+            }
+          }
+        },
+        "injectedFaultSurfaced": {
+          "type": "boolean"
+        }
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "description",
+        "staticLink",
+        "findingId",
+        "traceId",
+        "code",
+        "failureMode",
+        "checkpoint",
+        "boundary",
+        "initialState",
+        "runs",
+        "verification",
+        "consistent",
+        "expected",
+        "matchesExpectation",
+        "limitations"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "staticLink": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "detail"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "matched",
+                "notFound",
+                "ambiguous",
+                "none"
+              ]
+            },
+            "detail": {
+              "type": "string"
+            }
+          }
+        },
+        "findingId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "traceId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "trace": {
+          "$ref": "commitrift.traces.v1#/definitions/trace"
+        },
+        "failureMode": {
+          "enum": [
+            "none",
+            "exception",
+            "processKill"
+          ]
+        },
+        "checkpoint": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "occurrence"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "occurrence": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "label": {
+                  "type": "string"
+                }
+              }
+            }
+          ]
+        },
+        "boundary": {
+          "enum": [
+            "onTraceBoundary",
+            "outsideTraceBoundary",
+            "notApplicable"
+          ]
+        },
+        "initialState": {
+          "type": "string"
+        },
+        "runs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/run"
+          }
+        },
+        "verification": {
+          "enum": [
+            "STATIC_CANDIDATE",
+            "SIMULATED",
+            "RUNTIME_REPRODUCED",
+            "RUNTIME_NOT_REPRODUCED",
+            "INCONCLUSIVE"
+          ]
+        },
+        "consistent": {
+          "type": "boolean"
+        },
+        "expected": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "enum": [
+                "STATIC_CANDIDATE",
+                "SIMULATED",
+                "RUNTIME_REPRODUCED",
+                "RUNTIME_NOT_REPRODUCED",
+                "INCONCLUSIVE"
+              ]
+            }
+          ]
+        },
+        "matchesExpectation": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+/[a-z0-9-]+$"
+        },
+        "recoveryObservation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "scenarios",
+            "runs",
+            "restoredRuns",
+            "heldAfterRecoveryRuns",
+            "summary"
+          ],
+          "properties": {
+            "source": {
+              "const": "runtimeObservation"
+            },
+            "scenarios": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "runs": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "restoredRuns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "heldAfterRecoveryRuns": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "summary": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

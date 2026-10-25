@@ -1,0 +1,4 @@
+SARIF 2.1.0: fixtures.sarif: 87 results, 0 schema errors; corrupted copy rejected: True
+SARIF 2.1.0: midday.sarif: 269 results, 0 schema errors; corrupted copy rejected: True
+SARIF 2.1.0: midday-contracts.sarif: 269 results, 0 schema errors; corrupted copy rejected: True
+trace-report.v1: fixtures.traces.json: 66 traces, 0 schema errors; corrupted copy rejected: True

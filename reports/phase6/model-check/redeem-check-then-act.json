@@ -1,0 +1,603 @@
+{
+  "kind": "commitrift.model-check",
+  "schemaVersion": 1,
+  "modelVersion": "1.0.0",
+  "tool": {
+    "name": "commitrift",
+    "version": "0.1.0"
+  },
+  "scenario": {
+    "name": "redeem-check-then-act",
+    "description": "Check-then-act on a redemption code; no unique constraint on code.",
+    "scenarioVersion": 1,
+    "file": "fixtures/concurrency/scenarios/redeem-check-then-act.json"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "redemptions",
+        "columns": [
+          "id",
+          "code"
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "unique": [],
+        "checks": [],
+        "initialRows": []
+      }
+    ]
+  },
+  "actors": [
+    {
+      "name": "A",
+      "function": "redeemCode",
+      "file": "src/redeem.ts",
+      "arguments": [
+        [
+          "code",
+          "SAVE10"
+        ],
+        [
+          "id",
+          "req-A"
+        ]
+      ],
+      "process": "A",
+      "origin": "extracted",
+      "tasks": 1,
+      "operations": 11,
+      "sourceRefs": [
+        {
+          "origin": "extracted",
+          "file": "src/redeem.ts",
+          "line": 6,
+          "column": 21,
+          "function": "alreadyRedeemed",
+          "callChain": [
+            "redeemCode"
+          ],
+          "effectId": 0,
+          "text": "db.query.redemptions.findFirst({ where: eq(redemptions.code, code), })"
+        },
+        {
+          "origin": "extracted",
+          "file": "src/redeem.ts",
+          "line": 13,
+          "column": 9,
+          "function": "redeem",
+          "callChain": [
+            "redeemCode"
+          ],
+          "effectId": 0,
+          "text": "db.insert(redemptions).values({ id, code })"
+        }
+      ]
+    },
+    {
+      "name": "B",
+      "function": "redeemCode",
+      "file": "src/redeem.ts",
+      "arguments": [
+        [
+          "code",
+          "SAVE10"
+        ],
+        [
+          "id",
+          "req-B"
+        ]
+      ],
+      "process": "B",
+      "origin": "extracted",
+      "tasks": 1,
+      "operations": 11,
+      "sourceRefs": [
+        {
+          "origin": "extracted",
+          "file": "src/redeem.ts",
+          "line": 6,
+          "column": 21,
+          "function": "alreadyRedeemed",
+          "callChain": [
+            "redeemCode"
+          ],
+          "effectId": 0,
+          "text": "db.query.redemptions.findFirst({ where: eq(redemptions.code, code), })"
+        },
+        {
+          "origin": "extracted",
+          "file": "src/redeem.ts",
+          "line": 13,
+          "column": 9,
+          "function": "redeem",
+          "callChain": [
+            "redeemCode"
+          ],
+          "effectId": 0,
+          "text": "db.insert(redemptions).values({ id, code })"
+        }
+      ]
+    }
+  ],
+  "bounds": {
+    "declared": {
+      "maxActors": 4,
+      "maxSteps": 40,
+      "maxStates": 200000,
+      "maxCrashes": 0,
+      "maxRetries": 0,
+      "maxContextSwitches": null,
+      "maxTransitions": null,
+      "maxWallMs": null,
+      "maxMemoryBytes": null
+    },
+    "partialOrderReduction": true,
+    "strategy": "dfs"
+  },
+  "exploration": {
+    "verdict": "COUNTEREXAMPLE_FOUND",
+    "complete": true,
+    "truncation": {
+      "maxStates": false,
+      "maxTransitions": false,
+      "maxWallTime": false,
+      "maxMemory": false,
+      "maxSteps": false,
+      "maxContextSwitches": false
+    },
+    "metrics": {
+      "states": 7,
+      "transitions": 6,
+      "terminalStates": 2,
+      "duplicateStateHits": 0,
+      "sleepPrunedTransitions": 0,
+      "contextPrunedTransitions": 0,
+      "maxDepth": 4,
+      "schedulesInExploredGraph": 2,
+      "visitedBytes": 3600
+    },
+    "unsupported": [],
+    "stuckStates": 0
+  },
+  "invariants": [
+    {
+      "name": "redeemed-at-most-once",
+      "when": "final",
+      "formula": "count(redemptions[code=\"SAVE10\"]) <= 1",
+      "description": "",
+      "status": "violated"
+    }
+  ],
+  "counterexample": {
+    "invariant": "redeemed-at-most-once",
+    "formula": "count(redemptions[code=\"SAVE10\"]) <= 1",
+    "when": "final",
+    "initialTables": {
+      "redemptions": []
+    },
+    "steps": [
+      {
+        "index": 1,
+        "actor": "A",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "read",
+            "text": "SELECT redemptions WHERE (@code = \"SAVE10\") → null",
+            "result": null,
+            "src": {
+              "origin": "extracted",
+              "file": "src/redeem.ts",
+              "line": 6,
+              "column": 21,
+              "function": "alreadyRedeemed",
+              "callChain": [
+                "redeemCode"
+              ],
+              "effectId": 0,
+              "text": "db.query.redemptions.findFirst({ where: eq(redemptions.code, code), })"
+            }
+          },
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "local",
+            "text": "h1$ret = false",
+            "result": false,
+            "src": {
+              "origin": "extracted",
+              "file": "src/redeem.ts",
+              "line": 9,
+              "column": 3,
+              "function": "alreadyRedeemed",
+              "callChain": [
+                "redeemCode"
+              ],
+              "text": "return row !== undefined;"
+            }
+          },
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "local",
+            "text": "CHECK !h1$ret → true",
+            "result": true,
+            "src": {
+              "origin": "extracted",
+              "file": "src/redeem.ts",
+              "line": 18,
+              "column": 7,
+              "function": "redeemCode",
+              "text": "!(await alreadyRedeemed(code))"
+            }
+          },
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "local",
+            "text": "h3$ret = null",
+            "result": null,
+            "src": {
+              "origin": "extracted",
+              "file": "src/redeem.ts",
+              "line": 19,
+              "column": 11,
+              "function": "redeem",
+              "callChain": [
+                "redeemCode"
+              ],
+              "text": "redeem(code, id)"
+            }
+          },
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "local",
+            "text": "h3$code = \"SAVE10\"",
+            "result": "SAVE10",
+            "src": {
+              "origin": "extracted",
+              "file": "src/redeem.ts",
+              "line": 12,
+              "column": 23,
+              "function": "redeem",
+              "callChain": [
+                "redeemCode"
+              ],
+              "text": "code: string"
+            }
+          },
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "local",
+            "text": "h3$id = \"req-A\"",
+            "result": "req-A",
+            "src": {
+              "origin": "extracted",
+              "file": "src/redeem.ts",
+              "line": 12,
+              "column": 37,
+              "function": "redeem",
+              "callChain": [
+                "redeemCode"
+              ],
+              "text": "id: string"
+            }
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "actor": "B",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "read",
+            "text": "SELECT redemptions WHERE (@code = \"SAVE10\") → null",
+            "result": null,
+            "src": {
+              "origin": "extracted",
+              "file": "src/redeem.ts",
+              "line": 6,
+              "column": 21,
+              "function": "alreadyRedeemed",
+              "callChain": [
+                "redeemCode"
+              ],
+              "effectId": 0,
+              "text": "db.query.redemptions.findFirst({ where: eq(redemptions.code, code), })"
+            }
+          },
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "local",
+            "text": "h1$ret = false",
+            "result": false,
+            "src": {
+              "origin": "extracted",
+              "file": "src/redeem.ts",
+              "line": 9,
+              "column": 3,
+              "function": "alreadyRedeemed",
+              "callChain": [
+                "redeemCode"
+              ],
+              "text": "return row !== undefined;"
+            }
+          },
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "local",
+            "text": "CHECK !h1$ret → true",
+            "result": true,
+            "src": {
+              "origin": "extracted",
+              "file": "src/redeem.ts",
+              "line": 18,
+              "column": 7,
+              "function": "redeemCode",
+              "text": "!(await alreadyRedeemed(code))"
+            }
+          },
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "local",
+            "text": "h3$ret = null",
+            "result": null,
+            "src": {
+              "origin": "extracted",
+              "file": "src/redeem.ts",
+              "line": 19,
+              "column": 11,
+              "function": "redeem",
+              "callChain": [
+                "redeemCode"
+              ],
+              "text": "redeem(code, id)"
+            }
+          },
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "local",
+            "text": "h3$code = \"SAVE10\"",
+            "result": "SAVE10",
+            "src": {
+              "origin": "extracted",
+              "file": "src/redeem.ts",
+              "line": 12,
+              "column": 23,
+              "function": "redeem",
+              "callChain": [
+                "redeemCode"
+              ],
+              "text": "code: string"
+            }
+          },
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "local",
+            "text": "h3$id = \"req-B\"",
+            "result": "req-B",
+            "src": {
+              "origin": "extracted",
+              "file": "src/redeem.ts",
+              "line": 12,
+              "column": 37,
+              "function": "redeem",
+              "callChain": [
+                "redeemCode"
+              ],
+              "text": "id: string"
+            }
+          }
+        ]
+      },
+      {
+        "index": 3,
+        "actor": "B",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "write",
+            "text": "INSERT redemptions {code=\"SAVE10\", id=\"req-B\"} → 1 row",
+            "result": 1,
+            "src": {
+              "origin": "extracted",
+              "file": "src/redeem.ts",
+              "line": 13,
+              "column": 9,
+              "function": "redeem",
+              "callChain": [
+                "redeemCode"
+              ],
+              "effectId": 0,
+              "text": "db.insert(redemptions).values({ id, code })"
+            }
+          },
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "local",
+            "text": "return (success)"
+          }
+        ]
+      },
+      {
+        "index": 4,
+        "actor": "A",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "write",
+            "text": "INSERT redemptions {code=\"SAVE10\", id=\"req-A\"} → 1 row",
+            "result": 1,
+            "src": {
+              "origin": "extracted",
+              "file": "src/redeem.ts",
+              "line": 13,
+              "column": 9,
+              "function": "redeem",
+              "callChain": [
+                "redeemCode"
+              ],
+              "effectId": 0,
+              "text": "db.insert(redemptions).values({ id, code })"
+            }
+          },
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "local",
+            "text": "return (success)"
+          }
+        ]
+      }
+    ],
+    "finalState": {
+      "tables": {
+        "redemptions": [
+          {
+            "code": "SAVE10",
+            "id": "req-A"
+          },
+          {
+            "code": "SAVE10",
+            "id": "req-B"
+          }
+        ]
+      },
+      "actors": [
+        [
+          "A",
+          "ok"
+        ],
+        [
+          "B",
+          "ok"
+        ]
+      ],
+      "externalEffects": [],
+      "terms": [
+        {
+          "term": "count(redemptions[code=\"SAVE10\"])",
+          "value": 2
+        }
+      ],
+      "quiescent": true
+    },
+    "contextSwitches": 2,
+    "minimized": true,
+    "originalLength": 4
+  },
+  "evidence": {
+    "level": "postgres-confirmed-schedule",
+    "summary": "the schedule was replayed on PostgreSQL: all 4 database outcomes matched the model's predictions and the final committed rows are identical; the invariant reads only committed rows, so it is violated on the real server"
+  },
+  "runtime": {
+    "performed": true,
+    "status": "confirmed",
+    "postgresVersion": "postgres (PostgreSQL) 17.11 (Homebrew)",
+    "observations": [
+      {
+        "transition": 1,
+        "actor": "A",
+        "sql": "SELECT row_to_json(t) FROM (SELECT * FROM \"redemptions\" WHERE (\"code\" = 'SAVE10') ORDER BY \"id\" LIMIT 1) t;",
+        "predicted": "no row",
+        "observed": "no row",
+        "agree": true
+      },
+      {
+        "transition": 2,
+        "actor": "B",
+        "sql": "SELECT row_to_json(t) FROM (SELECT * FROM \"redemptions\" WHERE (\"code\" = 'SAVE10') ORDER BY \"id\" LIMIT 1) t;",
+        "predicted": "no row",
+        "observed": "no row",
+        "agree": true
+      },
+      {
+        "transition": 3,
+        "actor": "B",
+        "sql": "WITH r AS (INSERT INTO \"redemptions\" (\"code\", \"id\") VALUES ('SAVE10', 'req-B') RETURNING 1) SELECT count(*) FROM r;",
+        "predicted": "1 row(s)",
+        "observed": "1 row(s)",
+        "agree": true
+      },
+      {
+        "transition": 4,
+        "actor": "A",
+        "sql": "WITH r AS (INSERT INTO \"redemptions\" (\"code\", \"id\") VALUES ('SAVE10', 'req-A') RETURNING 1) SELECT count(*) FROM r;",
+        "predicted": "1 row(s)",
+        "observed": "1 row(s)",
+        "agree": true
+      }
+    ],
+    "sqlstates": [],
+    "tablesAgree": true,
+    "modelTables": {
+      "redemptions": [
+        {
+          "code": "SAVE10",
+          "id": "req-A"
+        },
+        {
+          "code": "SAVE10",
+          "id": "req-B"
+        }
+      ]
+    },
+    "postgresTables": {
+      "redemptions": [
+        {
+          "code": "SAVE10",
+          "id": "req-A"
+        },
+        {
+          "code": "SAVE10",
+          "id": "req-B"
+        }
+      ]
+    },
+    "sqlOrigin": {
+      "A": "model-derived (extracted from source)",
+      "B": "model-derived (extracted from source)"
+    },
+    "note": "Each actor ran on its own PostgreSQL connection (a psql process) against a private, disposable cluster; the model's schedule decided which session sent its next statement, and a statement counts as blocked only when the server reported a lock wait. Deadlock victim choice depends on PostgreSQL's deadlock timer and is steered with delays. Not exercised: the original TypeScript/Drizzle code, application-level retries, external services."
+  },
+  "assumptions": [
+    "database default isolation: read-committed (PostgreSQL semantics, see docs/phase6/POSTGRES-ISOLATION.md)",
+    "a database statement is atomic unless it must wait for another transaction; waiting statements resume with their original snapshot",
+    "autocommit (root `db`) statements are single-statement transactions at the default isolation level",
+    "local computation is not a scheduling point; it is folded into the preceding transition",
+    "rows are read in primary-key order for LIMIT 1 (the declared programs and generated SQL both use ORDER BY the primary key)",
+    "tasks of different actors never share a transaction, connection or event loop; actors listed with the same process share in-process variables and crash together",
+    "a process crash rolls back open transactions and loses local state; committed data and performed external effects remain",
+    "actor A: relational query `findFirst` assumed to be `SELECT ... LIMIT 1`",
+    "actor A: no orderBy: the first row in primary-key order is taken",
+    "actor B: relational query `findFirst` assumed to be `SELECT ... LIMIT 1`",
+    "actor B: no orderBy: the first row in primary-key order is taken"
+  ],
+  "diagnostics": [
+    {
+      "code": "CP7001",
+      "severity": "warning",
+      "message": "invariant `redeemed-at-most-once` can be violated by a bounded schedule of 4 transitions (2 context switches); evidence: postgres-confirmed-schedule"
+    }
+  ]
+}

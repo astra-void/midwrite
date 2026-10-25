@@ -1,0 +1,12 @@
+{
+  "databaseReceivers": ["db"],
+  "transactionMethods": ["transaction"],
+  "externalEffects": [
+    { "receiver": "stripe.checkout.sessions", "method": "create", "category": "http-request" },
+    { "receiver": "stripe.billingPortal.configurations", "method": "create", "category": "http-request" },
+    { "receiver": "stripe.billingPortal.sessions", "method": "create", "category": "http-request" },
+    { "receiver": "stripe.products", "method": "create", "category": "payment" },
+    { "receiver": "stripe.prices", "method": "create", "category": "payment" },
+    { "receiver": "stripe.customers", "method": "create", "category": "payment" }
+  ]
+}

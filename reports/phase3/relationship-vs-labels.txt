@@ -1,0 +1,16 @@
+Effect relationship (argument provenance by name) vs. Phase 2 labels, original corpus configurations.
+Relationship is descriptive: no finding was removed or demoted.
+
+label              sharedArguments  noSharedArgument     notComparable
+true-positive                    4                 3                20
+intended-risk                    8                 1                56
+false-positive                   1                 0                 4
+unclear                          0                 0                 6
+unreviewed                      28                13               182
+
+False positives:
+   midday 7152316730e65b31-2 CP1001 notComparable []
+   midday 30b45470f9206870 CP1002 notComparable []
+   midday de2c2b657c4a7d57 CP1005 sharedArguments ['teamId']
+   midday d6cc779a0da27f5a CP1002 notComparable []
+   unnamed-ai-project f1a614005e8dcbe7 CP1004 notComparable []

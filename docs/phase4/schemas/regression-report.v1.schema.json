@@ -1,0 +1,312 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "commitrift.regression.v1",
+  "title": "CommitRift replay regression report (commitrift replay --baseline ... --regression-output), schema version 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "tool",
+    "harness",
+    "baselineManifestHash",
+    "currentManifestHash",
+    "source",
+    "environment",
+    "entries",
+    "summary"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "kind": {
+      "const": "commitrift.regression"
+    },
+    "tool": {
+      "type": "object",
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "harness": {
+      "type": "string"
+    },
+    "baselineManifestHash": {
+      "type": "string"
+    },
+    "currentManifestHash": {
+      "type": "string"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revision",
+        "dirty"
+      ],
+      "properties": {
+        "revision": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dirty": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "os",
+        "arch",
+        "postgres",
+        "runtime",
+        "networkIsolation",
+        "database",
+        "environmentVariables"
+      ],
+      "properties": {
+        "os": {
+          "type": "string"
+        },
+        "arch": {
+          "type": "string"
+        },
+        "postgres": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "runtime": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "networkIsolation": {
+          "type": "string"
+        },
+        "database": {
+          "type": "string"
+        },
+        "environmentVariables": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          }
+        },
+        "isolation": {
+          "type": "string",
+          "enum": [
+            "sandbox-exec",
+            "bubblewrap",
+            "none"
+          ]
+        }
+      }
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "findingId",
+          "traceId",
+          "code",
+          "failureMode",
+          "checkpoint",
+          "baseline",
+          "current",
+          "status",
+          "reproducedRuns",
+          "runs",
+          "violatedInvariants"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+/[a-z0-9-]+$"
+          },
+          "findingId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "traceId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "failureMode": {
+            "enum": [
+              "none",
+              "exception",
+              "processKill"
+            ]
+          },
+          "checkpoint": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "name",
+                  "occurrence"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "occurrence": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "label": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
+          },
+          "baseline": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "enum": [
+                  "RUNTIME_REPRODUCED",
+                  "RUNTIME_NOT_REPRODUCED",
+                  "INCONCLUSIVE",
+                  "STATIC_CANDIDATE",
+                  "SIMULATED"
+                ]
+              }
+            ]
+          },
+          "current": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "enum": [
+                  "RUNTIME_REPRODUCED",
+                  "RUNTIME_NOT_REPRODUCED",
+                  "INCONCLUSIVE",
+                  "STATIC_CANDIDATE",
+                  "SIMULATED"
+                ]
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "stillReproduced",
+              "noLongerReproduced",
+              "newlyReproduced",
+              "stillNotReproduced",
+              "inconclusive",
+              "notExecuted",
+              "notInBaseline"
+            ]
+          },
+          "reproducedRuns": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "runs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "violatedInvariants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cases",
+        "stillReproduced",
+        "noLongerReproduced",
+        "newlyReproduced",
+        "stillNotReproduced",
+        "inconclusive",
+        "notExecuted",
+        "notInBaseline"
+      ],
+      "properties": {
+        "cases": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stillReproduced": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "noLongerReproduced": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "newlyReproduced": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stillNotReproduced": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inconclusive": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "notExecuted": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "notInBaseline": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

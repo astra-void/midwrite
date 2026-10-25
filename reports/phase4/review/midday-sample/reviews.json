@@ -1,0 +1,129 @@
+{
+  "instructions": "Fill one entry per finding from its packet only. classification: confirmed-bug | intended-risk | false-positive | unclear | not-reviewed. reviewer: your name or handle; role: e.g. maintainer, external reviewer; date: YYYY-MM-DD; evidence: file:line references. Do not open label files or earlier reports before finishing.",
+  "kind": "commitrift.review",
+  "project": "midday",
+  "reviews": [
+    {
+      "classification": "not-reviewed",
+      "date": "",
+      "evidence": [],
+      "findingId": "00cf4d5e2d54ce6b",
+      "notes": "",
+      "packet": "packets/01-00cf4d5e2d54ce6b.md",
+      "reviewer": "",
+      "role": ""
+    },
+    {
+      "classification": "not-reviewed",
+      "date": "",
+      "evidence": [],
+      "findingId": "00cf4d5e2d54ce6b-2",
+      "notes": "",
+      "packet": "packets/02-00cf4d5e2d54ce6b-2.md",
+      "reviewer": "",
+      "role": ""
+    },
+    {
+      "classification": "not-reviewed",
+      "date": "",
+      "evidence": [],
+      "findingId": "04d6562eb1e4c94b",
+      "notes": "",
+      "packet": "packets/03-04d6562eb1e4c94b.md",
+      "reviewer": "",
+      "role": ""
+    },
+    {
+      "classification": "not-reviewed",
+      "date": "",
+      "evidence": [],
+      "findingId": "07eca3c2866c3e58",
+      "notes": "",
+      "packet": "packets/04-07eca3c2866c3e58.md",
+      "reviewer": "",
+      "role": ""
+    },
+    {
+      "classification": "not-reviewed",
+      "date": "",
+      "evidence": [],
+      "findingId": "1158bbb561efdd18",
+      "notes": "",
+      "packet": "packets/05-1158bbb561efdd18.md",
+      "reviewer": "",
+      "role": ""
+    },
+    {
+      "classification": "not-reviewed",
+      "date": "",
+      "evidence": [],
+      "findingId": "1706a3e9bf495af0",
+      "notes": "",
+      "packet": "packets/06-1706a3e9bf495af0.md",
+      "reviewer": "",
+      "role": ""
+    },
+    {
+      "classification": "not-reviewed",
+      "date": "",
+      "evidence": [],
+      "findingId": "17dd88ef91007e7c",
+      "notes": "",
+      "packet": "packets/07-17dd88ef91007e7c.md",
+      "reviewer": "",
+      "role": ""
+    },
+    {
+      "classification": "not-reviewed",
+      "date": "",
+      "evidence": [],
+      "findingId": "204f4ab8e0eff974",
+      "notes": "",
+      "packet": "packets/08-204f4ab8e0eff974.md",
+      "reviewer": "",
+      "role": ""
+    },
+    {
+      "classification": "not-reviewed",
+      "date": "",
+      "evidence": [],
+      "findingId": "2357d158263797c2",
+      "notes": "",
+      "packet": "packets/09-2357d158263797c2.md",
+      "reviewer": "",
+      "role": ""
+    },
+    {
+      "classification": "not-reviewed",
+      "date": "",
+      "evidence": [],
+      "findingId": "282b3d4d6e290aef",
+      "notes": "",
+      "packet": "packets/10-282b3d4d6e290aef.md",
+      "reviewer": "",
+      "role": ""
+    },
+    {
+      "classification": "not-reviewed",
+      "date": "",
+      "evidence": [],
+      "findingId": "28837a752034d3fe",
+      "notes": "",
+      "packet": "packets/11-28837a752034d3fe.md",
+      "reviewer": "",
+      "role": ""
+    },
+    {
+      "classification": "not-reviewed",
+      "date": "",
+      "evidence": [],
+      "findingId": "2b7504eae7852445",
+      "notes": "",
+      "packet": "packets/12-2b7504eae7852445.md",
+      "reviewer": "",
+      "role": ""
+    }
+  ],
+  "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+  "schemaVersion": 1
+}

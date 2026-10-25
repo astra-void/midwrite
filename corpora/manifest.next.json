@@ -1,0 +1,23 @@
+{
+  "$comment": "Same projects as manifest.json, with configurations written AFTER the Phase 2 review to exercise getDb() handles, bestEffort/firstArgument and exclude. Not an independent measurement.",
+  "projects": [
+    {
+      "name": "saas-starter",
+      "category": "nextjs-drizzle",
+      "origin": "external",
+      "repository": "https://github.com/nextjs/saas-starter.git",
+      "revision": "6e33e58b1e553a41fe22e6b941a7229a002de361",
+      "path": "../.corpora/saas-starter",
+      "config": "configs/saas-starter.json"
+    },
+    {
+      "name": "midday",
+      "category": "service-db-messaging-large",
+      "origin": "external",
+      "repository": "https://github.com/midday-ai/midday.git",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "path": "../.corpora/midday",
+      "config": "configs/midday.next.json"
+    }
+  ]
+}

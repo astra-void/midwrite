@@ -1,0 +1,19 @@
+/target
+
+# trail (code-graph tool) — local setup, hooks and learnings.
+/.trail/
+/.claude/settings.json
+/.claude/settings.local.json
+
+# Evaluation corpus checkouts and saved binaries (see corpora/fetch.sh).
+/.corpora/
+/demo-output/
+
+# Phase 4: JavaScript dependencies and build outputs of replay fixtures and
+# generated harnesses (lockfiles are tracked), scratch output of tests, and
+# local tooling caches.
+node_modules/
+/fixtures/replay/**/dist/
+/fixtures/replay/drizzle-node/.gen-*
+/digest.txt
+.DS_Store

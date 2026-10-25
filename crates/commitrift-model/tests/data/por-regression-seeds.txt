@@ -1,0 +1,2 @@
+# Seeds that once exposed a bug in the reduction or the model (one per line).
+# They are always replayed by tests/por.rs in addition to the fresh range.

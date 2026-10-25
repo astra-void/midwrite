@@ -1,0 +1,211 @@
+commitrift replay: harness `order-vulnerable` — Order completion that commits the status change, then publishes order.completed (CP1001).
+  environment: macos aarch64, postgres (PostgreSQL) 17.11 (Homebrew), bun 1.3.3; network: sandbox-exec: IP networking denied; Unix sockets and file writes limited to the replay directory
+  control run (no injection): RUNTIME_NOT_REPRODUCED — all 1 declared invariant check(s) held; state: orderStatus="paid" publishedEvents=1
+
+case kill-after-db-commit: processKill at `after-db-commit`  [RUNTIME_REPRODUCED, as expected]
+  Kill the process after the status update committed, before publishing.
+  static link: Matched — finding 1fdd4de8196f4a3d (CP1001 in `completeOrder`, src/orders.ts:11); trace tr-c649a775ffafff7d (OnTraceBoundary)
+  run 1: RUNTIME_REPRODUCED — declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: orderStatus = "paid" -> ok (observed "paid")
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="paid" publishedEvents=0
+    prediction: matches the observed state
+  run 2: RUNTIME_REPRODUCED — declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: orderStatus = "paid" -> ok (observed "paid")
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="paid" publishedEvents=0
+    prediction: matches the observed state
+  run 3: RUNTIME_REPRODUCED — declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: orderStatus = "paid" -> ok (observed "paid")
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="paid" publishedEvents=0
+    prediction: matches the observed state
+  run 4: RUNTIME_REPRODUCED — declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: orderStatus = "paid" -> ok (observed "paid")
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="paid" publishedEvents=0
+    prediction: matches the observed state
+  run 5: RUNTIME_REPRODUCED — declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: orderStatus = "paid" -> ok (observed "paid")
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="paid" publishedEvents=0
+    prediction: matches the observed state
+
+case exception-after-db-commit: exception at `after-db-commit`  [RUNTIME_REPRODUCED, as expected]
+  Throw at the same point: the function has no handler, so the exception leaves the same state.
+  static link: Matched — finding 1fdd4de8196f4a3d (CP1001 in `completeOrder`, src/orders.ts:11); trace tr-c649a775ffafff7d (OnTraceBoundary)
+  run 1: RUNTIME_REPRODUCED — declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)
+    injected=true outcome=threw exit=exited (code 1)
+    before injecting: orderStatus = "paid" -> ok (observed "paid")
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="paid" publishedEvents=0
+    prediction: matches the observed state
+  run 2: RUNTIME_REPRODUCED — declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)
+    injected=true outcome=threw exit=exited (code 1)
+    before injecting: orderStatus = "paid" -> ok (observed "paid")
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="paid" publishedEvents=0
+    prediction: matches the observed state
+  run 3: RUNTIME_REPRODUCED — declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)
+    injected=true outcome=threw exit=exited (code 1)
+    before injecting: orderStatus = "paid" -> ok (observed "paid")
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="paid" publishedEvents=0
+    prediction: matches the observed state
+  run 4: RUNTIME_REPRODUCED — declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)
+    injected=true outcome=threw exit=exited (code 1)
+    before injecting: orderStatus = "paid" -> ok (observed "paid")
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="paid" publishedEvents=0
+    prediction: matches the observed state
+  run 5: RUNTIME_REPRODUCED — declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)
+    injected=true outcome=threw exit=exited (code 1)
+    before injecting: orderStatus = "paid" -> ok (observed "paid")
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="paid" publishedEvents=0
+    prediction: matches the observed state
+  note: Exception mode: the application's catch/finally handlers and transaction rollbacks ran; this is not the same as a process crash.
+
+case kill-before-db-write: processKill at `before-db-write`  [RUNTIME_NOT_REPRODUCED, as expected]
+  Negative case: kill before the write is sent. Nothing is durable, so nothing is inconsistent.
+  static link: Matched — finding 1fdd4de8196f4a3d (CP1001 in `completeOrder`, src/orders.ts:11); trace tr-c649a775ffafff7d (OutsideTraceBoundary)
+  run 1: RUNTIME_NOT_REPRODUCED — all 1 declared invariant check(s) held
+    injected=true outcome=killed exit=signaled (signal 9)
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="pending" publishedEvents=0
+    prediction: matches the observed state
+  run 2: RUNTIME_NOT_REPRODUCED — all 1 declared invariant check(s) held
+    injected=true outcome=killed exit=signaled (signal 9)
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="pending" publishedEvents=0
+    prediction: matches the observed state
+  run 3: RUNTIME_NOT_REPRODUCED — all 1 declared invariant check(s) held
+    injected=true outcome=killed exit=signaled (signal 9)
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="pending" publishedEvents=0
+    prediction: matches the observed state
+  run 4: RUNTIME_NOT_REPRODUCED — all 1 declared invariant check(s) held
+    injected=true outcome=killed exit=signaled (signal 9)
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="pending" publishedEvents=0
+    prediction: matches the observed state
+  run 5: RUNTIME_NOT_REPRODUCED — all 1 declared invariant check(s) held
+    injected=true outcome=killed exit=signaled (signal 9)
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="pending" publishedEvents=0
+    prediction: matches the observed state
+
+case kill-after-event-publish: processKill at `after-event-publish`  [RUNTIME_NOT_REPRODUCED, as expected]
+  Negative case: kill after the event was published. Both effects happened.
+  static link: Matched — finding 1fdd4de8196f4a3d (CP1001 in `completeOrder`, src/orders.ts:11); trace tr-c649a775ffafff7d (OutsideTraceBoundary)
+  run 1: RUNTIME_NOT_REPRODUCED — all 1 declared invariant check(s) held
+    injected=true outcome=killed exit=signaled (signal 9)
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="paid" publishedEvents=1
+    prediction: matches the observed state
+  run 2: RUNTIME_NOT_REPRODUCED — all 1 declared invariant check(s) held
+    injected=true outcome=killed exit=signaled (signal 9)
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="paid" publishedEvents=1
+    prediction: matches the observed state
+  run 3: RUNTIME_NOT_REPRODUCED — all 1 declared invariant check(s) held
+    injected=true outcome=killed exit=signaled (signal 9)
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="paid" publishedEvents=1
+    prediction: matches the observed state
+  run 4: RUNTIME_NOT_REPRODUCED — all 1 declared invariant check(s) held
+    injected=true outcome=killed exit=signaled (signal 9)
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="paid" publishedEvents=1
+    prediction: matches the observed state
+  run 5: RUNTIME_NOT_REPRODUCED — all 1 declared invariant check(s) held
+    injected=true outcome=killed exit=signaled (signal 9)
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="paid" publishedEvents=1
+    prediction: matches the observed state
+
+case compensation-exception-before-publish: exception at `before-event-publish`  [RUNTIME_NOT_REPRODUCED, as expected]
+  With an in-process compensation, an exception before publishing runs the catch block, which reverts the status.
+  static link: Matched — finding 4e8c6b70f17795a3 (CP1001 in `completeOrderWithCompensation`, src/orders.ts:20); trace tr-654fa0a0d7e5362d (OnTraceBoundary)
+  run 1: RUNTIME_NOT_REPRODUCED — all 1 declared invariant check(s) held
+    injected=true outcome=threw exit=exited (code 1)
+    before injecting: orderStatus = "paid" -> ok (observed "paid")
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="pending" publishedEvents=0
+    prediction: matches the observed state
+  run 2: RUNTIME_NOT_REPRODUCED — all 1 declared invariant check(s) held
+    injected=true outcome=threw exit=exited (code 1)
+    before injecting: orderStatus = "paid" -> ok (observed "paid")
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="pending" publishedEvents=0
+    prediction: matches the observed state
+  run 3: RUNTIME_NOT_REPRODUCED — all 1 declared invariant check(s) held
+    injected=true outcome=threw exit=exited (code 1)
+    before injecting: orderStatus = "paid" -> ok (observed "paid")
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="pending" publishedEvents=0
+    prediction: matches the observed state
+  run 4: RUNTIME_NOT_REPRODUCED — all 1 declared invariant check(s) held
+    injected=true outcome=threw exit=exited (code 1)
+    before injecting: orderStatus = "paid" -> ok (observed "paid")
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="pending" publishedEvents=0
+    prediction: matches the observed state
+  run 5: RUNTIME_NOT_REPRODUCED — all 1 declared invariant check(s) held
+    injected=true outcome=threw exit=exited (code 1)
+    before injecting: orderStatus = "paid" -> ok (observed "paid")
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="pending" publishedEvents=0
+    prediction: matches the observed state
+  note: Exception mode: the application's catch/finally handlers and transaction rollbacks ran; this is not the same as a process crash.
+
+case compensation-kill-before-publish: processKill at `before-event-publish`  [RUNTIME_REPRODUCED, as expected]
+  The same point with a process kill: the catch block never runs, so the compensation does not help.
+  static link: Matched — finding 4e8c6b70f17795a3 (CP1001 in `completeOrderWithCompensation`, src/orders.ts:20); trace tr-654fa0a0d7e5362d (OnTraceBoundary)
+  run 1: RUNTIME_REPRODUCED — declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: orderStatus = "paid" -> ok (observed "paid")
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="paid" publishedEvents=0
+    prediction: matches the observed state
+  run 2: RUNTIME_REPRODUCED — declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: orderStatus = "paid" -> ok (observed "paid")
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="paid" publishedEvents=0
+    prediction: matches the observed state
+  run 3: RUNTIME_REPRODUCED — declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: orderStatus = "paid" -> ok (observed "paid")
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="paid" publishedEvents=0
+    prediction: matches the observed state
+  run 4: RUNTIME_REPRODUCED — declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: orderStatus = "paid" -> ok (observed "paid")
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="paid" publishedEvents=0
+    prediction: matches the observed state
+  run 5: RUNTIME_REPRODUCED — declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: orderStatus = "paid" -> ok (observed "paid")
+    before:        orderStatus="pending" publishedEvents=0
+    after:         orderStatus="paid" publishedEvents=0
+    prediction: matches the observed state
+
+6 case(s): 3 RUNTIME_REPRODUCED, 3 RUNTIME_NOT_REPRODUCED, 0 INCONCLUSIVE; 6 as expected, 0 not as expected.
+Results describe this harness under the recorded conditions; RUNTIME_NOT_REPRODUCED does not prove the application safe.
+
+regression against the baseline (harness `order-vulnerable`):
+  stillReproduced        order-vulnerable/kill-after-db-commit  (baseline RUNTIME_REPRODUCED, now RUNTIME_REPRODUCED; 5 of 5 run(s) reproduced)
+  stillReproduced        order-vulnerable/exception-after-db-commit  (baseline RUNTIME_REPRODUCED, now RUNTIME_REPRODUCED; 5 of 5 run(s) reproduced)
+  stillNotReproduced     order-vulnerable/kill-before-db-write  (baseline RUNTIME_NOT_REPRODUCED, now RUNTIME_NOT_REPRODUCED; 0 of 5 run(s) reproduced)
+  stillNotReproduced     order-vulnerable/kill-after-event-publish  (baseline RUNTIME_NOT_REPRODUCED, now RUNTIME_NOT_REPRODUCED; 0 of 5 run(s) reproduced)
+  stillNotReproduced     order-vulnerable/compensation-exception-before-publish  (baseline RUNTIME_NOT_REPRODUCED, now RUNTIME_NOT_REPRODUCED; 0 of 5 run(s) reproduced)
+  stillReproduced        order-vulnerable/compensation-kill-before-publish  (baseline RUNTIME_REPRODUCED, now RUNTIME_REPRODUCED; 5 of 5 run(s) reproduced)
+6 case(s): 3 still reproduced, 0 no longer reproduced, 0 newly reproduced, 3 still not reproduced, 0 inconclusive, 0 not executed, 0 not in the baseline.

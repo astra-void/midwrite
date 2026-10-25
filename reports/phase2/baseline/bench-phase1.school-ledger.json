@@ -1,0 +1,3552 @@
+{
+  "config": "/Users/returnf4lse/Desktop/Workspace/rust/crash-proof/corpora/configs/school-ledger.json",
+  "diagnostics": [
+    {
+      "code": "CP1004",
+      "confidence": "medium",
+      "effects": [
+        {
+          "description": "database insert on `academicYear` (commits on its own)",
+          "label": "db.insert(academicYear)",
+          "location": {
+            "column": 38,
+            "endColumn": 26,
+            "endLine": 100,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 99
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "database insert on `schoolClass` (commits on its own)",
+          "label": "db.insert(schoolClass)",
+          "location": {
+            "column": 27,
+            "endColumn": 25,
+            "endLine": 111,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 110
+          },
+          "role": "notYetPerformed"
+        }
+      ],
+      "evidence": [
+        "`db.insert(academicYear)` (database insert on `academicYear`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding.",
+        "`db.insert(schoolClass)` (database insert on `schoolClass`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.insert(academicYear)` (99:38) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.insert(academicYear)` and before `db.insert(schoolClass)` completes.",
+        "3. `db.insert(schoolClass)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "potentialHazard",
+      "limitations": [
+        "The sequence depends on 1 branch decision(s) between the two operations (see pathConditions). CrashProof does not check that these conditions can hold together.",
+        "CrashProof does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 27,
+        "endColumn": 25,
+        "endLine": 111,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 110
+      },
+      "message": "`db.insert(academicYear)` and `db.insert(schoolClass)` commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathConditions": [
+        {
+          "description": "if `!prevYear || !currYear` takes the `else` path",
+          "location": {
+            "column": 3,
+            "endColumn": 82,
+            "endLine": 107,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 107
+          }
+        }
+      ],
+      "reproduced": false,
+      "severity": "warning",
+      "title": "independent database commits"
+    },
+    {
+      "code": "CP1004",
+      "confidence": "high",
+      "effects": [
+        {
+          "description": "database insert on `schoolClass` (commits on its own)",
+          "label": "db.insert(schoolClass)",
+          "location": {
+            "column": 27,
+            "endColumn": 25,
+            "endLine": 111,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 110
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "database insert on `student` (commits on its own)",
+          "label": "db.insert(student)",
+          "location": {
+            "column": 24,
+            "endColumn": 21,
+            "endLine": 131,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 130
+          },
+          "role": "notYetPerformed"
+        }
+      ],
+      "evidence": [
+        "`db.insert(schoolClass)` (database insert on `schoolClass`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding.",
+        "`db.insert(student)` (database insert on `student`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.insert(schoolClass)` (110:27) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.insert(schoolClass)` and before `db.insert(student)` completes.",
+        "3. `db.insert(student)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "potentialHazard",
+      "limitations": [
+        "CrashProof does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 24,
+        "endColumn": 21,
+        "endLine": 131,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 130
+      },
+      "message": "`db.insert(schoolClass)` and `db.insert(student)` commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "warning",
+      "title": "independent database commits"
+    },
+    {
+      "code": "CP1004",
+      "confidence": "high",
+      "effects": [
+        {
+          "description": "database insert on `student` (commits on its own)",
+          "label": "db.insert(student)",
+          "location": {
+            "column": 24,
+            "endColumn": 21,
+            "endLine": 131,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 130
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "database insert on `student` (commits on its own)",
+          "label": "db.insert(student)",
+          "location": {
+            "column": 24,
+            "endColumn": 21,
+            "endLine": 135,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 134
+          },
+          "role": "notYetPerformed"
+        }
+      ],
+      "evidence": [
+        "`db.insert(student)` (database insert on `student`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding.",
+        "`db.insert(student)` (database insert on `student`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.insert(student)` (130:24) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.insert(student)` and before `db.insert(student)` completes.",
+        "3. `db.insert(student)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "potentialHazard",
+      "limitations": [
+        "CrashProof does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 24,
+        "endColumn": 21,
+        "endLine": 135,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 134
+      },
+      "message": "`db.insert(student)` and `db.insert(student)` commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "warning",
+      "title": "independent database commits"
+    },
+    {
+      "code": "CP1004",
+      "confidence": "high",
+      "effects": [
+        {
+          "description": "database insert on `student` (commits on its own)",
+          "label": "db.insert(student)",
+          "location": {
+            "column": 24,
+            "endColumn": 21,
+            "endLine": 135,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 134
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "database insert on `student` (commits on its own)",
+          "label": "db.insert(student)",
+          "location": {
+            "column": 30,
+            "endColumn": 21,
+            "endLine": 167,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 166
+          },
+          "role": "notYetPerformed"
+        }
+      ],
+      "evidence": [
+        "`db.insert(student)` (database insert on `student`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding.",
+        "`db.insert(student)` (database insert on `student`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.insert(student)` (134:24) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.insert(student)` and before `db.insert(student)` completes.",
+        "3. `db.insert(student)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "potentialHazard",
+      "limitations": [
+        "CrashProof does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 30,
+        "endColumn": 21,
+        "endLine": 167,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 166
+      },
+      "message": "`db.insert(student)` and `db.insert(student)` commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "warning",
+      "title": "independent database commits"
+    },
+    {
+      "code": "CP1004",
+      "confidence": "high",
+      "effects": [
+        {
+          "description": "database insert on `student` (commits on its own)",
+          "label": "db.insert(student)",
+          "location": {
+            "column": 30,
+            "endColumn": 21,
+            "endLine": 167,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 166
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "database insert on `studentEnrollment` (commits on its own)",
+          "label": "db.insert(studentEnrollment)",
+          "location": {
+            "column": 9,
+            "endColumn": 37,
+            "endLine": 179,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 179
+          },
+          "role": "notYetPerformed"
+        }
+      ],
+      "evidence": [
+        "`db.insert(student)` (database insert on `student`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding.",
+        "`db.insert(studentEnrollment)` (database insert on `studentEnrollment`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.insert(student)` (166:30) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.insert(student)` and before `db.insert(studentEnrollment)` completes.",
+        "3. `db.insert(studentEnrollment)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "potentialHazard",
+      "limitations": [
+        "CrashProof does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 9,
+        "endColumn": 37,
+        "endLine": 179,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 179
+      },
+      "message": "`db.insert(student)` and `db.insert(studentEnrollment)` commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "warning",
+      "title": "independent database commits"
+    },
+    {
+      "code": "CP1004",
+      "confidence": "high",
+      "effects": [
+        {
+          "description": "database insert on `studentEnrollment` (commits on its own)",
+          "label": "db.insert(studentEnrollment)",
+          "location": {
+            "column": 9,
+            "endColumn": 37,
+            "endLine": 179,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 179
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "database insert on `staff` (commits on its own)",
+          "label": "db.insert(staff)",
+          "location": {
+            "column": 27,
+            "endColumn": 19,
+            "endLine": 192,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 191
+          },
+          "role": "notYetPerformed"
+        }
+      ],
+      "evidence": [
+        "`db.insert(studentEnrollment)` (database insert on `studentEnrollment`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding.",
+        "`db.insert(staff)` (database insert on `staff`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.insert(studentEnrollment)` (179:9) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.insert(studentEnrollment)` and before `db.insert(staff)` completes.",
+        "3. `db.insert(staff)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "potentialHazard",
+      "limitations": [
+        "CrashProof does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 27,
+        "endColumn": 19,
+        "endLine": 192,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 191
+      },
+      "message": "`db.insert(studentEnrollment)` and `db.insert(staff)` commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "warning",
+      "title": "independent database commits"
+    },
+    {
+      "code": "CP1004",
+      "confidence": "high",
+      "effects": [
+        {
+          "description": "database insert on `staff` (commits on its own)",
+          "label": "db.insert(staff)",
+          "location": {
+            "column": 27,
+            "endColumn": 19,
+            "endLine": 192,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 191
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "database insert on `staff` (commits on its own)",
+          "label": "db.insert(staff)",
+          "location": {
+            "column": 9,
+            "endColumn": 25,
+            "endLine": 208,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 208
+          },
+          "role": "notYetPerformed"
+        }
+      ],
+      "evidence": [
+        "`db.insert(staff)` (database insert on `staff`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding.",
+        "`db.insert(staff)` (database insert on `staff`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.insert(staff)` (191:27) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.insert(staff)` and before `db.insert(staff)` completes.",
+        "3. `db.insert(staff)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "potentialHazard",
+      "limitations": [
+        "CrashProof does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 9,
+        "endColumn": 25,
+        "endLine": 208,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 208
+      },
+      "message": "`db.insert(staff)` and `db.insert(staff)` commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "warning",
+      "title": "independent database commits"
+    },
+    {
+      "code": "CP1004",
+      "confidence": "high",
+      "effects": [
+        {
+          "description": "database insert on `staff` (commits on its own)",
+          "label": "db.insert(staff)",
+          "location": {
+            "column": 9,
+            "endColumn": 25,
+            "endLine": 208,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 208
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "database insert on `staffAssignment` (commits on its own)",
+          "label": "db.insert(staffAssignment)",
+          "location": {
+            "column": 9,
+            "endColumn": 35,
+            "endLine": 212,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 212
+          },
+          "role": "notYetPerformed"
+        }
+      ],
+      "evidence": [
+        "`db.insert(staff)` (database insert on `staff`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding.",
+        "`db.insert(staffAssignment)` (database insert on `staffAssignment`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.insert(staff)` (208:9) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.insert(staff)` and before `db.insert(staffAssignment)` completes.",
+        "3. `db.insert(staffAssignment)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "potentialHazard",
+      "limitations": [
+        "CrashProof does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 9,
+        "endColumn": 35,
+        "endLine": 212,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 212
+      },
+      "message": "`db.insert(staff)` and `db.insert(staffAssignment)` commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "warning",
+      "title": "independent database commits"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "provisionLoginAccount(\u2026)",
+          "location": {
+            "column": 30,
+            "endColumn": 6,
+            "endLine": 264,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 261
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database insert on `staffAssignment` (commits on its own)",
+          "label": "db.insert(staffAssignment)",
+          "location": {
+            "column": 9,
+            "endColumn": 35,
+            "endLine": 212,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 212
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`provisionLoginAccount(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.insert(staffAssignment)` (database insert on `staffAssignment`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.insert(staffAssignment)` (212:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `provisionLoginAccount(\u2026)` (261:30) runs; its effects are unknown.",
+        "3. If `provisionLoginAccount(\u2026)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 30,
+        "endColumn": 6,
+        "endLine": 264,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 261
+      },
+      "message": "`provisionLoginAccount(\u2026)` runs after `db.insert(staffAssignment)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "bootstrapSchoolAdmin(\u2026)",
+          "location": {
+            "column": 9,
+            "endColumn": 87,
+            "endLine": 270,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 270
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database insert on `staffAssignment` (commits on its own)",
+          "label": "db.insert(staffAssignment)",
+          "location": {
+            "column": 9,
+            "endColumn": 35,
+            "endLine": 212,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 212
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`bootstrapSchoolAdmin(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.insert(staffAssignment)` (database insert on `staffAssignment`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.insert(staffAssignment)` (212:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `bootstrapSchoolAdmin(\u2026)` (270:9) runs; its effects are unknown.",
+        "3. If `bootstrapSchoolAdmin(\u2026)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 9,
+        "endColumn": 87,
+        "endLine": 270,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 270
+      },
+      "message": "`bootstrapSchoolAdmin(\u2026)` runs after `db.insert(staffAssignment)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "provisionLoginAccount(\u2026)",
+          "location": {
+            "column": 30,
+            "endColumn": 6,
+            "endLine": 286,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 283
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database insert on `staffAssignment` (commits on its own)",
+          "label": "db.insert(staffAssignment)",
+          "location": {
+            "column": 9,
+            "endColumn": 35,
+            "endLine": 212,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 212
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`provisionLoginAccount(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.insert(staffAssignment)` (database insert on `staffAssignment`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.insert(staffAssignment)` (212:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `provisionLoginAccount(\u2026)` (283:30) runs; its effects are unknown.",
+        "3. If `provisionLoginAccount(\u2026)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 30,
+        "endColumn": 6,
+        "endLine": 286,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 283
+      },
+      "message": "`provisionLoginAccount(\u2026)` runs after `db.insert(staffAssignment)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "actorFor(\"admin\")",
+          "location": {
+            "column": 23,
+            "endColumn": 40,
+            "endLine": 296,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 296
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database insert on `staffAssignment` (commits on its own)",
+          "label": "db.insert(staffAssignment)",
+          "location": {
+            "column": 9,
+            "endColumn": 35,
+            "endLine": 212,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 212
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`actorFor(\"admin\")` matches no `databaseReceivers` or `externalEffects` entry (`actorFor` is declared in this file at 291:20, but it performs no recognized database operation or configured external effect, so its summary is not used).",
+        "`db.insert(staffAssignment)` (database insert on `staffAssignment`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.insert(staffAssignment)` (212:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `actorFor(\"admin\")` (296:23) runs; its effects are unknown.",
+        "3. If `actorFor(\"admin\")` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 23,
+        "endColumn": 40,
+        "endLine": 296,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 296
+      },
+      "message": "`actorFor(\"admin\")` runs after `db.insert(staffAssignment)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "initializeSyntheticDemoRules()",
+          "location": {
+            "column": 27,
+            "endColumn": 57,
+            "endLine": 301,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 301
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database insert on `staffAssignment` (commits on its own)",
+          "label": "db.insert(staffAssignment)",
+          "location": {
+            "column": 9,
+            "endColumn": 35,
+            "endLine": 212,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 212
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`initializeSyntheticDemoRules()` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.insert(staffAssignment)` (database insert on `staffAssignment`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.insert(staffAssignment)` (212:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `initializeSyntheticDemoRules()` (301:27) runs; its effects are unknown.",
+        "3. If `initializeSyntheticDemoRules()` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 27,
+        "endColumn": 57,
+        "endLine": 301,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 301
+      },
+      "message": "`initializeSyntheticDemoRules()` runs after `db.insert(staffAssignment)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "actorFor(\"teacher11\")",
+          "location": {
+            "column": 27,
+            "endColumn": 48,
+            "endLine": 330,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 330
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database insert on `staffAssignment` (commits on its own)",
+          "label": "db.insert(staffAssignment)",
+          "location": {
+            "column": 9,
+            "endColumn": 35,
+            "endLine": 212,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 212
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`actorFor(\"teacher11\")` matches no `databaseReceivers` or `externalEffects` entry (`actorFor` is declared in this file at 291:20, but it performs no recognized database operation or configured external effect, so its summary is not used).",
+        "`db.insert(staffAssignment)` (database insert on `staffAssignment`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.insert(staffAssignment)` (212:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `actorFor(\"teacher11\")` (330:27) runs; its effects are unknown.",
+        "3. If `actorFor(\"teacher11\")` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 27,
+        "endColumn": 48,
+        "endLine": 330,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 330
+      },
+      "message": "`actorFor(\"teacher11\")` runs after `db.insert(staffAssignment)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "actorFor(\"guidance\")",
+          "location": {
+            "column": 26,
+            "endColumn": 46,
+            "endLine": 331,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 331
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database insert on `staffAssignment` (commits on its own)",
+          "label": "db.insert(staffAssignment)",
+          "location": {
+            "column": 9,
+            "endColumn": 35,
+            "endLine": 212,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 212
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`actorFor(\"guidance\")` matches no `databaseReceivers` or `externalEffects` entry (`actorFor` is declared in this file at 291:20, but it performs no recognized database operation or configured external effect, so its summary is not used).",
+        "`db.insert(staffAssignment)` (database insert on `staffAssignment`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.insert(staffAssignment)` (212:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `actorFor(\"guidance\")` (331:26) runs; its effects are unknown.",
+        "3. If `actorFor(\"guidance\")` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 26,
+        "endColumn": 46,
+        "endLine": 331,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 331
+      },
+      "message": "`actorFor(\"guidance\")` runs after `db.insert(staffAssignment)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "actorFor(\"grade2\")",
+          "location": {
+            "column": 31,
+            "endColumn": 49,
+            "endLine": 332,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 332
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database insert on `staffAssignment` (commits on its own)",
+          "label": "db.insert(staffAssignment)",
+          "location": {
+            "column": 9,
+            "endColumn": 35,
+            "endLine": 212,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 212
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`actorFor(\"grade2\")` matches no `databaseReceivers` or `externalEffects` entry (`actorFor` is declared in this file at 291:20, but it performs no recognized database operation or configured external effect, so its summary is not used).",
+        "`db.insert(staffAssignment)` (database insert on `staffAssignment`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.insert(staffAssignment)` (212:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `actorFor(\"grade2\")` (332:31) runs; its effects are unknown.",
+        "3. If `actorFor(\"grade2\")` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 31,
+        "endColumn": 49,
+        "endLine": 332,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 332
+      },
+      "message": "`actorFor(\"grade2\")` runs after `db.insert(staffAssignment)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP1004",
+      "confidence": "medium",
+      "effects": [
+        {
+          "description": "database insert on `staffAssignment` (commits on its own)",
+          "label": "db.insert(staffAssignment)",
+          "location": {
+            "column": 9,
+            "endColumn": 35,
+            "endLine": 212,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 212
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "database update on `academicYear` (commits on its own)",
+          "label": "db.update(academicYear)",
+          "location": {
+            "column": 9,
+            "endColumn": 32,
+            "endLine": 339,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 339
+          },
+          "role": "notYetPerformed"
+        }
+      ],
+      "evidence": [
+        "`db.insert(staffAssignment)` (database insert on `staffAssignment`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding.",
+        "`db.update(academicYear)` (database update on `academicYear`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.insert(staffAssignment)` (212:9) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.insert(staffAssignment)` and before `db.update(academicYear)` completes.",
+        "3. `db.update(academicYear)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "potentialHazard",
+      "limitations": [
+        "The sequence depends on 3 branch decision(s) between the two operations (see pathConditions). CrashProof does not check that these conditions can hold together.",
+        "CrashProof does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 9,
+        "endColumn": 32,
+        "endLine": 339,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 339
+      },
+      "message": "`db.insert(staffAssignment)` and `db.update(academicYear)` commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathConditions": [
+        {
+          "description": "for-of loop `for (const spec of staffSpecs)` does not execute its body",
+          "location": {
+            "column": 3,
+            "endColumn": 4,
+            "endLine": 267,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 259
+          }
+        },
+        {
+          "description": "for-of loop `for (const spec of studentAccounts)` does not execute its body",
+          "location": {
+            "column": 3,
+            "endColumn": 4,
+            "endLine": 289,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 280
+          }
+        },
+        {
+          "description": "if `!g1a || !g1b || !g1c || !g2a || !g2b` takes the `else` path",
+          "location": {
+            "column": 3,
+            "endColumn": 81,
+            "endLine": 335,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 335
+          }
+        }
+      ],
+      "reproduced": false,
+      "severity": "warning",
+      "title": "independent database commits"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "issue(teacher11, g1a.id, \"L-009\", latest(10))",
+          "location": {
+            "column": 11,
+            "endColumn": 56,
+            "endLine": 349,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 349
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database update on `academicYear` (commits on its own)",
+          "label": "db.update(academicYear)",
+          "location": {
+            "column": 9,
+            "endColumn": 32,
+            "endLine": 339,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 339
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`issue(teacher11, g1a.id, \"L-009\", latest(10))` matches no `databaseReceivers` or `externalEffects` entry (`issue` is declared in this file at 315:17, but it performs no recognized database operation or configured external effect, so its summary is not used).",
+        "`db.update(academicYear)` (database update on `academicYear`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.update(academicYear)` (339:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `issue(teacher11, g1a.id, \"L-009\", latest(10))` (349:11) runs; its effects are unknown.",
+        "3. If `issue(teacher11, g1a.id, \"L-009\", latest(10))` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 11,
+        "endColumn": 56,
+        "endLine": 349,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 349
+      },
+      "message": "`issue(teacher11, g1a.id, \"L-009\", latest(10))` runs after `db.update(academicYear)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "issue(teacher11, g1a.id, \"L-026\", first)",
+          "location": {
+            "column": 11,
+            "endColumn": 51,
+            "endLine": 350,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 350
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database update on `academicYear` (commits on its own)",
+          "label": "db.update(academicYear)",
+          "location": {
+            "column": 9,
+            "endColumn": 32,
+            "endLine": 339,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 339
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`issue(teacher11, g1a.id, \"L-026\", first)` matches no `databaseReceivers` or `externalEffects` entry (`issue` is declared in this file at 315:17, but it performs no recognized database operation or configured external effect, so its summary is not used).",
+        "`db.update(academicYear)` (database update on `academicYear`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.update(academicYear)` (339:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `issue(teacher11, g1a.id, \"L-026\", first)` (350:11) runs; its effects are unknown.",
+        "3. If `issue(teacher11, g1a.id, \"L-026\", first)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 11,
+        "endColumn": 51,
+        "endLine": 350,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 350
+      },
+      "message": "`issue(teacher11, g1a.id, \"L-026\", first)` runs after `db.update(academicYear)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "issue(teacher11, g1b.id, \"L-017\", latest(20))",
+          "location": {
+            "column": 11,
+            "endColumn": 56,
+            "endLine": 351,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 351
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database update on `academicYear` (commits on its own)",
+          "label": "db.update(academicYear)",
+          "location": {
+            "column": 9,
+            "endColumn": 32,
+            "endLine": 339,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 339
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`issue(teacher11, g1b.id, \"L-017\", latest(20))` matches no `databaseReceivers` or `externalEffects` entry (`issue` is declared in this file at 315:17, but it performs no recognized database operation or configured external effect, so its summary is not used).",
+        "`db.update(academicYear)` (database update on `academicYear`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.update(academicYear)` (339:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `issue(teacher11, g1b.id, \"L-017\", latest(20))` (351:11) runs; its effects are unknown.",
+        "3. If `issue(teacher11, g1b.id, \"L-017\", latest(20))` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 11,
+        "endColumn": 56,
+        "endLine": 351,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 351
+      },
+      "message": "`issue(teacher11, g1b.id, \"L-017\", latest(20))` runs after `db.update(academicYear)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "issue(\u2026)",
+          "location": {
+            "column": 11,
+            "endColumn": 79,
+            "endLine": 353,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 353
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database update on `academicYear` (commits on its own)",
+          "label": "db.update(academicYear)",
+          "location": {
+            "column": 9,
+            "endColumn": 32,
+            "endLine": 339,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 339
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`issue(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (`issue` is declared in this file at 315:17, but it performs no recognized database operation or configured external effect, so its summary is not used).",
+        "`db.update(academicYear)` (database update on `academicYear`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.update(academicYear)` (339:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `issue(\u2026)` (353:11) runs; its effects are unknown.",
+        "3. If `issue(\u2026)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 11,
+        "endColumn": 79,
+        "endLine": 353,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 353
+      },
+      "message": "`issue(\u2026)` runs after `db.update(academicYear)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "issue(guidance, g1a.id, \"L-017\", latest(30))",
+          "location": {
+            "column": 29,
+            "endColumn": 73,
+            "endLine": 354,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 354
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database update on `academicYear` (commits on its own)",
+          "label": "db.update(academicYear)",
+          "location": {
+            "column": 9,
+            "endColumn": 32,
+            "endLine": 339,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 339
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`issue(guidance, g1a.id, \"L-017\", latest(30))` matches no `databaseReceivers` or `externalEffects` entry (`issue` is declared in this file at 315:17, but it performs no recognized database operation or configured external effect, so its summary is not used).",
+        "`db.update(academicYear)` (database update on `academicYear`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.update(academicYear)` (339:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `issue(guidance, g1a.id, \"L-017\", latest(30))` (354:29) runs; its effects are unknown.",
+        "3. If `issue(guidance, g1a.id, \"L-017\", latest(30))` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 29,
+        "endColumn": 73,
+        "endLine": 354,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 354
+      },
+      "message": "`issue(guidance, g1a.id, \"L-017\", latest(30))` runs after `db.update(academicYear)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "reversePointEvent(\u2026)",
+          "location": {
+            "column": 11,
+            "endColumn": 7,
+            "endLine": 359,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 355
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database update on `academicYear` (commits on its own)",
+          "label": "db.update(academicYear)",
+          "location": {
+            "column": 9,
+            "endColumn": 32,
+            "endLine": 339,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 339
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`reversePointEvent(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.update(academicYear)` (database update on `academicYear`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.update(academicYear)` (339:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `reversePointEvent(\u2026)` (355:11) runs; its effects are unknown.",
+        "3. If `reversePointEvent(\u2026)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 11,
+        "endColumn": 7,
+        "endLine": 359,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 355
+      },
+      "message": "`reversePointEvent(\u2026)` runs after `db.update(academicYear)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "issue(teacher11, g1a.id, \"L-026\", today)",
+          "location": {
+            "column": 11,
+            "endColumn": 51,
+            "endLine": 360,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 360
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database update on `academicYear` (commits on its own)",
+          "label": "db.update(academicYear)",
+          "location": {
+            "column": 9,
+            "endColumn": 32,
+            "endLine": 339,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 339
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`issue(teacher11, g1a.id, \"L-026\", today)` matches no `databaseReceivers` or `externalEffects` entry (`issue` is declared in this file at 315:17, but it performs no recognized database operation or configured external effect, so its summary is not used).",
+        "`db.update(academicYear)` (database update on `academicYear`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.update(academicYear)` (339:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `issue(teacher11, g1a.id, \"L-026\", today)` (360:11) runs; its effects are unknown.",
+        "3. If `issue(teacher11, g1a.id, \"L-026\", today)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 11,
+        "endColumn": 51,
+        "endLine": 360,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 360
+      },
+      "message": "`issue(teacher11, g1a.id, \"L-026\", today)` runs after `db.update(academicYear)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "issue(\u2026)",
+          "location": {
+            "column": 11,
+            "endColumn": 81,
+            "endLine": 362,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 362
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database update on `academicYear` (commits on its own)",
+          "label": "db.update(academicYear)",
+          "location": {
+            "column": 9,
+            "endColumn": 32,
+            "endLine": 339,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 339
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`issue(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (`issue` is declared in this file at 315:17, but it performs no recognized database operation or configured external effect, so its summary is not used).",
+        "`db.update(academicYear)` (database update on `academicYear`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.update(academicYear)` (339:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `issue(\u2026)` (362:11) runs; its effects are unknown.",
+        "3. If `issue(\u2026)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 11,
+        "endColumn": 81,
+        "endLine": 362,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 362
+      },
+      "message": "`issue(\u2026)` runs after `db.update(academicYear)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "issue(grade2Teacher, g2a.id, \"L-012\", latest(45))",
+          "location": {
+            "column": 11,
+            "endColumn": 60,
+            "endLine": 363,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 363
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database update on `academicYear` (commits on its own)",
+          "label": "db.update(academicYear)",
+          "location": {
+            "column": 9,
+            "endColumn": 32,
+            "endLine": 339,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 339
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`issue(grade2Teacher, g2a.id, \"L-012\", latest(45))` matches no `databaseReceivers` or `externalEffects` entry (`issue` is declared in this file at 315:17, but it performs no recognized database operation or configured external effect, so its summary is not used).",
+        "`db.update(academicYear)` (database update on `academicYear`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.update(academicYear)` (339:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `issue(grade2Teacher, g2a.id, \"L-012\", latest(45))` (363:11) runs; its effects are unknown.",
+        "3. If `issue(grade2Teacher, g2a.id, \"L-012\", latest(45))` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 11,
+        "endColumn": 60,
+        "endLine": 363,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 363
+      },
+      "message": "`issue(grade2Teacher, g2a.id, \"L-012\", latest(45))` runs after `db.update(academicYear)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "issue(grade2Teacher, g2b.id, \"L-026\", today)",
+          "location": {
+            "column": 11,
+            "endColumn": 55,
+            "endLine": 364,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 364
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database update on `academicYear` (commits on its own)",
+          "label": "db.update(academicYear)",
+          "location": {
+            "column": 9,
+            "endColumn": 32,
+            "endLine": 339,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 339
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`issue(grade2Teacher, g2b.id, \"L-026\", today)` matches no `databaseReceivers` or `externalEffects` entry (`issue` is declared in this file at 315:17, but it performs no recognized database operation or configured external effect, so its summary is not used).",
+        "`db.update(academicYear)` (database update on `academicYear`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.update(academicYear)` (339:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `issue(grade2Teacher, g2b.id, \"L-026\", today)` (364:11) runs; its effects are unknown.",
+        "3. If `issue(grade2Teacher, g2b.id, \"L-026\", today)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 11,
+        "endColumn": 55,
+        "endLine": 364,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 364
+      },
+      "message": "`issue(grade2Teacher, g2b.id, \"L-026\", today)` runs after `db.update(academicYear)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "appointStudentOfficer(\u2026)",
+          "location": {
+            "column": 9,
+            "endColumn": 5,
+            "endLine": 382,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 371
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database update on `academicYear` (commits on its own)",
+          "label": "db.update(academicYear)",
+          "location": {
+            "column": 9,
+            "endColumn": 32,
+            "endLine": 339,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 339
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`appointStudentOfficer(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.update(academicYear)` (database update on `academicYear`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.update(academicYear)` (339:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `appointStudentOfficer(\u2026)` (371:9) runs; its effects are unknown.",
+        "3. If `appointStudentOfficer(\u2026)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 9,
+        "endColumn": 5,
+        "endLine": 382,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 371
+      },
+      "message": "`appointStudentOfficer(\u2026)` runs after `db.update(academicYear)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "createDepartment(admin, { name: \"\ubc14\ub978\uc0dd\ud65c\ubd80\" })",
+          "location": {
+            "column": 34,
+            "endColumn": 76,
+            "endLine": 390,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 390
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database update on `academicYear` (commits on its own)",
+          "label": "db.update(academicYear)",
+          "location": {
+            "column": 9,
+            "endColumn": 32,
+            "endLine": 339,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 339
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`createDepartment(admin, { name: \"\ubc14\ub978\uc0dd\ud65c\ubd80\" })` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.update(academicYear)` (database update on `academicYear`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.update(academicYear)` (339:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `createDepartment(admin, { name: \"\ubc14\ub978\uc0dd\ud65c\ubd80\" })` (390:34) runs; its effects are unknown.",
+        "3. If `createDepartment(admin, { name: \"\ubc14\ub978\uc0dd\ud65c\ubd80\" })` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 34,
+        "endColumn": 76,
+        "endLine": 390,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 390
+      },
+      "message": "`createDepartment(admin, { name: \"\ubc14\ub978\uc0dd\ud65c\ubd80\" })` runs after `db.update(academicYear)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "provisionLoginAccount(\u2026)",
+          "location": {
+            "column": 9,
+            "endColumn": 4,
+            "endLine": 395,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 392
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database update on `academicYear` (commits on its own)",
+          "label": "db.update(academicYear)",
+          "location": {
+            "column": 9,
+            "endColumn": 32,
+            "endLine": 339,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 339
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`provisionLoginAccount(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.update(academicYear)` (database update on `academicYear`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.update(academicYear)` (339:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `provisionLoginAccount(\u2026)` (392:9) runs; its effects are unknown.",
+        "3. If `provisionLoginAccount(\u2026)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 9,
+        "endColumn": 4,
+        "endLine": 395,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 392
+      },
+      "message": "`provisionLoginAccount(\u2026)` runs after `db.update(academicYear)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "grantDepartment(\u2026)",
+          "location": {
+            "column": 9,
+            "endColumn": 5,
+            "endLine": 405,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 396
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database update on `academicYear` (commits on its own)",
+          "label": "db.update(academicYear)",
+          "location": {
+            "column": 9,
+            "endColumn": 32,
+            "endLine": 339,
+            "file": "scripts/lib/synthetic-seed.ts",
+            "line": 339
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`grantDepartment(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.update(academicYear)` (database update on `academicYear`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.update(academicYear)` (339:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `grantDepartment(\u2026)` (396:9) runs; its effects are unknown.",
+        "3. If `grantDepartment(\u2026)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "seedSyntheticData",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 9,
+        "endColumn": 5,
+        "endLine": 405,
+        "file": "scripts/lib/synthetic-seed.ts",
+        "line": 396
+      },
+      "message": "`grantDepartment(\u2026)` runs after `db.update(academicYear)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "recordAudit(\u2026)",
+          "location": {
+            "column": 11,
+            "endColumn": 7,
+            "endLine": 364,
+            "file": "src/features/administration/server/roster-import.ts",
+            "line": 358
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "transaction committing 1 write(s)",
+          "label": "db.transaction(\u2026)",
+          "location": {
+            "column": 23,
+            "endColumn": 37,
+            "endLine": 343,
+            "file": "src/features/administration/server/roster-import.ts",
+            "line": 343
+          },
+          "role": "transaction"
+        },
+        {
+          "description": "database insert on `importJob` (committed with the transaction)",
+          "label": "tx.insert(importJob)",
+          "location": {
+            "column": 25,
+            "endColumn": 25,
+            "endLine": 345,
+            "file": "src/features/administration/server/roster-import.ts",
+            "line": 344
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`recordAudit(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.transaction(\u2026)`: `db` is a database handle (name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding); the transaction commits when its callback completes.",
+        "`tx.insert(importJob)` (database insert on `importJob`): `tx` \u2014 parameter of a recognized transaction callback; `tx` is the transaction callback parameter."
+      ],
+      "failureSequence": [
+        "1. `recordAudit(\u2026)` (358:11) runs; its effects are unknown.",
+        "2. If it performs an independent side effect, a failure before the transaction started at 343:23 completes leaves that effect without it."
+      ],
+      "function": "previewRosterImport",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 11,
+        "endColumn": 7,
+        "endLine": 364,
+        "file": "src/features/administration/server/roster-import.ts",
+        "line": 358
+      },
+      "message": "`recordAudit(\u2026)` runs inside the transaction started at 343:23, before it commits; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "lockYearForImport(tx, academicYearId)",
+          "location": {
+            "column": 13,
+            "endColumn": 50,
+            "endLine": 422,
+            "file": "src/features/administration/server/roster-import.ts",
+            "line": 422
+          },
+          "role": "unanalyzed"
+        }
+      ],
+      "evidence": [
+        "`lockYearForImport(tx, academicYearId)` matches no `databaseReceivers` or `externalEffects` entry (`lockYearForImport` is declared in this file at 99:1, but it performs no recognized database operation or configured external effect, so its summary is not used)."
+      ],
+      "failureSequence": [],
+      "function": "applyRosterImport",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 13,
+        "endColumn": 50,
+        "endLine": 422,
+        "file": "src/features/administration/server/roster-import.ts",
+        "line": 422
+      },
+      "message": "`lockYearForImport(tx, academicYearId)` runs inside the transaction started at 421:18, before it commits; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "runRows(\u2026)",
+          "location": {
+            "column": 30,
+            "endColumn": 9,
+            "endLine": 443,
+            "file": "src/features/administration/server/roster-import.ts",
+            "line": 440
+          },
+          "role": "unanalyzed"
+        }
+      ],
+      "evidence": [
+        "`runRows(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (`runRows` is declared in this file at 137:1, but it performs no recognized database operation or configured external effect, so its summary is not used)."
+      ],
+      "failureSequence": [],
+      "function": "applyRosterImport",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 30,
+        "endColumn": 9,
+        "endLine": 443,
+        "file": "src/features/administration/server/roster-import.ts",
+        "line": 440
+      },
+      "message": "`runRows(\u2026)` runs inside the transaction started at 421:18, before it commits; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "recordAudit(\u2026)",
+          "location": {
+            "column": 13,
+            "endColumn": 9,
+            "endLine": 474,
+            "file": "src/features/administration/server/roster-import.ts",
+            "line": 462
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "transaction committing 1 write(s)",
+          "label": "db.transaction(\u2026)",
+          "location": {
+            "column": 18,
+            "endColumn": 32,
+            "endLine": 421,
+            "file": "src/features/administration/server/roster-import.ts",
+            "line": 421
+          },
+          "role": "transaction"
+        },
+        {
+          "description": "database update on `importJob` (committed with the transaction)",
+          "label": "tx.update(importJob)",
+          "location": {
+            "column": 29,
+            "endColumn": 27,
+            "endLine": 457,
+            "file": "src/features/administration/server/roster-import.ts",
+            "line": 456
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`recordAudit(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.transaction(\u2026)`: `db` is a database handle (name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding); the transaction commits when its callback completes.",
+        "`tx.update(importJob)` (database update on `importJob`): `tx` \u2014 parameter of a recognized transaction callback; `tx` is the transaction callback parameter."
+      ],
+      "failureSequence": [
+        "1. `recordAudit(\u2026)` (462:13) runs; its effects are unknown.",
+        "2. If it performs an independent side effect, a failure before the transaction started at 421:18 completes leaves that effect without it."
+      ],
+      "function": "applyRosterImport",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 13,
+        "endColumn": 9,
+        "endLine": 474,
+        "file": "src/features/administration/server/roster-import.ts",
+        "line": 462
+      },
+      "message": "`recordAudit(\u2026)` runs inside the transaction started at 421:18, before it commits; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "lockActingAdmin(tx, actor)",
+          "location": {
+            "column": 19,
+            "endColumn": 45,
+            "endLine": 200,
+            "file": "src/features/administration/server/staff-assignments.ts",
+            "line": 200
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "transaction committing 1 write(s)",
+          "label": "db.transaction(\u2026)",
+          "location": {
+            "column": 18,
+            "endColumn": 32,
+            "endLine": 197,
+            "file": "src/features/administration/server/staff-assignments.ts",
+            "line": 197
+          },
+          "role": "transaction"
+        },
+        {
+          "description": "database insert on `staffAssignment` (committed with the transaction)",
+          "label": "tx.insert(staffAssignment)",
+          "location": {
+            "column": 32,
+            "endColumn": 33,
+            "endLine": 220,
+            "file": "src/features/administration/server/staff-assignments.ts",
+            "line": 219
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`lockActingAdmin(tx, actor)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.transaction(\u2026)`: `db` is a database handle (name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding); the transaction commits when its callback completes.",
+        "`tx.insert(staffAssignment)` (database insert on `staffAssignment`): `tx` \u2014 parameter of a recognized transaction callback; `tx` is the transaction callback parameter."
+      ],
+      "failureSequence": [
+        "1. `lockActingAdmin(tx, actor)` (200:19) runs; its effects are unknown.",
+        "2. If it performs an independent side effect, a failure before the transaction started at 197:18 completes leaves that effect without it."
+      ],
+      "function": "grantStaffAssignment",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 19,
+        "endColumn": 45,
+        "endLine": 200,
+        "file": "src/features/administration/server/staff-assignments.ts",
+        "line": 200
+      },
+      "message": "`lockActingAdmin(tx, actor)` runs inside the transaction started at 197:18, before it commits; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "lockOpenYearForGrant(tx, input.academicYearId)",
+          "location": {
+            "column": 13,
+            "endColumn": 59,
+            "endLine": 204,
+            "file": "src/features/administration/server/staff-assignments.ts",
+            "line": 204
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "transaction committing 1 write(s)",
+          "label": "db.transaction(\u2026)",
+          "location": {
+            "column": 18,
+            "endColumn": 32,
+            "endLine": 197,
+            "file": "src/features/administration/server/staff-assignments.ts",
+            "line": 197
+          },
+          "role": "transaction"
+        },
+        {
+          "description": "database insert on `staffAssignment` (committed with the transaction)",
+          "label": "tx.insert(staffAssignment)",
+          "location": {
+            "column": 32,
+            "endColumn": 33,
+            "endLine": 220,
+            "file": "src/features/administration/server/staff-assignments.ts",
+            "line": 219
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`lockOpenYearForGrant(tx, input.academicYearId)` matches no `databaseReceivers` or `externalEffects` entry (`lockOpenYearForGrant` is declared in this file at 173:1, but it performs no recognized database operation or configured external effect, so its summary is not used).",
+        "`db.transaction(\u2026)`: `db` is a database handle (name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding); the transaction commits when its callback completes.",
+        "`tx.insert(staffAssignment)` (database insert on `staffAssignment`): `tx` \u2014 parameter of a recognized transaction callback; `tx` is the transaction callback parameter."
+      ],
+      "failureSequence": [
+        "1. `lockOpenYearForGrant(tx, input.academicYearId)` (204:13) runs; its effects are unknown.",
+        "2. If it performs an independent side effect, a failure before the transaction started at 197:18 completes leaves that effect without it."
+      ],
+      "function": "grantStaffAssignment",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 13,
+        "endColumn": 59,
+        "endLine": 204,
+        "file": "src/features/administration/server/staff-assignments.ts",
+        "line": 204
+      },
+      "message": "`lockOpenYearForGrant(tx, input.academicYearId)` runs inside the transaction started at 197:18, before it commits; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "resolveScopeTarget(tx, input)",
+          "location": {
+            "column": 46,
+            "endColumn": 75,
+            "endLine": 217,
+            "file": "src/features/administration/server/staff-assignments.ts",
+            "line": 217
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "transaction committing 1 write(s)",
+          "label": "db.transaction(\u2026)",
+          "location": {
+            "column": 18,
+            "endColumn": 32,
+            "endLine": 197,
+            "file": "src/features/administration/server/staff-assignments.ts",
+            "line": 197
+          },
+          "role": "transaction"
+        },
+        {
+          "description": "database insert on `staffAssignment` (committed with the transaction)",
+          "label": "tx.insert(staffAssignment)",
+          "location": {
+            "column": 32,
+            "endColumn": 33,
+            "endLine": 220,
+            "file": "src/features/administration/server/staff-assignments.ts",
+            "line": 219
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`resolveScopeTarget(tx, input)` matches no `databaseReceivers` or `externalEffects` entry (`resolveScopeTarget` is declared in this file at 128:1, but it performs no recognized database operation or configured external effect, so its summary is not used).",
+        "`db.transaction(\u2026)`: `db` is a database handle (name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding); the transaction commits when its callback completes.",
+        "`tx.insert(staffAssignment)` (database insert on `staffAssignment`): `tx` \u2014 parameter of a recognized transaction callback; `tx` is the transaction callback parameter."
+      ],
+      "failureSequence": [
+        "1. `resolveScopeTarget(tx, input)` (217:46) runs; its effects are unknown.",
+        "2. If it performs an independent side effect, a failure before the transaction started at 197:18 completes leaves that effect without it."
+      ],
+      "function": "grantStaffAssignment",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 46,
+        "endColumn": 75,
+        "endLine": 217,
+        "file": "src/features/administration/server/staff-assignments.ts",
+        "line": 217
+      },
+      "message": "`resolveScopeTarget(tx, input)` runs inside the transaction started at 197:18, before it commits; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "recordAudit(\u2026)",
+          "location": {
+            "column": 13,
+            "endColumn": 9,
+            "endLine": 246,
+            "file": "src/features/administration/server/staff-assignments.ts",
+            "line": 233
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "transaction committing 1 write(s)",
+          "label": "db.transaction(\u2026)",
+          "location": {
+            "column": 18,
+            "endColumn": 32,
+            "endLine": 197,
+            "file": "src/features/administration/server/staff-assignments.ts",
+            "line": 197
+          },
+          "role": "transaction"
+        },
+        {
+          "description": "database insert on `staffAssignment` (committed with the transaction)",
+          "label": "tx.insert(staffAssignment)",
+          "location": {
+            "column": 32,
+            "endColumn": 33,
+            "endLine": 220,
+            "file": "src/features/administration/server/staff-assignments.ts",
+            "line": 219
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`recordAudit(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.transaction(\u2026)`: `db` is a database handle (name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding); the transaction commits when its callback completes.",
+        "`tx.insert(staffAssignment)` (database insert on `staffAssignment`): `tx` \u2014 parameter of a recognized transaction callback; `tx` is the transaction callback parameter."
+      ],
+      "failureSequence": [
+        "1. `recordAudit(\u2026)` (233:13) runs; its effects are unknown.",
+        "2. If it performs an independent side effect, a failure before the transaction started at 197:18 completes leaves that effect without it."
+      ],
+      "function": "grantStaffAssignment",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 13,
+        "endColumn": 9,
+        "endLine": 246,
+        "file": "src/features/administration/server/staff-assignments.ts",
+        "line": 233
+      },
+      "message": "`recordAudit(\u2026)` runs inside the transaction started at 197:18, before it commits; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [],
+      "evidence": [
+        "The function contains recognized effects, so the unexplored paths may hide hazards."
+      ],
+      "failureSequence": [],
+      "function": "resolveAuditNames",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 8,
+        "endColumn": 2,
+        "endLine": 180,
+        "file": "src/features/audit/server/audit-names.ts",
+        "line": 45
+      },
+      "message": "`resolveAuditNames` has more than 512 execution paths; only the first 512 were analyzed",
+      "mitigation": "Split the function into smaller functions, or raise the path limit.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "lockActingAdmin(tx, actor)",
+          "location": {
+            "column": 19,
+            "endColumn": 45,
+            "endLine": 266,
+            "file": "src/features/identity/server/account-provisioning.ts",
+            "line": 266
+          },
+          "role": "unanalyzed"
+        }
+      ],
+      "evidence": [
+        "`lockActingAdmin(tx, actor)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it)."
+      ],
+      "failureSequence": [],
+      "function": "provisionAccountsBatch",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 19,
+        "endColumn": 45,
+        "endLine": 266,
+        "file": "src/features/identity/server/account-provisioning.ts",
+        "line": 266
+      },
+      "message": "`lockActingAdmin(tx, actor)` runs inside the transaction started at 265:18, before it commits; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "findBatch(tx, actor.userId, input.batchKey)",
+          "location": {
+            "column": 30,
+            "endColumn": 73,
+            "endLine": 268,
+            "file": "src/features/identity/server/account-provisioning.ts",
+            "line": 268
+          },
+          "role": "unanalyzed"
+        }
+      ],
+      "evidence": [
+        "`findBatch(tx, actor.userId, input.batchKey)` matches no `databaseReceivers` or `externalEffects` entry (`findBatch` is declared in this file at 238:1, but it performs no recognized database operation or configured external effect, so its summary is not used)."
+      ],
+      "failureSequence": [],
+      "function": "provisionAccountsBatch",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 30,
+        "endColumn": 73,
+        "endLine": 268,
+        "file": "src/features/identity/server/account-provisioning.ts",
+        "line": 268
+      },
+      "message": "`findBatch(tx, actor.userId, input.batchKey)` runs inside the transaction started at 265:18, before it commits; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "evaluate(tx, input.identities, { lock: true })",
+          "location": {
+            "column": 27,
+            "endColumn": 73,
+            "endLine": 271,
+            "file": "src/features/identity/server/account-provisioning.ts",
+            "line": 271
+          },
+          "role": "unanalyzed"
+        }
+      ],
+      "evidence": [
+        "`evaluate(tx, input.identities, { lock: true })` matches no `databaseReceivers` or `externalEffects` entry (`evaluate` is declared in this file at 104:1, but it performs no recognized database operation or configured external effect, so its summary is not used)."
+      ],
+      "failureSequence": [],
+      "function": "provisionAccountsBatch",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 27,
+        "endColumn": 73,
+        "endLine": 271,
+        "file": "src/features/identity/server/account-provisioning.ts",
+        "line": 271
+      },
+      "message": "`evaluate(tx, input.identities, { lock: true })` runs inside the transaction started at 265:18, before it commits; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "findBatch(tx, actor.userId, input.batchKey)",
+          "location": {
+            "column": 33,
+            "endColumn": 76,
+            "endLine": 290,
+            "file": "src/features/identity/server/account-provisioning.ts",
+            "line": 290
+          },
+          "role": "unanalyzed"
+        }
+      ],
+      "evidence": [
+        "`findBatch(tx, actor.userId, input.batchKey)` matches no `databaseReceivers` or `externalEffects` entry (`findBatch` is declared in this file at 238:1, but it performs no recognized database operation or configured external effect, so its summary is not used)."
+      ],
+      "failureSequence": [],
+      "function": "provisionAccountsBatch",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 33,
+        "endColumn": 76,
+        "endLine": 290,
+        "file": "src/features/identity/server/account-provisioning.ts",
+        "line": 290
+      },
+      "message": "`findBatch(tx, actor.userId, input.batchKey)` runs inside the transaction started at 265:18, before it commits; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "createLoginInTx(\u2026)",
+          "location": {
+            "column": 34,
+            "endColumn": 11,
+            "endLine": 309,
+            "file": "src/features/identity/server/account-provisioning.ts",
+            "line": 302
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "transaction committing 1 write(s)",
+          "label": "db.transaction(\u2026)",
+          "location": {
+            "column": 18,
+            "endColumn": 32,
+            "endLine": 265,
+            "file": "src/features/identity/server/account-provisioning.ts",
+            "line": 265
+          },
+          "role": "transaction"
+        },
+        {
+          "description": "database insert on `accountProvisioningBatch` (committed with the transaction)",
+          "label": "tx.insert(accountProvisioningBatch)",
+          "location": {
+            "column": 29,
+            "endColumn": 42,
+            "endLine": 279,
+            "file": "src/features/identity/server/account-provisioning.ts",
+            "line": 278
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`createLoginInTx(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.transaction(\u2026)`: `db` is a database handle (name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding); the transaction commits when its callback completes.",
+        "`tx.insert(accountProvisioningBatch)` (database insert on `accountProvisioningBatch`): `tx` \u2014 parameter of a recognized transaction callback; `tx` is the transaction callback parameter."
+      ],
+      "failureSequence": [
+        "1. `createLoginInTx(\u2026)` (302:34) runs; its effects are unknown.",
+        "2. If it performs an independent side effect, a failure before the transaction started at 265:18 completes leaves that effect without it."
+      ],
+      "function": "provisionAccountsBatch",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 34,
+        "endColumn": 11,
+        "endLine": 309,
+        "file": "src/features/identity/server/account-provisioning.ts",
+        "line": 302
+      },
+      "message": "`createLoginInTx(\u2026)` runs inside the transaction started at 265:18, before it commits; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "recordAudit(\u2026)",
+          "location": {
+            "column": 15,
+            "endColumn": 11,
+            "endLine": 316,
+            "file": "src/features/identity/server/account-provisioning.ts",
+            "line": 310
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "transaction committing 1 write(s)",
+          "label": "db.transaction(\u2026)",
+          "location": {
+            "column": 18,
+            "endColumn": 32,
+            "endLine": 265,
+            "file": "src/features/identity/server/account-provisioning.ts",
+            "line": 265
+          },
+          "role": "transaction"
+        },
+        {
+          "description": "database insert on `accountProvisioningBatch` (committed with the transaction)",
+          "label": "tx.insert(accountProvisioningBatch)",
+          "location": {
+            "column": 29,
+            "endColumn": 42,
+            "endLine": 279,
+            "file": "src/features/identity/server/account-provisioning.ts",
+            "line": 278
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`recordAudit(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.transaction(\u2026)`: `db` is a database handle (name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding); the transaction commits when its callback completes.",
+        "`tx.insert(accountProvisioningBatch)` (database insert on `accountProvisioningBatch`): `tx` \u2014 parameter of a recognized transaction callback; `tx` is the transaction callback parameter."
+      ],
+      "failureSequence": [
+        "1. `recordAudit(\u2026)` (310:15) runs; its effects are unknown.",
+        "2. If it performs an independent side effect, a failure before the transaction started at 265:18 completes leaves that effect without it."
+      ],
+      "function": "provisionAccountsBatch",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 15,
+        "endColumn": 11,
+        "endLine": 316,
+        "file": "src/features/identity/server/account-provisioning.ts",
+        "line": 310
+      },
+      "message": "`recordAudit(\u2026)` runs inside the transaction started at 265:18, before it commits; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "recordAudit(\u2026)",
+          "location": {
+            "column": 15,
+            "endColumn": 11,
+            "endLine": 338,
+            "file": "src/features/identity/server/account-provisioning.ts",
+            "line": 327
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "transaction committing 1 write(s)",
+          "label": "db.transaction(\u2026)",
+          "location": {
+            "column": 18,
+            "endColumn": 32,
+            "endLine": 265,
+            "file": "src/features/identity/server/account-provisioning.ts",
+            "line": 265
+          },
+          "role": "transaction"
+        },
+        {
+          "description": "database insert on `accountProvisioningBatch` (committed with the transaction)",
+          "label": "tx.insert(accountProvisioningBatch)",
+          "location": {
+            "column": 29,
+            "endColumn": 42,
+            "endLine": 279,
+            "file": "src/features/identity/server/account-provisioning.ts",
+            "line": 278
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`recordAudit(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.transaction(\u2026)`: `db` is a database handle (name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding); the transaction commits when its callback completes.",
+        "`tx.insert(accountProvisioningBatch)` (database insert on `accountProvisioningBatch`): `tx` \u2014 parameter of a recognized transaction callback; `tx` is the transaction callback parameter."
+      ],
+      "failureSequence": [
+        "1. `recordAudit(\u2026)` (327:15) runs; its effects are unknown.",
+        "2. If it performs an independent side effect, a failure before the transaction started at 265:18 completes leaves that effect without it."
+      ],
+      "function": "provisionAccountsBatch",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 15,
+        "endColumn": 11,
+        "endLine": 338,
+        "file": "src/features/identity/server/account-provisioning.ts",
+        "line": 327
+      },
+      "message": "`recordAudit(\u2026)` runs inside the transaction started at 265:18, before it commits; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "loadManagedAccount(tx, user.id, { lock: true })",
+          "location": {
+            "column": 29,
+            "endColumn": 76,
+            "endLine": 88,
+            "file": "src/features/identity/server/activation.ts",
+            "line": 88
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "transaction committing 3 write(s)",
+          "label": "db.transaction(\u2026)",
+          "location": {
+            "column": 18,
+            "endColumn": 32,
+            "endLine": 86,
+            "file": "src/features/identity/server/activation.ts",
+            "line": 86
+          },
+          "role": "transaction"
+        },
+        {
+          "description": "database update on `accountCredentialCode` (committed with the transaction)",
+          "label": "tx.update(accountCredentialCode)",
+          "location": {
+            "column": 32,
+            "endColumn": 39,
+            "endLine": 94,
+            "file": "src/features/identity/server/activation.ts",
+            "line": 93
+          },
+          "role": "context"
+        },
+        {
+          "description": "database update on `authAccount` (committed with the transaction)",
+          "label": "tx.update(authAccount)",
+          "location": {
+            "column": 29,
+            "endColumn": 29,
+            "endLine": 109,
+            "file": "src/features/identity/server/activation.ts",
+            "line": 108
+          },
+          "role": "context"
+        },
+        {
+          "description": "database update on `accountLifecycle` (committed with the transaction)",
+          "label": "tx.update(accountLifecycle)",
+          "location": {
+            "column": 13,
+            "endColumn": 34,
+            "endLine": 116,
+            "file": "src/features/identity/server/activation.ts",
+            "line": 115
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`loadManagedAccount(tx, user.id, { lock: true })` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.transaction(\u2026)`: `db` is a database handle (name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding); the transaction commits when its callback completes.",
+        "`tx.update(accountCredentialCode)` (database update on `accountCredentialCode`): `tx` \u2014 parameter of a recognized transaction callback; `tx` is the transaction callback parameter.",
+        "`tx.update(authAccount)` (database update on `authAccount`): `tx` \u2014 parameter of a recognized transaction callback; `tx` is the transaction callback parameter.",
+        "`tx.update(accountLifecycle)` (database update on `accountLifecycle`): `tx` \u2014 parameter of a recognized transaction callback; `tx` is the transaction callback parameter."
+      ],
+      "failureSequence": [
+        "1. `loadManagedAccount(tx, user.id, { lock: true })` (88:29) runs; its effects are unknown.",
+        "2. If it performs an independent side effect, a failure before the transaction started at 86:18 completes leaves that effect without it."
+      ],
+      "function": "activateAccount",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 29,
+        "endColumn": 76,
+        "endLine": 88,
+        "file": "src/features/identity/server/activation.ts",
+        "line": 88
+      },
+      "message": "`loadManagedAccount(tx, user.id, { lock: true })` runs inside the transaction started at 86:18, before it commits; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "deleteAllSessions(tx, user.id)",
+          "location": {
+            "column": 37,
+            "endColumn": 67,
+            "endLine": 123,
+            "file": "src/features/identity/server/activation.ts",
+            "line": 123
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "transaction committing 3 write(s)",
+          "label": "db.transaction(\u2026)",
+          "location": {
+            "column": 18,
+            "endColumn": 32,
+            "endLine": 86,
+            "file": "src/features/identity/server/activation.ts",
+            "line": 86
+          },
+          "role": "transaction"
+        },
+        {
+          "description": "database update on `accountCredentialCode` (committed with the transaction)",
+          "label": "tx.update(accountCredentialCode)",
+          "location": {
+            "column": 32,
+            "endColumn": 39,
+            "endLine": 94,
+            "file": "src/features/identity/server/activation.ts",
+            "line": 93
+          },
+          "role": "context"
+        },
+        {
+          "description": "database update on `authAccount` (committed with the transaction)",
+          "label": "tx.update(authAccount)",
+          "location": {
+            "column": 29,
+            "endColumn": 29,
+            "endLine": 109,
+            "file": "src/features/identity/server/activation.ts",
+            "line": 108
+          },
+          "role": "context"
+        },
+        {
+          "description": "database update on `accountLifecycle` (committed with the transaction)",
+          "label": "tx.update(accountLifecycle)",
+          "location": {
+            "column": 13,
+            "endColumn": 34,
+            "endLine": 116,
+            "file": "src/features/identity/server/activation.ts",
+            "line": 115
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`deleteAllSessions(tx, user.id)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.transaction(\u2026)`: `db` is a database handle (name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding); the transaction commits when its callback completes.",
+        "`tx.update(accountCredentialCode)` (database update on `accountCredentialCode`): `tx` \u2014 parameter of a recognized transaction callback; `tx` is the transaction callback parameter.",
+        "`tx.update(authAccount)` (database update on `authAccount`): `tx` \u2014 parameter of a recognized transaction callback; `tx` is the transaction callback parameter.",
+        "`tx.update(accountLifecycle)` (database update on `accountLifecycle`): `tx` \u2014 parameter of a recognized transaction callback; `tx` is the transaction callback parameter."
+      ],
+      "failureSequence": [
+        "1. `deleteAllSessions(tx, user.id)` (123:37) runs; its effects are unknown.",
+        "2. If it performs an independent side effect, a failure before the transaction started at 86:18 completes leaves that effect without it."
+      ],
+      "function": "activateAccount",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 37,
+        "endColumn": 67,
+        "endLine": 123,
+        "file": "src/features/identity/server/activation.ts",
+        "line": 123
+      },
+      "message": "`deleteAllSessions(tx, user.id)` runs inside the transaction started at 86:18, before it commits; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "recordAudit(\u2026)",
+          "location": {
+            "column": 13,
+            "endColumn": 9,
+            "endLine": 137,
+            "file": "src/features/identity/server/activation.ts",
+            "line": 125
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "transaction committing 3 write(s)",
+          "label": "db.transaction(\u2026)",
+          "location": {
+            "column": 18,
+            "endColumn": 32,
+            "endLine": 86,
+            "file": "src/features/identity/server/activation.ts",
+            "line": 86
+          },
+          "role": "transaction"
+        },
+        {
+          "description": "database update on `accountCredentialCode` (committed with the transaction)",
+          "label": "tx.update(accountCredentialCode)",
+          "location": {
+            "column": 32,
+            "endColumn": 39,
+            "endLine": 94,
+            "file": "src/features/identity/server/activation.ts",
+            "line": 93
+          },
+          "role": "context"
+        },
+        {
+          "description": "database update on `authAccount` (committed with the transaction)",
+          "label": "tx.update(authAccount)",
+          "location": {
+            "column": 29,
+            "endColumn": 29,
+            "endLine": 109,
+            "file": "src/features/identity/server/activation.ts",
+            "line": 108
+          },
+          "role": "context"
+        },
+        {
+          "description": "database update on `accountLifecycle` (committed with the transaction)",
+          "label": "tx.update(accountLifecycle)",
+          "location": {
+            "column": 13,
+            "endColumn": 34,
+            "endLine": 116,
+            "file": "src/features/identity/server/activation.ts",
+            "line": 115
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`recordAudit(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.transaction(\u2026)`: `db` is a database handle (name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding); the transaction commits when its callback completes.",
+        "`tx.update(accountCredentialCode)` (database update on `accountCredentialCode`): `tx` \u2014 parameter of a recognized transaction callback; `tx` is the transaction callback parameter.",
+        "`tx.update(authAccount)` (database update on `authAccount`): `tx` \u2014 parameter of a recognized transaction callback; `tx` is the transaction callback parameter.",
+        "`tx.update(accountLifecycle)` (database update on `accountLifecycle`): `tx` \u2014 parameter of a recognized transaction callback; `tx` is the transaction callback parameter."
+      ],
+      "failureSequence": [
+        "1. `recordAudit(\u2026)` (125:13) runs; its effects are unknown.",
+        "2. If it performs an independent side effect, a failure before the transaction started at 86:18 completes leaves that effect without it."
+      ],
+      "function": "activateAccount",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 13,
+        "endColumn": 9,
+        "endLine": 137,
+        "file": "src/features/identity/server/activation.ts",
+        "line": 125
+      },
+      "message": "`recordAudit(\u2026)` runs inside the transaction started at 86:18, before it commits; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (raw SQL)",
+          "label": "db.execute<{ now: Date | string }>(sql`select now() as now`)",
+          "location": {
+            "column": 23,
+            "endColumn": 83,
+            "endLine": 26,
+            "file": "src/features/record-books/server/internal/queries.ts",
+            "line": 26
+          },
+          "role": "unanalyzed"
+        }
+      ],
+      "evidence": [
+        "`db.execute<{ now: Date | string }>(sql`select now() as now`)` executes raw SQL; CrashProof does not parse SQL."
+      ],
+      "failureSequence": [],
+      "function": "selectSnapshotTime",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 23,
+        "endColumn": 83,
+        "endLine": 26,
+        "file": "src/features/record-books/server/internal/queries.ts",
+        "line": 26
+      },
+      "message": "raw SQL `db.execute<{ now: Date | string }>(sql`select now() as now`)` is not analyzed; any writes it performs are not considered",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (raw SQL)",
+          "label": "db.execute<{ now: Date | string }>(sql`select now() as now`)",
+          "location": {
+            "column": 23,
+            "endColumn": 83,
+            "endLine": 68,
+            "file": "src/features/reporting/server/internal/queries.ts",
+            "line": 68
+          },
+          "role": "unanalyzed"
+        }
+      ],
+      "evidence": [
+        "`db.execute<{ now: Date | string }>(sql`select now() as now`)` executes raw SQL; CrashProof does not parse SQL."
+      ],
+      "failureSequence": [],
+      "function": "selectSnapshotTime",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 23,
+        "endColumn": 83,
+        "endLine": 68,
+        "file": "src/features/reporting/server/internal/queries.ts",
+        "line": 68
+      },
+      "message": "raw SQL `db.execute<{ now: Date | string }>(sql`select now() as now`)` is not analyzed; any writes it performs are not considered",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "expectDbRejection(\u2026)",
+          "location": {
+            "column": 13,
+            "endColumn": 100,
+            "endLine": 228,
+            "file": "tests/integration/academic-administration.test.ts",
+            "line": 228
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database update on `academicYear` (commits on its own)",
+          "label": "db.update(academicYear)",
+          "location": {
+            "column": 11,
+            "endColumn": 34,
+            "endLine": 226,
+            "file": "tests/integration/academic-administration.test.ts",
+            "line": 226
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`expectDbRejection(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.update(academicYear)` (database update on `academicYear`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.update(academicYear)` (226:11) commits immediately: it is not inside a recognized transaction.",
+        "2. `expectDbRejection(\u2026)` (228:13) runs; its effects are unknown.",
+        "3. If `expectDbRejection(\u2026)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "<anonymous@113:37>::<anonymous@208:87>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 13,
+        "endColumn": 100,
+        "endLine": 228,
+        "file": "tests/integration/academic-administration.test.ts",
+        "line": 228
+      },
+      "message": "`expectDbRejection(\u2026)` runs after `db.update(academicYear)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "expectDbRejection(\u2026)",
+          "location": {
+            "column": 13,
+            "endColumn": 8,
+            "endLine": 296,
+            "file": "tests/integration/rule-groups.test.ts",
+            "line": 294
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database insert on `pointRule` (commits on its own)",
+          "label": "db.insert(pointRule)",
+          "location": {
+            "column": 11,
+            "endColumn": 31,
+            "endLine": 292,
+            "file": "tests/integration/rule-groups.test.ts",
+            "line": 292
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`expectDbRejection(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.insert(pointRule)` (database insert on `pointRule`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.insert(pointRule)` (292:11) commits immediately: it is not inside a recognized transaction.",
+        "2. `expectDbRejection(\u2026)` (294:13) runs; its effects are unknown.",
+        "3. If `expectDbRejection(\u2026)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "<anonymous@264:49>::<anonymous@275:47>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 13,
+        "endColumn": 8,
+        "endLine": 296,
+        "file": "tests/integration/rule-groups.test.ts",
+        "line": 294
+      },
+      "message": "`expectDbRejection(\u2026)` runs after `db.insert(pointRule)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP1004",
+      "confidence": "high",
+      "effects": [
+        {
+          "description": "database insert on `pointRule` (commits on its own)",
+          "label": "db.insert(pointRule)",
+          "location": {
+            "column": 11,
+            "endColumn": 25,
+            "endLine": 264,
+            "file": "tests/integration/rule-preset.test.ts",
+            "line": 263
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "database insert on `pointRule` (commits on its own)",
+          "label": "db.insert(pointRule)",
+          "location": {
+            "column": 11,
+            "endColumn": 31,
+            "endLine": 266,
+            "file": "tests/integration/rule-preset.test.ts",
+            "line": 266
+          },
+          "role": "notYetPerformed"
+        }
+      ],
+      "evidence": [
+        "`db.insert(pointRule)` (database insert on `pointRule`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding.",
+        "`db.insert(pointRule)` (database insert on `pointRule`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.insert(pointRule)` (263:11) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.insert(pointRule)` and before `db.insert(pointRule)` completes.",
+        "3. `db.insert(pointRule)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "function": "<anonymous@228:54>::<anonymous@261:99>",
+      "kind": "potentialHazard",
+      "limitations": [
+        "CrashProof does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 11,
+        "endColumn": 31,
+        "endLine": 266,
+        "file": "tests/integration/rule-preset.test.ts",
+        "line": 266
+      },
+      "message": "`db.insert(pointRule)` and `db.insert(pointRule)` commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "warning",
+      "title": "independent database commits"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "createRuleWithDraft(\u2026)",
+          "location": {
+            "column": 11,
+            "endColumn": 7,
+            "endLine": 272,
+            "file": "tests/integration/rule-preset.test.ts",
+            "line": 267
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database insert on `pointRule` (commits on its own)",
+          "label": "db.insert(pointRule)",
+          "location": {
+            "column": 11,
+            "endColumn": 31,
+            "endLine": 266,
+            "file": "tests/integration/rule-preset.test.ts",
+            "line": 266
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`createRuleWithDraft(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.insert(pointRule)` (database insert on `pointRule`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.insert(pointRule)` (266:11) commits immediately: it is not inside a recognized transaction.",
+        "2. `createRuleWithDraft(\u2026)` (267:11) runs; its effects are unknown.",
+        "3. If `createRuleWithDraft(\u2026)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "<anonymous@228:54>::<anonymous@261:99>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 11,
+        "endColumn": 7,
+        "endLine": 272,
+        "file": "tests/integration/rule-preset.test.ts",
+        "line": 267
+      },
+      "message": "`createRuleWithDraft(\u2026)` runs after `db.insert(pointRule)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "previewLegacyRulePreset(admin)",
+          "location": {
+            "column": 27,
+            "endColumn": 57,
+            "endLine": 273,
+            "file": "tests/integration/rule-preset.test.ts",
+            "line": 273
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database insert on `pointRule` (commits on its own)",
+          "label": "db.insert(pointRule)",
+          "location": {
+            "column": 11,
+            "endColumn": 31,
+            "endLine": 266,
+            "file": "tests/integration/rule-preset.test.ts",
+            "line": 266
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`previewLegacyRulePreset(admin)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.insert(pointRule)` (database insert on `pointRule`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.insert(pointRule)` (266:11) commits immediately: it is not inside a recognized transaction.",
+        "2. `previewLegacyRulePreset(admin)` (273:27) runs; its effects are unknown.",
+        "3. If `previewLegacyRulePreset(admin)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "<anonymous@228:54>::<anonymous@261:99>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 27,
+        "endColumn": 57,
+        "endLine": 273,
+        "file": "tests/integration/rule-preset.test.ts",
+        "line": 273
+      },
+      "message": "`previewLegacyRulePreset(admin)` runs after `db.insert(pointRule)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "prepareLegacyRulePreset(\u2026)",
+          "location": {
+            "column": 26,
+            "endColumn": 7,
+            "endLine": 282,
+            "file": "tests/integration/rule-preset.test.ts",
+            "line": 280
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database insert on `pointRule` (commits on its own)",
+          "label": "db.insert(pointRule)",
+          "location": {
+            "column": 11,
+            "endColumn": 31,
+            "endLine": 266,
+            "file": "tests/integration/rule-preset.test.ts",
+            "line": 266
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`prepareLegacyRulePreset(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.insert(pointRule)` (database insert on `pointRule`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.insert(pointRule)` (266:11) commits immediately: it is not inside a recognized transaction.",
+        "2. `prepareLegacyRulePreset(\u2026)` (280:26) runs; its effects are unknown.",
+        "3. If `prepareLegacyRulePreset(\u2026)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "<anonymous@228:54>::<anonymous@261:99>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 26,
+        "endColumn": 7,
+        "endLine": 282,
+        "file": "tests/integration/rule-preset.test.ts",
+        "line": 280
+      },
+      "message": "`prepareLegacyRulePreset(\u2026)` runs after `db.insert(pointRule)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "expectDbRejection(\u2026)",
+          "location": {
+            "column": 13,
+            "endColumn": 8,
+            "endLine": 299,
+            "file": "tests/integration/staff-assignments.test.ts",
+            "line": 297
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database update on `staffAssignment` (commits on its own)",
+          "label": "db.update(staffAssignment)",
+          "location": {
+            "column": 11,
+            "endColumn": 31,
+            "endLine": 293,
+            "file": "tests/integration/staff-assignments.test.ts",
+            "line": 292
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`expectDbRejection(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.update(staffAssignment)` (database update on `staffAssignment`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.update(staffAssignment)` (292:11) commits immediately: it is not inside a recognized transaction.",
+        "2. `expectDbRejection(\u2026)` (297:13) runs; its effects are unknown.",
+        "3. If `expectDbRejection(\u2026)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "<anonymous@273:43>::<anonymous@274:80>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 13,
+        "endColumn": 8,
+        "endLine": 299,
+        "file": "tests/integration/staff-assignments.test.ts",
+        "line": 297
+      },
+      "message": "`expectDbRejection(\u2026)` runs after `db.update(staffAssignment)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "expectDbRejection(\u2026)",
+          "location": {
+            "column": 13,
+            "endColumn": 8,
+            "endLine": 304,
+            "file": "tests/integration/staff-assignments.test.ts",
+            "line": 302
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database update on `staffAssignment` (commits on its own)",
+          "label": "db.update(staffAssignment)",
+          "location": {
+            "column": 11,
+            "endColumn": 31,
+            "endLine": 293,
+            "file": "tests/integration/staff-assignments.test.ts",
+            "line": 292
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`expectDbRejection(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.update(staffAssignment)` (database update on `staffAssignment`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is a local binding."
+      ],
+      "failureSequence": [
+        "1. `db.update(staffAssignment)` (292:11) commits immediately: it is not inside a recognized transaction.",
+        "2. `expectDbRejection(\u2026)` (302:13) runs; its effects are unknown.",
+        "3. If `expectDbRejection(\u2026)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "<anonymous@273:43>::<anonymous@274:80>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 13,
+        "endColumn": 8,
+        "endLine": 304,
+        "file": "tests/integration/staff-assignments.test.ts",
+        "line": 302
+      },
+      "message": "`expectDbRejection(\u2026)` runs after `db.update(staffAssignment)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    }
+  ],
+  "failures": [],
+  "schemaVersion": 1,
+  "summary": {
+    "diagnostics": {
+      "error": 0,
+      "info": 50,
+      "warning": 10
+    },
+    "filesAnalyzed": 462,
+    "filesDiscovered": 462,
+    "filesFailed": 0,
+    "functionsAnalyzed": 6391
+  },
+  "tool": {
+    "name": "crashproof",
+    "version": "0.1.0"
+  }
+}

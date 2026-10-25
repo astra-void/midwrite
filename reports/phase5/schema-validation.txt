@@ -1,0 +1,18 @@
+trace-report.v2: saas-starter-5.json: 18 traces, 0 schema errors; corrupted copy rejected: True
+trace-report.v2: midday-5.json: 192 traces, 0 schema errors; corrupted copy rejected: True
+trace-report.v2: school-ledger-5.json: 131 traces, 0 schema errors; corrupted copy rejected: True
+trace-report.v2: unnamed-ai-project-5.json: 8 traces, 0 schema errors; corrupted copy rejected: True
+trace-report.v2: fixtures-5.json: 83 traces, 0 schema errors; corrupted copy rejected: True
+trace-report.v1: midday-4.json: 180 traces, 0 schema errors; corrupted copy rejected: True
+SARIF 2.1.0: fixtures.sarif: 107 results, 0 schema errors; corrupted copy rejected: True
+SARIF 2.1.0: midday.sarif: 282 results, 0 schema errors; corrupted copy rejected: True
+verification-report.v2: drizzle-node-repeat5.json: 1 cases, 0 schema errors; corrupted copy rejected: True
+verification-report.v2: drizzle-node.json: 16 cases, 0 schema errors; corrupted copy rejected: True
+trace-report.v1: drizzle-node.traces.json: 3 traces, 0 schema errors; corrupted copy rejected: True
+verification-report.v2: generated-harness.json: 5 cases, 0 schema errors; corrupted copy rejected: True
+verification-report.v2: invoice-pattern.json: 3 cases, 0 schema errors; corrupted copy rejected: True
+regression-report.v1: invoice-pattern.regression.json: 3 entries, 0 schema errors; corrupted copy rejected: True
+verification-report.v2: order-outbox.json: 5 cases, 0 schema errors; corrupted copy rejected: True
+regression-report.v1: order-outbox.regression.json: 5 entries, 0 schema errors; corrupted copy rejected: True
+verification-report.v2: order-vulnerable.json: 6 cases, 0 schema errors; corrupted copy rejected: True
+regression-report.v1: order-vulnerable.regression.json: 6 entries, 0 schema errors; corrupted copy rejected: True

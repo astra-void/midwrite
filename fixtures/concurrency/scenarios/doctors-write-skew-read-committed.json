@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "name": "doctors-write-skew-read-committed",
+  "description": "Two on-call doctors each go off call after checking that another doctor remains on call (extracted from src/doctors.ts).",
+  "extraction": {
+    "root": "../project"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "doctors",
+        "columns": [
+          {
+            "name": "id",
+            "type": "text",
+            "notNull": true
+          },
+          {
+            "name": "on_call",
+            "type": "bool",
+            "notNull": true
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ]
+      }
+    ],
+    "initialState": {
+      "doctors": [
+        {
+          "id": "alice",
+          "on_call": true
+        },
+        {
+          "id": "bob",
+          "on_call": true
+        }
+      ]
+    }
+  },
+  "actors": [
+    {
+      "name": "Alice",
+      "function": "goOffCall",
+      "file": "src/doctors.ts",
+      "arguments": [
+        "alice"
+      ]
+    },
+    {
+      "name": "Bob",
+      "function": "goOffCall",
+      "file": "src/doctors.ts",
+      "arguments": [
+        "bob"
+      ]
+    }
+  ],
+  "bounds": {
+    "maxSteps": 40
+  },
+  "invariants": [
+    {
+      "name": "someone-stays-on-call",
+      "when": "final",
+      "assert": {
+        "ge": [
+          {
+            "count": {
+              "table": "doctors",
+              "where": {
+                "on_call": true
+              }
+            }
+          },
+          1
+        ]
+      }
+    }
+  ]
+}

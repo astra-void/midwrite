@@ -1,0 +1,6 @@
+project                lowered  resolved   summary  analyzed      peak     nodes
+saas-starter              0.3M      0.3M      0.4M      0.7M      0.7M       625
+midday                   19.4M     19.8M     23.3M     29.5M     41.8M     33254
+school-ledger            11.1M     11.0M     25.6M     33.3M     36.6M     49238
+unnamed-ai-project        0.8M      0.8M      0.8M      1.0M      1.3M       995
+Live heap bytes above the start of each analysis, after each phase, and the peak; nodes = IR nodes retained after summary expansion (size_of::<Node>() = 184 bytes).

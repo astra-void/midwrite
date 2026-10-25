@@ -1,0 +1,5 @@
+project               median_s    min_s    max_s  rss_MiB  files  funcs  diags
+saas-starter            0.0097   0.0094   0.0099      8.0     41    156     23
+midday                  0.2085   0.2057   0.2134     96.0   2022  14827    282
+school-ledger           0.1526   0.1498   0.1537     89.1    462   6391    332
+unnamed-ai-project      0.0120   0.0117   0.0124      9.7    104    648     17

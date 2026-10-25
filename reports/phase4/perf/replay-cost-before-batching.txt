@@ -1,0 +1,6 @@
+Runtime replay cost, macOS arm64 (Apple M1 Pro class, 10 cores), release binary, sandbox-exec isolation, 2026-10-25.
+Includes initdb + cluster start + runtime start-up per run; NOT comparable with static analysis. Median of 3 invocations.
+  order-vulnerable (Bun) --repeat 1              7 harness runs incl. control; wall median 2.42 s; per-run duration median 187 ms (min 175, max 289)
+  drizzle-node (Node + Drizzle) --repeat 1      17 harness runs incl. control; wall median 15.58 s; per-run duration median 746 ms (min 626, max 1224)
+  drizzle-node a-kill-after-db-commit --repeat 5   6 harness runs incl. control; wall median 5.42 s; per-run duration median 732 ms (min 659, max 754)
+  generated-harness (Node) --repeat 1            6 harness runs incl. control; wall median 3.69 s; per-run duration median 428 ms (min 421, max 445)

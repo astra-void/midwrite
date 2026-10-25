@@ -1,0 +1,8 @@
+Failure traces on the corpus (original configurations), final Phase 3 binary.
+fixtures             {'findings': 84, 'traces': 63, 'complete': 61, 'approximated': 2, 'incomplete': 0, 'skipped': 21}  by code {'CP1001': 42, 'CP1002': 7, 'CP1004': 7, 'CP1003': 5, 'CP1005': 2}  validation failures 0  schema errors 0
+saas-starter         {'findings': 21, 'traces': 15, 'complete': 14, 'approximated': 1, 'incomplete': 0, 'skipped': 6}  by code {'CP1004': 11, 'CP1005': 3, 'CP1001': 1}  validation failures 0  schema errors 0
+midday               {'findings': 269, 'traces': 180, 'complete': 126, 'approximated': 7, 'incomplete': 47, 'skipped': 89}  by code {'CP1004': 116, 'CP1002': 9, 'CP1001': 40, 'CP1005': 15}  validation failures 0  schema errors 0
+school-ledger        {'findings': 317, 'traces': 123, 'complete': 30, 'approximated': 0, 'incomplete': 93, 'skipped': 194}  by code {'CP1004': 123}  validation failures 0  schema errors 0
+unnamed-ai-project   {'findings': 17, 'traces': 8, 'complete': 8, 'approximated': 0, 'incomplete': 0, 'skipped': 9}  by code {'CP1004': 8}  validation failures 0  schema errors 0
+total traces: 389
+schema sanity check (2 injected errors): 2 errors found

@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "name": "redeem-check-then-act",
+  "description": "Check-then-act on a redemption code; no unique constraint on code.",
+  "extraction": {
+    "root": "../project"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "redemptions",
+        "columns": [
+          {
+            "name": "id",
+            "type": "text",
+            "notNull": true
+          },
+          {
+            "name": "code",
+            "type": "text"
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ]
+      }
+    ],
+    "initialState": {
+      "redemptions": []
+    }
+  },
+  "actors": [
+    {
+      "name": "A",
+      "function": "redeemCode",
+      "file": "src/redeem.ts",
+      "arguments": [
+        "SAVE10",
+        "req-A"
+      ]
+    },
+    {
+      "name": "B",
+      "function": "redeemCode",
+      "file": "src/redeem.ts",
+      "arguments": [
+        "SAVE10",
+        "req-B"
+      ]
+    }
+  ],
+  "bounds": {
+    "maxSteps": 40
+  },
+  "invariants": [
+    {
+      "name": "redeemed-at-most-once",
+      "when": "final",
+      "assert": {
+        "le": [
+          {
+            "count": {
+              "table": "redemptions",
+              "where": {
+                "code": "SAVE10"
+              }
+            }
+          },
+          1
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+verification-report.v2: drizzle-node-isolated.json: 16 cases, 0 schema errors; corrupted copy rejected: True
+verification-report.v2: drizzle-node-repeat5.json: 1 cases, 0 schema errors; corrupted copy rejected: True
+verification-report.v2: generated-harness.json: 5 cases, 0 schema errors; corrupted copy rejected: True

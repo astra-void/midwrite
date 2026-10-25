@@ -1,0 +1,20 @@
+Failure traces on the corpus (original configurations), Phase 4 release binary, 2026-10-25, macOS arm64.
+Command: commitrift-corpus traces --manifest corpora/manifest.json --manifest corpora/manifest.local.json
+
+saas-starter         findings 21 traces 15 (complete 14, approximated 1, incomplete 0), without trace 6; model validation failures 0
+midday               findings 269 traces 180 (complete 126, approximated 7, incomplete 47), without trace 89; model validation failures 0
+                       incomplete by cause: {"unknown call in the failure window": 47}
+                       most frequent unknown calls in windows: [("", 10), ("supabase.storage.from", 8), ("withTimeout", 8), ("getTeamCalibration", 7), ("removeProcessingReaction", 5), ("this.updateProgress", 5), ("render", 4), ("config.afterConnect", 2)]
+school-ledger        findings 317 traces 123 (complete 30, approximated 0, incomplete 93), without trace 194; model validation failures 0
+                       incomplete by cause: {"unknown call in the failure window": 93}
+                       75 distinct unknown calls in windows (private project: labels not printed)
+unnamed-ai-project   findings 17 traces 8 (complete 8, approximated 0, incomplete 0), without trace 9; model validation failures 0
+total traces: 326; all valid against the analysis model: true
+
+JSON Schema (scripts/validate-schemas.py, trace reports from `commitrift trace . --config <project config>` in each project; the dumps were deleted afterwards, private sources):
+trace-report.v1: traces-midday.json: 180 traces, 0 schema errors; corrupted copy rejected: True
+trace-report.v1: traces-saas-starter.json: 15 traces, 0 schema errors; corrupted copy rejected: True
+trace-report.v1: traces-school-ledger.json: 123 traces, 0 schema errors; corrupted copy rejected: True
+trace-report.v1: traces-unnamed-ai-project.json: 8 traces, 0 schema errors; corrupted copy rejected: True
+
+Phase 3 (reports/phase3/trace-coverage.txt): identical counts per project (15/180/123/8; incomplete 0/47/93/0).

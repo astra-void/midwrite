@@ -1,0 +1,3 @@
+-- COMMITRIFT-TODO: the schema and initial rows your scenario needs (CREATE TABLE ...;
+-- INSERT ...). Applied to a fresh, empty database before every run.
+-- Tables this trace reads or writes: orders.

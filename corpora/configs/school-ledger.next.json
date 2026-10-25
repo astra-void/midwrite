@@ -1,0 +1,7 @@
+{
+  "$schema": "Post-review variant of school-ledger.json (written after the Phase 2 review): the database handle returned by getDb(), and test/seed files excluded.",
+  "databaseReceivers": ["db", { "name": "getDb()", "importedFrom": "@/server/db" }],
+  "transactionMethods": ["transaction"],
+  "externalEffects": [],
+  "exclude": ["tests/**", "scripts/**", "e2e/**"]
+}

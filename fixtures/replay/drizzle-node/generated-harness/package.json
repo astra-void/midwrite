@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "@commitrift/replay": "file:./commitrift-runtime"
+  },
+  "name": "commitrift-replay-completeorder",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "type": "module"
+}

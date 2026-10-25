@@ -1,0 +1,1210 @@
+{
+  "config": "/Users/returnf4lse/Desktop/Workspace/rust/crash-proof/corpora/configs/unnamed-ai-project.json",
+  "diagnostics": [
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "getOrCreateChatProfile(userId)",
+          "location": {
+            "column": 25,
+            "endColumn": 55,
+            "endLine": 106,
+            "file": "app/api/chat-profile/route.ts",
+            "line": 106
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database update on `chatProfile` (commits on its own)",
+          "label": "db.update(chatProfile)",
+          "location": {
+            "column": 9,
+            "endColumn": 25,
+            "endLine": 92,
+            "file": "app/api/chat-profile/route.ts",
+            "line": 91
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`getOrCreateChatProfile(userId)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.update(chatProfile)` (database update on `chatProfile`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\"."
+      ],
+      "failureSequence": [
+        "1. `db.update(chatProfile)` (91:9) commits immediately: it is not inside a recognized transaction.",
+        "2. `getOrCreateChatProfile(userId)` (106:25) runs; its effects are unknown.",
+        "3. If `getOrCreateChatProfile(userId)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "PUT",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 25,
+        "endColumn": 55,
+        "endLine": 106,
+        "file": "app/api/chat-profile/route.ts",
+        "line": 106
+      },
+      "message": "`getOrCreateChatProfile(userId)` runs after `db.update(chatProfile)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP1004",
+      "confidence": "medium",
+      "effects": [
+        {
+          "description": "database insert on `conversations` (commits on its own)",
+          "label": "db.insert(conversations)",
+          "location": {
+            "column": 11,
+            "endColumn": 35,
+            "endLine": 120,
+            "file": "app/api/chat/route.ts",
+            "line": 120
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "database insert on `messageTable` (commits on its own)",
+          "label": "db.insert(messageTable)",
+          "location": {
+            "column": 13,
+            "endColumn": 30,
+            "endLine": 176,
+            "file": "app/api/chat/route.ts",
+            "line": 175
+          },
+          "role": "notYetPerformed"
+        }
+      ],
+      "evidence": [
+        "`db.insert(conversations)` (database insert on `conversations`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\".",
+        "`db.insert(messageTable)` (database insert on `messageTable`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\"."
+      ],
+      "failureSequence": [
+        "1. `db.insert(conversations)` (120:11) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.insert(conversations)` and before `db.insert(messageTable)` completes.",
+        "3. `db.insert(messageTable)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "function": "POST",
+      "kind": "potentialHazard",
+      "limitations": [
+        "The sequence depends on 2 branch decision(s) between the two operations (see pathConditions). CrashProof does not check that these conditions can hold together.",
+        "CrashProof does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 13,
+        "endColumn": 30,
+        "endLine": 176,
+        "file": "app/api/chat/route.ts",
+        "line": 175
+      },
+      "message": "`db.insert(conversations)` and `db.insert(messageTable)` commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathConditions": [
+        {
+          "description": "if `parsed.data.saveUserMessage` takes the `then` path",
+          "location": {
+            "column": 3,
+            "endColumn": 4,
+            "endLine": 191,
+            "file": "app/api/chat/route.ts",
+            "line": 170
+          }
+        },
+        {
+          "description": "if `lastUser && userText` takes the `then` path",
+          "location": {
+            "column": 5,
+            "endColumn": 6,
+            "endLine": 190,
+            "file": "app/api/chat/route.ts",
+            "line": 174
+          }
+        }
+      ],
+      "reproduced": false,
+      "severity": "warning",
+      "title": "independent database commits"
+    },
+    {
+      "code": "CP1004",
+      "confidence": "high",
+      "effects": [
+        {
+          "description": "database insert on `messageTable` (commits on its own)",
+          "label": "db.insert(messageTable)",
+          "location": {
+            "column": 13,
+            "endColumn": 30,
+            "endLine": 176,
+            "file": "app/api/chat/route.ts",
+            "line": 175
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "database update on `conversations` (commits on its own)",
+          "label": "db.update(conversations)",
+          "location": {
+            "column": 13,
+            "endColumn": 31,
+            "endLine": 187,
+            "file": "app/api/chat/route.ts",
+            "line": 186
+          },
+          "role": "notYetPerformed"
+        }
+      ],
+      "evidence": [
+        "`db.insert(messageTable)` (database insert on `messageTable`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\".",
+        "`db.update(conversations)` (database update on `conversations`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\"."
+      ],
+      "failureSequence": [
+        "1. `db.insert(messageTable)` (175:13) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.insert(messageTable)` and before `db.update(conversations)` completes.",
+        "3. `db.update(conversations)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "function": "POST",
+      "kind": "potentialHazard",
+      "limitations": [
+        "CrashProof does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 13,
+        "endColumn": 31,
+        "endLine": 187,
+        "file": "app/api/chat/route.ts",
+        "line": 186
+      },
+      "message": "`db.insert(messageTable)` and `db.update(conversations)` commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "warning",
+      "title": "independent database commits"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "convertToModelMessages(uiMessages)",
+          "location": {
+            "column": 21,
+            "endColumn": 55,
+            "endLine": 198,
+            "file": "app/api/chat/route.ts",
+            "line": 198
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database update on `conversations` (commits on its own)",
+          "label": "db.update(conversations)",
+          "location": {
+            "column": 13,
+            "endColumn": 31,
+            "endLine": 187,
+            "file": "app/api/chat/route.ts",
+            "line": 186
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`convertToModelMessages(uiMessages)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.update(conversations)` (database update on `conversations`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\"."
+      ],
+      "failureSequence": [
+        "1. `db.update(conversations)` (186:13) commits immediately: it is not inside a recognized transaction.",
+        "2. `convertToModelMessages(uiMessages)` (198:21) runs; its effects are unknown.",
+        "3. If `convertToModelMessages(uiMessages)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "POST",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 21,
+        "endColumn": 55,
+        "endLine": 198,
+        "file": "app/api/chat/route.ts",
+        "line": 198
+      },
+      "message": "`convertToModelMessages(uiMessages)` runs after `db.update(conversations)` has committed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP1004",
+      "confidence": "high",
+      "effects": [
+        {
+          "description": "database insert on `messageTable` (commits on its own)",
+          "label": "db.insert(messageTable)",
+          "location": {
+            "column": 13,
+            "endColumn": 36,
+            "endLine": 220,
+            "file": "app/api/chat/route.ts",
+            "line": 220
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "database update on `conversations` (commits on its own)",
+          "label": "db.update(conversations)",
+          "location": {
+            "column": 13,
+            "endColumn": 31,
+            "endLine": 229,
+            "file": "app/api/chat/route.ts",
+            "line": 228
+          },
+          "role": "notYetPerformed"
+        }
+      ],
+      "evidence": [
+        "`db.insert(messageTable)` (database insert on `messageTable`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\".",
+        "`db.update(conversations)` (database update on `conversations`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\"."
+      ],
+      "failureSequence": [
+        "1. `db.insert(messageTable)` (220:13) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.insert(messageTable)` and before `db.update(conversations)` completes.",
+        "3. `db.update(conversations)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "function": "onFinish",
+      "kind": "potentialHazard",
+      "limitations": [
+        "CrashProof does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 13,
+        "endColumn": 31,
+        "endLine": 229,
+        "file": "app/api/chat/route.ts",
+        "line": 228
+      },
+      "message": "`db.insert(messageTable)` and `db.update(conversations)` commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "warning",
+      "title": "independent database commits"
+    },
+    {
+      "code": "CP1004",
+      "confidence": "high",
+      "effects": [
+        {
+          "description": "database delete on `messages` (commits on its own)",
+          "label": "db.delete(messages)",
+          "location": {
+            "column": 9,
+            "endColumn": 28,
+            "endLine": 187,
+            "file": "app/api/conversations/[id]/route.ts",
+            "line": 187
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "database delete on `conversations` (commits on its own)",
+          "label": "db.delete(conversations)",
+          "location": {
+            "column": 9,
+            "endColumn": 27,
+            "endLine": 189,
+            "file": "app/api/conversations/[id]/route.ts",
+            "line": 188
+          },
+          "role": "notYetPerformed"
+        }
+      ],
+      "evidence": [
+        "`db.delete(messages)` (database delete on `messages`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\".",
+        "`db.delete(conversations)` (database delete on `conversations`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\"."
+      ],
+      "failureSequence": [
+        "1. `db.delete(messages)` (187:9) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.delete(messages)` and before `db.delete(conversations)` completes.",
+        "3. `db.delete(conversations)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "function": "DELETE",
+      "kind": "potentialHazard",
+      "limitations": [
+        "CrashProof does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 9,
+        "endColumn": 27,
+        "endLine": 189,
+        "file": "app/api/conversations/[id]/route.ts",
+        "line": 188
+      },
+      "message": "`db.delete(messages)` and `db.delete(conversations)` commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "warning",
+      "title": "independent database commits"
+    },
+    {
+      "code": "CP1004",
+      "confidence": "high",
+      "effects": [
+        {
+          "description": "database insert on `conversations` (commits on its own)",
+          "label": "db.insert(conversations)",
+          "location": {
+            "column": 9,
+            "endColumn": 33,
+            "endLine": 71,
+            "file": "app/api/conversations/route.ts",
+            "line": 71
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "database insert on `messages` (commits on its own)",
+          "label": "db.insert(messages)",
+          "location": {
+            "column": 9,
+            "endColumn": 28,
+            "endLine": 82,
+            "file": "app/api/conversations/route.ts",
+            "line": 82
+          },
+          "role": "notYetPerformed"
+        }
+      ],
+      "evidence": [
+        "`db.insert(conversations)` (database insert on `conversations`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\".",
+        "`db.insert(messages)` (database insert on `messages`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\"."
+      ],
+      "failureSequence": [
+        "1. `db.insert(conversations)` (71:9) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.insert(conversations)` and before `db.insert(messages)` completes.",
+        "3. `db.insert(messages)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "function": "POST",
+      "kind": "potentialHazard",
+      "limitations": [
+        "CrashProof does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 9,
+        "endColumn": 28,
+        "endLine": 82,
+        "file": "app/api/conversations/route.ts",
+        "line": 82
+      },
+      "message": "`db.insert(conversations)` and `db.insert(messages)` commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "warning",
+      "title": "independent database commits"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "res.json().catch(() => null)",
+          "location": {
+            "column": 23,
+            "endColumn": 51,
+            "endLine": 48,
+            "file": "app/characters/page.tsx",
+            "line": 48
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "external effect (http-request)",
+          "label": "fetch(url, \u2026)",
+          "location": {
+            "column": 21,
+            "endColumn": 5,
+            "endLine": 47,
+            "file": "app/characters/page.tsx",
+            "line": 44
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`res.json().catch(() => null)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`fetch(url, \u2026)` (external effect (http-request)): `fetch` \u2014 name-based match against the configuration; matches externalEffects entry `fetch`; `fetch` is not declared in this file."
+      ],
+      "failureSequence": [
+        "1. `fetch(url, \u2026)` (44:21) performs an external effect (http-request); other systems can observe it as soon as it succeeds.",
+        "2. `res.json().catch(() => null)` (48:23) runs; its effects are unknown.",
+        "3. If `res.json().catch(() => null)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "api",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 23,
+        "endColumn": 51,
+        "endLine": 48,
+        "file": "app/characters/page.tsx",
+        "line": 48
+      },
+      "message": "`res.json().catch(() => null)` runs after `fetch(url, \u2026)` has been performed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "refreshList()",
+          "location": {
+            "column": 15,
+            "endColumn": 28,
+            "endLine": 169,
+            "file": "app/characters/page.tsx",
+            "line": 169
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "external effect (http-request), inside `api`",
+          "label": "fetch(url, \u2026)",
+          "location": {
+            "column": 21,
+            "endColumn": 5,
+            "endLine": 47,
+            "file": "app/characters/page.tsx",
+            "line": 44
+          },
+          "role": "context"
+        },
+        {
+          "description": "call of `api`, a function declared in this file; the operations inside it are taken from its summary",
+          "label": "api(\u2026)",
+          "location": {
+            "column": 31,
+            "endColumn": 11,
+            "endLine": 168,
+            "file": "app/characters/page.tsx",
+            "line": 160
+          },
+          "role": "callSite"
+        }
+      ],
+      "evidence": [
+        "`refreshList()` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`fetch(url, \u2026)` (external effect (http-request)): `fetch` \u2014 name-based match against the configuration; matches externalEffects entry `fetch`; `fetch` is not declared in this file.",
+        "`fetch(url, \u2026)` (44:21) is taken from the summary of `api`, a function declared in this file, reached through `api(\u2026)` at 160:31; `api` performs it on every path through it."
+      ],
+      "failureSequence": [
+        "1. `fetch(url, \u2026)` (44:21, in `api`, reached through `api(\u2026)` at 160:31) performs an external effect (http-request); other systems can observe it as soon as it succeeds.",
+        "2. `refreshList()` (169:15) runs; its effects are unknown.",
+        "3. If `refreshList()` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "CharactersPage::<anonymous@154:28>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 15,
+        "endColumn": 28,
+        "endLine": 169,
+        "file": "app/characters/page.tsx",
+        "line": 169
+      },
+      "message": "`refreshList()` runs after `fetch(url, \u2026)` (via `api(\u2026)`) has been performed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "selectOne(created.id)",
+          "location": {
+            "column": 15,
+            "endColumn": 36,
+            "endLine": 170,
+            "file": "app/characters/page.tsx",
+            "line": 170
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "external effect (http-request), inside `api`",
+          "label": "fetch(url, \u2026)",
+          "location": {
+            "column": 21,
+            "endColumn": 5,
+            "endLine": 47,
+            "file": "app/characters/page.tsx",
+            "line": 44
+          },
+          "role": "context"
+        },
+        {
+          "description": "call of `api`, a function declared in this file; the operations inside it are taken from its summary",
+          "label": "api(\u2026)",
+          "location": {
+            "column": 31,
+            "endColumn": 11,
+            "endLine": 168,
+            "file": "app/characters/page.tsx",
+            "line": 160
+          },
+          "role": "callSite"
+        }
+      ],
+      "evidence": [
+        "`selectOne(created.id)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`fetch(url, \u2026)` (external effect (http-request)): `fetch` \u2014 name-based match against the configuration; matches externalEffects entry `fetch`; `fetch` is not declared in this file.",
+        "`fetch(url, \u2026)` (44:21) is taken from the summary of `api`, a function declared in this file, reached through `api(\u2026)` at 160:31; `api` performs it on every path through it."
+      ],
+      "failureSequence": [
+        "1. `fetch(url, \u2026)` (44:21, in `api`, reached through `api(\u2026)` at 160:31) performs an external effect (http-request); other systems can observe it as soon as it succeeds.",
+        "2. `selectOne(created.id)` (170:15) runs; its effects are unknown.",
+        "3. If `selectOne(created.id)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "CharactersPage::<anonymous@154:28>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 15,
+        "endColumn": 36,
+        "endLine": 170,
+        "file": "app/characters/page.tsx",
+        "line": 170
+      },
+      "message": "`selectOne(created.id)` runs after `fetch(url, \u2026)` (via `api(\u2026)`) has been performed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "refreshList()",
+          "location": {
+            "column": 15,
+            "endColumn": 28,
+            "endLine": 181,
+            "file": "app/characters/page.tsx",
+            "line": 181
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "external effect (http-request), inside `api`",
+          "label": "fetch(url, \u2026)",
+          "location": {
+            "column": 21,
+            "endColumn": 5,
+            "endLine": 47,
+            "file": "app/characters/page.tsx",
+            "line": 44
+          },
+          "role": "context"
+        },
+        {
+          "description": "call of `api`, a function declared in this file; the operations inside it are taken from its summary",
+          "label": "api(\u2026)",
+          "location": {
+            "column": 15,
+            "endColumn": 11,
+            "endLine": 180,
+            "file": "app/characters/page.tsx",
+            "line": 172
+          },
+          "role": "callSite"
+        }
+      ],
+      "evidence": [
+        "`refreshList()` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`fetch(url, \u2026)` (external effect (http-request)): `fetch` \u2014 name-based match against the configuration; matches externalEffects entry `fetch`; `fetch` is not declared in this file.",
+        "`fetch(url, \u2026)` (44:21) is taken from the summary of `api`, a function declared in this file, reached through `api(\u2026)` at 172:15; `api` performs it on every path through it."
+      ],
+      "failureSequence": [
+        "1. `fetch(url, \u2026)` (44:21, in `api`, reached through `api(\u2026)` at 172:15) performs an external effect (http-request); other systems can observe it as soon as it succeeds.",
+        "2. `refreshList()` (181:15) runs; its effects are unknown.",
+        "3. If `refreshList()` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "CharactersPage::<anonymous@154:28>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 15,
+        "endColumn": 28,
+        "endLine": 181,
+        "file": "app/characters/page.tsx",
+        "line": 181
+      },
+      "message": "`refreshList()` runs after `fetch(url, \u2026)` (via `api(\u2026)`) has been performed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "refreshList()",
+          "location": {
+            "column": 11,
+            "endColumn": 24,
+            "endLine": 194,
+            "file": "app/characters/page.tsx",
+            "line": 194
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "external effect (http-request), inside `api`",
+          "label": "fetch(url, \u2026)",
+          "location": {
+            "column": 21,
+            "endColumn": 5,
+            "endLine": 47,
+            "file": "app/characters/page.tsx",
+            "line": 44
+          },
+          "role": "context"
+        },
+        {
+          "description": "call of `api`, a function declared in this file; the operations inside it are taken from its summary",
+          "label": "api(\u2026)",
+          "location": {
+            "column": 11,
+            "endColumn": 7,
+            "endLine": 192,
+            "file": "app/characters/page.tsx",
+            "line": 190
+          },
+          "role": "callSite"
+        }
+      ],
+      "evidence": [
+        "`refreshList()` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`fetch(url, \u2026)` (external effect (http-request)): `fetch` \u2014 name-based match against the configuration; matches externalEffects entry `fetch`; `fetch` is not declared in this file.",
+        "`fetch(url, \u2026)` (44:21) is taken from the summary of `api`, a function declared in this file, reached through `api(\u2026)` at 190:11; `api` performs it on every path through it."
+      ],
+      "failureSequence": [
+        "1. `fetch(url, \u2026)` (44:21, in `api`, reached through `api(\u2026)` at 190:11) performs an external effect (http-request); other systems can observe it as soon as it succeeds.",
+        "2. `refreshList()` (194:11) runs; its effects are unknown.",
+        "3. If `refreshList()` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "CharactersPage::<anonymous@188:30>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 11,
+        "endColumn": 24,
+        "endLine": 194,
+        "file": "app/characters/page.tsx",
+        "line": 194
+      },
+      "message": "`refreshList()` runs after `fetch(url, \u2026)` (via `api(\u2026)`) has been performed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "res.json().catch(() => null)",
+          "location": {
+            "column": 23,
+            "endColumn": 51,
+            "endLine": 107,
+            "file": "components/home/HomeShell.tsx",
+            "line": 107
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "external effect (http-request)",
+          "label": "fetch(url, \u2026)",
+          "location": {
+            "column": 21,
+            "endColumn": 5,
+            "endLine": 106,
+            "file": "components/home/HomeShell.tsx",
+            "line": 103
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`res.json().catch(() => null)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`fetch(url, \u2026)` (external effect (http-request)): `fetch` \u2014 name-based match against the configuration; matches externalEffects entry `fetch`; `fetch` is not declared in this file."
+      ],
+      "failureSequence": [
+        "1. `fetch(url, \u2026)` (103:21) performs an external effect (http-request); other systems can observe it as soon as it succeeds.",
+        "2. `res.json().catch(() => null)` (107:23) runs; its effects are unknown.",
+        "3. If `res.json().catch(() => null)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "apiJson",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 23,
+        "endColumn": 51,
+        "endLine": 107,
+        "file": "components/home/HomeShell.tsx",
+        "line": 107
+      },
+      "message": "`res.json().catch(() => null)` runs after `fetch(url, \u2026)` has been performed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "loadConversation(created.conversationId)",
+          "location": {
+            "column": 11,
+            "endColumn": 51,
+            "endLine": 279,
+            "file": "components/home/HomeShell.tsx",
+            "line": 279
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "external effect (http-request), inside `apiJson`",
+          "label": "fetch(url, \u2026)",
+          "location": {
+            "column": 21,
+            "endColumn": 5,
+            "endLine": 106,
+            "file": "components/home/HomeShell.tsx",
+            "line": 103
+          },
+          "role": "context"
+        },
+        {
+          "description": "call of `apiJson`, a function declared in this file; the operations inside it are taken from its summary",
+          "label": "apiJson(\u2026)",
+          "location": {
+            "column": 27,
+            "endColumn": 7,
+            "endLine": 257,
+            "file": "components/home/HomeShell.tsx",
+            "line": 254
+          },
+          "role": "callSite"
+        }
+      ],
+      "evidence": [
+        "`loadConversation(created.conversationId)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`fetch(url, \u2026)` (external effect (http-request)): `fetch` \u2014 name-based match against the configuration; matches externalEffects entry `fetch`; `fetch` is not declared in this file.",
+        "`fetch(url, \u2026)` (103:21) is taken from the summary of `apiJson`, a function declared in this file, reached through `apiJson(\u2026)` at 254:27; `apiJson` performs it on every path through it."
+      ],
+      "failureSequence": [
+        "1. `fetch(url, \u2026)` (103:21, in `apiJson`, reached through `apiJson(\u2026)` at 254:27) performs an external effect (http-request); other systems can observe it as soon as it succeeds.",
+        "2. `loadConversation(created.conversationId)` (279:11) runs; its effects are unknown.",
+        "3. If `loadConversation(created.conversationId)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "HomeShell::<anonymous@253:42>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 11,
+        "endColumn": 51,
+        "endLine": 279,
+        "file": "components/home/HomeShell.tsx",
+        "line": 279
+      },
+      "message": "`loadConversation(created.conversationId)` runs after `fetch(url, \u2026)` (via `apiJson(\u2026)`) has been performed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "regenerate(\u2026)",
+          "location": {
+            "column": 13,
+            "endColumn": 9,
+            "endLine": 475,
+            "file": "components/home/HomeShell.tsx",
+            "line": 468
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "external effect (http-request), inside `apiJson`",
+          "label": "fetch(url, \u2026)",
+          "location": {
+            "column": 21,
+            "endColumn": 5,
+            "endLine": 106,
+            "file": "components/home/HomeShell.tsx",
+            "line": 103
+          },
+          "role": "context"
+        },
+        {
+          "description": "call of `apiJson`, a function declared in this file; the operations inside it are taken from its summary",
+          "label": "apiJson(\u2026)",
+          "location": {
+            "column": 13,
+            "endColumn": 9,
+            "endLine": 460,
+            "file": "components/home/HomeShell.tsx",
+            "line": 458
+          },
+          "role": "callSite"
+        }
+      ],
+      "evidence": [
+        "`regenerate(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`fetch(url, \u2026)` (external effect (http-request)): `fetch` \u2014 name-based match against the configuration; matches externalEffects entry `fetch`; `fetch` is not declared in this file.",
+        "`fetch(url, \u2026)` (103:21) is taken from the summary of `apiJson`, a function declared in this file, reached through `apiJson(\u2026)` at 458:13; `apiJson` performs it on every path through it."
+      ],
+      "failureSequence": [
+        "1. `fetch(url, \u2026)` (103:21, in `apiJson`, reached through `apiJson(\u2026)` at 458:13) performs an external effect (http-request); other systems can observe it as soon as it succeeds.",
+        "2. `regenerate(\u2026)` (468:13) runs; its effects are unknown.",
+        "3. If `regenerate(\u2026)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "HomeShell::<anonymous@437:5>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 13,
+        "endColumn": 9,
+        "endLine": 475,
+        "file": "components/home/HomeShell.tsx",
+        "line": 468
+      },
+      "message": "`regenerate(\u2026)` runs after `fetch(url, \u2026)` (via `apiJson(\u2026)`) has been performed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "res.text().catch(() => \"\")",
+          "location": {
+            "column": 33,
+            "endColumn": 59,
+            "endLine": 79,
+            "file": "components/home/useChatStream.ts",
+            "line": 79
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "external effect (http-request)",
+          "label": "fetch(\"/api/chat\", \u2026)",
+          "location": {
+            "column": 27,
+            "endColumn": 11,
+            "endLine": 71,
+            "file": "components/home/useChatStream.ts",
+            "line": 54
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`res.text().catch(() => \"\")` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`fetch(\"/api/chat\", \u2026)` (external effect (http-request)): `fetch` \u2014 name-based match against the configuration; matches externalEffects entry `fetch`; `fetch` is not declared in this file."
+      ],
+      "failureSequence": [
+        "1. `fetch(\"/api/chat\", \u2026)` (54:27) performs an external effect (http-request); other systems can observe it as soon as it succeeds.",
+        "2. `res.text().catch(() => \"\")` (79:33) runs; its effects are unknown.",
+        "3. If `res.text().catch(() => \"\")` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "useChatStream::<anonymous@46:5>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 33,
+        "endColumn": 59,
+        "endLine": 79,
+        "file": "components/home/useChatStream.ts",
+        "line": 79
+      },
+      "message": "`res.text().catch(() => \"\")` runs after `fetch(\"/api/chat\", \u2026)` has been performed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "reader.read()",
+          "location": {
+            "column": 54,
+            "endColumn": 67,
+            "endLine": 91,
+            "file": "components/home/useChatStream.ts",
+            "line": 91
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "external effect (http-request)",
+          "label": "fetch(\"/api/chat\", \u2026)",
+          "location": {
+            "column": 27,
+            "endColumn": 11,
+            "endLine": 71,
+            "file": "components/home/useChatStream.ts",
+            "line": 54
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`reader.read()` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`fetch(\"/api/chat\", \u2026)` (external effect (http-request)): `fetch` \u2014 name-based match against the configuration; matches externalEffects entry `fetch`; `fetch` is not declared in this file."
+      ],
+      "failureSequence": [
+        "1. `fetch(\"/api/chat\", \u2026)` (54:27) performs an external effect (http-request); other systems can observe it as soon as it succeeds.",
+        "2. `reader.read()` (91:54) runs; its effects are unknown.",
+        "3. If `reader.read()` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "useChatStream::<anonymous@46:5>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 54,
+        "endColumn": 67,
+        "endLine": 91,
+        "file": "components/home/useChatStream.ts",
+        "line": 91
+      },
+      "message": "`reader.read()` runs after `fetch(\"/api/chat\", \u2026)` has been performed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "res.text().catch(() => \"\")",
+          "location": {
+            "column": 28,
+            "endColumn": 54,
+            "endLine": 63,
+            "file": "hooks/use-chat-suggestions.ts",
+            "line": 63
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "external effect (http-request)",
+          "label": "fetch(\"/api/chat/suggestions\", \u2026)",
+          "location": {
+            "column": 25,
+            "endColumn": 9,
+            "endLine": 60,
+            "file": "hooks/use-chat-suggestions.ts",
+            "line": 50
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`res.text().catch(() => \"\")` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`fetch(\"/api/chat/suggestions\", \u2026)` (external effect (http-request)): `fetch` \u2014 name-based match against the configuration; matches externalEffects entry `fetch`; `fetch` is not declared in this file."
+      ],
+      "failureSequence": [
+        "1. `fetch(\"/api/chat/suggestions\", \u2026)` (50:25) performs an external effect (http-request); other systems can observe it as soon as it succeeds.",
+        "2. `res.text().catch(() => \"\")` (63:28) runs; its effects are unknown.",
+        "3. If `res.text().catch(() => \"\")` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "useChatSuggestions::<anonymous@35:42>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 28,
+        "endColumn": 54,
+        "endLine": 63,
+        "file": "hooks/use-chat-suggestions.ts",
+        "line": 63
+      },
+      "message": "`res.text().catch(() => \"\")` runs after `fetch(\"/api/chat/suggestions\", \u2026)` has been performed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "res.json()",
+          "location": {
+            "column": 26,
+            "endColumn": 36,
+            "endLine": 69,
+            "file": "hooks/use-chat-suggestions.ts",
+            "line": 69
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "external effect (http-request)",
+          "label": "fetch(\"/api/chat/suggestions\", \u2026)",
+          "location": {
+            "column": 25,
+            "endColumn": 9,
+            "endLine": 60,
+            "file": "hooks/use-chat-suggestions.ts",
+            "line": 50
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`res.json()` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`fetch(\"/api/chat/suggestions\", \u2026)` (external effect (http-request)): `fetch` \u2014 name-based match against the configuration; matches externalEffects entry `fetch`; `fetch` is not declared in this file."
+      ],
+      "failureSequence": [
+        "1. `fetch(\"/api/chat/suggestions\", \u2026)` (50:25) performs an external effect (http-request); other systems can observe it as soon as it succeeds.",
+        "2. `res.json()` (69:26) runs; its effects are unknown.",
+        "3. If `res.json()` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "function": "useChatSuggestions::<anonymous@35:42>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 26,
+        "endColumn": 36,
+        "endLine": 69,
+        "file": "hooks/use-chat-suggestions.ts",
+        "line": 69
+      },
+      "message": "`res.json()` runs after `fetch(\"/api/chat/suggestions\", \u2026)` has been performed; CrashProof does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `crashproof.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    }
+  ],
+  "failures": [],
+  "schemaVersion": 1,
+  "summary": {
+    "diagnostics": {
+      "error": 0,
+      "info": 14,
+      "warning": 5
+    },
+    "filesAnalyzed": 104,
+    "filesDiscovered": 104,
+    "filesFailed": 0,
+    "functionsAnalyzed": 648
+  },
+  "tool": {
+    "name": "crashproof",
+    "version": "0.1.0"
+  }
+}

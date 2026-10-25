@@ -1,0 +1,71 @@
+commitrift replay: harness `order-outbox` — Order completion through a transactional outbox: the status change and the outbox row commit together; a relay publishes with at-least-once delivery.
+  environment: macos aarch64, postgres (PostgreSQL) 17.11 (Homebrew), bun 1.3.3; network: sandbox-exec: IP networking denied; Unix sockets and file writes limited to the replay directory
+  control run (no injection): RUNTIME_NOT_REPRODUCED — all 3 declared invariant check(s) held; state: distinctEvents=1 duplicateDeliveries=0 eventsWithoutId=0 orderStatus="paid" outboxRows=1 pendingOutbox=0 publishedEvents=1
+
+case kill-before-tx-commit: processKill at `before-tx-commit`  [RUNTIME_NOT_REPRODUCED, as expected]
+  Kill while the transaction is open, after both writes were staged: PostgreSQL rolls both back.
+  static link: None — the case names no finding
+  run 1: RUNTIME_NOT_REPRODUCED — all 3 declared invariant check(s) held
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: orderStatus = "pending" -> ok (observed "pending")
+    before:        distinctEvents=0 duplicateDeliveries=0 eventsWithoutId=0 orderStatus="pending" outboxRows=0 pendingOutbox=0 publishedEvents=0
+    after:         distinctEvents=0 duplicateDeliveries=0 eventsWithoutId=0 orderStatus="pending" outboxRows=0 pendingOutbox=0 publishedEvents=0
+    prediction: matches the observed state
+
+case kill-after-tx-commit: processKill at `after-db-commit`  [RUNTIME_NOT_REPRODUCED, as expected]
+  The point that is a bug in the vulnerable version: kill right after the commit. The intent survives in the outbox and the relay publishes it.
+  static link: None — the case names no finding
+  run 1: RUNTIME_NOT_REPRODUCED — all 6 declared invariant check(s) held
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: orderStatus = "paid" -> ok (observed "paid")
+    before:        distinctEvents=0 duplicateDeliveries=0 eventsWithoutId=0 orderStatus="pending" outboxRows=0 pendingOutbox=0 publishedEvents=0
+    after:         distinctEvents=0 duplicateDeliveries=0 eventsWithoutId=0 orderStatus="paid" outboxRows=1 pendingOutbox=1 publishedEvents=0
+    afterRecovery: distinctEvents=1 duplicateDeliveries=0 eventsWithoutId=0 orderStatus="paid" outboxRows=1 pendingOutbox=0 publishedEvents=1
+    prediction: matches the observed state
+  recovery (runtime observation): Observed at runtime: after relay every declared invariant held in 1 of 1 run(s); in 0 of them an invariant had been violated before recovery. This harness and environment only.
+
+case kill-relay-before-publish: processKill at `before-event-publish`  [RUNTIME_NOT_REPRODUCED, as expected]
+  Kill the relay before it publishes: the row stays pending and the next relay run publishes it.
+  static link: None — the case names no finding
+  run 1: RUNTIME_NOT_REPRODUCED — all 6 declared invariant check(s) held
+    injected=true outcome=killed exit=signaled (signal 9)
+    before:        distinctEvents=0 duplicateDeliveries=0 eventsWithoutId=0 orderStatus="pending" outboxRows=0 pendingOutbox=0 publishedEvents=0
+    after:         distinctEvents=0 duplicateDeliveries=0 eventsWithoutId=0 orderStatus="paid" outboxRows=1 pendingOutbox=1 publishedEvents=0
+    afterRecovery: distinctEvents=1 duplicateDeliveries=0 eventsWithoutId=0 orderStatus="paid" outboxRows=1 pendingOutbox=0 publishedEvents=1
+    prediction: matches the observed state
+  recovery (runtime observation): Observed at runtime: after relay every declared invariant held in 1 of 1 run(s); in 0 of them an invariant had been violated before recovery. This harness and environment only.
+
+case kill-relay-after-publish-before-ack: processKill at `after-event-publish`  [RUNTIME_NOT_REPRODUCED, as expected]
+  The relay's own CP1002 window: kill after publishing, before marking the row published. The retry publishes a duplicate, which the declared contract accepts because events carry an id.
+  static link: Matched — finding c5a525f7e0afe68a (CP1002 in `relayOutbox`, src/relay.ts:13); trace tr-7b10c5c47ad42c1d (OnTraceBoundary)
+  run 1: RUNTIME_NOT_REPRODUCED — all 6 declared invariant check(s) held
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: publishedEvents = 1 -> ok (observed 1)
+    before:        distinctEvents=0 duplicateDeliveries=0 eventsWithoutId=0 orderStatus="pending" outboxRows=0 pendingOutbox=0 publishedEvents=0
+    after:         distinctEvents=1 duplicateDeliveries=0 eventsWithoutId=0 orderStatus="paid" outboxRows=1 pendingOutbox=1 publishedEvents=1
+    afterRecovery: distinctEvents=1 duplicateDeliveries=1 eventsWithoutId=0 orderStatus="paid" outboxRows=1 pendingOutbox=0 publishedEvents=2
+    prediction: matches the observed state
+  recovery (runtime observation): Observed at runtime: after relay every declared invariant held in 1 of 1 run(s); in 0 of them an invariant had been violated before recovery. This harness and environment only.
+
+case exception-relay-after-publish-before-ack: exception at `after-event-publish`  [RUNTIME_NOT_REPRODUCED, as expected]
+  The same window with an exception instead of a crash.
+  static link: Matched — finding c5a525f7e0afe68a (CP1002 in `relayOutbox`, src/relay.ts:13); trace tr-7b10c5c47ad42c1d (OnTraceBoundary)
+  run 1: RUNTIME_NOT_REPRODUCED — all 6 declared invariant check(s) held
+    injected=true outcome=threw exit=exited (code 1)
+    before:        distinctEvents=0 duplicateDeliveries=0 eventsWithoutId=0 orderStatus="pending" outboxRows=0 pendingOutbox=0 publishedEvents=0
+    after:         distinctEvents=1 duplicateDeliveries=0 eventsWithoutId=0 orderStatus="paid" outboxRows=1 pendingOutbox=1 publishedEvents=1
+    afterRecovery: distinctEvents=1 duplicateDeliveries=1 eventsWithoutId=0 orderStatus="paid" outboxRows=1 pendingOutbox=0 publishedEvents=2
+    prediction: matches the observed state
+  recovery (runtime observation): Observed at runtime: after relay every declared invariant held in 1 of 1 run(s); in 0 of them an invariant had been violated before recovery. This harness and environment only.
+  note: Exception mode: the application's catch/finally handlers and transaction rollbacks ran; this is not the same as a process crash.
+
+5 case(s): 0 RUNTIME_REPRODUCED, 5 RUNTIME_NOT_REPRODUCED, 0 INCONCLUSIVE; 5 as expected, 0 not as expected.
+Results describe this harness under the recorded conditions; RUNTIME_NOT_REPRODUCED does not prove the application safe.
+
+regression against the baseline (harness `order-outbox`):
+  stillNotReproduced     order-outbox/kill-before-tx-commit  (baseline RUNTIME_NOT_REPRODUCED, now RUNTIME_NOT_REPRODUCED; 0 of 1 run(s) reproduced)
+  stillNotReproduced     order-outbox/kill-after-tx-commit  (baseline RUNTIME_NOT_REPRODUCED, now RUNTIME_NOT_REPRODUCED; 0 of 1 run(s) reproduced)
+  stillNotReproduced     order-outbox/kill-relay-before-publish  (baseline RUNTIME_NOT_REPRODUCED, now RUNTIME_NOT_REPRODUCED; 0 of 1 run(s) reproduced)
+  stillNotReproduced     order-outbox/kill-relay-after-publish-before-ack  (baseline RUNTIME_NOT_REPRODUCED, now RUNTIME_NOT_REPRODUCED; 0 of 1 run(s) reproduced)
+  stillNotReproduced     order-outbox/exception-relay-after-publish-before-ack  (baseline RUNTIME_NOT_REPRODUCED, now RUNTIME_NOT_REPRODUCED; 0 of 1 run(s) reproduced)
+5 case(s): 0 still reproduced, 0 no longer reproduced, 0 newly reproduced, 5 still not reproduced, 0 inconclusive, 0 not executed, 0 not in the baseline.

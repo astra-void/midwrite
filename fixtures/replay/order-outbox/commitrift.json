@@ -1,0 +1,11 @@
+{
+  "databaseReceivers": [{ "name": "db", "importedFrom": "../../shared/db.ts" }],
+  "externalEffects": [
+    {
+      "receiver": "queue",
+      "method": "publish",
+      "category": "message-publish",
+      "importedFrom": "../../shared/queue.ts"
+    }
+  ]
+}

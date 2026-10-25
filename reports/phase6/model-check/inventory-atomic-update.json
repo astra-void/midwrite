@@ -1,0 +1,213 @@
+{
+  "kind": "commitrift.model-check",
+  "schemaVersion": 1,
+  "modelVersion": "1.0.0",
+  "tool": {
+    "name": "commitrift",
+    "version": "0.1.0"
+  },
+  "scenario": {
+    "name": "inventory-atomic-update",
+    "description": "Atomic conditional UPDATE ... WHERE stock > 0: the violation disappears under this model.",
+    "scenarioVersion": 1,
+    "file": "fixtures/concurrency/scenarios/inventory-atomic-update.json"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "products",
+        "columns": [
+          "id",
+          "stock"
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "unique": [],
+        "checks": [],
+        "initialRows": [
+          {
+            "id": "product-1",
+            "stock": 1
+          }
+        ]
+      },
+      {
+        "name": "orders",
+        "columns": [
+          "id",
+          "product"
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "unique": [],
+        "checks": [],
+        "initialRows": []
+      }
+    ]
+  },
+  "actors": [
+    {
+      "name": "A",
+      "function": "purchaseAtomically",
+      "file": "src/purchase.ts",
+      "arguments": [
+        [
+          "productId",
+          "product-1"
+        ],
+        [
+          "orderId",
+          "order-A"
+        ]
+      ],
+      "process": "A",
+      "origin": "extracted",
+      "tasks": 1,
+      "operations": 5,
+      "sourceRefs": [
+        {
+          "origin": "extracted",
+          "file": "src/purchase.ts",
+          "line": 43,
+          "column": 25,
+          "function": "purchaseAtomically",
+          "effectId": 0,
+          "diagnostics": [
+            "CP1004@cd92f9f1d8cdb7da"
+          ],
+          "text": "db .update(products) .set({ stock: sql`${products.stock} - 1` }) .where(and(e..."
+        },
+        {
+          "origin": "extracted",
+          "file": "src/purchase.ts",
+          "line": 53,
+          "column": 9,
+          "function": "purchaseAtomically",
+          "effectId": 1,
+          "diagnostics": [
+            "CP1004@cd92f9f1d8cdb7da"
+          ],
+          "text": "db.insert(orders).values({ id: orderId, product: productId })"
+        }
+      ]
+    },
+    {
+      "name": "B",
+      "function": "purchaseAtomically",
+      "file": "src/purchase.ts",
+      "arguments": [
+        [
+          "productId",
+          "product-1"
+        ],
+        [
+          "orderId",
+          "order-B"
+        ]
+      ],
+      "process": "B",
+      "origin": "extracted",
+      "tasks": 1,
+      "operations": 5,
+      "sourceRefs": [
+        {
+          "origin": "extracted",
+          "file": "src/purchase.ts",
+          "line": 43,
+          "column": 25,
+          "function": "purchaseAtomically",
+          "effectId": 0,
+          "diagnostics": [
+            "CP1004@cd92f9f1d8cdb7da"
+          ],
+          "text": "db .update(products) .set({ stock: sql`${products.stock} - 1` }) .where(and(e..."
+        },
+        {
+          "origin": "extracted",
+          "file": "src/purchase.ts",
+          "line": 53,
+          "column": 9,
+          "function": "purchaseAtomically",
+          "effectId": 1,
+          "diagnostics": [
+            "CP1004@cd92f9f1d8cdb7da"
+          ],
+          "text": "db.insert(orders).values({ id: orderId, product: productId })"
+        }
+      ]
+    }
+  ],
+  "bounds": {
+    "declared": {
+      "maxActors": 4,
+      "maxSteps": 40,
+      "maxStates": 100000,
+      "maxCrashes": 0,
+      "maxRetries": 0,
+      "maxContextSwitches": null,
+      "maxTransitions": null,
+      "maxWallMs": null,
+      "maxMemoryBytes": null
+    },
+    "partialOrderReduction": true,
+    "strategy": "dfs"
+  },
+  "exploration": {
+    "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS",
+    "complete": true,
+    "truncation": {
+      "maxStates": false,
+      "maxTransitions": false,
+      "maxWallTime": false,
+      "maxMemory": false,
+      "maxSteps": false,
+      "maxContextSwitches": false
+    },
+    "metrics": {
+      "states": 9,
+      "transitions": 8,
+      "terminalStates": 2,
+      "duplicateStateHits": 0,
+      "sleepPrunedTransitions": 0,
+      "contextPrunedTransitions": 0,
+      "maxDepth": 3,
+      "schedulesInExploredGraph": 4,
+      "visitedBytes": 4620
+    },
+    "unsupported": [],
+    "stuckStates": 0
+  },
+  "invariants": [
+    {
+      "name": "successful-purchases-within-initial-stock",
+      "when": "final",
+      "formula": "purchaseatomically:ok <= initial(products[id=\"product-1\"].stock)",
+      "description": "the number of successful purchases never exceeds the stock the product started with",
+      "status": "holds-within-bounds"
+    }
+  ],
+  "evidence": {
+    "level": "none",
+    "summary": "no invariant violation exists in any behavior within the declared bounds (this does not prove the application race-free)"
+  },
+  "runtime": {
+    "performed": false,
+    "status": "not-requested",
+    "observations": [],
+    "sqlstates": [],
+    "note": "no runtime validation was requested (--validate-postgres)"
+  },
+  "assumptions": [
+    "database default isolation: read-committed (PostgreSQL semantics, see docs/phase6/POSTGRES-ISOLATION.md)",
+    "a database statement is atomic unless it must wait for another transaction; waiting statements resume with their original snapshot",
+    "autocommit (root `db`) statements are single-statement transactions at the default isolation level",
+    "local computation is not a scheduling point; it is folded into the preceding transition",
+    "rows are read in primary-key order for LIMIT 1 (the declared programs and generated SQL both use ORDER BY the primary key)",
+    "tasks of different actors never share a transaction, connection or event loop; actors listed with the same process share in-process variables and crash together",
+    "a process crash rolls back open transactions and loses local state; committed data and performed external effects remain"
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,68 @@
+[
+  {
+    "findingId": "b2540e8a207e51ab",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Synthetic seed script."
+  },
+  {
+    "findingId": "e64efb197a99e2d9",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Integration-test setup calling several services, each committing its own transaction."
+  },
+  {
+    "findingId": "df1e242497065fd3",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Integration-test setup."
+  },
+  {
+    "findingId": "49fd17d54ffa47f0",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Integration-test setup."
+  },
+  {
+    "findingId": "73728516f874f2f2",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Integration-test setup."
+  },
+  {
+    "findingId": "914d48560e02ad5a",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Integration-test setup."
+  },
+  {
+    "findingId": "00e9368c83bdcdb6",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Integration-test setup."
+  },
+  {
+    "findingId": "9ffbaa443b592471",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Integration-test setup."
+  },
+  {
+    "findingId": "5c4e0b015858e71c",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Integration-test setup."
+  },
+  {
+    "findingId": "d286a0212fd3a1e5",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Integration-test setup."
+  },
+  {
+    "findingId": "a62a47a5626796f3",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Integration-test setup."
+  }
+]

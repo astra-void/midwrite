@@ -1,0 +1,416 @@
+[
+  {
+    "findingId": "969a4a4beac1ad30",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "MCP tool: the invoice is set to 'unpaid' (sent) before the generate-invoice job is enqueued; a crash in between leaves an invoice marked sent that is never generated or emailed. No outbox."
+  },
+  {
+    "findingId": "f132d93f92baccba",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "Same pattern as 969a4a4b: status 'unpaid' committed before the generate-invoice job."
+  },
+  {
+    "findingId": "34107b6f5fb66fb4",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "REST router: same pattern (status 'unpaid' before the generate-invoice job)."
+  },
+  {
+    "findingId": "cca78cb3c982e524",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "A draft invoice is inserted before the schedule job; a leftover draft is a safe, user-visible state."
+  },
+  {
+    "findingId": "28837a752034d3fe",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Notification job explicitly fire-and-forget (comment in source)."
+  },
+  {
+    "findingId": "5418c2c528e820df",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "'App installed' email after creating the authorization code: best-effort email inside try/catch."
+  },
+  {
+    "findingId": "67d1ce98080d5690",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Polar webhook: team marked past_due, then a payment-issue email job inside try/catch (best effort; webhook redelivery covers crashes)."
+  },
+  {
+    "findingId": "00cf4d5e2d54ce6b",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Stripe webhook: invoice marked paid, then a notification job (best effort)."
+  },
+  {
+    "findingId": "00cf4d5e2d54ce6b-2",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Stripe webhook: invoice marked refunded, then a notification job (best effort)."
+  },
+  {
+    "findingId": "b3e9b032fd9f2325",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "API key created, then a 'new API key' email sent in the background on purpose (comment: 'We don't need to await this')."
+  },
+  {
+    "findingId": "74c861a4484f3ca6",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "Bank connection and accounts are inserted before the initial-bank-setup task is triggered; a failure leaves a connection that never gets its initial sync."
+  },
+  {
+    "findingId": "51f1f0b3a17c8005",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "The bank connection row is deleted before the delete-connection task (which revokes the provider connection) is triggered; a failure leaves the provider connection active, and the data needed to revoke it is already deleted."
+  },
+  {
+    "findingId": "2cbad1f66f43eda6",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "Enrichment status set to 'pending' before the enrich-customer job is enqueued; a crash leaves the customer stuck in 'pending' (the catch handler does not run on a crash)."
+  },
+  {
+    "findingId": "b2985f50538e379b",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "Same as 2cbad1f6 (manual enrichment)."
+  },
+  {
+    "findingId": "17dd88ef91007e7c",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "Document processing status reset to 'pending' before the reprocessing job is enqueued; a crash leaves it stuck in 'pending'."
+  },
+  {
+    "findingId": "07eca3c2866c3e58",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Fire-and-forget notification (comment in source)."
+  },
+  {
+    "findingId": "fba9377725fc1392",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "tRPC: status 'unpaid' committed before the generate-invoice job (same pattern as 969a4a4b)."
+  },
+  {
+    "findingId": "2357d158263797c2",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Best-effort 'app installed' email."
+  },
+  {
+    "findingId": "f9c28d740325d73a",
+    "classification": "unclear",
+    "reviewed": true,
+    "notes": "Application set to review-pending, then a review-request email to a fixed reviewer address. Whether pending applications are also visible elsewhere was not determined."
+  },
+  {
+    "findingId": "33484bedacefd509",
+    "classification": "unclear",
+    "reviewed": true,
+    "notes": "Manual transaction created, then an enrichment job. Enrichment is optional data; whether other jobs re-enrich was not determined."
+  },
+  {
+    "findingId": "282b3d4d6e290aef",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "Bank account balance/currency updated before the import-transactions job is enqueued; a failure leaves the new balance without the imported transactions."
+  },
+  {
+    "findingId": "7152316730e65b31",
+    "classification": "unclear",
+    "reviewed": true,
+    "notes": "Worker job: sync record upserted, then the attachment-sync job enqueued for the same transaction. BullMQ retries and the later 'already synced with changes' step may repair it; not determined."
+  },
+  {
+    "findingId": "7152316730e65b31-2",
+    "classification": "false-positive",
+    "reviewed": true,
+    "notes": "The upsert (first loop) and the enqueue (second loop, for other, already-synced transactions) concern different records; the enqueue is not owed by that commit."
+  },
+  {
+    "findingId": "2b7504eae7852445",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Worker: classification saved, then a fire-and-forget tag-embedding job; job retries rerun it."
+  },
+  {
+    "findingId": "78ff1a4d87b6e69b",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Same as 2b7504ea (images)."
+  },
+  {
+    "findingId": "04d6562eb1e4c94b",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Worker job: scheduler key stored, then the initial sync job; a failure fails the job, which BullMQ retries."
+  },
+  {
+    "findingId": "70e1fad12736298b",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Worker job: best-effort grouping, then the non-blocking process-document job; covered by job retries."
+  },
+  {
+    "findingId": "58f0f19da26dfe33",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Same as 70e1fad1 (Slack upload)."
+  },
+  {
+    "findingId": "8b8c7ac740588bf4",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Insight saved, then an opt-in notification inside try/catch (best effort)."
+  },
+  {
+    "findingId": "64fe61d229d6534c",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Worker job: invoice file info saved, then the email job; a failure fails the job and the retry regenerates and re-enqueues."
+  },
+  {
+    "findingId": "d2dcc44e38d7a7f4",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Same job: document-processing enqueue after the file info update."
+  },
+  {
+    "findingId": "edb3db940cdd9f6c",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "Recurring scheduler: the series is marked as having generated the invoice before the generate-invoice job is queued; a crash in between skips that occurrence (the next sweep sees it as generated)."
+  },
+  {
+    "findingId": "6bf3829b50972d53",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Explicitly accepted in the source: 'Queue jobs AFTER transaction commits ... will be picked up by idempotency checks on retry, or can be manually processed via the dashboard.'"
+  },
+  {
+    "findingId": "45d205c2620e9515",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Auto-pause recorded, then a notification (best effort)."
+  },
+  {
+    "findingId": "4a686b9a5a0a5b8c",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "Scheduled-invoice job sets status 'unpaid' before queueing generate-invoice. On a retry after a crash the job returns early because the status is no longer 'scheduled' (checked by reading the processor), so the invoice is never generated or sent."
+  },
+  {
+    "findingId": "c0e11cca0958955a",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Transactions marked exported, then an emailed download link inside try/catch (best effort; the export remains available)."
+  },
+  {
+    "findingId": "1706a3e9bf495af0",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Tax data saved, then a non-blocking classification job inside try/catch."
+  },
+  {
+    "findingId": "1158bbb561efdd18",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "Bot upload handler: the inbox item is committed and updated, then process-document is enqueued outside any retrying job; a crash leaves an inbox item that is never processed."
+  },
+  {
+    "findingId": "96f21af1526c0281",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Match suggestion persisted, then a notification (best effort)."
+  },
+  {
+    "findingId": "851a19d04c7f4e80",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Match persisted, then a notification (best effort)."
+  },
+  {
+    "findingId": "305e17b4841f2f15",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "Reminder job enqueued before reminderSentAt is recorded; a failure in between sends a reminder that is not recorded (duplicates later). Low impact."
+  },
+  {
+    "findingId": "d49f27d85b46bdcb",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Schedule job created first on purpose; the processor skips invoices that are not 'scheduled', so an orphan job is harmless."
+  },
+  {
+    "findingId": "6f6d8954665298e9",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Explicit design: 'Create the new scheduled job FIRST to ensure we don't lose the job if creation fails'; stale-job checks in the processor."
+  },
+  {
+    "findingId": "204f4ab8e0eff974",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "Same as 305e17b4 (tRPC remind)."
+  },
+  {
+    "findingId": "e7c31d611b163e0a",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Same design as 6f6d8954 (reschedule)."
+  },
+  {
+    "findingId": "d23420629d1e6866",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Explicit design: 'Trigger cleanup job BEFORE deleting team from database' so a queue failure leaves the team intact."
+  },
+  {
+    "findingId": "30b45470f9206870",
+    "classification": "false-positive",
+    "reviewed": true,
+    "notes": "An 'uploaded' activity notification before processing updates: the notification does not describe the later update, so no state is owed."
+  },
+  {
+    "findingId": "f67d93b946c14519",
+    "classification": "unclear",
+    "reviewed": true,
+    "notes": "Path through an approximated catch-handler entry (low confidence); whether this order is reachable as described was not determined."
+  },
+  {
+    "findingId": "d6cc779a0da27f5a",
+    "classification": "false-positive",
+    "reviewed": true,
+    "notes": "'New inbox items' notification before an account bookkeeping update; the notification does not imply that update."
+  },
+  {
+    "findingId": "b87bde98f2d6e251",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "Link token consumed before the platform identity is created; a failure burns the token without linking (the user must request a new code)."
+  },
+  {
+    "findingId": "90fbce8d80a84d02",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "DCR app claimed for the team, then an auth code created; the claim is repeatable by the same team."
+  },
+  {
+    "findingId": "2a4e4d24c3990939",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Worker job: inbox set to 'analyzing', then the matching transaction; job retries rerun it."
+  },
+  {
+    "findingId": "92e76f3400624b30",
+    "classification": "unclear",
+    "reviewed": true,
+    "notes": "Worker job: inbox created, then updated with processed data; whether a retry duplicates or resumes was not determined."
+  },
+  {
+    "findingId": "d6890f03a7e24bf2",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Processed data saved, then best-effort grouping (try/catch)."
+  },
+  {
+    "findingId": "3a6e26950e995fa5",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Upcoming-invoice notification marked as sent before sending (deliberate at-most-once to avoid duplicates)."
+  },
+  {
+    "findingId": "a2f398e0bcf73531-2",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "Bot upload handler: inbox item inserted, then updated with processed data outside any retrying job; a crash leaves a half-processed item."
+  },
+  {
+    "findingId": "6a635992061d93fd",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "createBankConnection inserts the connection, then its accounts, without a transaction; a failure leaves a connection without accounts."
+  },
+  {
+    "findingId": "41b76f15d5a434ea-2",
+    "classification": "unclear",
+    "reviewed": true,
+    "notes": "Error-recovery path of calculateInboxSuggestions; the pairing (status update, then a reset that deletes attachments) was not fully understood."
+  },
+  {
+    "findingId": "4011c009010edc42",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Suggestions deleted, then the inbox item marked deleted; leftover state is harmless (suggestions are recomputed)."
+  },
+  {
+    "findingId": "09b879a17dc26ef1",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "Attachment unlinked before the transaction's tax fields are reset; a failure leaves stale tax data."
+  },
+  {
+    "findingId": "4bac58c25319b3c3",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "Attachments inserted before the accounting sync record is invalidated; a failure means the next export misses the new attachment."
+  },
+  {
+    "findingId": "bd8ebd95eb045c78",
+    "classification": "true-positive",
+    "reviewed": true,
+    "notes": "Status changed away from 'exported' before the sync record is deleted (the code comment says this keeps them consistent); a failure leaves them inconsistent."
+  },
+  {
+    "findingId": "d151e922d49909b7",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Test seed helper."
+  },
+  {
+    "findingId": "b4250db606a83de4",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Job: inbox set to 'analyzing', then matching; covered by job retries (same as 2a4e4d24)."
+  },
+  {
+    "findingId": "4e8086ef81382aa1",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Two independent background jobs (enrichment, matching), both best effort."
+  },
+  {
+    "findingId": "de2c2b657c4a7d57",
+    "classification": "false-positive",
+    "reviewed": true,
+    "notes": "An upload notification and a classification job are unrelated; neither is owed by the other."
+  },
+  {
+    "findingId": "213e57a5ac013b67",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "process-document then batch-process-matching; matching also runs in later batches."
+  },
+  {
+    "findingId": "e50b4aab33fce3ef-2",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Invoice generation job, then a notification (best effort)."
+  },
+  {
+    "findingId": "9c8d2dfb90af5378",
+    "classification": "intended-risk",
+    "reviewed": true,
+    "notes": "Same as 213e57a5 (bot upload)."
+  }
+]

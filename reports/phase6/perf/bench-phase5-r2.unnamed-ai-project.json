@@ -1,0 +1,1365 @@
+{
+  "config": "/Users/returnf4lse/Desktop/Workspace/rust/crash-proof/corpora/configs/unnamed-ai-project.json",
+  "diagnostics": [
+    {
+      "code": "CP1004",
+      "confidence": "medium",
+      "effects": [
+        {
+          "description": "database insert on `chatProfile` (commits on its own), inside `getOrCreateChatProfile`",
+          "label": "db.insert(chatProfile)",
+          "location": {
+            "column": 9,
+            "endColumn": 25,
+            "endLine": 22,
+            "file": "db/queries/chat-profile.ts",
+            "line": 21
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "call of `getOrCreateChatProfile`, declared in db/queries/chat-profile.ts:15:8; the operations inside it are taken from its summary",
+          "label": "getOrCreateChatProfile(userId)",
+          "location": {
+            "column": 9,
+            "endColumn": 39,
+            "endLine": 73,
+            "file": "app/api/chat-profile/route.ts",
+            "line": 73
+          },
+          "role": "callSite"
+        },
+        {
+          "description": "database update on `chatProfile` (commits on its own)",
+          "label": "db.update(chatProfile)",
+          "location": {
+            "column": 9,
+            "endColumn": 25,
+            "endLine": 92,
+            "file": "app/api/chat-profile/route.ts",
+            "line": 91
+          },
+          "role": "notYetPerformed"
+        }
+      ],
+      "evidence": [
+        "`db.insert(chatProfile)` (database insert on `chatProfile`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\".",
+        "`db.insert(chatProfile)` (db/queries/chat-profile.ts:21:9) is taken from the summary of `getOrCreateChatProfile`, declared in db/queries/chat-profile.ts:15:8, reached through `getOrCreateChatProfile(userId)` at 73:9; `getOrCreateChatProfile` performs it on every path through it.",
+        "`db.update(chatProfile)` (database update on `chatProfile`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\"."
+      ],
+      "evidenceStrength": "configuredName",
+      "failureSequence": [
+        "1. `db.insert(chatProfile)` (db/queries/chat-profile.ts:21:9, in `getOrCreateChatProfile`, reached through `getOrCreateChatProfile(userId)` at 73:9) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.insert(chatProfile)` (via `getOrCreateChatProfile(userId)`) and before `db.update(chatProfile)` completes.",
+        "3. `db.update(chatProfile)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "fingerprint": "16c846879778bf43",
+      "function": "PUT",
+      "kind": "potentialHazard",
+      "limitations": [
+        "The sequence depends on 1 branch decision(s) between the two operations (see pathConditions). CommitRift only rules out paths whose conditions are simple tests of the same unchanging variable that contradict each other; other conditions are assumed to be satisfiable together.",
+        "CommitRift does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 9,
+        "endColumn": 25,
+        "endLine": 92,
+        "file": "app/api/chat-profile/route.ts",
+        "line": 91
+      },
+      "message": "`db.insert(chatProfile)` (via `getOrCreateChatProfile(userId)`) and `db.update(chatProfile)` commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathCertainty": "conditional",
+      "pathConditions": [
+        {
+          "description": "if `!rows[0]` takes the `else` path",
+          "location": {
+            "column": 3,
+            "endColumn": 4,
+            "endLine": 43,
+            "file": "db/queries/chat-profile.ts",
+            "line": 40
+          }
+        }
+      ],
+      "relationship": {
+        "shared": [],
+        "status": "notComparable"
+      },
+      "reproduced": false,
+      "severity": "info",
+      "title": "independent database commits",
+      "valueRelation": {
+        "shared": [
+          {
+            "exact": false,
+            "first": "opaque#0.user.id",
+            "kind": "sameValue",
+            "second": "opaque#0.user.id"
+          }
+        ],
+        "status": "possiblyRelated"
+      }
+    },
+    {
+      "code": "CP1004",
+      "confidence": "high",
+      "effects": [
+        {
+          "description": "database update on `chatProfile` (commits on its own)",
+          "label": "db.update(chatProfile)",
+          "location": {
+            "column": 9,
+            "endColumn": 25,
+            "endLine": 92,
+            "file": "app/api/chat-profile/route.ts",
+            "line": 91
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "database insert on `chatProfile` (commits on its own), inside `getOrCreateChatProfile`",
+          "label": "db.insert(chatProfile)",
+          "location": {
+            "column": 9,
+            "endColumn": 25,
+            "endLine": 22,
+            "file": "db/queries/chat-profile.ts",
+            "line": 21
+          },
+          "role": "notYetPerformed"
+        },
+        {
+          "description": "call of `getOrCreateChatProfile`, declared in db/queries/chat-profile.ts:15:8; the operations inside it are taken from its summary",
+          "label": "getOrCreateChatProfile(userId)",
+          "location": {
+            "column": 25,
+            "endColumn": 55,
+            "endLine": 106,
+            "file": "app/api/chat-profile/route.ts",
+            "line": 106
+          },
+          "role": "callSite"
+        }
+      ],
+      "evidence": [
+        "`db.update(chatProfile)` (database update on `chatProfile`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\".",
+        "`db.insert(chatProfile)` (database insert on `chatProfile`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\".",
+        "`db.insert(chatProfile)` (db/queries/chat-profile.ts:21:9) is taken from the summary of `getOrCreateChatProfile`, declared in db/queries/chat-profile.ts:15:8, reached through `getOrCreateChatProfile(userId)` at 106:25; `getOrCreateChatProfile` performs it on every path through it."
+      ],
+      "evidenceStrength": "configuredName",
+      "failureSequence": [
+        "1. `db.update(chatProfile)` (91:9) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.update(chatProfile)` and before `db.insert(chatProfile)` (via `getOrCreateChatProfile(userId)`) completes.",
+        "3. `db.insert(chatProfile)` (via `getOrCreateChatProfile(userId)`) never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "fingerprint": "f1a614005e8dcbe7",
+      "function": "PUT",
+      "kind": "potentialHazard",
+      "limitations": [
+        "CommitRift does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 25,
+        "endColumn": 55,
+        "endLine": 106,
+        "file": "app/api/chat-profile/route.ts",
+        "line": 106
+      },
+      "message": "`db.update(chatProfile)` and `db.insert(chatProfile)` (via `getOrCreateChatProfile(userId)`) commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathCertainty": "straightLine",
+      "pathConditions": [],
+      "relationship": {
+        "shared": [],
+        "status": "notComparable"
+      },
+      "reproduced": false,
+      "severity": "info",
+      "title": "independent database commits",
+      "valueRelation": {
+        "shared": [
+          {
+            "exact": false,
+            "first": "opaque#0.user.id",
+            "kind": "sameValue",
+            "second": "opaque#0.user.id"
+          }
+        ],
+        "status": "possiblyRelated"
+      }
+    },
+    {
+      "code": "CP1004",
+      "confidence": "medium",
+      "effects": [
+        {
+          "description": "database insert on `chatProfile` (commits on its own), inside `getOrCreateChatProfile`",
+          "label": "db.insert(chatProfile)",
+          "location": {
+            "column": 9,
+            "endColumn": 25,
+            "endLine": 22,
+            "file": "db/queries/chat-profile.ts",
+            "line": 21
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "call of `getOrCreateChatProfile`, declared in db/queries/chat-profile.ts:15:8; the operations inside it are taken from its summary",
+          "label": "getOrCreateChatProfile(userId)",
+          "location": {
+            "column": 29,
+            "endColumn": 59,
+            "endLine": 83,
+            "file": "app/api/chat/route.ts",
+            "line": 83
+          },
+          "role": "callSite"
+        },
+        {
+          "description": "database insert on `conversations` (commits on its own)",
+          "label": "db.insert(conversations)",
+          "location": {
+            "column": 11,
+            "endColumn": 35,
+            "endLine": 120,
+            "file": "app/api/chat/route.ts",
+            "line": 120
+          },
+          "role": "notYetPerformed"
+        }
+      ],
+      "evidence": [
+        "`db.insert(chatProfile)` (database insert on `chatProfile`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\".",
+        "`db.insert(chatProfile)` (db/queries/chat-profile.ts:21:9) is taken from the summary of `getOrCreateChatProfile`, declared in db/queries/chat-profile.ts:15:8, reached through `getOrCreateChatProfile(userId)` at 83:29; `getOrCreateChatProfile` performs it on every path through it.",
+        "`db.insert(conversations)` (database insert on `conversations`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\"."
+      ],
+      "evidenceStrength": "configuredName",
+      "failureSequence": [
+        "1. `db.insert(chatProfile)` (db/queries/chat-profile.ts:21:9, in `getOrCreateChatProfile`, reached through `getOrCreateChatProfile(userId)` at 83:29) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.insert(chatProfile)` (via `getOrCreateChatProfile(userId)`) and before `db.insert(conversations)` completes.",
+        "3. `db.insert(conversations)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "fingerprint": "4afb2e025364c2e9",
+      "function": "POST",
+      "kind": "potentialHazard",
+      "limitations": [
+        "The sequence depends on 2 branch decision(s) between the two operations (see pathConditions). CommitRift only rules out paths whose conditions are simple tests of the same unchanging variable that contradict each other; other conditions are assumed to be satisfiable together.",
+        "CommitRift does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 11,
+        "endColumn": 35,
+        "endLine": 120,
+        "file": "app/api/chat/route.ts",
+        "line": 120
+      },
+      "message": "`db.insert(chatProfile)` (via `getOrCreateChatProfile(userId)`) and `db.insert(conversations)` commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathCertainty": "conditional",
+      "pathConditions": [
+        {
+          "description": "if `!rows[0]` takes the `else` path",
+          "location": {
+            "column": 3,
+            "endColumn": 4,
+            "endLine": 43,
+            "file": "db/queries/chat-profile.ts",
+            "line": 40
+          }
+        },
+        {
+          "description": "if `existing.length === 0` takes the `then` path",
+          "location": {
+            "column": 3,
+            "endColumn": 4,
+            "endLine": 127,
+            "file": "app/api/chat/route.ts",
+            "line": 114
+          }
+        }
+      ],
+      "relationship": {
+        "shared": [],
+        "status": "notComparable"
+      },
+      "reproduced": false,
+      "severity": "info",
+      "title": "independent database commits",
+      "valueRelation": {
+        "shared": [
+          {
+            "exact": true,
+            "first": "opaque#0.user.id",
+            "kind": "sameValue",
+            "second": "opaque#0.user.id"
+          }
+        ],
+        "status": "provenShared"
+      }
+    },
+    {
+      "code": "CP1004",
+      "confidence": "medium",
+      "effects": [
+        {
+          "description": "database insert on `conversations` (commits on its own)",
+          "label": "db.insert(conversations)",
+          "location": {
+            "column": 11,
+            "endColumn": 35,
+            "endLine": 120,
+            "file": "app/api/chat/route.ts",
+            "line": 120
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "database insert on `messageTable` (commits on its own)",
+          "label": "db.insert(messageTable)",
+          "location": {
+            "column": 13,
+            "endColumn": 30,
+            "endLine": 176,
+            "file": "app/api/chat/route.ts",
+            "line": 175
+          },
+          "role": "notYetPerformed"
+        }
+      ],
+      "evidence": [
+        "`db.insert(conversations)` (database insert on `conversations`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\".",
+        "`db.insert(messageTable)` (database insert on `messageTable`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\"."
+      ],
+      "evidenceStrength": "configuredName",
+      "failureSequence": [
+        "1. `db.insert(conversations)` (120:11) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.insert(conversations)` and before `db.insert(messageTable)` completes.",
+        "3. `db.insert(messageTable)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "fingerprint": "f3f7d808bf86411d",
+      "function": "POST",
+      "kind": "potentialHazard",
+      "limitations": [
+        "The sequence depends on 2 branch decision(s) between the two operations (see pathConditions). CommitRift only rules out paths whose conditions are simple tests of the same unchanging variable that contradict each other; other conditions are assumed to be satisfiable together.",
+        "On other paths a different operation precedes it: `db.insert(chatProfile)` (via `getOrCreateChatProfile(userId)`) (83:29). Those paths are not reported separately.",
+        "CommitRift does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 13,
+        "endColumn": 30,
+        "endLine": 176,
+        "file": "app/api/chat/route.ts",
+        "line": 175
+      },
+      "message": "`db.insert(conversations)` and `db.insert(messageTable)` commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathCertainty": "conditional",
+      "pathConditions": [
+        {
+          "description": "if `parsed.data.saveUserMessage` takes the `then` path",
+          "location": {
+            "column": 3,
+            "endColumn": 4,
+            "endLine": 191,
+            "file": "app/api/chat/route.ts",
+            "line": 170
+          }
+        },
+        {
+          "description": "if `lastUser && userText` takes the `then` path",
+          "location": {
+            "column": 5,
+            "endColumn": 6,
+            "endLine": 190,
+            "file": "app/api/chat/route.ts",
+            "line": 174
+          }
+        }
+      ],
+      "relationship": {
+        "shared": [
+          "conversationId"
+        ],
+        "status": "sharedArguments"
+      },
+      "reproduced": false,
+      "severity": "info",
+      "title": "independent database commits",
+      "valueRelation": {
+        "shared": [
+          {
+            "exact": true,
+            "first": "opaque#3.data.chatId",
+            "kind": "sameValue",
+            "second": "opaque#3.data.chatId"
+          },
+          {
+            "exact": true,
+            "first": "opaque#3.data.conversationId",
+            "kind": "sameValue",
+            "second": "opaque#3.data.conversationId"
+          },
+          {
+            "exact": true,
+            "first": "opaque#3.data.id",
+            "kind": "sameValue",
+            "second": "opaque#3.data.id"
+          }
+        ],
+        "status": "provenShared"
+      }
+    },
+    {
+      "code": "CP1004",
+      "confidence": "high",
+      "effects": [
+        {
+          "description": "database insert on `messageTable` (commits on its own)",
+          "label": "db.insert(messageTable)",
+          "location": {
+            "column": 13,
+            "endColumn": 30,
+            "endLine": 176,
+            "file": "app/api/chat/route.ts",
+            "line": 175
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "database update on `conversations` (commits on its own)",
+          "label": "db.update(conversations)",
+          "location": {
+            "column": 13,
+            "endColumn": 31,
+            "endLine": 187,
+            "file": "app/api/chat/route.ts",
+            "line": 186
+          },
+          "role": "notYetPerformed"
+        }
+      ],
+      "evidence": [
+        "`db.insert(messageTable)` (database insert on `messageTable`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\".",
+        "`db.update(conversations)` (database update on `conversations`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\"."
+      ],
+      "evidenceStrength": "configuredName",
+      "failureSequence": [
+        "1. `db.insert(messageTable)` (175:13) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.insert(messageTable)` and before `db.update(conversations)` completes.",
+        "3. `db.update(conversations)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "fingerprint": "fd4b259143f84b19",
+      "function": "POST",
+      "kind": "potentialHazard",
+      "limitations": [
+        "CommitRift does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 13,
+        "endColumn": 31,
+        "endLine": 187,
+        "file": "app/api/chat/route.ts",
+        "line": 186
+      },
+      "message": "`db.insert(messageTable)` and `db.update(conversations)` commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathCertainty": "straightLine",
+      "pathConditions": [],
+      "relationship": {
+        "shared": [
+          "conversationId"
+        ],
+        "status": "sharedArguments"
+      },
+      "reproduced": false,
+      "severity": "info",
+      "title": "independent database commits",
+      "valueRelation": {
+        "shared": [
+          {
+            "exact": false,
+            "first": "opaque#3.data.chatId",
+            "kind": "sameValue",
+            "second": "opaque#3.data.chatId"
+          },
+          {
+            "exact": false,
+            "first": "opaque#3.data.conversationId",
+            "kind": "sameValue",
+            "second": "opaque#3.data.conversationId"
+          },
+          {
+            "exact": false,
+            "first": "opaque#3.data.id",
+            "kind": "sameValue",
+            "second": "opaque#3.data.id"
+          }
+        ],
+        "status": "possiblyRelated"
+      }
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "convertToModelMessages(uiMessages)",
+          "location": {
+            "column": 21,
+            "endColumn": 55,
+            "endLine": 198,
+            "file": "app/api/chat/route.ts",
+            "line": 198
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "database update on `conversations` (commits on its own)",
+          "label": "db.update(conversations)",
+          "location": {
+            "column": 13,
+            "endColumn": 31,
+            "endLine": 187,
+            "file": "app/api/chat/route.ts",
+            "line": 186
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`convertToModelMessages(uiMessages)` matches no `databaseReceivers` or `externalEffects` entry (`convertToModelMessages` is imported from the package \"ai\"; packages are not followed).",
+        "`db.update(conversations)` (database update on `conversations`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\"."
+      ],
+      "evidenceStrength": "unknown",
+      "failureSequence": [
+        "1. `db.update(conversations)` (186:13) commits immediately: it is not inside a recognized transaction.",
+        "2. `convertToModelMessages(uiMessages)` (198:21) runs; its effects are unknown.",
+        "3. If `convertToModelMessages(uiMessages)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "fingerprint": "67df2e0c4156e2a5",
+      "function": "POST",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 21,
+        "endColumn": 55,
+        "endLine": 198,
+        "file": "app/api/chat/route.ts",
+        "line": 198
+      },
+      "message": "`convertToModelMessages(uiMessages)` runs after `db.update(conversations)` has committed; CommitRift does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `commitrift.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathCertainty": "unknown",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP1004",
+      "confidence": "high",
+      "effects": [
+        {
+          "description": "database insert on `messageTable` (commits on its own)",
+          "label": "db.insert(messageTable)",
+          "location": {
+            "column": 13,
+            "endColumn": 36,
+            "endLine": 220,
+            "file": "app/api/chat/route.ts",
+            "line": 220
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "database update on `conversations` (commits on its own)",
+          "label": "db.update(conversations)",
+          "location": {
+            "column": 13,
+            "endColumn": 31,
+            "endLine": 229,
+            "file": "app/api/chat/route.ts",
+            "line": 228
+          },
+          "role": "notYetPerformed"
+        }
+      ],
+      "evidence": [
+        "`db.insert(messageTable)` (database insert on `messageTable`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\".",
+        "`db.update(conversations)` (database update on `conversations`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\"."
+      ],
+      "evidenceStrength": "configuredName",
+      "failureSequence": [
+        "1. `db.insert(messageTable)` (220:13) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.insert(messageTable)` and before `db.update(conversations)` completes.",
+        "3. `db.update(conversations)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "fingerprint": "88460d99525f3781",
+      "function": "onFinish",
+      "kind": "potentialHazard",
+      "limitations": [
+        "CommitRift does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 13,
+        "endColumn": 31,
+        "endLine": 229,
+        "file": "app/api/chat/route.ts",
+        "line": 228
+      },
+      "message": "`db.insert(messageTable)` and `db.update(conversations)` commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathCertainty": "straightLine",
+      "pathConditions": [],
+      "relationship": {
+        "shared": [
+          "conversationId"
+        ],
+        "status": "sharedArguments"
+      },
+      "reproduced": false,
+      "severity": "info",
+      "title": "independent database commits",
+      "valueRelation": {
+        "status": "unknown"
+      }
+    },
+    {
+      "code": "CP1004",
+      "confidence": "high",
+      "effects": [
+        {
+          "description": "database delete on `messages` (commits on its own)",
+          "label": "db.delete(messages)",
+          "location": {
+            "column": 9,
+            "endColumn": 28,
+            "endLine": 187,
+            "file": "app/api/conversations/[id]/route.ts",
+            "line": 187
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "database delete on `conversations` (commits on its own)",
+          "label": "db.delete(conversations)",
+          "location": {
+            "column": 9,
+            "endColumn": 27,
+            "endLine": 189,
+            "file": "app/api/conversations/[id]/route.ts",
+            "line": 188
+          },
+          "role": "notYetPerformed"
+        }
+      ],
+      "evidence": [
+        "`db.delete(messages)` (database delete on `messages`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\".",
+        "`db.delete(conversations)` (database delete on `conversations`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\"."
+      ],
+      "evidenceStrength": "configuredName",
+      "failureSequence": [
+        "1. `db.delete(messages)` (187:9) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.delete(messages)` and before `db.delete(conversations)` completes.",
+        "3. `db.delete(conversations)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "fingerprint": "ebe9dd6a84cff3e9",
+      "function": "DELETE",
+      "kind": "potentialHazard",
+      "limitations": [
+        "CommitRift does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 9,
+        "endColumn": 27,
+        "endLine": 189,
+        "file": "app/api/conversations/[id]/route.ts",
+        "line": 188
+      },
+      "message": "`db.delete(messages)` and `db.delete(conversations)` commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathCertainty": "straightLine",
+      "pathConditions": [],
+      "relationship": {
+        "shared": [
+          "params.data.id"
+        ],
+        "status": "sharedArguments"
+      },
+      "reproduced": false,
+      "severity": "info",
+      "title": "independent database commits",
+      "valueRelation": {
+        "shared": [
+          {
+            "exact": false,
+            "first": "opaque#1.data.id",
+            "kind": "sameValue",
+            "second": "opaque#1.data.id"
+          }
+        ],
+        "status": "possiblyRelated"
+      }
+    },
+    {
+      "code": "CP1004",
+      "confidence": "high",
+      "effects": [
+        {
+          "description": "database insert on `conversations` (commits on its own)",
+          "label": "db.insert(conversations)",
+          "location": {
+            "column": 9,
+            "endColumn": 33,
+            "endLine": 71,
+            "file": "app/api/conversations/route.ts",
+            "line": 71
+          },
+          "role": "completedFirst"
+        },
+        {
+          "description": "database insert on `messages` (commits on its own)",
+          "label": "db.insert(messages)",
+          "location": {
+            "column": 9,
+            "endColumn": 28,
+            "endLine": 82,
+            "file": "app/api/conversations/route.ts",
+            "line": 82
+          },
+          "role": "notYetPerformed"
+        }
+      ],
+      "evidence": [
+        "`db.insert(conversations)` (database insert on `conversations`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\".",
+        "`db.insert(messages)` (database insert on `messages`): `db` \u2014 name-based match against the configuration; matches databaseReceivers entry `db`; `db` is imported from \"@/db\"."
+      ],
+      "evidenceStrength": "configuredName",
+      "failureSequence": [
+        "1. `db.insert(conversations)` (71:9) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.insert(conversations)` and before `db.insert(messages)` completes.",
+        "3. `db.insert(messages)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "fingerprint": "bb729d61e15a4f5c",
+      "function": "POST",
+      "kind": "potentialHazard",
+      "limitations": [
+        "CommitRift does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "location": {
+        "column": 9,
+        "endColumn": 28,
+        "endLine": 82,
+        "file": "app/api/conversations/route.ts",
+        "line": 82
+      },
+      "message": "`db.insert(conversations)` and `db.insert(messages)` commit independently; a failure in between persists only the first change",
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "pathCertainty": "straightLine",
+      "pathConditions": [],
+      "relationship": {
+        "shared": [
+          "conversationId",
+          "now"
+        ],
+        "status": "sharedArguments"
+      },
+      "reproduced": false,
+      "severity": "info",
+      "title": "independent database commits",
+      "valueRelation": {
+        "shared": [
+          {
+            "exact": true,
+            "first": "opaque#4",
+            "kind": "sameValue",
+            "second": "opaque#4"
+          },
+          {
+            "exact": true,
+            "first": "opaque#5",
+            "kind": "sameValue",
+            "second": "opaque#5"
+          }
+        ],
+        "status": "provenShared"
+      }
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "res.json().catch(() => null)",
+          "location": {
+            "column": 23,
+            "endColumn": 51,
+            "endLine": 48,
+            "file": "app/characters/page.tsx",
+            "line": 48
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "external effect (http-request)",
+          "label": "fetch(url, \u2026)",
+          "location": {
+            "column": 21,
+            "endColumn": 5,
+            "endLine": 47,
+            "file": "app/characters/page.tsx",
+            "line": 44
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`res.json().catch(() => null)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`fetch(url, \u2026)` (external effect (http-request)): `fetch` \u2014 name-based match against the configuration; matches externalEffects entry `fetch`; `fetch` is not declared in this file."
+      ],
+      "evidenceStrength": "unknown",
+      "failureSequence": [
+        "1. `fetch(url, \u2026)` (44:21) performs an external effect (http-request); other systems can observe it as soon as it succeeds.",
+        "2. `res.json().catch(() => null)` (48:23) runs; its effects are unknown.",
+        "3. If `res.json().catch(() => null)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "fingerprint": "8c15f19aaa86920c",
+      "function": "api",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 23,
+        "endColumn": 51,
+        "endLine": 48,
+        "file": "app/characters/page.tsx",
+        "line": 48
+      },
+      "message": "`res.json().catch(() => null)` runs after `fetch(url, \u2026)` has been performed; CommitRift does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `commitrift.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathCertainty": "unknown",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "refreshList()",
+          "location": {
+            "column": 15,
+            "endColumn": 28,
+            "endLine": 169,
+            "file": "app/characters/page.tsx",
+            "line": 169
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "external effect (http-request), inside `api`",
+          "label": "fetch(url, \u2026)",
+          "location": {
+            "column": 21,
+            "endColumn": 5,
+            "endLine": 47,
+            "file": "app/characters/page.tsx",
+            "line": 44
+          },
+          "role": "context"
+        },
+        {
+          "description": "call of `api`, a function declared in this file; the operations inside it are taken from its summary",
+          "label": "api(\u2026)",
+          "location": {
+            "column": 31,
+            "endColumn": 11,
+            "endLine": 168,
+            "file": "app/characters/page.tsx",
+            "line": 160
+          },
+          "role": "callSite"
+        }
+      ],
+      "evidence": [
+        "`refreshList()` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`fetch(url, \u2026)` (external effect (http-request)): `fetch` \u2014 name-based match against the configuration; matches externalEffects entry `fetch`; `fetch` is not declared in this file.",
+        "`fetch(url, \u2026)` (44:21) is taken from the summary of `api`, a function declared in this file, reached through `api(\u2026)` at 160:31; `api` performs it on every path through it."
+      ],
+      "evidenceStrength": "unknown",
+      "failureSequence": [
+        "1. `fetch(url, \u2026)` (44:21, in `api`, reached through `api(\u2026)` at 160:31) performs an external effect (http-request); other systems can observe it as soon as it succeeds.",
+        "2. `refreshList()` (169:15) runs; its effects are unknown.",
+        "3. If `refreshList()` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "fingerprint": "a84d9e27eac64450",
+      "function": "CharactersPage::<anonymous@154:28>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "These other calls in the same function (or in the same inlined call) are also not analyzed and are reported once, here: `selectOne(created.id)` (170:15), `refreshList()` (181:15).",
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 15,
+        "endColumn": 28,
+        "endLine": 169,
+        "file": "app/characters/page.tsx",
+        "line": 169
+      },
+      "message": "`refreshList()` runs after `fetch(url, \u2026)` (via `api(\u2026)`) has been performed; CommitRift does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `commitrift.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathCertainty": "unknown",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "refreshList()",
+          "location": {
+            "column": 11,
+            "endColumn": 24,
+            "endLine": 194,
+            "file": "app/characters/page.tsx",
+            "line": 194
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "external effect (http-request), inside `api`",
+          "label": "fetch(url, \u2026)",
+          "location": {
+            "column": 21,
+            "endColumn": 5,
+            "endLine": 47,
+            "file": "app/characters/page.tsx",
+            "line": 44
+          },
+          "role": "context"
+        },
+        {
+          "description": "call of `api`, a function declared in this file; the operations inside it are taken from its summary",
+          "label": "api(\u2026)",
+          "location": {
+            "column": 11,
+            "endColumn": 7,
+            "endLine": 192,
+            "file": "app/characters/page.tsx",
+            "line": 190
+          },
+          "role": "callSite"
+        }
+      ],
+      "evidence": [
+        "`refreshList()` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`fetch(url, \u2026)` (external effect (http-request)): `fetch` \u2014 name-based match against the configuration; matches externalEffects entry `fetch`; `fetch` is not declared in this file.",
+        "`fetch(url, \u2026)` (44:21) is taken from the summary of `api`, a function declared in this file, reached through `api(\u2026)` at 190:11; `api` performs it on every path through it."
+      ],
+      "evidenceStrength": "unknown",
+      "failureSequence": [
+        "1. `fetch(url, \u2026)` (44:21, in `api`, reached through `api(\u2026)` at 190:11) performs an external effect (http-request); other systems can observe it as soon as it succeeds.",
+        "2. `refreshList()` (194:11) runs; its effects are unknown.",
+        "3. If `refreshList()` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "fingerprint": "a6c97cf8037dba9a",
+      "function": "CharactersPage::<anonymous@188:30>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 11,
+        "endColumn": 24,
+        "endLine": 194,
+        "file": "app/characters/page.tsx",
+        "line": 194
+      },
+      "message": "`refreshList()` runs after `fetch(url, \u2026)` (via `api(\u2026)`) has been performed; CommitRift does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `commitrift.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathCertainty": "unknown",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "res.json().catch(() => null)",
+          "location": {
+            "column": 23,
+            "endColumn": 51,
+            "endLine": 107,
+            "file": "components/home/HomeShell.tsx",
+            "line": 107
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "external effect (http-request)",
+          "label": "fetch(url, \u2026)",
+          "location": {
+            "column": 21,
+            "endColumn": 5,
+            "endLine": 106,
+            "file": "components/home/HomeShell.tsx",
+            "line": 103
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`res.json().catch(() => null)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`fetch(url, \u2026)` (external effect (http-request)): `fetch` \u2014 name-based match against the configuration; matches externalEffects entry `fetch`; `fetch` is not declared in this file."
+      ],
+      "evidenceStrength": "unknown",
+      "failureSequence": [
+        "1. `fetch(url, \u2026)` (103:21) performs an external effect (http-request); other systems can observe it as soon as it succeeds.",
+        "2. `res.json().catch(() => null)` (107:23) runs; its effects are unknown.",
+        "3. If `res.json().catch(() => null)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "fingerprint": "9088d73d44d47de6",
+      "function": "apiJson",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 23,
+        "endColumn": 51,
+        "endLine": 107,
+        "file": "components/home/HomeShell.tsx",
+        "line": 107
+      },
+      "message": "`res.json().catch(() => null)` runs after `fetch(url, \u2026)` has been performed; CommitRift does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `commitrift.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathCertainty": "unknown",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "loadConversation(created.conversationId)",
+          "location": {
+            "column": 11,
+            "endColumn": 51,
+            "endLine": 279,
+            "file": "components/home/HomeShell.tsx",
+            "line": 279
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "external effect (http-request), inside `apiJson`",
+          "label": "fetch(url, \u2026)",
+          "location": {
+            "column": 21,
+            "endColumn": 5,
+            "endLine": 106,
+            "file": "components/home/HomeShell.tsx",
+            "line": 103
+          },
+          "role": "context"
+        },
+        {
+          "description": "call of `apiJson`, a function declared in this file; the operations inside it are taken from its summary",
+          "label": "apiJson(\u2026)",
+          "location": {
+            "column": 27,
+            "endColumn": 7,
+            "endLine": 257,
+            "file": "components/home/HomeShell.tsx",
+            "line": 254
+          },
+          "role": "callSite"
+        }
+      ],
+      "evidence": [
+        "`loadConversation(created.conversationId)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`fetch(url, \u2026)` (external effect (http-request)): `fetch` \u2014 name-based match against the configuration; matches externalEffects entry `fetch`; `fetch` is not declared in this file.",
+        "`fetch(url, \u2026)` (103:21) is taken from the summary of `apiJson`, a function declared in this file, reached through `apiJson(\u2026)` at 254:27; `apiJson` performs it on every path through it."
+      ],
+      "evidenceStrength": "unknown",
+      "failureSequence": [
+        "1. `fetch(url, \u2026)` (103:21, in `apiJson`, reached through `apiJson(\u2026)` at 254:27) performs an external effect (http-request); other systems can observe it as soon as it succeeds.",
+        "2. `loadConversation(created.conversationId)` (279:11) runs; its effects are unknown.",
+        "3. If `loadConversation(created.conversationId)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "fingerprint": "76224948450da8f4",
+      "function": "HomeShell::<anonymous@253:42>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 11,
+        "endColumn": 51,
+        "endLine": 279,
+        "file": "components/home/HomeShell.tsx",
+        "line": 279
+      },
+      "message": "`loadConversation(created.conversationId)` runs after `fetch(url, \u2026)` (via `apiJson(\u2026)`) has been performed; CommitRift does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `commitrift.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathCertainty": "unknown",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "regenerate(\u2026)",
+          "location": {
+            "column": 13,
+            "endColumn": 9,
+            "endLine": 475,
+            "file": "components/home/HomeShell.tsx",
+            "line": 468
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "external effect (http-request), inside `apiJson`",
+          "label": "fetch(url, \u2026)",
+          "location": {
+            "column": 21,
+            "endColumn": 5,
+            "endLine": 106,
+            "file": "components/home/HomeShell.tsx",
+            "line": 103
+          },
+          "role": "context"
+        },
+        {
+          "description": "call of `apiJson`, a function declared in this file; the operations inside it are taken from its summary",
+          "label": "apiJson(\u2026)",
+          "location": {
+            "column": 13,
+            "endColumn": 9,
+            "endLine": 460,
+            "file": "components/home/HomeShell.tsx",
+            "line": 458
+          },
+          "role": "callSite"
+        }
+      ],
+      "evidence": [
+        "`regenerate(\u2026)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`fetch(url, \u2026)` (external effect (http-request)): `fetch` \u2014 name-based match against the configuration; matches externalEffects entry `fetch`; `fetch` is not declared in this file.",
+        "`fetch(url, \u2026)` (103:21) is taken from the summary of `apiJson`, a function declared in this file, reached through `apiJson(\u2026)` at 458:13; `apiJson` performs it on every path through it."
+      ],
+      "evidenceStrength": "unknown",
+      "failureSequence": [
+        "1. `fetch(url, \u2026)` (103:21, in `apiJson`, reached through `apiJson(\u2026)` at 458:13) performs an external effect (http-request); other systems can observe it as soon as it succeeds.",
+        "2. `regenerate(\u2026)` (468:13) runs; its effects are unknown.",
+        "3. If `regenerate(\u2026)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "fingerprint": "30dc6a1d3dd3b6e6",
+      "function": "HomeShell::<anonymous@437:5>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 13,
+        "endColumn": 9,
+        "endLine": 475,
+        "file": "components/home/HomeShell.tsx",
+        "line": 468
+      },
+      "message": "`regenerate(\u2026)` runs after `fetch(url, \u2026)` (via `apiJson(\u2026)`) has been performed; CommitRift does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `commitrift.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathCertainty": "unknown",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "reader.read()",
+          "location": {
+            "column": 54,
+            "endColumn": 67,
+            "endLine": 91,
+            "file": "components/home/useChatStream.ts",
+            "line": 91
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "external effect (http-request)",
+          "label": "fetch(\"/api/chat\", \u2026)",
+          "location": {
+            "column": 27,
+            "endColumn": 11,
+            "endLine": 71,
+            "file": "components/home/useChatStream.ts",
+            "line": 54
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`reader.read()` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`fetch(\"/api/chat\", \u2026)` (external effect (http-request)): `fetch` \u2014 name-based match against the configuration; matches externalEffects entry `fetch`; `fetch` is not declared in this file."
+      ],
+      "evidenceStrength": "unknown",
+      "failureSequence": [
+        "1. `fetch(\"/api/chat\", \u2026)` (54:27) performs an external effect (http-request); other systems can observe it as soon as it succeeds.",
+        "2. `reader.read()` (91:54) runs; its effects are unknown.",
+        "3. If `reader.read()` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "fingerprint": "53f2b7438df92a36",
+      "function": "useChatStream::<anonymous@46:5>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "These other calls in the same function (or in the same inlined call) are also not analyzed and are reported once, here: `res.text().catch(() => \"\")` (79:33).",
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 54,
+        "endColumn": 67,
+        "endLine": 91,
+        "file": "components/home/useChatStream.ts",
+        "line": 91
+      },
+      "message": "`reader.read()` runs after `fetch(\"/api/chat\", \u2026)` has been performed; CommitRift does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `commitrift.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathCertainty": "unknown",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    },
+    {
+      "code": "CP9001",
+      "confidence": "low",
+      "effects": [
+        {
+          "description": "unknown effect (unrecognized call)",
+          "label": "res.json()",
+          "location": {
+            "column": 26,
+            "endColumn": 36,
+            "endLine": 69,
+            "file": "hooks/use-chat-suggestions.ts",
+            "line": 69
+          },
+          "role": "unanalyzed"
+        },
+        {
+          "description": "external effect (http-request)",
+          "label": "fetch(\"/api/chat/suggestions\", \u2026)",
+          "location": {
+            "column": 25,
+            "endColumn": 9,
+            "endLine": 60,
+            "file": "hooks/use-chat-suggestions.ts",
+            "line": 50
+          },
+          "role": "context"
+        }
+      ],
+      "evidence": [
+        "`res.json()` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`fetch(\"/api/chat/suggestions\", \u2026)` (external effect (http-request)): `fetch` \u2014 name-based match against the configuration; matches externalEffects entry `fetch`; `fetch` is not declared in this file."
+      ],
+      "evidenceStrength": "unknown",
+      "failureSequence": [
+        "1. `fetch(\"/api/chat/suggestions\", \u2026)` (50:25) performs an external effect (http-request); other systems can observe it as soon as it succeeds.",
+        "2. `res.json()` (69:26) runs; its effects are unknown.",
+        "3. If `res.json()` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "fingerprint": "d655320e63ad0c1e",
+      "function": "useChatSuggestions::<anonymous@35:42>",
+      "kind": "analysisLimitation",
+      "limitations": [
+        "These other calls in the same function (or in the same inlined call) are also not analyzed and are reported once, here: `res.text().catch(() => \"\")` (63:28).",
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "location": {
+        "column": 26,
+        "endColumn": 36,
+        "endLine": 69,
+        "file": "hooks/use-chat-suggestions.ts",
+        "line": 69
+      },
+      "message": "`res.json()` runs after `fetch(\"/api/chat/suggestions\", \u2026)` has been performed; CommitRift does not know whether it has side effects of its own",
+      "mitigation": "If the operation performs a side effect, describe it in `commitrift.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "pathCertainty": "unknown",
+      "pathConditions": [],
+      "reproduced": false,
+      "severity": "info",
+      "title": "analysis incomplete: unsupported or unknown effect semantics"
+    }
+  ],
+  "failures": [],
+  "schemaVersion": 1,
+  "summary": {
+    "analysis": {
+      "callsSummarized": 41,
+      "crossFileCallsResolved": 11,
+      "crossFileCallsUnresolved": 1,
+      "functionsWithEffects": 41,
+      "mergedPaths": 4,
+      "packageCalls": 20,
+      "prunedPaths": 0,
+      "sameFileCalls": 64,
+      "truncatedFunctions": 0
+    },
+    "diagnostics": {
+      "error": 0,
+      "info": 17,
+      "warning": 0
+    },
+    "filesAnalyzed": 104,
+    "filesDiscovered": 104,
+    "filesFailed": 0,
+    "functionsAnalyzed": 648
+  },
+  "tool": {
+    "name": "commitrift",
+    "version": "0.1.0"
+  }
+}

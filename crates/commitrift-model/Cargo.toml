@@ -1,0 +1,21 @@
+[package]
+name = "commitrift-model"
+description = "Bounded explicit-state model checker for CommitRift: concurrent actors, PostgreSQL transaction isolation, crashes and retries"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[features]
+default = ["postgres"]
+# Differential validation against a real PostgreSQL (`commitrift model-check
+# --validate-postgres`). The engine itself does not need it.
+postgres = ["dep:commitrift-replay", "dep:libc"]
+
+[dependencies]
+commitrift-replay = { workspace = true, optional = true }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+libc = { version = "0.2", optional = true }

@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "harness": "order-outbox",
+  "description": "Order completion through a transactional outbox: the status change and the outbox row commit together; a relay publishes with at-least-once delivery.",
+  "command": ["bun", "harness.ts"],
+  "timeoutSeconds": 20,
+  "database": {
+    "provider": "ephemeral-postgres",
+    "setup": ["schema.sql"]
+  },
+  "analysis": { "paths": ["src"], "config": "commitrift.json" },
+  "observations": [
+    { "name": "orderStatus", "sql": "SELECT status FROM orders WHERE id = 'order-1'" },
+    { "name": "outboxRows", "sql": "SELECT count(*) FROM outbox" },
+    { "name": "pendingOutbox", "sql": "SELECT count(*) FROM outbox WHERE published_at IS NULL" },
+    { "name": "publishedEvents", "events": { "topic": "order.completed" } },
+    { "name": "distinctEvents", "events": { "topic": "order.completed", "measure": "distinctIds" } },
+    { "name": "duplicateDeliveries", "events": { "topic": "order.completed", "measure": "duplicates" } },
+    { "name": "eventsWithoutId", "events": { "measure": "withoutId" } }
+  ],
+  "invariants": [
+    {
+      "id": "paid-order-event-published-or-owed",
+      "description": "Application contract: an order marked paid has its order.completed event published, or still owed by a durable outbox row that the relay will publish.",
+      "when": [{ "observation": "orderStatus", "equals": "paid" }],
+      "requireAny": [
+        { "observation": "publishedEvents", "atLeast": 1 },
+        { "observation": "pendingOutbox", "atLeast": 1 }
+      ]
+    },
+    {
+      "id": "intent-only-for-committed-state",
+      "description": "An outbox row exists only for an order whose status change committed.",
+      "when": [{ "observation": "outboxRows", "atLeast": 1 }],
+      "require": [{ "observation": "orderStatus", "equals": "paid" }]
+    },
+    {
+      "id": "events-are-deduplicable",
+      "description": "Delivery is at-least-once: every event carries an id so consumers can drop duplicates. Duplicates themselves are allowed.",
+      "require": [{ "observation": "eventsWithoutId", "atMost": 0 }]
+    }
+  ],
+  "control": { "scenario": "completeAndRelay", "input": { "orderId": "order-1" } },
+  "cases": [
+    {
+      "id": "kill-before-tx-commit",
+      "description": "Kill while the transaction is open, after both writes were staged: PostgreSQL rolls both back.",
+      "scenario": "completeOrder",
+      "input": { "orderId": "order-1" },
+      "inject": { "checkpoint": "before-tx-commit", "mode": "processKill" },
+      "verifyBeforeInjection": [{ "observation": "orderStatus", "equals": "pending" }],
+      "predict": { "orderStatus": "pending", "outboxRows": 0, "publishedEvents": 0 },
+      "expect": "RUNTIME_NOT_REPRODUCED"
+    },
+    {
+      "id": "kill-after-tx-commit",
+      "description": "The point that is a bug in the vulnerable version: kill right after the commit. The intent survives in the outbox and the relay publishes it.",
+      "scenario": "completeOrder",
+      "input": { "orderId": "order-1" },
+      "inject": { "checkpoint": "after-db-commit", "label": "transaction", "mode": "processKill" },
+      "verifyBeforeInjection": [{ "observation": "orderStatus", "equals": "paid" }],
+      "predict": { "orderStatus": "paid", "pendingOutbox": 1, "publishedEvents": 0 },
+      "recovery": [{ "scenario": "relay" }],
+      "expect": "RUNTIME_NOT_REPRODUCED"
+    },
+    {
+      "id": "kill-relay-before-publish",
+      "description": "Kill the relay before it publishes: the row stays pending and the next relay run publishes it.",
+      "scenario": "completeAndRelay",
+      "input": { "orderId": "order-1" },
+      "inject": { "checkpoint": "before-event-publish", "mode": "processKill" },
+      "predict": { "orderStatus": "paid", "pendingOutbox": 1, "publishedEvents": 0 },
+      "recovery": [{ "scenario": "relay" }],
+      "expect": "RUNTIME_NOT_REPRODUCED"
+    },
+    {
+      "id": "kill-relay-after-publish-before-ack",
+      "description": "The relay's own CP1002 window: kill after publishing, before marking the row published. The retry publishes a duplicate, which the declared contract accepts because events carry an id.",
+      "finding": { "code": "CP1002", "function": "relayOutbox", "file": "src/relay.ts" },
+      "scenario": "completeAndRelay",
+      "input": { "orderId": "order-1" },
+      "inject": { "checkpoint": "after-event-publish", "mode": "processKill" },
+      "verifyBeforeInjection": [{ "observation": "publishedEvents", "equals": 1 }],
+      "predict": { "orderStatus": "paid", "pendingOutbox": 1, "publishedEvents": 1 },
+      "recovery": [{ "scenario": "relay" }],
+      "expect": "RUNTIME_NOT_REPRODUCED"
+    },
+    {
+      "id": "exception-relay-after-publish-before-ack",
+      "description": "The same window with an exception instead of a crash.",
+      "finding": { "code": "CP1002", "function": "relayOutbox", "file": "src/relay.ts" },
+      "scenario": "completeAndRelay",
+      "input": { "orderId": "order-1" },
+      "inject": { "checkpoint": "after-event-publish", "mode": "exception" },
+      "predict": { "orderStatus": "paid", "pendingOutbox": 1, "publishedEvents": 1 },
+      "recovery": [{ "scenario": "relay" }],
+      "expect": "RUNTIME_NOT_REPRODUCED"
+    }
+  ]
+}

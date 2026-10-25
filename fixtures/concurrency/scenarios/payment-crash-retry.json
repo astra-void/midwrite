@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "name": "payment-crash-retry",
+  "description": "Payment succeeds, the server crashes before the response, the client retries. The idempotency key is passed to the provider, but the scenario declares that the provider ignores it (dedup: none): a duplicate charge is possible.",
+  "extraction": {
+    "root": "../project",
+    "externals": [
+      {
+        "callee": "chargeProvider",
+        "channel": "card-charge",
+        "keyArgument": 0
+      }
+    ]
+  },
+  "channels": {
+    "card-charge": {
+      "dedup": "none"
+    }
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "payments",
+        "columns": [
+          {
+            "name": "id",
+            "type": "text",
+            "notNull": true
+          },
+          {
+            "name": "request",
+            "type": "text"
+          },
+          {
+            "name": "amount",
+            "type": "int"
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ]
+      }
+    ],
+    "initialState": {
+      "payments": []
+    }
+  },
+  "actors": [
+    {
+      "name": "Client",
+      "function": "pay",
+      "file": "src/payments.ts",
+      "arguments": [
+        "req-1"
+      ],
+      "retry": {
+        "trigger": "onCrash",
+        "guaranteed": true
+      },
+      "description": "a client that retries when the server did not answer"
+    }
+  ],
+  "bounds": {
+    "maxSteps": 30,
+    "maxCrashes": 1,
+    "maxRetries": 1
+  },
+  "invariants": [
+    {
+      "name": "customer-charged-once",
+      "when": "final",
+      "description": "the card is charged at most once per payment request",
+      "assert": {
+        "le": [
+          {
+            "externals": {
+              "channel": "card-charge"
+            }
+          },
+          1
+        ]
+      }
+    }
+  ]
+}

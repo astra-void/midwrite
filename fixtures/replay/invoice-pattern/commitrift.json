@@ -1,0 +1,4 @@
+{
+  "databaseReceivers": ["db"],
+  "externalEffects": [{ "function": "triggerJob", "category": "message-publish" }]
+}

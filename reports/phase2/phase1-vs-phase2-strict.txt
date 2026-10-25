@@ -1,0 +1,4 @@
+saas-starter: phase1=25 phase2=23 kept=22 removed={'CP1004': 3} added={'CP9001': 1}
+midday: phase1=164 phase2=344 kept=127 removed={'CP1004': 16, 'CP1005': 2, 'CP9001': 19} added={'CP1001': 40, 'CP1002': 9, 'CP1004': 65, 'CP9001': 103}
+school-ledger: phase1=60 phase2=880 kept=38 removed={'CP9001': 22} added={'CP1004': 113, 'CP9001': 729}
+unnamed-ai-project: phase1=19 phase2=21 kept=18 removed={'CP9001': 1} added={'CP1004': 3}

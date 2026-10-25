@@ -1,0 +1,99 @@
+commitrift replay: harness `invoice-pattern` — Isolated reproduction of the suspected midday pattern: an invoice is finalized (status 'unpaid', auto-commit, through a shared query helper) before its generate-invoice job is enqueued. Not midday's code.
+  environment: macos aarch64, postgres (PostgreSQL) 17.11 (Homebrew), bun 1.3.3; network: sandbox-exec: IP networking denied; Unix sockets and file writes limited to the replay directory
+  control run (no injection): RUNTIME_NOT_REPRODUCED — all 1 declared invariant check(s) held; state: generateJobs=1 invoiceStatus="unpaid"
+
+case kill-after-status-commit: processKill at `after-db-commit`  [RUNTIME_REPRODUCED, as expected]
+  The process dies after the status update committed and before the job is enqueued.
+  static link: Matched — finding 32607db8e8375329 (CP1001 in `finalizeInvoice`, src/routers/invoices.ts:9); trace tr-be731e2287dba016 (OnTraceBoundary)
+  run 1: RUNTIME_REPRODUCED — declared invariant violated: `finalized-invoice-has-generation-job` at after: VIOLATED: generateJobs >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: invoiceStatus = "unpaid" -> ok (observed "unpaid")
+    before:        generateJobs=0 invoiceStatus="draft"
+    after:         generateJobs=0 invoiceStatus="unpaid"
+    prediction: matches the observed state
+  run 2: RUNTIME_REPRODUCED — declared invariant violated: `finalized-invoice-has-generation-job` at after: VIOLATED: generateJobs >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: invoiceStatus = "unpaid" -> ok (observed "unpaid")
+    before:        generateJobs=0 invoiceStatus="draft"
+    after:         generateJobs=0 invoiceStatus="unpaid"
+    prediction: matches the observed state
+  run 3: RUNTIME_REPRODUCED — declared invariant violated: `finalized-invoice-has-generation-job` at after: VIOLATED: generateJobs >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: invoiceStatus = "unpaid" -> ok (observed "unpaid")
+    before:        generateJobs=0 invoiceStatus="draft"
+    after:         generateJobs=0 invoiceStatus="unpaid"
+    prediction: matches the observed state
+  run 4: RUNTIME_REPRODUCED — declared invariant violated: `finalized-invoice-has-generation-job` at after: VIOLATED: generateJobs >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: invoiceStatus = "unpaid" -> ok (observed "unpaid")
+    before:        generateJobs=0 invoiceStatus="draft"
+    after:         generateJobs=0 invoiceStatus="unpaid"
+    prediction: matches the observed state
+  run 5: RUNTIME_REPRODUCED — declared invariant violated: `finalized-invoice-has-generation-job` at after: VIOLATED: generateJobs >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: invoiceStatus = "unpaid" -> ok (observed "unpaid")
+    before:        generateJobs=0 invoiceStatus="draft"
+    after:         generateJobs=0 invoiceStatus="unpaid"
+    prediction: matches the observed state
+
+case enqueue-fails-after-status-commit: exception at `before-event-publish`  [RUNTIME_REPRODUCED, as expected]
+  The enqueue fails (e.g. the queue is unreachable): an exception at the same point. The route has no handler, so the request fails but the status stays.
+  static link: Matched — finding 32607db8e8375329 (CP1001 in `finalizeInvoice`, src/routers/invoices.ts:9); trace tr-be731e2287dba016 (OnTraceBoundary)
+  run 1: RUNTIME_REPRODUCED — declared invariant violated: `finalized-invoice-has-generation-job` at after: VIOLATED: generateJobs >= 1 (observed 0)
+    injected=true outcome=threw exit=exited (code 1)
+    before:        generateJobs=0 invoiceStatus="draft"
+    after:         generateJobs=0 invoiceStatus="unpaid"
+    prediction: matches the observed state
+  run 2: RUNTIME_REPRODUCED — declared invariant violated: `finalized-invoice-has-generation-job` at after: VIOLATED: generateJobs >= 1 (observed 0)
+    injected=true outcome=threw exit=exited (code 1)
+    before:        generateJobs=0 invoiceStatus="draft"
+    after:         generateJobs=0 invoiceStatus="unpaid"
+    prediction: matches the observed state
+  run 3: RUNTIME_REPRODUCED — declared invariant violated: `finalized-invoice-has-generation-job` at after: VIOLATED: generateJobs >= 1 (observed 0)
+    injected=true outcome=threw exit=exited (code 1)
+    before:        generateJobs=0 invoiceStatus="draft"
+    after:         generateJobs=0 invoiceStatus="unpaid"
+    prediction: matches the observed state
+  run 4: RUNTIME_REPRODUCED — declared invariant violated: `finalized-invoice-has-generation-job` at after: VIOLATED: generateJobs >= 1 (observed 0)
+    injected=true outcome=threw exit=exited (code 1)
+    before:        generateJobs=0 invoiceStatus="draft"
+    after:         generateJobs=0 invoiceStatus="unpaid"
+    prediction: matches the observed state
+  run 5: RUNTIME_REPRODUCED — declared invariant violated: `finalized-invoice-has-generation-job` at after: VIOLATED: generateJobs >= 1 (observed 0)
+    injected=true outcome=threw exit=exited (code 1)
+    before:        generateJobs=0 invoiceStatus="draft"
+    after:         generateJobs=0 invoiceStatus="unpaid"
+    prediction: matches the observed state
+  note: Exception mode: the application's catch/finally handlers and transaction rollbacks ran; this is not the same as a process crash.
+
+case client-retry-repairs: processKill at `after-db-commit`  [RUNTIME_REPRODUCED, as expected]
+  Recovery behavior: after the kill, the client repeats the same request. The update is idempotent and the job is enqueued, so a retry repairs the state (if a retry happens).
+  static link: Matched — finding 32607db8e8375329 (CP1001 in `finalizeInvoice`, src/routers/invoices.ts:9); trace tr-be731e2287dba016 (OnTraceBoundary)
+  run 1: RUNTIME_REPRODUCED — declared invariant violated: `finalized-invoice-has-generation-job` at after: VIOLATED: generateJobs >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before:        generateJobs=0 invoiceStatus="draft"
+    after:         generateJobs=0 invoiceStatus="unpaid"
+    afterRecovery: generateJobs=1 invoiceStatus="unpaid"
+  run 2: RUNTIME_REPRODUCED — declared invariant violated: `finalized-invoice-has-generation-job` at after: VIOLATED: generateJobs >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before:        generateJobs=0 invoiceStatus="draft"
+    after:         generateJobs=0 invoiceStatus="unpaid"
+    afterRecovery: generateJobs=1 invoiceStatus="unpaid"
+  run 3: RUNTIME_REPRODUCED — declared invariant violated: `finalized-invoice-has-generation-job` at after: VIOLATED: generateJobs >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before:        generateJobs=0 invoiceStatus="draft"
+    after:         generateJobs=0 invoiceStatus="unpaid"
+    afterRecovery: generateJobs=1 invoiceStatus="unpaid"
+  run 4: RUNTIME_REPRODUCED — declared invariant violated: `finalized-invoice-has-generation-job` at after: VIOLATED: generateJobs >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before:        generateJobs=0 invoiceStatus="draft"
+    after:         generateJobs=0 invoiceStatus="unpaid"
+    afterRecovery: generateJobs=1 invoiceStatus="unpaid"
+  run 5: RUNTIME_REPRODUCED — declared invariant violated: `finalized-invoice-has-generation-job` at after: VIOLATED: generateJobs >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before:        generateJobs=0 invoiceStatus="draft"
+    after:         generateJobs=0 invoiceStatus="unpaid"
+    afterRecovery: generateJobs=1 invoiceStatus="unpaid"
+
+3 case(s): 3 RUNTIME_REPRODUCED, 0 RUNTIME_NOT_REPRODUCED, 0 INCONCLUSIVE; 3 as expected, 0 not as expected.
+Results describe this harness under the recorded conditions; RUNTIME_NOT_REPRODUCED does not prove the application safe.

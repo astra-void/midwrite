@@ -1,0 +1,11 @@
+{
+  "databaseReceivers": [{ "name": "db", "importedFrom": "./database.js" }],
+  "externalEffects": [
+    {
+      "receiver": "queue",
+      "method": "publish",
+      "category": "message-publish",
+      "importedFrom": "./queue.js"
+    }
+  ]
+}

@@ -1,0 +1,3225 @@
+{
+  "schemaVersion": 2,
+  "kind": "commitrift.verification",
+  "tool": {
+    "name": "commitrift",
+    "version": "0.1.0"
+  },
+  "harness": {
+    "id": "order-vulnerable",
+    "description": "Order completion that commits the status change, then publishes order.completed (CP1001).",
+    "manifest": "fixtures/replay/order-vulnerable/commitrift-replay.json",
+    "manifestHash": "d5221a3791a3cfbf",
+    "command": [
+      "bun",
+      "harness.ts"
+    ]
+  },
+  "source": {
+    "revision": null,
+    "dirty": null
+  },
+  "environment": {
+    "os": "macos",
+    "arch": "aarch64",
+    "postgres": "postgres (PostgreSQL) 17.11 (Homebrew)",
+    "runtime": "bun 1.3.3",
+    "networkIsolation": "sandbox-exec: IP networking denied; Unix sockets and file writes limited to the replay directory",
+    "isolation": "sandbox-exec",
+    "database": "ephemeral-postgres: private cluster, Unix socket only (listen_addresses=''), trust authentication for a local test user, fresh database per run, deleted afterwards",
+    "environmentVariables": [
+      "COMMITRIFT_REPLAY",
+      "COMMITRIFT_REPLAY_EVENT_LOG",
+      "COMMITRIFT_REPLAY_INPUT",
+      "COMMITRIFT_REPLAY_PG_DATABASE",
+      "COMMITRIFT_REPLAY_PG_SOCKET",
+      "COMMITRIFT_REPLAY_PG_USER",
+      "COMMITRIFT_REPLAY_PROTOCOL",
+      "COMMITRIFT_REPLAY_ROOT",
+      "COMMITRIFT_REPLAY_SCENARIO",
+      "COMMITRIFT_REPLAY_SOCKET",
+      "HOME",
+      "LANG",
+      "NO_COLOR",
+      "PATH",
+      "TMPDIR"
+    ]
+  },
+  "control": {
+    "run": 0,
+    "scenario": "completeOrder",
+    "failureMode": "none",
+    "injected": false,
+    "checkpoints": [
+      {
+        "seq": 1,
+        "name": "before-db-write",
+        "label": "orders",
+        "action": "continue"
+      },
+      {
+        "seq": 2,
+        "name": "after-db-commit",
+        "label": "orders",
+        "action": "continue"
+      },
+      {
+        "seq": 3,
+        "name": "before-event-publish",
+        "label": "order.completed",
+        "action": "continue"
+      },
+      {
+        "seq": 4,
+        "name": "after-event-publish",
+        "label": "order.completed",
+        "action": "continue"
+      }
+    ],
+    "preInjectionChecks": [],
+    "exit": {
+      "kind": "exited",
+      "code": 0,
+      "signal": null
+    },
+    "outcome": "returned",
+    "observations": {
+      "after": {
+        "orderStatus": "paid",
+        "publishedEvents": 1
+      },
+      "before": {
+        "orderStatus": "pending",
+        "publishedEvents": 0
+      }
+    },
+    "invariants": [
+      {
+        "id": "paid-order-has-event",
+        "stage": "after",
+        "holds": true,
+        "detail": "holds: publishedEvents >= 1 (observed 1)"
+      }
+    ],
+    "prediction": [],
+    "recovery": [],
+    "durationMs": 252,
+    "verification": "RUNTIME_NOT_REPRODUCED",
+    "reason": "all 1 declared invariant check(s) held",
+    "logs": {
+      "stdout": "",
+      "stderr": "",
+      "truncated": false
+    }
+  },
+  "cases": [
+    {
+      "id": "kill-after-db-commit",
+      "key": "order-vulnerable/kill-after-db-commit",
+      "description": "Kill the process after the status update committed, before publishing.",
+      "staticLink": {
+        "status": "matched",
+        "detail": "finding 1fdd4de8196f4a3d (CP1001 in `completeOrder`, src/orders.ts:11)"
+      },
+      "findingId": "1fdd4de8196f4a3d",
+      "traceId": "tr-c649a775ffafff7d",
+      "code": "CP1001",
+      "trace": {
+        "id": "tr-c649a775ffafff7d",
+        "findingId": "1fdd4de8196f4a3d",
+        "code": "CP1001",
+        "function": "completeOrder",
+        "location": {
+          "file": "src/orders.ts",
+          "line": 11,
+          "column": 9,
+          "endLine": 11,
+          "endColumn": 54
+        },
+        "verification": "STATIC_CANDIDATE",
+        "completeness": "complete",
+        "steps": [
+          {
+            "index": 0,
+            "kind": "dbWrite",
+            "label": "db.update(orders)",
+            "description": "database update on `orders`",
+            "location": {
+              "file": "src/orders.ts",
+              "line": 9,
+              "column": 9,
+              "endLine": 9,
+              "endColumn": 26
+            },
+            "handle": "db",
+            "table": "orders",
+            "operation": "update",
+            "execution": "awaited",
+            "role": "completedFirst",
+            "atFailure": "committed"
+          },
+          {
+            "index": 1,
+            "kind": "external",
+            "label": "queue.publish(\"order.completed\", { orderId })",
+            "description": "external effect (message-publish)",
+            "location": {
+              "file": "src/orders.ts",
+              "line": 11,
+              "column": 9,
+              "endLine": 11,
+              "endColumn": 54
+            },
+            "category": "message-publish",
+            "execution": "awaited",
+            "role": "notYetPerformed",
+            "atFailure": "notReached"
+          }
+        ],
+        "injection": {
+          "boundary": "afterCommitBeforeExternal",
+          "afterStep": 0,
+          "beforeStep": 1,
+          "window": [],
+          "description": "After `db.update(orders)` (step 0) commits and before `queue.publish(\"order.completed\", { orderId })` (step 1) is performed.",
+          "checkpoints": [
+            {
+              "name": "after-db-commit",
+              "step": 0,
+              "resource": "orders"
+            },
+            {
+              "name": "before-event-publish",
+              "step": 1,
+              "resource": "queue.publish(\"order.completed\", { orderId })"
+            }
+          ]
+        },
+        "simulation": {
+          "verification": "SIMULATED",
+          "failureMode": "processKill",
+          "durable": [
+            0
+          ],
+          "lost": [],
+          "notPerformed": [
+            1
+          ],
+          "claim": "If the process dies right after step 0: durable or visible: `db.update(orders)` (step 0); never performed: `queue.publish(\"order.completed\", { orderId })` (step 1).",
+          "notModeled": [
+            "Exceptions: an injected exception runs catch/finally handlers and transaction rollbacks in the application, which the model does not execute; only a process crash is simulated.",
+            "Effects of unknown operations, and the database's own failure modes (failed commits, isolation anomalies).",
+            "Anything outside the analyzed function: retries, reconciliation jobs, relays, consumers."
+          ]
+        },
+        "assumptions": [
+          "`db.update(orders)` runs outside any transaction: it commits on its own when its awaited promise resolves (auto-commit).",
+          "`queue.publish(\"order.completed\", { orderId })` becomes visible to other systems when its call completes.",
+          "`db.update(orders)` is recognized by import-based match against the configuration (`db`); the analysis does not check types.",
+          "`queue.publish(\"order.completed\", { orderId })` is recognized by import-based match against the configuration (`queue`); the analysis does not check types.",
+          "The application's invariants are unknown: the trace shows that the partial state can arise, not that it violates a business rule."
+        ],
+        "limitations": [
+          "CommitRift does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state.",
+          "This trace is a static candidate: no application code was executed to produce it."
+        ]
+      },
+      "failureMode": "processKill",
+      "checkpoint": {
+        "name": "after-db-commit",
+        "occurrence": 1,
+        "label": "orders"
+      },
+      "boundary": "onTraceBoundary",
+      "initialState": "a fresh database created from the manifest's setup files before every run; an empty event log",
+      "runs": [
+        {
+          "run": 1,
+          "scenario": "completeOrder",
+          "failureMode": "processKill",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "kill"
+            }
+          ],
+          "preInjectionChecks": [
+            {
+              "description": "orderStatus = \"paid\"",
+              "holds": true,
+              "observed": "paid"
+            }
+          ],
+          "exit": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9
+          },
+          "outcome": "killed",
+          "observations": {
+            "after": {
+              "orderStatus": "paid",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": false,
+              "detail": "VIOLATED: publishedEvents >= 1 (observed 0)"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "paid",
+              "observed": "paid",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 185,
+          "verification": "RUNTIME_REPRODUCED",
+          "reason": "declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 2,
+          "scenario": "completeOrder",
+          "failureMode": "processKill",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "kill"
+            }
+          ],
+          "preInjectionChecks": [
+            {
+              "description": "orderStatus = \"paid\"",
+              "holds": true,
+              "observed": "paid"
+            }
+          ],
+          "exit": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9
+          },
+          "outcome": "killed",
+          "observations": {
+            "after": {
+              "orderStatus": "paid",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": false,
+              "detail": "VIOLATED: publishedEvents >= 1 (observed 0)"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "paid",
+              "observed": "paid",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 192,
+          "verification": "RUNTIME_REPRODUCED",
+          "reason": "declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 3,
+          "scenario": "completeOrder",
+          "failureMode": "processKill",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "kill"
+            }
+          ],
+          "preInjectionChecks": [
+            {
+              "description": "orderStatus = \"paid\"",
+              "holds": true,
+              "observed": "paid"
+            }
+          ],
+          "exit": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9
+          },
+          "outcome": "killed",
+          "observations": {
+            "after": {
+              "orderStatus": "paid",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": false,
+              "detail": "VIOLATED: publishedEvents >= 1 (observed 0)"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "paid",
+              "observed": "paid",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 189,
+          "verification": "RUNTIME_REPRODUCED",
+          "reason": "declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 4,
+          "scenario": "completeOrder",
+          "failureMode": "processKill",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "kill"
+            }
+          ],
+          "preInjectionChecks": [
+            {
+              "description": "orderStatus = \"paid\"",
+              "holds": true,
+              "observed": "paid"
+            }
+          ],
+          "exit": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9
+          },
+          "outcome": "killed",
+          "observations": {
+            "after": {
+              "orderStatus": "paid",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": false,
+              "detail": "VIOLATED: publishedEvents >= 1 (observed 0)"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "paid",
+              "observed": "paid",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 189,
+          "verification": "RUNTIME_REPRODUCED",
+          "reason": "declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 5,
+          "scenario": "completeOrder",
+          "failureMode": "processKill",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "kill"
+            }
+          ],
+          "preInjectionChecks": [
+            {
+              "description": "orderStatus = \"paid\"",
+              "holds": true,
+              "observed": "paid"
+            }
+          ],
+          "exit": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9
+          },
+          "outcome": "killed",
+          "observations": {
+            "after": {
+              "orderStatus": "paid",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": false,
+              "detail": "VIOLATED: publishedEvents >= 1 (observed 0)"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "paid",
+              "observed": "paid",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 187,
+          "verification": "RUNTIME_REPRODUCED",
+          "reason": "declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        }
+      ],
+      "verification": "RUNTIME_REPRODUCED",
+      "consistent": true,
+      "expected": "RUNTIME_REPRODUCED",
+      "matchesExpectation": true,
+      "limitations": []
+    },
+    {
+      "id": "exception-after-db-commit",
+      "key": "order-vulnerable/exception-after-db-commit",
+      "description": "Throw at the same point: the function has no handler, so the exception leaves the same state.",
+      "staticLink": {
+        "status": "matched",
+        "detail": "finding 1fdd4de8196f4a3d (CP1001 in `completeOrder`, src/orders.ts:11)"
+      },
+      "findingId": "1fdd4de8196f4a3d",
+      "traceId": "tr-c649a775ffafff7d",
+      "code": "CP1001",
+      "trace": {
+        "id": "tr-c649a775ffafff7d",
+        "findingId": "1fdd4de8196f4a3d",
+        "code": "CP1001",
+        "function": "completeOrder",
+        "location": {
+          "file": "src/orders.ts",
+          "line": 11,
+          "column": 9,
+          "endLine": 11,
+          "endColumn": 54
+        },
+        "verification": "STATIC_CANDIDATE",
+        "completeness": "complete",
+        "steps": [
+          {
+            "index": 0,
+            "kind": "dbWrite",
+            "label": "db.update(orders)",
+            "description": "database update on `orders`",
+            "location": {
+              "file": "src/orders.ts",
+              "line": 9,
+              "column": 9,
+              "endLine": 9,
+              "endColumn": 26
+            },
+            "handle": "db",
+            "table": "orders",
+            "operation": "update",
+            "execution": "awaited",
+            "role": "completedFirst",
+            "atFailure": "committed"
+          },
+          {
+            "index": 1,
+            "kind": "external",
+            "label": "queue.publish(\"order.completed\", { orderId })",
+            "description": "external effect (message-publish)",
+            "location": {
+              "file": "src/orders.ts",
+              "line": 11,
+              "column": 9,
+              "endLine": 11,
+              "endColumn": 54
+            },
+            "category": "message-publish",
+            "execution": "awaited",
+            "role": "notYetPerformed",
+            "atFailure": "notReached"
+          }
+        ],
+        "injection": {
+          "boundary": "afterCommitBeforeExternal",
+          "afterStep": 0,
+          "beforeStep": 1,
+          "window": [],
+          "description": "After `db.update(orders)` (step 0) commits and before `queue.publish(\"order.completed\", { orderId })` (step 1) is performed.",
+          "checkpoints": [
+            {
+              "name": "after-db-commit",
+              "step": 0,
+              "resource": "orders"
+            },
+            {
+              "name": "before-event-publish",
+              "step": 1,
+              "resource": "queue.publish(\"order.completed\", { orderId })"
+            }
+          ]
+        },
+        "simulation": {
+          "verification": "SIMULATED",
+          "failureMode": "processKill",
+          "durable": [
+            0
+          ],
+          "lost": [],
+          "notPerformed": [
+            1
+          ],
+          "claim": "If the process dies right after step 0: durable or visible: `db.update(orders)` (step 0); never performed: `queue.publish(\"order.completed\", { orderId })` (step 1).",
+          "notModeled": [
+            "Exceptions: an injected exception runs catch/finally handlers and transaction rollbacks in the application, which the model does not execute; only a process crash is simulated.",
+            "Effects of unknown operations, and the database's own failure modes (failed commits, isolation anomalies).",
+            "Anything outside the analyzed function: retries, reconciliation jobs, relays, consumers."
+          ]
+        },
+        "assumptions": [
+          "`db.update(orders)` runs outside any transaction: it commits on its own when its awaited promise resolves (auto-commit).",
+          "`queue.publish(\"order.completed\", { orderId })` becomes visible to other systems when its call completes.",
+          "`db.update(orders)` is recognized by import-based match against the configuration (`db`); the analysis does not check types.",
+          "`queue.publish(\"order.completed\", { orderId })` is recognized by import-based match against the configuration (`queue`); the analysis does not check types.",
+          "The application's invariants are unknown: the trace shows that the partial state can arise, not that it violates a business rule."
+        ],
+        "limitations": [
+          "CommitRift does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state.",
+          "This trace is a static candidate: no application code was executed to produce it."
+        ]
+      },
+      "failureMode": "exception",
+      "checkpoint": {
+        "name": "after-db-commit",
+        "occurrence": 1,
+        "label": "orders"
+      },
+      "boundary": "onTraceBoundary",
+      "initialState": "a fresh database created from the manifest's setup files before every run; an empty event log",
+      "runs": [
+        {
+          "run": 1,
+          "scenario": "completeOrder",
+          "failureMode": "exception",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "throw"
+            }
+          ],
+          "preInjectionChecks": [
+            {
+              "description": "orderStatus = \"paid\"",
+              "holds": true,
+              "observed": "paid"
+            }
+          ],
+          "exit": {
+            "kind": "exited",
+            "code": 1,
+            "signal": null
+          },
+          "outcome": "threw",
+          "error": "InjectedFault: CommitRift injected fault at checkpoint `after-db-commit`",
+          "injectedFaultSurfaced": true,
+          "observations": {
+            "after": {
+              "orderStatus": "paid",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": false,
+              "detail": "VIOLATED: publishedEvents >= 1 (observed 0)"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "paid",
+              "observed": "paid",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 197,
+          "verification": "RUNTIME_REPRODUCED",
+          "reason": "declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 2,
+          "scenario": "completeOrder",
+          "failureMode": "exception",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "throw"
+            }
+          ],
+          "preInjectionChecks": [
+            {
+              "description": "orderStatus = \"paid\"",
+              "holds": true,
+              "observed": "paid"
+            }
+          ],
+          "exit": {
+            "kind": "exited",
+            "code": 1,
+            "signal": null
+          },
+          "outcome": "threw",
+          "error": "InjectedFault: CommitRift injected fault at checkpoint `after-db-commit`",
+          "injectedFaultSurfaced": true,
+          "observations": {
+            "after": {
+              "orderStatus": "paid",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": false,
+              "detail": "VIOLATED: publishedEvents >= 1 (observed 0)"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "paid",
+              "observed": "paid",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 191,
+          "verification": "RUNTIME_REPRODUCED",
+          "reason": "declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 3,
+          "scenario": "completeOrder",
+          "failureMode": "exception",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "throw"
+            }
+          ],
+          "preInjectionChecks": [
+            {
+              "description": "orderStatus = \"paid\"",
+              "holds": true,
+              "observed": "paid"
+            }
+          ],
+          "exit": {
+            "kind": "exited",
+            "code": 1,
+            "signal": null
+          },
+          "outcome": "threw",
+          "error": "InjectedFault: CommitRift injected fault at checkpoint `after-db-commit`",
+          "injectedFaultSurfaced": true,
+          "observations": {
+            "after": {
+              "orderStatus": "paid",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": false,
+              "detail": "VIOLATED: publishedEvents >= 1 (observed 0)"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "paid",
+              "observed": "paid",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 192,
+          "verification": "RUNTIME_REPRODUCED",
+          "reason": "declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 4,
+          "scenario": "completeOrder",
+          "failureMode": "exception",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "throw"
+            }
+          ],
+          "preInjectionChecks": [
+            {
+              "description": "orderStatus = \"paid\"",
+              "holds": true,
+              "observed": "paid"
+            }
+          ],
+          "exit": {
+            "kind": "exited",
+            "code": 1,
+            "signal": null
+          },
+          "outcome": "threw",
+          "error": "InjectedFault: CommitRift injected fault at checkpoint `after-db-commit`",
+          "injectedFaultSurfaced": true,
+          "observations": {
+            "after": {
+              "orderStatus": "paid",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": false,
+              "detail": "VIOLATED: publishedEvents >= 1 (observed 0)"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "paid",
+              "observed": "paid",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 190,
+          "verification": "RUNTIME_REPRODUCED",
+          "reason": "declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 5,
+          "scenario": "completeOrder",
+          "failureMode": "exception",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "throw"
+            }
+          ],
+          "preInjectionChecks": [
+            {
+              "description": "orderStatus = \"paid\"",
+              "holds": true,
+              "observed": "paid"
+            }
+          ],
+          "exit": {
+            "kind": "exited",
+            "code": 1,
+            "signal": null
+          },
+          "outcome": "threw",
+          "error": "InjectedFault: CommitRift injected fault at checkpoint `after-db-commit`",
+          "injectedFaultSurfaced": true,
+          "observations": {
+            "after": {
+              "orderStatus": "paid",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": false,
+              "detail": "VIOLATED: publishedEvents >= 1 (observed 0)"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "paid",
+              "observed": "paid",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 187,
+          "verification": "RUNTIME_REPRODUCED",
+          "reason": "declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        }
+      ],
+      "verification": "RUNTIME_REPRODUCED",
+      "consistent": true,
+      "expected": "RUNTIME_REPRODUCED",
+      "matchesExpectation": true,
+      "limitations": [
+        "Exception mode: the application's catch/finally handlers and transaction rollbacks ran; this is not the same as a process crash."
+      ]
+    },
+    {
+      "id": "kill-before-db-write",
+      "key": "order-vulnerable/kill-before-db-write",
+      "description": "Negative case: kill before the write is sent. Nothing is durable, so nothing is inconsistent.",
+      "staticLink": {
+        "status": "matched",
+        "detail": "finding 1fdd4de8196f4a3d (CP1001 in `completeOrder`, src/orders.ts:11)"
+      },
+      "findingId": "1fdd4de8196f4a3d",
+      "traceId": "tr-c649a775ffafff7d",
+      "code": "CP1001",
+      "trace": {
+        "id": "tr-c649a775ffafff7d",
+        "findingId": "1fdd4de8196f4a3d",
+        "code": "CP1001",
+        "function": "completeOrder",
+        "location": {
+          "file": "src/orders.ts",
+          "line": 11,
+          "column": 9,
+          "endLine": 11,
+          "endColumn": 54
+        },
+        "verification": "STATIC_CANDIDATE",
+        "completeness": "complete",
+        "steps": [
+          {
+            "index": 0,
+            "kind": "dbWrite",
+            "label": "db.update(orders)",
+            "description": "database update on `orders`",
+            "location": {
+              "file": "src/orders.ts",
+              "line": 9,
+              "column": 9,
+              "endLine": 9,
+              "endColumn": 26
+            },
+            "handle": "db",
+            "table": "orders",
+            "operation": "update",
+            "execution": "awaited",
+            "role": "completedFirst",
+            "atFailure": "committed"
+          },
+          {
+            "index": 1,
+            "kind": "external",
+            "label": "queue.publish(\"order.completed\", { orderId })",
+            "description": "external effect (message-publish)",
+            "location": {
+              "file": "src/orders.ts",
+              "line": 11,
+              "column": 9,
+              "endLine": 11,
+              "endColumn": 54
+            },
+            "category": "message-publish",
+            "execution": "awaited",
+            "role": "notYetPerformed",
+            "atFailure": "notReached"
+          }
+        ],
+        "injection": {
+          "boundary": "afterCommitBeforeExternal",
+          "afterStep": 0,
+          "beforeStep": 1,
+          "window": [],
+          "description": "After `db.update(orders)` (step 0) commits and before `queue.publish(\"order.completed\", { orderId })` (step 1) is performed.",
+          "checkpoints": [
+            {
+              "name": "after-db-commit",
+              "step": 0,
+              "resource": "orders"
+            },
+            {
+              "name": "before-event-publish",
+              "step": 1,
+              "resource": "queue.publish(\"order.completed\", { orderId })"
+            }
+          ]
+        },
+        "simulation": {
+          "verification": "SIMULATED",
+          "failureMode": "processKill",
+          "durable": [
+            0
+          ],
+          "lost": [],
+          "notPerformed": [
+            1
+          ],
+          "claim": "If the process dies right after step 0: durable or visible: `db.update(orders)` (step 0); never performed: `queue.publish(\"order.completed\", { orderId })` (step 1).",
+          "notModeled": [
+            "Exceptions: an injected exception runs catch/finally handlers and transaction rollbacks in the application, which the model does not execute; only a process crash is simulated.",
+            "Effects of unknown operations, and the database's own failure modes (failed commits, isolation anomalies).",
+            "Anything outside the analyzed function: retries, reconciliation jobs, relays, consumers."
+          ]
+        },
+        "assumptions": [
+          "`db.update(orders)` runs outside any transaction: it commits on its own when its awaited promise resolves (auto-commit).",
+          "`queue.publish(\"order.completed\", { orderId })` becomes visible to other systems when its call completes.",
+          "`db.update(orders)` is recognized by import-based match against the configuration (`db`); the analysis does not check types.",
+          "`queue.publish(\"order.completed\", { orderId })` is recognized by import-based match against the configuration (`queue`); the analysis does not check types.",
+          "The application's invariants are unknown: the trace shows that the partial state can arise, not that it violates a business rule."
+        ],
+        "limitations": [
+          "CommitRift does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state.",
+          "This trace is a static candidate: no application code was executed to produce it."
+        ]
+      },
+      "failureMode": "processKill",
+      "checkpoint": {
+        "name": "before-db-write",
+        "occurrence": 1,
+        "label": "orders"
+      },
+      "boundary": "outsideTraceBoundary",
+      "initialState": "a fresh database created from the manifest's setup files before every run; an empty event log",
+      "runs": [
+        {
+          "run": 1,
+          "scenario": "completeOrder",
+          "failureMode": "processKill",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "kill"
+            }
+          ],
+          "preInjectionChecks": [],
+          "exit": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9
+          },
+          "outcome": "killed",
+          "observations": {
+            "after": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": true,
+              "detail": "not applicable: orderStatus = \"paid\" (observed \"pending\")"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "pending",
+              "observed": "pending",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 180,
+          "verification": "RUNTIME_NOT_REPRODUCED",
+          "reason": "all 1 declared invariant check(s) held",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 2,
+          "scenario": "completeOrder",
+          "failureMode": "processKill",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "kill"
+            }
+          ],
+          "preInjectionChecks": [],
+          "exit": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9
+          },
+          "outcome": "killed",
+          "observations": {
+            "after": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": true,
+              "detail": "not applicable: orderStatus = \"paid\" (observed \"pending\")"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "pending",
+              "observed": "pending",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 192,
+          "verification": "RUNTIME_NOT_REPRODUCED",
+          "reason": "all 1 declared invariant check(s) held",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 3,
+          "scenario": "completeOrder",
+          "failureMode": "processKill",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "kill"
+            }
+          ],
+          "preInjectionChecks": [],
+          "exit": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9
+          },
+          "outcome": "killed",
+          "observations": {
+            "after": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": true,
+              "detail": "not applicable: orderStatus = \"paid\" (observed \"pending\")"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "pending",
+              "observed": "pending",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 183,
+          "verification": "RUNTIME_NOT_REPRODUCED",
+          "reason": "all 1 declared invariant check(s) held",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 4,
+          "scenario": "completeOrder",
+          "failureMode": "processKill",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "kill"
+            }
+          ],
+          "preInjectionChecks": [],
+          "exit": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9
+          },
+          "outcome": "killed",
+          "observations": {
+            "after": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": true,
+              "detail": "not applicable: orderStatus = \"paid\" (observed \"pending\")"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "pending",
+              "observed": "pending",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 182,
+          "verification": "RUNTIME_NOT_REPRODUCED",
+          "reason": "all 1 declared invariant check(s) held",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 5,
+          "scenario": "completeOrder",
+          "failureMode": "processKill",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "kill"
+            }
+          ],
+          "preInjectionChecks": [],
+          "exit": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9
+          },
+          "outcome": "killed",
+          "observations": {
+            "after": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": true,
+              "detail": "not applicable: orderStatus = \"paid\" (observed \"pending\")"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "pending",
+              "observed": "pending",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 189,
+          "verification": "RUNTIME_NOT_REPRODUCED",
+          "reason": "all 1 declared invariant check(s) held",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        }
+      ],
+      "verification": "RUNTIME_NOT_REPRODUCED",
+      "consistent": true,
+      "expected": "RUNTIME_NOT_REPRODUCED",
+      "matchesExpectation": true,
+      "limitations": []
+    },
+    {
+      "id": "kill-after-event-publish",
+      "key": "order-vulnerable/kill-after-event-publish",
+      "description": "Negative case: kill after the event was published. Both effects happened.",
+      "staticLink": {
+        "status": "matched",
+        "detail": "finding 1fdd4de8196f4a3d (CP1001 in `completeOrder`, src/orders.ts:11)"
+      },
+      "findingId": "1fdd4de8196f4a3d",
+      "traceId": "tr-c649a775ffafff7d",
+      "code": "CP1001",
+      "trace": {
+        "id": "tr-c649a775ffafff7d",
+        "findingId": "1fdd4de8196f4a3d",
+        "code": "CP1001",
+        "function": "completeOrder",
+        "location": {
+          "file": "src/orders.ts",
+          "line": 11,
+          "column": 9,
+          "endLine": 11,
+          "endColumn": 54
+        },
+        "verification": "STATIC_CANDIDATE",
+        "completeness": "complete",
+        "steps": [
+          {
+            "index": 0,
+            "kind": "dbWrite",
+            "label": "db.update(orders)",
+            "description": "database update on `orders`",
+            "location": {
+              "file": "src/orders.ts",
+              "line": 9,
+              "column": 9,
+              "endLine": 9,
+              "endColumn": 26
+            },
+            "handle": "db",
+            "table": "orders",
+            "operation": "update",
+            "execution": "awaited",
+            "role": "completedFirst",
+            "atFailure": "committed"
+          },
+          {
+            "index": 1,
+            "kind": "external",
+            "label": "queue.publish(\"order.completed\", { orderId })",
+            "description": "external effect (message-publish)",
+            "location": {
+              "file": "src/orders.ts",
+              "line": 11,
+              "column": 9,
+              "endLine": 11,
+              "endColumn": 54
+            },
+            "category": "message-publish",
+            "execution": "awaited",
+            "role": "notYetPerformed",
+            "atFailure": "notReached"
+          }
+        ],
+        "injection": {
+          "boundary": "afterCommitBeforeExternal",
+          "afterStep": 0,
+          "beforeStep": 1,
+          "window": [],
+          "description": "After `db.update(orders)` (step 0) commits and before `queue.publish(\"order.completed\", { orderId })` (step 1) is performed.",
+          "checkpoints": [
+            {
+              "name": "after-db-commit",
+              "step": 0,
+              "resource": "orders"
+            },
+            {
+              "name": "before-event-publish",
+              "step": 1,
+              "resource": "queue.publish(\"order.completed\", { orderId })"
+            }
+          ]
+        },
+        "simulation": {
+          "verification": "SIMULATED",
+          "failureMode": "processKill",
+          "durable": [
+            0
+          ],
+          "lost": [],
+          "notPerformed": [
+            1
+          ],
+          "claim": "If the process dies right after step 0: durable or visible: `db.update(orders)` (step 0); never performed: `queue.publish(\"order.completed\", { orderId })` (step 1).",
+          "notModeled": [
+            "Exceptions: an injected exception runs catch/finally handlers and transaction rollbacks in the application, which the model does not execute; only a process crash is simulated.",
+            "Effects of unknown operations, and the database's own failure modes (failed commits, isolation anomalies).",
+            "Anything outside the analyzed function: retries, reconciliation jobs, relays, consumers."
+          ]
+        },
+        "assumptions": [
+          "`db.update(orders)` runs outside any transaction: it commits on its own when its awaited promise resolves (auto-commit).",
+          "`queue.publish(\"order.completed\", { orderId })` becomes visible to other systems when its call completes.",
+          "`db.update(orders)` is recognized by import-based match against the configuration (`db`); the analysis does not check types.",
+          "`queue.publish(\"order.completed\", { orderId })` is recognized by import-based match against the configuration (`queue`); the analysis does not check types.",
+          "The application's invariants are unknown: the trace shows that the partial state can arise, not that it violates a business rule."
+        ],
+        "limitations": [
+          "CommitRift does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state.",
+          "This trace is a static candidate: no application code was executed to produce it."
+        ]
+      },
+      "failureMode": "processKill",
+      "checkpoint": {
+        "name": "after-event-publish",
+        "occurrence": 1,
+        "label": "order.completed"
+      },
+      "boundary": "outsideTraceBoundary",
+      "initialState": "a fresh database created from the manifest's setup files before every run; an empty event log",
+      "runs": [
+        {
+          "run": 1,
+          "scenario": "completeOrder",
+          "failureMode": "processKill",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 3,
+              "name": "before-event-publish",
+              "label": "order.completed",
+              "action": "continue"
+            },
+            {
+              "seq": 4,
+              "name": "after-event-publish",
+              "label": "order.completed",
+              "action": "kill"
+            }
+          ],
+          "preInjectionChecks": [],
+          "exit": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9
+          },
+          "outcome": "killed",
+          "observations": {
+            "after": {
+              "orderStatus": "paid",
+              "publishedEvents": 1
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": true,
+              "detail": "holds: publishedEvents >= 1 (observed 1)"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "paid",
+              "observed": "paid",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 1,
+              "observed": 1,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 191,
+          "verification": "RUNTIME_NOT_REPRODUCED",
+          "reason": "all 1 declared invariant check(s) held",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 2,
+          "scenario": "completeOrder",
+          "failureMode": "processKill",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 3,
+              "name": "before-event-publish",
+              "label": "order.completed",
+              "action": "continue"
+            },
+            {
+              "seq": 4,
+              "name": "after-event-publish",
+              "label": "order.completed",
+              "action": "kill"
+            }
+          ],
+          "preInjectionChecks": [],
+          "exit": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9
+          },
+          "outcome": "killed",
+          "observations": {
+            "after": {
+              "orderStatus": "paid",
+              "publishedEvents": 1
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": true,
+              "detail": "holds: publishedEvents >= 1 (observed 1)"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "paid",
+              "observed": "paid",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 1,
+              "observed": 1,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 192,
+          "verification": "RUNTIME_NOT_REPRODUCED",
+          "reason": "all 1 declared invariant check(s) held",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 3,
+          "scenario": "completeOrder",
+          "failureMode": "processKill",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 3,
+              "name": "before-event-publish",
+              "label": "order.completed",
+              "action": "continue"
+            },
+            {
+              "seq": 4,
+              "name": "after-event-publish",
+              "label": "order.completed",
+              "action": "kill"
+            }
+          ],
+          "preInjectionChecks": [],
+          "exit": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9
+          },
+          "outcome": "killed",
+          "observations": {
+            "after": {
+              "orderStatus": "paid",
+              "publishedEvents": 1
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": true,
+              "detail": "holds: publishedEvents >= 1 (observed 1)"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "paid",
+              "observed": "paid",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 1,
+              "observed": 1,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 185,
+          "verification": "RUNTIME_NOT_REPRODUCED",
+          "reason": "all 1 declared invariant check(s) held",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 4,
+          "scenario": "completeOrder",
+          "failureMode": "processKill",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 3,
+              "name": "before-event-publish",
+              "label": "order.completed",
+              "action": "continue"
+            },
+            {
+              "seq": 4,
+              "name": "after-event-publish",
+              "label": "order.completed",
+              "action": "kill"
+            }
+          ],
+          "preInjectionChecks": [],
+          "exit": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9
+          },
+          "outcome": "killed",
+          "observations": {
+            "after": {
+              "orderStatus": "paid",
+              "publishedEvents": 1
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": true,
+              "detail": "holds: publishedEvents >= 1 (observed 1)"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "paid",
+              "observed": "paid",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 1,
+              "observed": 1,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 191,
+          "verification": "RUNTIME_NOT_REPRODUCED",
+          "reason": "all 1 declared invariant check(s) held",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 5,
+          "scenario": "completeOrder",
+          "failureMode": "processKill",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 3,
+              "name": "before-event-publish",
+              "label": "order.completed",
+              "action": "continue"
+            },
+            {
+              "seq": 4,
+              "name": "after-event-publish",
+              "label": "order.completed",
+              "action": "kill"
+            }
+          ],
+          "preInjectionChecks": [],
+          "exit": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9
+          },
+          "outcome": "killed",
+          "observations": {
+            "after": {
+              "orderStatus": "paid",
+              "publishedEvents": 1
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": true,
+              "detail": "holds: publishedEvents >= 1 (observed 1)"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "paid",
+              "observed": "paid",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 1,
+              "observed": 1,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 190,
+          "verification": "RUNTIME_NOT_REPRODUCED",
+          "reason": "all 1 declared invariant check(s) held",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        }
+      ],
+      "verification": "RUNTIME_NOT_REPRODUCED",
+      "consistent": true,
+      "expected": "RUNTIME_NOT_REPRODUCED",
+      "matchesExpectation": true,
+      "limitations": []
+    },
+    {
+      "id": "compensation-exception-before-publish",
+      "key": "order-vulnerable/compensation-exception-before-publish",
+      "description": "With an in-process compensation, an exception before publishing runs the catch block, which reverts the status.",
+      "staticLink": {
+        "status": "matched",
+        "detail": "finding 4e8c6b70f17795a3 (CP1001 in `completeOrderWithCompensation`, src/orders.ts:20)"
+      },
+      "findingId": "4e8c6b70f17795a3",
+      "traceId": "tr-654fa0a0d7e5362d",
+      "code": "CP1001",
+      "trace": {
+        "id": "tr-654fa0a0d7e5362d",
+        "findingId": "4e8c6b70f17795a3",
+        "code": "CP1001",
+        "function": "completeOrderWithCompensation",
+        "location": {
+          "file": "src/orders.ts",
+          "line": 20,
+          "column": 11,
+          "endLine": 20,
+          "endColumn": 56
+        },
+        "verification": "STATIC_CANDIDATE",
+        "completeness": "complete",
+        "steps": [
+          {
+            "index": 0,
+            "kind": "dbWrite",
+            "label": "db.update(orders)",
+            "description": "database update on `orders`",
+            "location": {
+              "file": "src/orders.ts",
+              "line": 18,
+              "column": 9,
+              "endLine": 18,
+              "endColumn": 26
+            },
+            "handle": "db",
+            "table": "orders",
+            "operation": "update",
+            "execution": "awaited",
+            "role": "completedFirst",
+            "atFailure": "committed"
+          },
+          {
+            "index": 1,
+            "kind": "external",
+            "label": "queue.publish(\"order.completed\", { orderId })",
+            "description": "external effect (message-publish)",
+            "location": {
+              "file": "src/orders.ts",
+              "line": 20,
+              "column": 11,
+              "endLine": 20,
+              "endColumn": 56
+            },
+            "category": "message-publish",
+            "execution": "awaited",
+            "role": "notYetPerformed",
+            "atFailure": "notReached"
+          }
+        ],
+        "injection": {
+          "boundary": "afterCommitBeforeExternal",
+          "afterStep": 0,
+          "beforeStep": 1,
+          "window": [],
+          "description": "After `db.update(orders)` (step 0) commits and before `queue.publish(\"order.completed\", { orderId })` (step 1) is performed.",
+          "checkpoints": [
+            {
+              "name": "after-db-commit",
+              "step": 0,
+              "resource": "orders"
+            },
+            {
+              "name": "before-event-publish",
+              "step": 1,
+              "resource": "queue.publish(\"order.completed\", { orderId })"
+            }
+          ]
+        },
+        "simulation": {
+          "verification": "SIMULATED",
+          "failureMode": "processKill",
+          "durable": [
+            0
+          ],
+          "lost": [],
+          "notPerformed": [
+            1
+          ],
+          "claim": "If the process dies right after step 0: durable or visible: `db.update(orders)` (step 0); never performed: `queue.publish(\"order.completed\", { orderId })` (step 1).",
+          "notModeled": [
+            "Exceptions: an injected exception runs catch/finally handlers and transaction rollbacks in the application, which the model does not execute; only a process crash is simulated.",
+            "Effects of unknown operations, and the database's own failure modes (failed commits, isolation anomalies).",
+            "Anything outside the analyzed function: retries, reconciliation jobs, relays, consumers."
+          ]
+        },
+        "assumptions": [
+          "`db.update(orders)` runs outside any transaction: it commits on its own when its awaited promise resolves (auto-commit).",
+          "`queue.publish(\"order.completed\", { orderId })` becomes visible to other systems when its call completes.",
+          "`db.update(orders)` is recognized by import-based match against the configuration (`db`); the analysis does not check types.",
+          "`queue.publish(\"order.completed\", { orderId })` is recognized by import-based match against the configuration (`queue`); the analysis does not check types.",
+          "The application's invariants are unknown: the trace shows that the partial state can arise, not that it violates a business rule."
+        ],
+        "limitations": [
+          "The operations run inside a try block whose catch handler (at 21:5) may compensate for some failures; CommitRift does not verify compensation, and a process crash bypasses catch handlers.",
+          "CommitRift does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state.",
+          "This trace is a static candidate: no application code was executed to produce it."
+        ]
+      },
+      "failureMode": "exception",
+      "checkpoint": {
+        "name": "before-event-publish",
+        "occurrence": 1
+      },
+      "boundary": "onTraceBoundary",
+      "initialState": "a fresh database created from the manifest's setup files before every run; an empty event log",
+      "runs": [
+        {
+          "run": 1,
+          "scenario": "completeOrderWithCompensation",
+          "failureMode": "exception",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 3,
+              "name": "before-event-publish",
+              "label": "order.completed",
+              "action": "throw"
+            },
+            {
+              "seq": 4,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 5,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "continue"
+            }
+          ],
+          "preInjectionChecks": [
+            {
+              "description": "orderStatus = \"paid\"",
+              "holds": true,
+              "observed": "paid"
+            }
+          ],
+          "exit": {
+            "kind": "exited",
+            "code": 1,
+            "signal": null
+          },
+          "outcome": "threw",
+          "error": "InjectedFault: CommitRift injected fault at checkpoint `before-event-publish`",
+          "injectedFaultSurfaced": true,
+          "observations": {
+            "after": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": true,
+              "detail": "not applicable: orderStatus = \"paid\" (observed \"pending\")"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "pending",
+              "observed": "pending",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 194,
+          "verification": "RUNTIME_NOT_REPRODUCED",
+          "reason": "all 1 declared invariant check(s) held",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 2,
+          "scenario": "completeOrderWithCompensation",
+          "failureMode": "exception",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 3,
+              "name": "before-event-publish",
+              "label": "order.completed",
+              "action": "throw"
+            },
+            {
+              "seq": 4,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 5,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "continue"
+            }
+          ],
+          "preInjectionChecks": [
+            {
+              "description": "orderStatus = \"paid\"",
+              "holds": true,
+              "observed": "paid"
+            }
+          ],
+          "exit": {
+            "kind": "exited",
+            "code": 1,
+            "signal": null
+          },
+          "outcome": "threw",
+          "error": "InjectedFault: CommitRift injected fault at checkpoint `before-event-publish`",
+          "injectedFaultSurfaced": true,
+          "observations": {
+            "after": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": true,
+              "detail": "not applicable: orderStatus = \"paid\" (observed \"pending\")"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "pending",
+              "observed": "pending",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 193,
+          "verification": "RUNTIME_NOT_REPRODUCED",
+          "reason": "all 1 declared invariant check(s) held",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 3,
+          "scenario": "completeOrderWithCompensation",
+          "failureMode": "exception",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 3,
+              "name": "before-event-publish",
+              "label": "order.completed",
+              "action": "throw"
+            },
+            {
+              "seq": 4,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 5,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "continue"
+            }
+          ],
+          "preInjectionChecks": [
+            {
+              "description": "orderStatus = \"paid\"",
+              "holds": true,
+              "observed": "paid"
+            }
+          ],
+          "exit": {
+            "kind": "exited",
+            "code": 1,
+            "signal": null
+          },
+          "outcome": "threw",
+          "error": "InjectedFault: CommitRift injected fault at checkpoint `before-event-publish`",
+          "injectedFaultSurfaced": true,
+          "observations": {
+            "after": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": true,
+              "detail": "not applicable: orderStatus = \"paid\" (observed \"pending\")"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "pending",
+              "observed": "pending",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 186,
+          "verification": "RUNTIME_NOT_REPRODUCED",
+          "reason": "all 1 declared invariant check(s) held",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 4,
+          "scenario": "completeOrderWithCompensation",
+          "failureMode": "exception",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 3,
+              "name": "before-event-publish",
+              "label": "order.completed",
+              "action": "throw"
+            },
+            {
+              "seq": 4,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 5,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "continue"
+            }
+          ],
+          "preInjectionChecks": [
+            {
+              "description": "orderStatus = \"paid\"",
+              "holds": true,
+              "observed": "paid"
+            }
+          ],
+          "exit": {
+            "kind": "exited",
+            "code": 1,
+            "signal": null
+          },
+          "outcome": "threw",
+          "error": "InjectedFault: CommitRift injected fault at checkpoint `before-event-publish`",
+          "injectedFaultSurfaced": true,
+          "observations": {
+            "after": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": true,
+              "detail": "not applicable: orderStatus = \"paid\" (observed \"pending\")"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "pending",
+              "observed": "pending",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 193,
+          "verification": "RUNTIME_NOT_REPRODUCED",
+          "reason": "all 1 declared invariant check(s) held",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 5,
+          "scenario": "completeOrderWithCompensation",
+          "failureMode": "exception",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 3,
+              "name": "before-event-publish",
+              "label": "order.completed",
+              "action": "throw"
+            },
+            {
+              "seq": 4,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 5,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "continue"
+            }
+          ],
+          "preInjectionChecks": [
+            {
+              "description": "orderStatus = \"paid\"",
+              "holds": true,
+              "observed": "paid"
+            }
+          ],
+          "exit": {
+            "kind": "exited",
+            "code": 1,
+            "signal": null
+          },
+          "outcome": "threw",
+          "error": "InjectedFault: CommitRift injected fault at checkpoint `before-event-publish`",
+          "injectedFaultSurfaced": true,
+          "observations": {
+            "after": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": true,
+              "detail": "not applicable: orderStatus = \"paid\" (observed \"pending\")"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "pending",
+              "observed": "pending",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 190,
+          "verification": "RUNTIME_NOT_REPRODUCED",
+          "reason": "all 1 declared invariant check(s) held",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        }
+      ],
+      "verification": "RUNTIME_NOT_REPRODUCED",
+      "consistent": true,
+      "expected": "RUNTIME_NOT_REPRODUCED",
+      "matchesExpectation": true,
+      "limitations": [
+        "Exception mode: the application's catch/finally handlers and transaction rollbacks ran; this is not the same as a process crash."
+      ]
+    },
+    {
+      "id": "compensation-kill-before-publish",
+      "key": "order-vulnerable/compensation-kill-before-publish",
+      "description": "The same point with a process kill: the catch block never runs, so the compensation does not help.",
+      "staticLink": {
+        "status": "matched",
+        "detail": "finding 4e8c6b70f17795a3 (CP1001 in `completeOrderWithCompensation`, src/orders.ts:20)"
+      },
+      "findingId": "4e8c6b70f17795a3",
+      "traceId": "tr-654fa0a0d7e5362d",
+      "code": "CP1001",
+      "trace": {
+        "id": "tr-654fa0a0d7e5362d",
+        "findingId": "4e8c6b70f17795a3",
+        "code": "CP1001",
+        "function": "completeOrderWithCompensation",
+        "location": {
+          "file": "src/orders.ts",
+          "line": 20,
+          "column": 11,
+          "endLine": 20,
+          "endColumn": 56
+        },
+        "verification": "STATIC_CANDIDATE",
+        "completeness": "complete",
+        "steps": [
+          {
+            "index": 0,
+            "kind": "dbWrite",
+            "label": "db.update(orders)",
+            "description": "database update on `orders`",
+            "location": {
+              "file": "src/orders.ts",
+              "line": 18,
+              "column": 9,
+              "endLine": 18,
+              "endColumn": 26
+            },
+            "handle": "db",
+            "table": "orders",
+            "operation": "update",
+            "execution": "awaited",
+            "role": "completedFirst",
+            "atFailure": "committed"
+          },
+          {
+            "index": 1,
+            "kind": "external",
+            "label": "queue.publish(\"order.completed\", { orderId })",
+            "description": "external effect (message-publish)",
+            "location": {
+              "file": "src/orders.ts",
+              "line": 20,
+              "column": 11,
+              "endLine": 20,
+              "endColumn": 56
+            },
+            "category": "message-publish",
+            "execution": "awaited",
+            "role": "notYetPerformed",
+            "atFailure": "notReached"
+          }
+        ],
+        "injection": {
+          "boundary": "afterCommitBeforeExternal",
+          "afterStep": 0,
+          "beforeStep": 1,
+          "window": [],
+          "description": "After `db.update(orders)` (step 0) commits and before `queue.publish(\"order.completed\", { orderId })` (step 1) is performed.",
+          "checkpoints": [
+            {
+              "name": "after-db-commit",
+              "step": 0,
+              "resource": "orders"
+            },
+            {
+              "name": "before-event-publish",
+              "step": 1,
+              "resource": "queue.publish(\"order.completed\", { orderId })"
+            }
+          ]
+        },
+        "simulation": {
+          "verification": "SIMULATED",
+          "failureMode": "processKill",
+          "durable": [
+            0
+          ],
+          "lost": [],
+          "notPerformed": [
+            1
+          ],
+          "claim": "If the process dies right after step 0: durable or visible: `db.update(orders)` (step 0); never performed: `queue.publish(\"order.completed\", { orderId })` (step 1).",
+          "notModeled": [
+            "Exceptions: an injected exception runs catch/finally handlers and transaction rollbacks in the application, which the model does not execute; only a process crash is simulated.",
+            "Effects of unknown operations, and the database's own failure modes (failed commits, isolation anomalies).",
+            "Anything outside the analyzed function: retries, reconciliation jobs, relays, consumers."
+          ]
+        },
+        "assumptions": [
+          "`db.update(orders)` runs outside any transaction: it commits on its own when its awaited promise resolves (auto-commit).",
+          "`queue.publish(\"order.completed\", { orderId })` becomes visible to other systems when its call completes.",
+          "`db.update(orders)` is recognized by import-based match against the configuration (`db`); the analysis does not check types.",
+          "`queue.publish(\"order.completed\", { orderId })` is recognized by import-based match against the configuration (`queue`); the analysis does not check types.",
+          "The application's invariants are unknown: the trace shows that the partial state can arise, not that it violates a business rule."
+        ],
+        "limitations": [
+          "The operations run inside a try block whose catch handler (at 21:5) may compensate for some failures; CommitRift does not verify compensation, and a process crash bypasses catch handlers.",
+          "CommitRift does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state.",
+          "This trace is a static candidate: no application code was executed to produce it."
+        ]
+      },
+      "failureMode": "processKill",
+      "checkpoint": {
+        "name": "before-event-publish",
+        "occurrence": 1
+      },
+      "boundary": "onTraceBoundary",
+      "initialState": "a fresh database created from the manifest's setup files before every run; an empty event log",
+      "runs": [
+        {
+          "run": 1,
+          "scenario": "completeOrderWithCompensation",
+          "failureMode": "processKill",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 3,
+              "name": "before-event-publish",
+              "label": "order.completed",
+              "action": "kill"
+            }
+          ],
+          "preInjectionChecks": [
+            {
+              "description": "orderStatus = \"paid\"",
+              "holds": true,
+              "observed": "paid"
+            }
+          ],
+          "exit": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9
+          },
+          "outcome": "killed",
+          "observations": {
+            "after": {
+              "orderStatus": "paid",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": false,
+              "detail": "VIOLATED: publishedEvents >= 1 (observed 0)"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "paid",
+              "observed": "paid",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 192,
+          "verification": "RUNTIME_REPRODUCED",
+          "reason": "declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 2,
+          "scenario": "completeOrderWithCompensation",
+          "failureMode": "processKill",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 3,
+              "name": "before-event-publish",
+              "label": "order.completed",
+              "action": "kill"
+            }
+          ],
+          "preInjectionChecks": [
+            {
+              "description": "orderStatus = \"paid\"",
+              "holds": true,
+              "observed": "paid"
+            }
+          ],
+          "exit": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9
+          },
+          "outcome": "killed",
+          "observations": {
+            "after": {
+              "orderStatus": "paid",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": false,
+              "detail": "VIOLATED: publishedEvents >= 1 (observed 0)"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "paid",
+              "observed": "paid",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 193,
+          "verification": "RUNTIME_REPRODUCED",
+          "reason": "declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 3,
+          "scenario": "completeOrderWithCompensation",
+          "failureMode": "processKill",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 3,
+              "name": "before-event-publish",
+              "label": "order.completed",
+              "action": "kill"
+            }
+          ],
+          "preInjectionChecks": [
+            {
+              "description": "orderStatus = \"paid\"",
+              "holds": true,
+              "observed": "paid"
+            }
+          ],
+          "exit": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9
+          },
+          "outcome": "killed",
+          "observations": {
+            "after": {
+              "orderStatus": "paid",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": false,
+              "detail": "VIOLATED: publishedEvents >= 1 (observed 0)"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "paid",
+              "observed": "paid",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 188,
+          "verification": "RUNTIME_REPRODUCED",
+          "reason": "declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 4,
+          "scenario": "completeOrderWithCompensation",
+          "failureMode": "processKill",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 3,
+              "name": "before-event-publish",
+              "label": "order.completed",
+              "action": "kill"
+            }
+          ],
+          "preInjectionChecks": [
+            {
+              "description": "orderStatus = \"paid\"",
+              "holds": true,
+              "observed": "paid"
+            }
+          ],
+          "exit": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9
+          },
+          "outcome": "killed",
+          "observations": {
+            "after": {
+              "orderStatus": "paid",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": false,
+              "detail": "VIOLATED: publishedEvents >= 1 (observed 0)"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "paid",
+              "observed": "paid",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 191,
+          "verification": "RUNTIME_REPRODUCED",
+          "reason": "declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        },
+        {
+          "run": 5,
+          "scenario": "completeOrderWithCompensation",
+          "failureMode": "processKill",
+          "injected": true,
+          "checkpoints": [
+            {
+              "seq": 1,
+              "name": "before-db-write",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 2,
+              "name": "after-db-commit",
+              "label": "orders",
+              "action": "continue"
+            },
+            {
+              "seq": 3,
+              "name": "before-event-publish",
+              "label": "order.completed",
+              "action": "kill"
+            }
+          ],
+          "preInjectionChecks": [
+            {
+              "description": "orderStatus = \"paid\"",
+              "holds": true,
+              "observed": "paid"
+            }
+          ],
+          "exit": {
+            "kind": "signaled",
+            "code": null,
+            "signal": 9
+          },
+          "outcome": "killed",
+          "observations": {
+            "after": {
+              "orderStatus": "paid",
+              "publishedEvents": 0
+            },
+            "before": {
+              "orderStatus": "pending",
+              "publishedEvents": 0
+            }
+          },
+          "invariants": [
+            {
+              "id": "paid-order-has-event",
+              "stage": "after",
+              "holds": false,
+              "detail": "VIOLATED: publishedEvents >= 1 (observed 0)"
+            }
+          ],
+          "prediction": [
+            {
+              "observation": "orderStatus",
+              "expected": "paid",
+              "observed": "paid",
+              "matches": true
+            },
+            {
+              "observation": "publishedEvents",
+              "expected": 0,
+              "observed": 0,
+              "matches": true
+            }
+          ],
+          "recovery": [],
+          "durationMs": 187,
+          "verification": "RUNTIME_REPRODUCED",
+          "reason": "declared invariant violated: `paid-order-has-event` at after: VIOLATED: publishedEvents >= 1 (observed 0)",
+          "logs": {
+            "stdout": "",
+            "stderr": "",
+            "truncated": false
+          }
+        }
+      ],
+      "verification": "RUNTIME_REPRODUCED",
+      "consistent": true,
+      "expected": "RUNTIME_REPRODUCED",
+      "matchesExpectation": true,
+      "limitations": []
+    }
+  ],
+  "summary": {
+    "cases": 6,
+    "reproduced": 3,
+    "notReproduced": 3,
+    "inconclusive": 0,
+    "matchedExpectations": 6,
+    "mismatchedExpectations": 0
+  },
+  "limitations": [
+    "Runtime results hold for this harness, its declared invariants and the recorded environment only; they are not a proof that the application is safe or unsafe in production.",
+    "The harness is trusted code: replay isolates it from external networks and other databases where the platform allows it, but it is not a security sandbox for malicious code."
+  ]
+}

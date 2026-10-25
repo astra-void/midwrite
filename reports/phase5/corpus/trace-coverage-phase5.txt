@@ -1,0 +1,11 @@
+saas-starter         findings 23 traces 18 (complete 14, approximated 4, incomplete 0), without trace 5; model validation failures 0
+midday               findings 282 traces 192 (complete 134, approximated 14, incomplete 44), without trace 90; model validation failures 0
+                       incomplete by cause: {"unknown call in the failure window": 44}
+                       most frequent unknown calls in windows: [("supabase.storage.from", 11), ("this.updateProgress", 11), ("document.getInvoiceOrReceipt", 6), ("", 5), ("removeProcessingReaction", 5), ("render", 4), ("tx.execute", 4), ("config.afterConnect", 2)]
+                       unknown calls in windows by category: {"method call on a value": 26, "plain call of an unresolved binding": 1, "promise combinator over a non-literal collection": 1, "raw SQL": 4, "resolved function beyond the depth bound": 5, "resolved function without recognized effects": 30, "resolved function, other reason": 1, "third-party package (no source)": 10}
+school-ledger        findings 332 traces 131 (complete 30, approximated 0, incomplete 101), without trace 201; model validation failures 0
+                       incomplete by cause: {"unknown call in the failure window": 101}
+                       71 distinct unknown calls in windows (private project: labels not printed)
+                       unknown calls in windows by category: {"method call on a value": 1, "method chain on a call result": 23, "plain call of an unresolved binding": 19, "resolved function beyond the depth bound": 155, "resolved function without recognized effects": 162, "resolved function, other reason": 1, "third-party package (no source)": 46}
+unnamed-ai-project   findings 17 traces 8 (complete 8, approximated 0, incomplete 0), without trace 9; model validation failures 0
+total traces: 349; all valid against the analysis model: true

@@ -1,0 +1,11 @@
+{
+  "databaseReceivers": ["db", "this.db", "ctx.db", { "name": "getDb()", "importedFrom": "@/server/db" }],
+  "transactionMethods": ["transaction"],
+  "externalEffects": [
+    { "receiver": "queue", "method": "publish", "category": "message-publish" },
+    { "receiver": "this.queue", "method": "publish", "category": "message-publish" },
+    { "receiver": "mailer", "method": "send", "category": "email" },
+    { "receiver": "stripe.charges", "method": "create", "category": "payment" },
+    { "function": "sendEmail", "category": "email", "importedFrom": "@/lib/email" }
+  ]
+}

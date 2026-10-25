@@ -1,0 +1,218 @@
+{
+  "kind": "commitrift.model-check",
+  "schemaVersion": 1,
+  "modelVersion": "1.0.0",
+  "tool": {
+    "name": "commitrift",
+    "version": "0.1.0"
+  },
+  "scenario": {
+    "name": "saas-starter-invite-unique-mitigation",
+    "description": "Same adapted code with a HYPOTHETICAL UNIQUE(team_id, email) constraint (not in saas-starter's schema): the second insert fails instead of duplicating.",
+    "scenarioVersion": 1,
+    "file": "fixtures/concurrency/corpus/saas-starter-invite-unique-mitigation.json"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "invitations",
+        "columns": [
+          "id",
+          "teamId",
+          "email",
+          "role",
+          "invitedBy",
+          "status"
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "unique": [
+          [
+            "teamId",
+            "email"
+          ]
+        ],
+        "checks": [],
+        "initialRows": []
+      }
+    ]
+  },
+  "actors": [
+    {
+      "name": "Submit1",
+      "function": "inviteTeamMember",
+      "file": "src/invite.ts",
+      "arguments": [
+        [
+          "id",
+          101
+        ],
+        [
+          "teamId",
+          1
+        ],
+        [
+          "email",
+          "new@example.com"
+        ],
+        [
+          "role",
+          "member"
+        ],
+        [
+          "userId",
+          7
+        ]
+      ],
+      "process": "Submit1",
+      "origin": "extracted",
+      "tasks": 1,
+      "operations": 9,
+      "sourceRefs": [
+        {
+          "origin": "extracted",
+          "file": "src/invite.ts",
+          "line": 28,
+          "column": 36,
+          "function": "inviteTeamMember",
+          "effectId": 0,
+          "text": "db .select() .from(invitations) .where( and( eq(invitations.email, email), eq..."
+        },
+        {
+          "origin": "extracted",
+          "file": "src/invite.ts",
+          "line": 45,
+          "column": 9,
+          "function": "inviteTeamMember",
+          "effectId": 1,
+          "text": "db.insert(invitations).values({ id, teamId, email, role, invitedBy: userId, s..."
+        }
+      ]
+    },
+    {
+      "name": "Submit2",
+      "function": "inviteTeamMember",
+      "file": "src/invite.ts",
+      "arguments": [
+        [
+          "id",
+          102
+        ],
+        [
+          "teamId",
+          1
+        ],
+        [
+          "email",
+          "new@example.com"
+        ],
+        [
+          "role",
+          "member"
+        ],
+        [
+          "userId",
+          7
+        ]
+      ],
+      "process": "Submit2",
+      "origin": "extracted",
+      "tasks": 1,
+      "operations": 9,
+      "sourceRefs": [
+        {
+          "origin": "extracted",
+          "file": "src/invite.ts",
+          "line": 28,
+          "column": 36,
+          "function": "inviteTeamMember",
+          "effectId": 0,
+          "text": "db .select() .from(invitations) .where( and( eq(invitations.email, email), eq..."
+        },
+        {
+          "origin": "extracted",
+          "file": "src/invite.ts",
+          "line": 45,
+          "column": 9,
+          "function": "inviteTeamMember",
+          "effectId": 1,
+          "text": "db.insert(invitations).values({ id, teamId, email, role, invitedBy: userId, s..."
+        }
+      ]
+    }
+  ],
+  "bounds": {
+    "declared": {
+      "maxActors": 4,
+      "maxSteps": 30,
+      "maxStates": 200000,
+      "maxCrashes": 0,
+      "maxRetries": 0,
+      "maxContextSwitches": null,
+      "maxTransitions": null,
+      "maxWallMs": null,
+      "maxMemoryBytes": null
+    },
+    "partialOrderReduction": true,
+    "strategy": "dfs"
+  },
+  "exploration": {
+    "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS",
+    "complete": true,
+    "truncation": {
+      "maxStates": false,
+      "maxTransitions": false,
+      "maxWallTime": false,
+      "maxMemory": false,
+      "maxSteps": false,
+      "maxContextSwitches": false
+    },
+    "metrics": {
+      "states": 12,
+      "transitions": 11,
+      "terminalStates": 4,
+      "duplicateStateHits": 0,
+      "sleepPrunedTransitions": 1,
+      "contextPrunedTransitions": 0,
+      "maxDepth": 4,
+      "schedulesInExploredGraph": 4,
+      "visitedBytes": 7714
+    },
+    "unsupported": [],
+    "stuckStates": 0
+  },
+  "invariants": [
+    {
+      "name": "one-pending-invitation-per-email",
+      "when": "final",
+      "formula": "count(invitations[email=\"new@example.com\",status=\"pending\",teamId=1]) <= 1",
+      "description": "a team has at most one pending invitation per email (the property the code's check intends)",
+      "status": "holds-within-bounds"
+    }
+  ],
+  "evidence": {
+    "level": "none",
+    "summary": "no invariant violation exists in any behavior within the declared bounds (this does not prove the application race-free)"
+  },
+  "runtime": {
+    "performed": false,
+    "status": "not-requested",
+    "observations": [],
+    "sqlstates": [],
+    "note": "no runtime validation was requested (--validate-postgres)"
+  },
+  "assumptions": [
+    "database default isolation: read-committed (PostgreSQL semantics, see docs/phase6/POSTGRES-ISOLATION.md)",
+    "a database statement is atomic unless it must wait for another transaction; waiting statements resume with their original snapshot",
+    "autocommit (root `db`) statements are single-statement transactions at the default isolation level",
+    "local computation is not a scheduling point; it is folded into the preceding transition",
+    "rows are read in primary-key order for LIMIT 1 (the declared programs and generated SQL both use ORDER BY the primary key)",
+    "tasks of different actors never share a transaction, connection or event loop; actors listed with the same process share in-process variables and crash together",
+    "a process crash rolls back open transactions and loses local state; committed data and performed external effects remain",
+    "actor Submit1: select without orderBy: the first row in primary-key order is used",
+    "actor Submit2: select without orderBy: the first row in primary-key order is used"
+  ],
+  "diagnostics": []
+}

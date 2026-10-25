@@ -1,0 +1,581 @@
+{
+  "kind": "commitrift.model-check",
+  "schemaVersion": 1,
+  "modelVersion": "1.0.0",
+  "tool": {
+    "name": "commitrift",
+    "version": "0.1.0"
+  },
+  "scenario": {
+    "name": "saas-starter-invite-double-submit",
+    "description": "ADAPTED ISOLATED REPRODUCTION of saas-starter inviteTeamMember (rev 6e33e58): the same owner submits the invite form twice concurrently (double click / retry). Assumption: both requests run concurrently against one PostgreSQL at READ COMMITTED; whether this happens in production is not known.",
+    "scenarioVersion": 1,
+    "file": "fixtures/concurrency/corpus/saas-starter-invite-double-submit.json"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "invitations",
+        "columns": [
+          "id",
+          "teamId",
+          "email",
+          "role",
+          "invitedBy",
+          "status"
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "unique": [],
+        "checks": [],
+        "initialRows": []
+      }
+    ]
+  },
+  "actors": [
+    {
+      "name": "Submit1",
+      "function": "inviteTeamMember",
+      "file": "src/invite.ts",
+      "arguments": [
+        [
+          "id",
+          101
+        ],
+        [
+          "teamId",
+          1
+        ],
+        [
+          "email",
+          "new@example.com"
+        ],
+        [
+          "role",
+          "member"
+        ],
+        [
+          "userId",
+          7
+        ]
+      ],
+      "process": "Submit1",
+      "origin": "extracted",
+      "tasks": 1,
+      "operations": 9,
+      "sourceRefs": [
+        {
+          "origin": "extracted",
+          "file": "src/invite.ts",
+          "line": 28,
+          "column": 36,
+          "function": "inviteTeamMember",
+          "effectId": 0,
+          "text": "db .select() .from(invitations) .where( and( eq(invitations.email, email), eq..."
+        },
+        {
+          "origin": "extracted",
+          "file": "src/invite.ts",
+          "line": 45,
+          "column": 9,
+          "function": "inviteTeamMember",
+          "effectId": 1,
+          "text": "db.insert(invitations).values({ id, teamId, email, role, invitedBy: userId, s..."
+        }
+      ]
+    },
+    {
+      "name": "Submit2",
+      "function": "inviteTeamMember",
+      "file": "src/invite.ts",
+      "arguments": [
+        [
+          "id",
+          102
+        ],
+        [
+          "teamId",
+          1
+        ],
+        [
+          "email",
+          "new@example.com"
+        ],
+        [
+          "role",
+          "member"
+        ],
+        [
+          "userId",
+          7
+        ]
+      ],
+      "process": "Submit2",
+      "origin": "extracted",
+      "tasks": 1,
+      "operations": 9,
+      "sourceRefs": [
+        {
+          "origin": "extracted",
+          "file": "src/invite.ts",
+          "line": 28,
+          "column": 36,
+          "function": "inviteTeamMember",
+          "effectId": 0,
+          "text": "db .select() .from(invitations) .where( and( eq(invitations.email, email), eq..."
+        },
+        {
+          "origin": "extracted",
+          "file": "src/invite.ts",
+          "line": 45,
+          "column": 9,
+          "function": "inviteTeamMember",
+          "effectId": 1,
+          "text": "db.insert(invitations).values({ id, teamId, email, role, invitedBy: userId, s..."
+        }
+      ]
+    }
+  ],
+  "bounds": {
+    "declared": {
+      "maxActors": 4,
+      "maxSteps": 30,
+      "maxStates": 200000,
+      "maxCrashes": 0,
+      "maxRetries": 0,
+      "maxContextSwitches": null,
+      "maxTransitions": null,
+      "maxWallMs": null,
+      "maxMemoryBytes": null
+    },
+    "partialOrderReduction": true,
+    "strategy": "dfs"
+  },
+  "exploration": {
+    "verdict": "COUNTEREXAMPLE_FOUND",
+    "complete": true,
+    "truncation": {
+      "maxStates": false,
+      "maxTransitions": false,
+      "maxWallTime": false,
+      "maxMemory": false,
+      "maxSteps": false,
+      "maxContextSwitches": false
+    },
+    "metrics": {
+      "states": 7,
+      "transitions": 6,
+      "terminalStates": 2,
+      "duplicateStateHits": 0,
+      "sleepPrunedTransitions": 0,
+      "contextPrunedTransitions": 0,
+      "maxDepth": 4,
+      "schedulesInExploredGraph": 2,
+      "visitedBytes": 4310
+    },
+    "unsupported": [],
+    "stuckStates": 0
+  },
+  "invariants": [
+    {
+      "name": "one-pending-invitation-per-email",
+      "when": "final",
+      "formula": "count(invitations[email=\"new@example.com\",status=\"pending\",teamId=1]) <= 1",
+      "description": "a team has at most one pending invitation per email (the property the code's check intends)",
+      "status": "violated"
+    }
+  ],
+  "counterexample": {
+    "invariant": "one-pending-invitation-per-email",
+    "formula": "count(invitations[email=\"new@example.com\",status=\"pending\",teamId=1]) <= 1",
+    "when": "final",
+    "initialTables": {
+      "invitations": []
+    },
+    "steps": [
+      {
+        "index": 1,
+        "actor": "Submit1",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "read",
+            "text": "SELECT invitations WHERE (((@email = \"new@example.com\") and (@teamId = 1)) and (@status = \"pending\")) → null",
+            "result": null,
+            "src": {
+              "origin": "extracted",
+              "file": "src/invite.ts",
+              "line": 28,
+              "column": 36,
+              "function": "inviteTeamMember",
+              "effectId": 0,
+              "text": "db .select() .from(invitations) .where( and( eq(invitations.email, email), eq..."
+            }
+          },
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "local",
+            "text": "_length2 = 1",
+            "result": 1,
+            "src": {
+              "origin": "extracted",
+              "file": "src/invite.ts",
+              "line": 28,
+              "column": 36,
+              "function": "inviteTeamMember",
+              "effectId": 0,
+              "text": "db .select() .from(invitations) .where( and( eq(invitations.email, email), eq..."
+            }
+          },
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "local",
+            "text": "CHECK _row1 is null → true",
+            "result": true,
+            "src": {
+              "origin": "extracted",
+              "file": "src/invite.ts",
+              "line": 28,
+              "column": 36,
+              "function": "inviteTeamMember",
+              "effectId": 0,
+              "text": "db .select() .from(invitations) .where( and( eq(invitations.email, email), eq..."
+            }
+          },
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "local",
+            "text": "_length2 = 0",
+            "result": 0,
+            "src": {
+              "origin": "extracted",
+              "file": "src/invite.ts",
+              "line": 28,
+              "column": 36,
+              "function": "inviteTeamMember",
+              "effectId": 0,
+              "text": "db .select() .from(invitations) .where( and( eq(invitations.email, email), eq..."
+            }
+          },
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "local",
+            "text": "CHECK (_length2 > 0) → false",
+            "result": false,
+            "src": {
+              "origin": "extracted",
+              "file": "src/invite.ts",
+              "line": 40,
+              "column": 7,
+              "function": "inviteTeamMember",
+              "text": "existingInvitation.length > 0"
+            }
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "actor": "Submit2",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "read",
+            "text": "SELECT invitations WHERE (((@email = \"new@example.com\") and (@teamId = 1)) and (@status = \"pending\")) → null",
+            "result": null,
+            "src": {
+              "origin": "extracted",
+              "file": "src/invite.ts",
+              "line": 28,
+              "column": 36,
+              "function": "inviteTeamMember",
+              "effectId": 0,
+              "text": "db .select() .from(invitations) .where( and( eq(invitations.email, email), eq..."
+            }
+          },
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "local",
+            "text": "_length2 = 1",
+            "result": 1,
+            "src": {
+              "origin": "extracted",
+              "file": "src/invite.ts",
+              "line": 28,
+              "column": 36,
+              "function": "inviteTeamMember",
+              "effectId": 0,
+              "text": "db .select() .from(invitations) .where( and( eq(invitations.email, email), eq..."
+            }
+          },
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "local",
+            "text": "CHECK _row1 is null → true",
+            "result": true,
+            "src": {
+              "origin": "extracted",
+              "file": "src/invite.ts",
+              "line": 28,
+              "column": 36,
+              "function": "inviteTeamMember",
+              "effectId": 0,
+              "text": "db .select() .from(invitations) .where( and( eq(invitations.email, email), eq..."
+            }
+          },
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "local",
+            "text": "_length2 = 0",
+            "result": 0,
+            "src": {
+              "origin": "extracted",
+              "file": "src/invite.ts",
+              "line": 28,
+              "column": 36,
+              "function": "inviteTeamMember",
+              "effectId": 0,
+              "text": "db .select() .from(invitations) .where( and( eq(invitations.email, email), eq..."
+            }
+          },
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "local",
+            "text": "CHECK (_length2 > 0) → false",
+            "result": false,
+            "src": {
+              "origin": "extracted",
+              "file": "src/invite.ts",
+              "line": 40,
+              "column": 7,
+              "function": "inviteTeamMember",
+              "text": "existingInvitation.length > 0"
+            }
+          }
+        ]
+      },
+      {
+        "index": 3,
+        "actor": "Submit2",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "write",
+            "text": "INSERT invitations {email=\"new@example.com\", id=102, invitedBy=7, role=\"member\", status=\"pending\", teamId=1} → 1 row",
+            "result": 1,
+            "src": {
+              "origin": "extracted",
+              "file": "src/invite.ts",
+              "line": 45,
+              "column": 9,
+              "function": "inviteTeamMember",
+              "effectId": 1,
+              "text": "db.insert(invitations).values({ id, teamId, email, role, invitedBy: userId, s..."
+            }
+          },
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "local",
+            "text": "return (success)"
+          }
+        ]
+      },
+      {
+        "index": 4,
+        "actor": "Submit1",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "write",
+            "text": "INSERT invitations {email=\"new@example.com\", id=101, invitedBy=7, role=\"member\", status=\"pending\", teamId=1} → 1 row",
+            "result": 1,
+            "src": {
+              "origin": "extracted",
+              "file": "src/invite.ts",
+              "line": 45,
+              "column": 9,
+              "function": "inviteTeamMember",
+              "effectId": 1,
+              "text": "db.insert(invitations).values({ id, teamId, email, role, invitedBy: userId, s..."
+            }
+          },
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "local",
+            "text": "return (success)"
+          }
+        ]
+      }
+    ],
+    "finalState": {
+      "tables": {
+        "invitations": [
+          {
+            "email": "new@example.com",
+            "id": 101,
+            "invitedBy": 7,
+            "role": "member",
+            "status": "pending",
+            "teamId": 1
+          },
+          {
+            "email": "new@example.com",
+            "id": 102,
+            "invitedBy": 7,
+            "role": "member",
+            "status": "pending",
+            "teamId": 1
+          }
+        ]
+      },
+      "actors": [
+        [
+          "Submit1",
+          "ok"
+        ],
+        [
+          "Submit2",
+          "ok"
+        ]
+      ],
+      "externalEffects": [],
+      "terms": [
+        {
+          "term": "count(invitations[email=\"new@example.com\",status=\"pending\",teamId=1])",
+          "value": 2
+        }
+      ],
+      "quiescent": true
+    },
+    "contextSwitches": 2,
+    "minimized": true,
+    "originalLength": 4
+  },
+  "evidence": {
+    "level": "postgres-confirmed-schedule",
+    "summary": "the schedule was replayed on PostgreSQL: all 4 database outcomes matched the model's predictions and the final committed rows are identical; the invariant reads only committed rows, so it is violated on the real server"
+  },
+  "runtime": {
+    "performed": true,
+    "status": "confirmed",
+    "postgresVersion": "postgres (PostgreSQL) 17.11 (Homebrew)",
+    "observations": [
+      {
+        "transition": 1,
+        "actor": "Submit1",
+        "sql": "SELECT row_to_json(t) FROM (SELECT * FROM \"invitations\" WHERE (((\"email\" = 'new@example.com') AND (\"teamId\" = 1)) AND (\"status\" = 'pending')) ORDER BY \"id\" LIMIT 1) t;",
+        "predicted": "no row",
+        "observed": "no row",
+        "agree": true
+      },
+      {
+        "transition": 2,
+        "actor": "Submit2",
+        "sql": "SELECT row_to_json(t) FROM (SELECT * FROM \"invitations\" WHERE (((\"email\" = 'new@example.com') AND (\"teamId\" = 1)) AND (\"status\" = 'pending')) ORDER BY \"id\" LIMIT 1) t;",
+        "predicted": "no row",
+        "observed": "no row",
+        "agree": true
+      },
+      {
+        "transition": 3,
+        "actor": "Submit2",
+        "sql": "WITH r AS (INSERT INTO \"invitations\" (\"email\", \"id\", \"invitedBy\", \"role\", \"status\", \"teamId\") VALUES ('new@example.com', 102, 7, 'member', 'pending', 1) RETURNING 1) SELECT count(*) FROM r;",
+        "predicted": "1 row(s)",
+        "observed": "1 row(s)",
+        "agree": true
+      },
+      {
+        "transition": 4,
+        "actor": "Submit1",
+        "sql": "WITH r AS (INSERT INTO \"invitations\" (\"email\", \"id\", \"invitedBy\", \"role\", \"status\", \"teamId\") VALUES ('new@example.com', 101, 7, 'member', 'pending', 1) RETURNING 1) SELECT count(*) FROM r;",
+        "predicted": "1 row(s)",
+        "observed": "1 row(s)",
+        "agree": true
+      }
+    ],
+    "sqlstates": [],
+    "tablesAgree": true,
+    "modelTables": {
+      "invitations": [
+        {
+          "email": "new@example.com",
+          "id": 101,
+          "invitedBy": 7,
+          "role": "member",
+          "status": "pending",
+          "teamId": 1
+        },
+        {
+          "email": "new@example.com",
+          "id": 102,
+          "invitedBy": 7,
+          "role": "member",
+          "status": "pending",
+          "teamId": 1
+        }
+      ]
+    },
+    "postgresTables": {
+      "invitations": [
+        {
+          "email": "new@example.com",
+          "id": 101,
+          "invitedBy": 7,
+          "role": "member",
+          "status": "pending",
+          "teamId": 1
+        },
+        {
+          "email": "new@example.com",
+          "id": 102,
+          "invitedBy": 7,
+          "role": "member",
+          "status": "pending",
+          "teamId": 1
+        }
+      ]
+    },
+    "sqlOrigin": {
+      "Submit1": "model-derived (extracted from source)",
+      "Submit2": "model-derived (extracted from source)"
+    },
+    "note": "Each actor ran on its own PostgreSQL connection (a psql process) against a private, disposable cluster; the model's schedule decided which session sent its next statement, and a statement counts as blocked only when the server reported a lock wait. Deadlock victim choice depends on PostgreSQL's deadlock timer and is steered with delays. Not exercised: the original TypeScript/Drizzle code, application-level retries, external services."
+  },
+  "assumptions": [
+    "database default isolation: read-committed (PostgreSQL semantics, see docs/phase6/POSTGRES-ISOLATION.md)",
+    "a database statement is atomic unless it must wait for another transaction; waiting statements resume with their original snapshot",
+    "autocommit (root `db`) statements are single-statement transactions at the default isolation level",
+    "local computation is not a scheduling point; it is folded into the preceding transition",
+    "rows are read in primary-key order for LIMIT 1 (the declared programs and generated SQL both use ORDER BY the primary key)",
+    "tasks of different actors never share a transaction, connection or event loop; actors listed with the same process share in-process variables and crash together",
+    "a process crash rolls back open transactions and loses local state; committed data and performed external effects remain",
+    "actor Submit1: select without orderBy: the first row in primary-key order is used",
+    "actor Submit2: select without orderBy: the first row in primary-key order is used"
+  ],
+  "diagnostics": [
+    {
+      "code": "CP7001",
+      "severity": "warning",
+      "message": "invariant `one-pending-invitation-per-email` can be violated by a bounded schedule of 4 transitions (2 context switches); evidence: postgres-confirmed-schedule"
+    }
+  ]
+}

@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "name": "job-double-processing",
+  "description": "Two workers receive the same queue message (at-least-once delivery). Each checks the job, publishes an event and marks it done. One may crash after publishing and the message is redelivered.",
+  "extraction": {
+    "root": "../project",
+    "externals": [
+      {
+        "callee": "publishEvent",
+        "channel": "job-events",
+        "keyArgument": 1
+      }
+    ]
+  },
+  "channels": {
+    "job-events": {
+      "dedup": "none"
+    }
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "jobs",
+        "columns": [
+          {
+            "name": "id",
+            "type": "text",
+            "notNull": true
+          },
+          {
+            "name": "status",
+            "type": "text",
+            "notNull": true
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ]
+      }
+    ],
+    "initialState": {
+      "jobs": [
+        {
+          "id": "job-1",
+          "status": "pending"
+        }
+      ]
+    }
+  },
+  "actors": [
+    {
+      "name": "W1",
+      "function": "processJob",
+      "file": "src/jobs.ts",
+      "arguments": [
+        "job-1"
+      ],
+      "retry": {
+        "trigger": "onCrash"
+      },
+      "description": "worker 1, redelivered after a crash"
+    },
+    {
+      "name": "W2",
+      "function": "processJob",
+      "file": "src/jobs.ts",
+      "arguments": [
+        "job-1"
+      ],
+      "description": "worker 2: the same message delivered twice"
+    }
+  ],
+  "bounds": {
+    "maxSteps": 60,
+    "maxCrashes": 1,
+    "maxRetries": 1,
+    "maxStates": 200000
+  },
+  "invariants": [
+    {
+      "name": "event-published-at-most-once",
+      "when": "final",
+      "description": "the downstream event for a job is published at most once",
+      "assert": {
+        "le": [
+          {
+            "externals": {
+              "channel": "job-events"
+            }
+          },
+          1
+        ]
+      }
+    }
+  ]
+}

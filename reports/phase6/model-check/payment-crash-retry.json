@@ -1,0 +1,344 @@
+{
+  "kind": "commitrift.model-check",
+  "schemaVersion": 1,
+  "modelVersion": "1.0.0",
+  "tool": {
+    "name": "commitrift",
+    "version": "0.1.0"
+  },
+  "scenario": {
+    "name": "payment-crash-retry",
+    "description": "Payment succeeds, the server crashes before the response, the client retries. The idempotency key is passed to the provider, but the scenario declares that the provider ignores it (dedup: none): a duplicate charge is possible.",
+    "scenarioVersion": 1,
+    "file": "fixtures/concurrency/scenarios/payment-crash-retry.json"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "payments",
+        "columns": [
+          "id",
+          "request",
+          "amount"
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "unique": [],
+        "checks": [],
+        "initialRows": []
+      }
+    ]
+  },
+  "actors": [
+    {
+      "name": "Client",
+      "function": "pay",
+      "file": "src/payments.ts",
+      "arguments": [
+        [
+          "requestId",
+          "req-1"
+        ]
+      ],
+      "process": "Client",
+      "retry": "OnCrash",
+      "origin": "extracted",
+      "tasks": 1,
+      "operations": 3,
+      "sourceRefs": [
+        {
+          "origin": "extracted",
+          "file": "src/payments.ts",
+          "line": 10,
+          "column": 9,
+          "function": "pay",
+          "effectId": 0,
+          "diagnostics": [
+            "CP1002@58eaed69b9bfd417"
+          ],
+          "text": "chargeProvider(requestId, 10)"
+        },
+        {
+          "origin": "extracted",
+          "file": "src/payments.ts",
+          "line": 11,
+          "column": 9,
+          "function": "pay",
+          "effectId": 1,
+          "diagnostics": [
+            "CP1002@58eaed69b9bfd417"
+          ],
+          "text": "db.insert(payments).values({ id: requestId, request: requestId, amount: 10 })"
+        }
+      ]
+    }
+  ],
+  "bounds": {
+    "declared": {
+      "maxActors": 4,
+      "maxSteps": 30,
+      "maxStates": 200000,
+      "maxCrashes": 1,
+      "maxRetries": 1,
+      "maxContextSwitches": null,
+      "maxTransitions": null,
+      "maxWallMs": null,
+      "maxMemoryBytes": null
+    },
+    "partialOrderReduction": true,
+    "strategy": "dfs"
+  },
+  "exploration": {
+    "verdict": "COUNTEREXAMPLE_FOUND",
+    "complete": true,
+    "truncation": {
+      "maxStates": false,
+      "maxTransitions": false,
+      "maxWallTime": false,
+      "maxMemory": false,
+      "maxSteps": false,
+      "maxContextSwitches": false
+    },
+    "metrics": {
+      "states": 7,
+      "transitions": 6,
+      "terminalStates": 2,
+      "duplicateStateHits": 0,
+      "sleepPrunedTransitions": 0,
+      "contextPrunedTransitions": 0,
+      "maxDepth": 5,
+      "schedulesInExploredGraph": 2,
+      "visitedBytes": 1972
+    },
+    "unsupported": [],
+    "stuckStates": 0
+  },
+  "invariants": [
+    {
+      "name": "customer-charged-once",
+      "when": "final",
+      "formula": "externals(card-charge) <= 1",
+      "description": "the card is charged at most once per payment request",
+      "status": "violated"
+    }
+  ],
+  "counterexample": {
+    "invariant": "customer-charged-once",
+    "formula": "externals(card-charge) <= 1",
+    "when": "final",
+    "initialTables": {
+      "payments": []
+    },
+    "steps": [
+      {
+        "index": 1,
+        "actor": "Client",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "external",
+            "text": "EXTERNAL card-charge key=\"req-1\"",
+            "src": {
+              "origin": "extracted",
+              "file": "src/payments.ts",
+              "line": 10,
+              "column": 9,
+              "function": "pay",
+              "effectId": 0,
+              "diagnostics": [
+                "CP1002@58eaed69b9bfd417"
+              ],
+              "text": "chargeProvider(requestId, 10)"
+            }
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "actor": "process Client",
+        "kind": "crash",
+        "events": [
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "crash",
+            "text": "PROCESS CRASH (Client)"
+          }
+        ]
+      },
+      {
+        "index": 3,
+        "actor": "Client",
+        "kind": "retry",
+        "events": [
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "retry",
+            "text": "RETRY: the operation is re-executed from the start (attempt 2)"
+          }
+        ]
+      },
+      {
+        "index": 4,
+        "actor": "Client",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "external",
+            "text": "EXTERNAL card-charge key=\"req-1\"",
+            "src": {
+              "origin": "extracted",
+              "file": "src/payments.ts",
+              "line": 10,
+              "column": 9,
+              "function": "pay",
+              "effectId": 0,
+              "diagnostics": [
+                "CP1002@58eaed69b9bfd417"
+              ],
+              "text": "chargeProvider(requestId, 10)"
+            }
+          }
+        ]
+      },
+      {
+        "index": 5,
+        "actor": "Client",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "write",
+            "text": "INSERT payments {amount=10, id=\"req-1\", request=\"req-1\"} → 1 row",
+            "result": 1,
+            "src": {
+              "origin": "extracted",
+              "file": "src/payments.ts",
+              "line": 11,
+              "column": 9,
+              "function": "pay",
+              "effectId": 1,
+              "diagnostics": [
+                "CP1002@58eaed69b9bfd417"
+              ],
+              "text": "db.insert(payments).values({ id: requestId, request: requestId, amount: 10 })"
+            }
+          },
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "local",
+            "text": "return (success)"
+          }
+        ]
+      }
+    ],
+    "finalState": {
+      "tables": {
+        "payments": [
+          {
+            "amount": 10,
+            "id": "req-1",
+            "request": "req-1"
+          }
+        ]
+      },
+      "actors": [
+        [
+          "Client",
+          "ok"
+        ]
+      ],
+      "externalEffects": [
+        "card-charge by Client key=\"req-1\"",
+        "card-charge by Client key=\"req-1\""
+      ],
+      "terms": [
+        {
+          "term": "externals(card-charge)",
+          "value": 2
+        }
+      ],
+      "quiescent": true
+    },
+    "contextSwitches": 0,
+    "minimized": true,
+    "originalLength": 5
+  },
+  "evidence": {
+    "level": "postgres-confirmed-schedule",
+    "summary": "the schedule was replayed on PostgreSQL: all 2 database outcomes matched the model's predictions and the final committed rows are identical; the invariant also reads actor outcomes, external effects or in-process state, which the replay derives from the model's application logic given these database results (not observed in a running application)"
+  },
+  "runtime": {
+    "performed": true,
+    "status": "confirmed",
+    "postgresVersion": "postgres (PostgreSQL) 17.11 (Homebrew)",
+    "observations": [
+      {
+        "transition": 2,
+        "actor": "Client",
+        "sql": "(process killed)",
+        "predicted": "connection lost, transaction rolled back",
+        "observed": "backend exited",
+        "agree": true
+      },
+      {
+        "transition": 5,
+        "actor": "Client",
+        "sql": "WITH r AS (INSERT INTO \"payments\" (\"amount\", \"id\", \"request\") VALUES (10, 'req-1', 'req-1') RETURNING 1) SELECT count(*) FROM r;",
+        "predicted": "1 row(s)",
+        "observed": "1 row(s)",
+        "agree": true
+      }
+    ],
+    "sqlstates": [],
+    "tablesAgree": true,
+    "modelTables": {
+      "payments": [
+        {
+          "amount": 10,
+          "id": "req-1",
+          "request": "req-1"
+        }
+      ]
+    },
+    "postgresTables": {
+      "payments": [
+        {
+          "amount": 10,
+          "id": "req-1",
+          "request": "req-1"
+        }
+      ]
+    },
+    "sqlOrigin": {
+      "Client": "model-derived (extracted from source)"
+    },
+    "note": "Each actor ran on its own PostgreSQL connection (a psql process) against a private, disposable cluster; the model's schedule decided which session sent its next statement, and a statement counts as blocked only when the server reported a lock wait. Deadlock victim choice depends on PostgreSQL's deadlock timer and is steered with delays. Not exercised: the original TypeScript/Drizzle code, application-level retries, external services."
+  },
+  "assumptions": [
+    "database default isolation: read-committed (PostgreSQL semantics, see docs/phase6/POSTGRES-ISOLATION.md)",
+    "a database statement is atomic unless it must wait for another transaction; waiting statements resume with their original snapshot",
+    "autocommit (root `db`) statements are single-statement transactions at the default isolation level",
+    "local computation is not a scheduling point; it is folded into the preceding transition",
+    "rows are read in primary-key order for LIMIT 1 (the declared programs and generated SQL both use ORDER BY the primary key)",
+    "tasks of different actors never share a transaction, connection or event loop; actors listed with the same process share in-process variables and crash together",
+    "a process crash rolls back open transactions and loses local state; committed data and performed external effects remain",
+    "actor Client: payload of `chargeProvider` is not an object literal and is modeled as empty"
+  ],
+  "diagnostics": [
+    {
+      "code": "CP7001",
+      "severity": "warning",
+      "message": "invariant `customer-charged-once` can be violated by a bounded schedule of 5 transitions (0 context switches); evidence: postgres-confirmed-schedule"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "databaseReceivers": ["db"],
+  "externalEffects": [
+    { "function": "publishEvent", "category": "message-publish" },
+    { "function": "chargeProvider", "category": "payment" }
+  ]
+}

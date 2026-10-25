@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "name": "saas-starter-invite-unique-mitigation",
+  "description": "Same adapted code with a HYPOTHETICAL UNIQUE(team_id, email) constraint (not in saas-starter's schema): the second insert fails instead of duplicating.",
+  "extraction": {
+    "root": "saas-starter-invite"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "invitations",
+        "columns": [
+          {
+            "name": "id",
+            "type": "int",
+            "notNull": true
+          },
+          {
+            "name": "teamId",
+            "type": "int",
+            "notNull": true
+          },
+          {
+            "name": "email",
+            "type": "text",
+            "notNull": true
+          },
+          {
+            "name": "role",
+            "type": "text",
+            "notNull": true
+          },
+          {
+            "name": "invitedBy",
+            "type": "int",
+            "notNull": true
+          },
+          {
+            "name": "status",
+            "type": "text",
+            "notNull": true
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "unique": [
+          [
+            "teamId",
+            "email"
+          ]
+        ]
+      }
+    ],
+    "initialState": {
+      "invitations": []
+    }
+  },
+  "actors": [
+    {
+      "name": "Submit1",
+      "function": "inviteTeamMember",
+      "file": "src/invite.ts",
+      "arguments": [
+        101,
+        1,
+        "new@example.com",
+        "member",
+        7
+      ]
+    },
+    {
+      "name": "Submit2",
+      "function": "inviteTeamMember",
+      "file": "src/invite.ts",
+      "arguments": [
+        102,
+        1,
+        "new@example.com",
+        "member",
+        7
+      ]
+    }
+  ],
+  "bounds": {
+    "maxSteps": 30
+  },
+  "invariants": [
+    {
+      "name": "one-pending-invitation-per-email",
+      "when": "final",
+      "description": "a team has at most one pending invitation per email (the property the code's check intends)",
+      "assert": {
+        "le": [
+          {
+            "count": {
+              "table": "invitations",
+              "where": {
+                "teamId": 1,
+                "email": "new@example.com",
+                "status": "pending"
+              }
+            }
+          },
+          1
+        ]
+      }
+    }
+  ]
+}

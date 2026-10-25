@@ -1,0 +1,19 @@
+~ midday CP1001 apps/worker/src/processors/inbox/initial-setup.ts:50 severity warning -> info, confidence high -> high
+~ midday CP1001 apps/worker/src/processors/documents/classify-document.ts:170 severity warning -> info, confidence medium -> medium
+~ midday CP1002 apps/worker/src/processors/documents/process-document.ts:45 severity warning -> info, confidence medium -> medium
+~ midday CP1001 apps/worker/src/processors/inbox/slack-upload.ts:513 severity warning -> info, confidence medium -> medium
+~ midday CP1001 apps/worker/src/processors/inbox/process-attachment.ts:374 severity warning -> info, confidence medium -> medium
+~ midday CP1001 apps/worker/src/processors/documents/classify-image.ts:203 severity warning -> info, confidence medium -> medium
+~ midday CP1002 apps/worker/src/processors/inbox/sync-scheduler.ts:254 severity warning -> info, confidence high -> high
+~ midday CP1002 apps/worker/src/processors/inbox/process-attachment.ts:374 severity warning -> info, confidence low -> low
+0 added, 0 removed, 8 changed
+
+Labels of the 8 demoted findings (Phase 2 labels: one reviewer's judgement; Phase 3 blind review: automated, not human):
+  2b7504eae7852445 CP1001 classify-document.ts:170 — Phase 2 label: intended-risk; blind review: not sampled
+  78ff1a4d87b6e69b CP1001 classify-image.ts:203 — Phase 2 label: intended-risk; blind review: not sampled
+  30b45470f9206870 CP1002 process-document.ts:45 — Phase 2 label: false-positive; blind review: intended-risk
+  04d6562eb1e4c94b CP1001 initial-setup.ts:50 — Phase 2 label: intended-risk; blind review: intended-risk
+  70e1fad12736298b CP1001 process-attachment.ts:374 — Phase 2 label: intended-risk; blind review: not sampled
+  f67d93b946c14519 CP1002 process-attachment.ts:374 — Phase 2 label: unclear; blind review: not sampled
+  58f0f19da26dfe33 CP1001 slack-upload.ts:513 — Phase 2 label: intended-risk; blind review: not sampled
+  d6cc779a0da27f5a CP1002 sync-scheduler.ts:254 — Phase 2 label: false-positive; blind review: intended-risk

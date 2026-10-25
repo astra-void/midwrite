@@ -1,0 +1,21 @@
+{
+  "$comment": "Locally available applications that were not written for CommitRift. They are private checkouts on the maintainer's machine, so results for them cannot be reproduced by others; revisions are recorded for the record only.",
+  "projects": [
+    {
+      "name": "school-ledger",
+      "category": "nextjs-drizzle",
+      "origin": "local",
+      "revision": "4b97f34",
+      "path": "/Users/returnf4lse/Desktop/Workspace/nextjs/school-ledger",
+      "config": "configs/school-ledger.json"
+    },
+    {
+      "name": "unnamed-ai-project",
+      "category": "nextjs-drizzle-http",
+      "origin": "local",
+      "revision": "39fcfc7",
+      "path": "/Users/returnf4lse/Desktop/Workspace/nextjs/unnamed-ai-project",
+      "config": "configs/unnamed-ai-project.json"
+    }
+  ]
+}

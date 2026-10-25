@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "name": "inventory-row-lock",
+  "description": "SELECT ... FOR UPDATE inside a transaction: the second purchase waits for the first and then sees the new stock.",
+  "extraction": {
+    "root": "../project"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "products",
+        "columns": [
+          {
+            "name": "id",
+            "type": "text",
+            "notNull": true
+          },
+          {
+            "name": "stock",
+            "type": "int",
+            "notNull": true
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ]
+      },
+      {
+        "name": "orders",
+        "columns": [
+          {
+            "name": "id",
+            "type": "text",
+            "notNull": true
+          },
+          {
+            "name": "product",
+            "type": "text"
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ]
+      }
+    ],
+    "initialState": {
+      "products": [
+        {
+          "id": "product-1",
+          "stock": 1
+        }
+      ],
+      "orders": []
+    }
+  },
+  "actors": [
+    {
+      "name": "A",
+      "function": "purchaseWithRowLock",
+      "file": "src/purchase.ts",
+      "arguments": [
+        "product-1",
+        "order-A"
+      ],
+      "description": "one HTTP request"
+    },
+    {
+      "name": "B",
+      "function": "purchaseWithRowLock",
+      "file": "src/purchase.ts",
+      "arguments": [
+        "product-1",
+        "order-B"
+      ],
+      "description": "a concurrent HTTP request"
+    }
+  ],
+  "bounds": {
+    "maxSteps": 40,
+    "maxStates": 100000
+  },
+  "invariants": [
+    {
+      "name": "successful-purchases-within-initial-stock",
+      "when": "final",
+      "description": "the number of successful purchases never exceeds the stock the product started with",
+      "assert": {
+        "le": [
+          {
+            "actors": {
+              "function": "purchaseWithRowLock",
+              "outcome": "ok"
+            }
+          },
+          {
+            "initial": {
+              "table": "products",
+              "where": {
+                "id": "product-1"
+              },
+              "column": "stock"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

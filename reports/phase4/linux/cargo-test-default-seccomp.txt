@@ -1,0 +1,531 @@
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded allocator-api2 v0.2.21
+  Downloaded colorchoice v1.0.5
+  Downloaded castaway v0.2.4
+  Downloaded cfg-if v1.0.5
+  Downloaded anstyle-query v1.1.5
+  Downloaded cow-utils v0.1.3
+  Downloaded clap_lex v1.1.1
+  Downloaded heck v0.5.0
+  Downloaded zmij v1.0.23
+  Downloaded nonmax v0.5.5
+  Downloaded itoa v1.0.18
+  Downloaded percent-encoding v2.3.2
+  Downloaded icu_locale_fallback_data v2.4.0
+  Downloaded strsim v0.11.1
+  Downloaded zerofrom v0.1.8
+  Downloaded same-file v1.0.6
+  Downloaded siphasher v1.0.4
+  Downloaded rustc-hash v2.1.3
+  Downloaded stable_deref_trait v1.2.1
+  Downloaded yoke-derive v0.8.4
+  Downloaded is_terminal_polyfill v1.70.2
+  Downloaded potential_utf v0.1.6
+  Downloaded utf8_iter v1.0.4
+  Downloaded seq-macro v0.3.6
+  Downloaded autocfg v1.5.1
+  Downloaded anstyle-parse v1.0.0
+  Downloaded icu_locale_fallback v2.4.0
+  Downloaded utf8parse v0.2.2
+  Downloaded either v1.19.0
+  Downloaded fastrand v2.5.0
+  Downloaded phf_shared v0.14.0
+  Downloaded static_assertions v1.1.0
+  Downloaded zerofrom-derive v0.1.8
+  Downloaded oxc_index v5.0.0
+  Downloaded self_cell v1.3.0
+  Downloaded thiserror v2.0.21
+  Downloaded tinystr v0.8.5
+  Downloaded quote v1.0.47
+  Downloaded walkdir v2.5.0
+  Downloaded bytecount v0.6.9
+  Downloaded zerovec-derive v0.11.7
+  Downloaded thiserror-impl v2.0.21
+  Downloaded anstyle v1.0.14
+  Downloaded anstream v1.0.0
+  Downloaded displaydoc v0.2.7
+  Downloaded oxc_span v0.155.0
+  Downloaded phf_generator v0.14.0
+  Downloaded phf v0.14.0
+  Downloaded phf_macros v0.14.0
+  Downloaded rustversion v1.0.23
+  Downloaded synstructure v0.14.0
+  Downloaded smawk v0.3.3
+  Downloaded clap_derive v4.6.7
+  Downloaded num-integer v0.1.47
+  Downloaded oxc_ast_macros v0.155.0
+  Downloaded oxc_diagnostics v0.155.0
+  Downloaded smallvec v1.16.3
+  Downloaded writeable v0.6.4
+  Downloaded yoke v0.8.4
+  Downloaded oxc_syntax v0.155.0
+  Downloaded litemap v0.8.3
+  Downloaded oxc_estree v0.155.0
+  Downloaded oxc_str v0.155.0
+  Downloaded bitflags v2.13.2
+  Downloaded icu_provider v2.4.0
+  Downloaded serde_core v1.0.229
+  Downloaded unicode-id-start v1.5.0
+  Downloaded oxc_data_structures v0.155.0
+  Downloaded unicode-ident v1.0.27
+  Downloaded num-traits v0.2.19
+  Downloaded oxc_regular_expression v0.155.0
+  Downloaded dragonbox_ecma v0.1.12
+  Downloaded proc-macro2 v1.0.107
+  Downloaded textwrap v0.16.4
+  Downloaded oxc_ecmascript v0.155.0
+  Downloaded serde_derive v1.0.229
+  Downloaded clap v4.6.7
+  Downloaded oxc_ast_visit v0.155.0
+  Downloaded icu_locale_core v2.4.0
+  Downloaded zerotrie v0.2.5
+  Downloaded memchr v2.8.3
+  Downloaded num-bigint v0.5.1
+  Downloaded serde v1.0.229
+  Downloaded oxc_semantic v0.155.0
+  Downloaded icu_collections v2.4.0
+  Downloaded compact_str v0.10.0
+  Downloaded zerovec v0.11.9
+  Downloaded unicode-segmentation v1.13.3
+  Downloaded itertools v0.15.0
+  Downloaded oxc_allocator v0.155.0
+  Downloaded hashbrown v0.17.1
+  Downloaded clap_builder v4.6.7
+  Downloaded serde_json v1.0.154
+  Downloaded oxc_parser v0.155.0
+  Downloaded oxc_ast v0.155.0
+  Downloaded syn v2.0.119
+  Downloaded unicode-width v0.2.2
+  Downloaded syn v3.0.9
+  Downloaded libc v0.2.191
+  Downloaded icu_segmenter_data v2.4.0
+  Downloaded icu_segmenter v2.4.0
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.27
+   Compiling quote v1.0.47
+   Compiling serde_core v1.0.229
+   Compiling serde v1.0.229
+   Compiling zmij v1.0.23
+   Compiling stable_deref_trait v1.2.1
+   Compiling itoa v1.0.18
+   Compiling memchr v2.8.3
+   Compiling siphasher v1.0.4
+   Compiling rustversion v1.0.23
+   Compiling writeable v0.6.4
+   Compiling phf_shared v0.14.0
+   Compiling icu_locale_fallback_data v2.4.0
+   Compiling allocator-api2 v0.2.21
+   Compiling litemap v0.8.3
+   Compiling static_assertions v1.1.0
+   Compiling oxc_data_structures v0.155.0
+   Compiling cfg-if v1.0.5
+   Compiling rustc-hash v2.1.3
+   Compiling icu_segmenter_data v2.4.0
+   Compiling phf v0.14.0
+   Compiling utf8_iter v1.0.4
+   Compiling oxc_estree v0.155.0
+   Compiling fastrand v2.5.0
+   Compiling thiserror v2.0.21
+   Compiling dragonbox_ecma v0.1.12
+   Compiling serde_json v1.0.154
+   Compiling cow-utils v0.1.3
+   Compiling hashbrown v0.17.1
+   Compiling phf_generator v0.14.0
+   Compiling autocfg v1.5.1
+   Compiling smawk v0.3.3
+   Compiling unicode-width v0.2.2
+   Compiling castaway v0.2.4
+   Compiling bytecount v0.6.9
+   Compiling unicode-id-start v1.5.0
+   Compiling bitflags v2.13.2
+   Compiling compact_str v0.10.0
+   Compiling nonmax v0.5.5
+   Compiling syn v3.0.9
+   Compiling syn v2.0.119
+   Compiling unicode-segmentation v1.13.3
+   Compiling percent-encoding v2.3.2
+   Compiling oxc_allocator v0.155.0
+   Compiling num-traits v0.2.19
+   Compiling either v1.19.0
+   Compiling self_cell v1.3.0
+   Compiling same-file v1.0.6
+   Compiling seq-macro v0.3.6
+   Compiling itertools v0.15.0
+   Compiling walkdir v2.5.0
+   Compiling libc v0.2.191
+   Compiling oxc_str v0.155.0
+   Compiling utf8parse v0.2.2
+   Compiling anstyle-parse v1.0.0
+   Compiling anstyle v1.0.14
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling colorchoice v1.0.5
+   Compiling anstyle-query v1.1.5
+   Compiling clap_lex v1.1.1
+   Compiling heck v0.5.0
+   Compiling anstream v1.0.0
+   Compiling strsim v0.11.1
+   Compiling num-integer v0.1.47
+   Compiling clap_builder v4.6.7
+   Compiling num-bigint v0.5.1
+   Compiling phf_macros v0.14.0
+   Compiling synstructure v0.14.0
+   Compiling zerofrom-derive v0.1.8
+   Compiling serde_derive v1.0.229
+   Compiling yoke-derive v0.8.4
+   Compiling zerovec-derive v0.11.7
+   Compiling displaydoc v0.2.7
+   Compiling oxc_ast_macros v0.155.0
+   Compiling thiserror-impl v2.0.21
+   Compiling clap_derive v4.6.7
+   Compiling oxc_span v0.155.0
+   Compiling zerofrom v0.1.8
+   Compiling yoke v0.8.4
+   Compiling zerovec v0.11.9
+   Compiling zerotrie v0.2.5
+   Compiling clap v4.6.7
+   Compiling tinystr v0.8.5
+   Compiling potential_utf v0.1.6
+   Compiling icu_collections v2.4.0
+   Compiling icu_locale_core v2.4.0
+   Compiling smallvec v1.16.3
+   Compiling oxc_index v5.0.0
+   Compiling commitrift-core v0.1.0 (/home/tester/work/crates/commitrift-core)
+   Compiling oxc_syntax v0.155.0
+   Compiling icu_provider v2.4.0
+   Compiling icu_locale_fallback v2.4.0
+   Compiling icu_segmenter v2.4.0
+   Compiling textwrap v0.16.4
+   Compiling oxc_diagnostics v0.155.0
+   Compiling oxc_regular_expression v0.155.0
+   Compiling oxc_ast v0.155.0
+   Compiling commitrift-replay v0.1.0 (/home/tester/work/crates/commitrift-replay)
+   Compiling oxc_ecmascript v0.155.0
+   Compiling oxc_ast_visit v0.155.0
+   Compiling oxc_parser v0.155.0
+   Compiling oxc_semantic v0.155.0
+   Compiling commitrift-analyzer v0.1.0 (/home/tester/work/crates/commitrift-analyzer)
+   Compiling commitrift-cli v0.1.0 (/home/tester/work/crates/commitrift-cli)
+   Compiling commitrift-corpus v0.1.0 (/home/tester/work/crates/commitrift-corpus)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 24.55s
+     Running unittests src/lib.rs (target/debug/deps/commitrift_analyzer-49cc143fd7c61c8e)
+
+running 8 tests
+test discover::tests::recognizes_typescript_sources ... ok
+test discover::tests::display_strips_current_dir ... ok
+test recognize::tests::compact_rejoins_member_chains ... ok
+test resolve::tests::exports_maps_subpaths_patterns_and_conditions ... ok
+test resolve::tests::jsonc_comments_and_trailing_commas_are_removed ... ok
+test resolve::tests::longest_paths_prefix_wins ... ok
+test resolve::tests::candidates_are_ambiguous_when_several_files_match ... ok
+test resolve::tests::normalization_applies_parent_components ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/analysis.rs (target/debug/deps/analysis-223db2322130ae79)
+
+running 32 tests
+test discovery_skips_excluded_directories_and_declarations ... ok
+test example_e_safe_local_computation ... ok
+test evaluation_order_puts_awaited_arguments_first ... ok
+test async_return_executes_a_builder_but_sync_return_does_not ... ok
+test drizzle_constructor_is_strong_provenance ... ok
+test example_b_external_effect_before_database_commit ... ok
+test configured_member_paths_are_matched_with_a_weaker_basis ... ok
+test example_a_db_commit_before_event_publication ... ok
+test awaited_local_helpers_are_inlined_from_their_summary ... ok
+test example_c_transactional_outbox_has_no_cross_resource_finding ... ok
+test example_d_external_publication_inside_transaction ... ok
+test example_f_unknown_effect_is_a_limitation_not_a_hazard ... ok
+test explicit_execute_without_await_is_fire_and_forget ... ok
+test explicit_rollback_path_still_reports_cp1003 ... ok
+test hazards_inside_one_helper_are_reported_once ... ok
+test known_false_positive_parameter_named_like_receiver ... ok
+test imported_from_requires_the_configured_module ... ok
+test member_path_transactions_and_bypasses_are_modeled ... ok
+test member_paths_respect_contrary_roots_and_imports ... ok
+test nested_functions_are_separate_units_with_qualified_names ... ok
+test parse_failures_report_a_location ... ok
+test return_inside_transaction_callback_commits_and_continues ... ok
+test shadowing_with_an_obviously_different_value_disables_name_matching ... ok
+test similar_method_names_on_unrelated_objects_are_ignored ... ok
+test shadowed_and_reassignable_helpers_are_not_summarized ... ok
+test summaries_can_be_disabled ... ok
+test transaction_callbacks_are_lowered_inline_not_as_separate_functions ... ok
+test transaction_handle_alias_is_followed ... ok
+test tsx_files_parse_jsx ... ok
+test transaction_started_on_root_inside_callback_is_independent ... ok
+test unexecuted_builders_produce_no_effects ... ok
+test unconfigured_member_paths_stay_unknown_with_a_hint ... ok
+
+test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/fixtures.rs (target/debug/deps/fixtures-f693c36f8c41e01b)
+
+running 3 tests
+test every_fixture_matches_its_expectations ... ok
+test every_diagnostic_is_self_explanatory ... ok
+test scanning_many_files_is_deterministic ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/phase2.rs (target/debug/deps/phase2-48324dd4dca578d5)
+
+running 22 tests
+test conditions_are_recorded_as_facts_in_the_ir ... ok
+test constant_conditions_remove_arms ... ok
+test a_helper_receiving_the_root_handle_inside_a_transaction_bypasses_it ... ok
+test call_paths_respect_imported_from_and_bind_as_arguments ... ok
+test a_helper_receiving_the_transaction_handle_joins_the_transaction ... ok
+test analyze_source_does_not_follow_imports ... ok
+test compatible_branches_are_preserved ... ok
+test best_effort_effects_after_a_commit_are_informational ... ok
+test configured_call_paths_denote_the_returned_handle ... ok
+test contradictory_boolean_branches_are_eliminated ... ok
+test ambiguous_module_candidates_are_not_chosen ... ok
+test members_calls_and_complex_conditions_stay_unknown ... ok
+test reassignment_invalidates_knowledge ... ok
+test strict_equalities_with_different_literals_are_exclusive ... ok
+test switch_cases_and_ternaries_correlate_with_later_tests ... ok
+test excluded_files_are_not_analyzed ... ok
+test transaction_results_correlate_with_later_tests ... ok
+test transaction_model_audit ... ok
+test tsconfig_extends_chains_provide_paths ... ok
+test workspace_packages_resolve_through_exports ... ok
+test project_analysis_keeps_single_file_results_for_the_fixtures ... ok
+test project_analysis_is_deterministic ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/phase3.rs (target/debug/deps/phase3-8f8d67a36b94d925)
+
+running 5 tests
+test recovery_is_never_inferred_from_names ... ok
+test undeclared_effects_and_effects_performed_first_are_unaffected ... ok
+test strict_policy_ignores_declarations_for_severity ... ok
+test idempotent_consumers_add_a_note_without_changing_severity ... ok
+test a_reconciled_lost_effect_is_informational_but_still_reported ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/phase4.rs (target/debug/deps/phase4-106c50ede3f29204)
+
+running 5 tests
+test reconciliation_contracts_cannot_cover_effects_that_never_committed ... ok
+test recovery_is_never_inferred_from_function_names ... ok
+test contracts_apply_only_to_the_named_function_file_and_codes ... ok
+test a_contract_keeps_the_finding_and_its_identity_and_lowers_only_recommended_severity ... ok
+test traces_are_unchanged_by_contracts ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/projects.rs (target/debug/deps/projects-8c792e3765a5f055)
+
+running 1 test
+test every_project_fixture_matches_its_expectations ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/traces.rs (target/debug/deps/traces-642bf834012c06ce)
+
+running 17 tests
+test external_effect_then_db_commit ... ok
+test external_effect_inside_an_active_transaction ... ok
+test conditional_effects_record_the_branch_as_an_assumption ... ok
+test db_commit_then_external_effect ... ok
+test duplicate_findings_get_the_same_suffixed_ids_as_the_report ... ok
+test trace_report_round_trips_through_json ... ok
+test cross_module_effects_keep_their_call_chain_and_file ... ok
+test the_isolated_invoice_pattern_reaches_the_write_through_a_cross_module_helper ... ok
+test replay_harness_applications_have_the_documented_findings ... ok
+test trace_ids_survive_moving_code ... ok
+test the_real_drizzle_application_has_exactly_the_documented_findings ... ok
+test transactional_outbox_and_exclusive_branches_have_no_trace ... ok
+test transaction_handles_passed_to_helpers_stage_their_writes ... ok
+test unknown_effects_in_the_window_make_the_trace_incomplete ... ok
+test truncated_functions_are_skipped_or_marked ... ok
+test every_fixture_trace_is_valid_deterministic_and_linked_to_a_finding ... ok
+test traces_do_not_change_the_diagnostics ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running unittests src/lib.rs (target/debug/deps/commitrift_cli-1b0f15acd3fbd962)
+
+running 3 tests
+test html::tests::escaping_neutralizes_markup ... ok
+test init_replay::tests::interpolated_text_cannot_leave_a_comment ... ok
+test init_replay::tests::identifiers_and_slugs ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/commitrift-cd18ffc9e12d2557)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/crashproof.rs (target/debug/deps/crashproof-cf61360f33c25d67)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/cli.rs (target/debug/deps/cli-c58d0ed6a1a3cd2b)
+
+running 24 tests
+test invalid_config_is_a_usage_error ... ok
+test documentation_covers_every_code ... ok
+test cross_module_findings_link_to_other_files ... ok
+test json_output_follows_the_documented_schema ... ok
+test findings_take_precedence_over_parse_failures_in_the_exit_code ... ok
+test json_reports_carry_phase_2_fields ... ok
+test config_is_discovered_in_the_working_directory_or_given_explicitly ... ok
+test call_summaries_are_bounded_and_can_be_disabled ... ok
+test explain_prints_code_documentation ... ok
+test ir_command_prints_the_effect_ir ... ok
+test html_reports_escape_untrusted_text_and_load_nothing ... ok
+test legacy_configuration_is_a_fallback_and_never_merged ... ok
+test missing_and_unsupported_paths_are_usage_errors ... ok
+test fail_on_threshold_is_configurable ... ok
+test legacy_crashproof_executable_behaves_like_commitrift ... ok
+test baselines_fail_only_on_new_findings ... ok
+test parse_failures_are_reported_separately ... ok
+test sarif_output_is_valid_sarif_2_1_0 ... ok
+test safe_directory_passes ... ok
+test vulnerable_file_fails_with_text_diagnostic ... ok
+test policies_change_severity_not_codes ... ok
+test legacy_thread_variable_is_honored ... ok
+test trace_command_prints_static_candidates ... ok
+test output_is_deterministic ... ok
+
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+     Running tests/replay.rs (target/debug/deps/replay-025a7ea248583118)
+
+running 25 tests
+test failed_database_setup_is_inconclusive ... FAILED
+test a_directory_without_a_manifest_is_not_a_harness ... ok
+test node_harnesses_are_isolated_like_bun_harnesses ... FAILED
+test detached_grandchildren_do_not_survive_on_linux ... FAILED
+test replay_regressions_compare_with_a_baseline_and_never_pass_unverified_cases ... FAILED
+test a_declared_node_runtime_without_a_compiled_entry_point_is_blocked ... ok
+test reports_are_deterministic_apart_from_durations ... FAILED
+test real_drizzle_on_node_reproduces_the_dual_write_and_respects_transactions ... FAILED
+test replay_requires_explicit_authorization ... ok
+test a_diagnostic_code_must_identify_a_unique_case ... ok
+test the_completed_generated_harness_reproduces_the_drizzle_dual_write ... FAILED
+test the_drizzle_dual_write_reproduces_in_every_repeated_run ... FAILED
+test the_harness_sees_no_inherited_secrets_and_no_network ... FAILED
+test init_replay_never_writes_through_a_symlinked_subdirectory ... ok
+test the_isolated_invoice_pattern_loses_the_job_unless_retried ... FAILED
+test timeouts_kill_the_harness_and_clean_up ... FAILED
+test transactional_outbox_keeps_the_intent_and_exposes_duplicates ... FAILED
+test unreachable_checkpoints_failed_pre_checks_and_missing_runtimes_are_inconclusive ... FAILED
+test verification_reports_render_static_and_runtime_evidence_separately ... FAILED
+test vulnerable_order_flow_reproduces_consistently_across_runs ... FAILED
+test production_looking_database_targets_are_refused_without_echoing_secrets ... ok
+test init_replay_refuses_bad_requests ... ok
+test static_analysis_never_executes_target_code ... ok
+test init_replay_writes_a_skeleton_linked_to_the_finding_that_refuses_to_run ... ok
+test the_node_runtime_protocol_client_passes_its_own_tests ... ok
+
+failures:
+
+---- failed_database_setup_is_inconclusive stdout ----
+
+thread 'failed_database_setup_is_inconclusive' (4161) panicked at crates/commitrift-cli/tests/replay.rs:585:5:
+replay dependencies required: bubblewrap cannot create namespaces here: bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces. See <https://deb.li/bubblewrap> or <file:///usr/share/doc/bubblewrap/README.Debian.gz>.
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- node_harnesses_are_isolated_like_bun_harnesses stdout ----
+
+thread 'node_harnesses_are_isolated_like_bun_harnesses' (4167) panicked at crates/commitrift-cli/tests/replay.rs:1156:5:
+replay dependencies required: bubblewrap cannot create namespaces here: bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces. See <https://deb.li/bubblewrap> or <file:///usr/share/doc/bubblewrap/README.Debian.gz>.
+
+---- detached_grandchildren_do_not_survive_on_linux stdout ----
+
+thread 'detached_grandchildren_do_not_survive_on_linux' (4159) panicked at crates/commitrift-cli/tests/replay.rs:1631:5:
+replay dependencies required: bubblewrap cannot create namespaces here: bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces. See <https://deb.li/bubblewrap> or <file:///usr/share/doc/bubblewrap/README.Debian.gz>.
+
+---- replay_regressions_compare_with_a_baseline_and_never_pass_unverified_cases stdout ----
+
+thread 'replay_regressions_compare_with_a_baseline_and_never_pass_unverified_cases' (4203) panicked at crates/commitrift-cli/tests/replay.rs:1496:5:
+replay dependencies required: bubblewrap cannot create namespaces here: bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces. See <https://deb.li/bubblewrap> or <file:///usr/share/doc/bubblewrap/README.Debian.gz>.
+
+---- reports_are_deterministic_apart_from_durations stdout ----
+
+thread 'reports_are_deterministic_apart_from_durations' (4215) panicked at crates/commitrift-cli/tests/replay.rs:671:5:
+replay dependencies required: bubblewrap cannot create namespaces here: bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces. See <https://deb.li/bubblewrap> or <file:///usr/share/doc/bubblewrap/README.Debian.gz>.
+
+---- real_drizzle_on_node_reproduces_the_dual_write_and_respects_transactions stdout ----
+
+thread 'real_drizzle_on_node_reproduces_the_dual_write_and_respects_transactions' (4202) panicked at crates/commitrift-cli/tests/replay.rs:931:15:
+replay dependencies required: bubblewrap cannot create namespaces here: bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces. See <https://deb.li/bubblewrap> or <file:///usr/share/doc/bubblewrap/README.Debian.gz>.
+
+---- the_completed_generated_harness_reproduces_the_drizzle_dual_write stdout ----
+
+thread 'the_completed_generated_harness_reproduces_the_drizzle_dual_write' (4231) panicked at crates/commitrift-cli/tests/replay.rs:1449:15:
+replay dependencies required: bubblewrap cannot create namespaces here: bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces. See <https://deb.li/bubblewrap> or <file:///usr/share/doc/bubblewrap/README.Debian.gz>.
+
+---- the_drizzle_dual_write_reproduces_in_every_repeated_run stdout ----
+
+thread 'the_drizzle_dual_write_reproduces_in_every_repeated_run' (4235) panicked at crates/commitrift-cli/tests/replay.rs:1072:15:
+replay dependencies required: bubblewrap cannot create namespaces here: bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces. See <https://deb.li/bubblewrap> or <file:///usr/share/doc/bubblewrap/README.Debian.gz>.
+
+---- the_harness_sees_no_inherited_secrets_and_no_network stdout ----
+
+thread 'the_harness_sees_no_inherited_secrets_and_no_network' (4238) panicked at crates/commitrift-cli/tests/replay.rs:452:5:
+replay dependencies required: bubblewrap cannot create namespaces here: bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces. See <https://deb.li/bubblewrap> or <file:///usr/share/doc/bubblewrap/README.Debian.gz>.
+
+---- the_isolated_invoice_pattern_loses_the_job_unless_retried stdout ----
+
+thread 'the_isolated_invoice_pattern_loses_the_job_unless_retried' (4246) panicked at crates/commitrift-cli/tests/replay.rs:797:5:
+replay dependencies required: bubblewrap cannot create namespaces here: bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces. See <https://deb.li/bubblewrap> or <file:///usr/share/doc/bubblewrap/README.Debian.gz>.
+
+---- timeouts_kill_the_harness_and_clean_up stdout ----
+
+thread 'timeouts_kill_the_harness_and_clean_up' (4271) panicked at crates/commitrift-cli/tests/replay.rs:533:5:
+replay dependencies required: bubblewrap cannot create namespaces here: bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces. See <https://deb.li/bubblewrap> or <file:///usr/share/doc/bubblewrap/README.Debian.gz>.
+
+---- transactional_outbox_keeps_the_intent_and_exposes_duplicates stdout ----
+
+thread 'transactional_outbox_keeps_the_intent_and_exposes_duplicates' (4275) panicked at crates/commitrift-cli/tests/replay.rs:336:5:
+replay dependencies required: bubblewrap cannot create namespaces here: bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces. See <https://deb.li/bubblewrap> or <file:///usr/share/doc/bubblewrap/README.Debian.gz>.
+
+---- unreachable_checkpoints_failed_pre_checks_and_missing_runtimes_are_inconclusive stdout ----
+
+thread 'unreachable_checkpoints_failed_pre_checks_and_missing_runtimes_are_inconclusive' (4278) panicked at crates/commitrift-cli/tests/replay.rs:613:5:
+replay dependencies required: bubblewrap cannot create namespaces here: bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces. See <https://deb.li/bubblewrap> or <file:///usr/share/doc/bubblewrap/README.Debian.gz>.
+
+---- verification_reports_render_static_and_runtime_evidence_separately stdout ----
+
+thread 'verification_reports_render_static_and_runtime_evidence_separately' (4282) panicked at crates/commitrift-cli/tests/replay.rs:764:5:
+replay dependencies required: bubblewrap cannot create namespaces here: bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces. See <https://deb.li/bubblewrap> or <file:///usr/share/doc/bubblewrap/README.Debian.gz>.
+
+---- vulnerable_order_flow_reproduces_consistently_across_runs stdout ----
+
+thread 'vulnerable_order_flow_reproduces_consistently_across_runs' (4284) panicked at crates/commitrift-cli/tests/replay.rs:245:5:
+replay dependencies required: bubblewrap cannot create namespaces here: bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces. See <https://deb.li/bubblewrap> or <file:///usr/share/doc/bubblewrap/README.Debian.gz>.
+
+
+failures:
+    detached_grandchildren_do_not_survive_on_linux
+    failed_database_setup_is_inconclusive
+    node_harnesses_are_isolated_like_bun_harnesses
+    real_drizzle_on_node_reproduces_the_dual_write_and_respects_transactions
+    replay_regressions_compare_with_a_baseline_and_never_pass_unverified_cases
+    reports_are_deterministic_apart_from_durations
+    the_completed_generated_harness_reproduces_the_drizzle_dual_write
+    the_drizzle_dual_write_reproduces_in_every_repeated_run
+    the_harness_sees_no_inherited_secrets_and_no_network
+    the_isolated_invoice_pattern_loses_the_job_unless_retried
+    timeouts_kill_the_harness_and_clean_up
+    transactional_outbox_keeps_the_intent_and_exposes_duplicates
+    unreachable_checkpoints_failed_pre_checks_and_missing_runtimes_are_inconclusive
+    verification_reports_render_static_and_runtime_evidence_separately
+    vulnerable_order_flow_reproduces_consistently_across_runs
+
+test result: FAILED. 10 passed; 15 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s
+
+error: test failed, to rerun pass `-p commitrift-cli --test replay`
+exit 101

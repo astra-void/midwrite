@@ -1,0 +1,6 @@
+{
+  "$schema": "Post-review variant of school-ledger.json: only adds the database handle returned by getDb().",
+  "databaseReceivers": ["db", { "name": "getDb()", "importedFrom": "@/server/db" }],
+  "transactionMethods": ["transaction"],
+  "externalEffects": []
+}

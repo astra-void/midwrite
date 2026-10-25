@@ -1,0 +1,619 @@
+{
+  "kind": "commitrift.model-check",
+  "schemaVersion": 1,
+  "modelVersion": "1.0.0",
+  "tool": {
+    "name": "commitrift",
+    "version": "0.1.0"
+  },
+  "scenario": {
+    "name": "doctors-write-skew-repeatable-read",
+    "description": "Two on-call doctors each go off call after checking that another doctor remains on call (extracted from src/doctors.ts).",
+    "scenarioVersion": 1,
+    "file": "fixtures/concurrency/scenarios/doctors-write-skew-repeatable-read.json"
+  },
+  "database": {
+    "isolation": "repeatable-read",
+    "tables": [
+      {
+        "name": "doctors",
+        "columns": [
+          "id",
+          "on_call"
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "unique": [],
+        "checks": [],
+        "initialRows": [
+          {
+            "id": "alice",
+            "on_call": true
+          },
+          {
+            "id": "bob",
+            "on_call": true
+          }
+        ]
+      }
+    ]
+  },
+  "actors": [
+    {
+      "name": "Alice",
+      "function": "goOffCall",
+      "file": "src/doctors.ts",
+      "arguments": [
+        [
+          "me",
+          "alice"
+        ]
+      ],
+      "process": "Alice",
+      "origin": "extracted",
+      "tasks": 1,
+      "operations": 8,
+      "sourceRefs": [
+        {
+          "origin": "extracted",
+          "file": "src/doctors.ts",
+          "line": 7,
+          "column": 9,
+          "function": "goOffCall",
+          "text": "db.transaction(async (tx) => { const [others] = await tx .select({ n: count()..."
+        },
+        {
+          "origin": "extracted",
+          "file": "src/doctors.ts",
+          "line": 8,
+          "column": 28,
+          "function": "goOffCall",
+          "effectId": 0,
+          "text": "tx .select({ n: count() }) .from(doctors) .where(and(eq(doctors.on_call, true..."
+        },
+        {
+          "origin": "extracted",
+          "file": "src/doctors.ts",
+          "line": 15,
+          "column": 11,
+          "function": "goOffCall",
+          "effectId": 1,
+          "text": "tx.update(doctors).set({ on_call: false }).where(eq(doctors.id, me))"
+        },
+        {
+          "origin": "extracted",
+          "file": "src/doctors.ts",
+          "line": 7,
+          "column": 9,
+          "function": "goOffCall",
+          "text": "db.transaction(async (tx) => { const [others] = await tx .select({ n: count()..."
+        }
+      ]
+    },
+    {
+      "name": "Bob",
+      "function": "goOffCall",
+      "file": "src/doctors.ts",
+      "arguments": [
+        [
+          "me",
+          "bob"
+        ]
+      ],
+      "process": "Bob",
+      "origin": "extracted",
+      "tasks": 1,
+      "operations": 8,
+      "sourceRefs": [
+        {
+          "origin": "extracted",
+          "file": "src/doctors.ts",
+          "line": 7,
+          "column": 9,
+          "function": "goOffCall",
+          "text": "db.transaction(async (tx) => { const [others] = await tx .select({ n: count()..."
+        },
+        {
+          "origin": "extracted",
+          "file": "src/doctors.ts",
+          "line": 8,
+          "column": 28,
+          "function": "goOffCall",
+          "effectId": 0,
+          "text": "tx .select({ n: count() }) .from(doctors) .where(and(eq(doctors.on_call, true..."
+        },
+        {
+          "origin": "extracted",
+          "file": "src/doctors.ts",
+          "line": 15,
+          "column": 11,
+          "function": "goOffCall",
+          "effectId": 1,
+          "text": "tx.update(doctors).set({ on_call: false }).where(eq(doctors.id, me))"
+        },
+        {
+          "origin": "extracted",
+          "file": "src/doctors.ts",
+          "line": 7,
+          "column": 9,
+          "function": "goOffCall",
+          "text": "db.transaction(async (tx) => { const [others] = await tx .select({ n: count()..."
+        }
+      ]
+    }
+  ],
+  "bounds": {
+    "declared": {
+      "maxActors": 4,
+      "maxSteps": 40,
+      "maxStates": 200000,
+      "maxCrashes": 0,
+      "maxRetries": 0,
+      "maxContextSwitches": null,
+      "maxTransitions": null,
+      "maxWallMs": null,
+      "maxMemoryBytes": null
+    },
+    "partialOrderReduction": true,
+    "strategy": "dfs"
+  },
+  "exploration": {
+    "verdict": "COUNTEREXAMPLE_FOUND",
+    "complete": true,
+    "truncation": {
+      "maxStates": false,
+      "maxTransitions": false,
+      "maxWallTime": false,
+      "maxMemory": false,
+      "maxSteps": false,
+      "maxContextSwitches": false
+    },
+    "metrics": {
+      "states": 12,
+      "transitions": 11,
+      "terminalStates": 2,
+      "duplicateStateHits": 0,
+      "sleepPrunedTransitions": 1,
+      "contextPrunedTransitions": 0,
+      "maxDepth": 8,
+      "schedulesInExploredGraph": 2,
+      "visitedBytes": 6193
+    },
+    "unsupported": [],
+    "stuckStates": 0
+  },
+  "invariants": [
+    {
+      "name": "someone-stays-on-call",
+      "when": "final",
+      "formula": "count(doctors[on_call=true]) >= 1",
+      "description": "",
+      "status": "violated"
+    }
+  ],
+  "counterexample": {
+    "invariant": "someone-stays-on-call",
+    "formula": "count(doctors[on_call=true]) >= 1",
+    "when": "final",
+    "initialTables": {
+      "doctors": [
+        {
+          "id": "alice",
+          "on_call": true
+        },
+        {
+          "id": "bob",
+          "on_call": true
+        }
+      ]
+    },
+    "steps": [
+      {
+        "index": 1,
+        "actor": "Alice",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "begin",
+            "text": "BEGIN ISOLATION LEVEL REPEATABLE READ",
+            "src": {
+              "origin": "extracted",
+              "file": "src/doctors.ts",
+              "line": 7,
+              "column": 9,
+              "function": "goOffCall",
+              "text": "db.transaction(async (tx) => { const [others] = await tx .select({ n: count()..."
+            }
+          },
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "local",
+            "text": "_tx1 = null",
+            "result": null,
+            "src": {
+              "origin": "extracted",
+              "file": "src/doctors.ts",
+              "line": 7,
+              "column": 9,
+              "function": "goOffCall",
+              "text": "db.transaction(async (tx) => { const [others] = await tx .select({ n: count()..."
+            }
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "actor": "Alice",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "read",
+            "text": "COUNT doctors WHERE ((@on_call = true) and (@id != \"alice\")) → 1",
+            "result": 1,
+            "src": {
+              "origin": "extracted",
+              "file": "src/doctors.ts",
+              "line": 8,
+              "column": 28,
+              "function": "goOffCall",
+              "effectId": 0,
+              "text": "tx .select({ n: count() }) .from(doctors) .where(and(eq(doctors.on_call, true..."
+            }
+          },
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "local",
+            "text": "CHECK (_count2 < 1) → false",
+            "result": false,
+            "src": {
+              "origin": "extracted",
+              "file": "src/doctors.ts",
+              "line": 12,
+              "column": 9,
+              "function": "goOffCall",
+              "text": "others.n < 1"
+            }
+          }
+        ]
+      },
+      {
+        "index": 3,
+        "actor": "Alice",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "write",
+            "text": "UPDATE doctors SET on_call = false WHERE (@id = \"alice\") → 1 row",
+            "result": 1,
+            "src": {
+              "origin": "extracted",
+              "file": "src/doctors.ts",
+              "line": 15,
+              "column": 11,
+              "function": "goOffCall",
+              "effectId": 1,
+              "text": "tx.update(doctors).set({ on_call: false }).where(eq(doctors.id, me))"
+            }
+          }
+        ]
+      },
+      {
+        "index": 4,
+        "actor": "Bob",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "begin",
+            "text": "BEGIN ISOLATION LEVEL REPEATABLE READ",
+            "src": {
+              "origin": "extracted",
+              "file": "src/doctors.ts",
+              "line": 7,
+              "column": 9,
+              "function": "goOffCall",
+              "text": "db.transaction(async (tx) => { const [others] = await tx .select({ n: count()..."
+            }
+          },
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "local",
+            "text": "_tx1 = null",
+            "result": null,
+            "src": {
+              "origin": "extracted",
+              "file": "src/doctors.ts",
+              "line": 7,
+              "column": 9,
+              "function": "goOffCall",
+              "text": "db.transaction(async (tx) => { const [others] = await tx .select({ n: count()..."
+            }
+          }
+        ]
+      },
+      {
+        "index": 5,
+        "actor": "Bob",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "read",
+            "text": "COUNT doctors WHERE ((@on_call = true) and (@id != \"bob\")) → 1",
+            "result": 1,
+            "src": {
+              "origin": "extracted",
+              "file": "src/doctors.ts",
+              "line": 8,
+              "column": 28,
+              "function": "goOffCall",
+              "effectId": 0,
+              "text": "tx .select({ n: count() }) .from(doctors) .where(and(eq(doctors.on_call, true..."
+            }
+          },
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "local",
+            "text": "CHECK (_count2 < 1) → false",
+            "result": false,
+            "src": {
+              "origin": "extracted",
+              "file": "src/doctors.ts",
+              "line": 12,
+              "column": 9,
+              "function": "goOffCall",
+              "text": "others.n < 1"
+            }
+          }
+        ]
+      },
+      {
+        "index": 6,
+        "actor": "Bob",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "write",
+            "text": "UPDATE doctors SET on_call = false WHERE (@id = \"bob\") → 1 row",
+            "result": 1,
+            "src": {
+              "origin": "extracted",
+              "file": "src/doctors.ts",
+              "line": 15,
+              "column": 11,
+              "function": "goOffCall",
+              "effectId": 1,
+              "text": "tx.update(doctors).set({ on_call: false }).where(eq(doctors.id, me))"
+            }
+          }
+        ]
+      },
+      {
+        "index": 7,
+        "actor": "Bob",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "commit",
+            "text": "COMMIT",
+            "src": {
+              "origin": "extracted",
+              "file": "src/doctors.ts",
+              "line": 7,
+              "column": 9,
+              "function": "goOffCall",
+              "text": "db.transaction(async (tx) => { const [others] = await tx .select({ n: count()..."
+            }
+          },
+          {
+            "actor": 1,
+            "thread": 0,
+            "kind": "local",
+            "text": "return (success)"
+          }
+        ]
+      },
+      {
+        "index": 8,
+        "actor": "Alice",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "commit",
+            "text": "COMMIT",
+            "src": {
+              "origin": "extracted",
+              "file": "src/doctors.ts",
+              "line": 7,
+              "column": 9,
+              "function": "goOffCall",
+              "text": "db.transaction(async (tx) => { const [others] = await tx .select({ n: count()..."
+            }
+          },
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "local",
+            "text": "return (success)"
+          }
+        ]
+      }
+    ],
+    "finalState": {
+      "tables": {
+        "doctors": [
+          {
+            "id": "alice",
+            "on_call": false
+          },
+          {
+            "id": "bob",
+            "on_call": false
+          }
+        ]
+      },
+      "actors": [
+        [
+          "Alice",
+          "ok"
+        ],
+        [
+          "Bob",
+          "ok"
+        ]
+      ],
+      "externalEffects": [],
+      "terms": [
+        {
+          "term": "count(doctors[on_call=true])",
+          "value": 0
+        }
+      ],
+      "quiescent": true
+    },
+    "contextSwitches": 2,
+    "minimized": true,
+    "originalLength": 8
+  },
+  "evidence": {
+    "level": "postgres-confirmed-schedule",
+    "summary": "the schedule was replayed on PostgreSQL: all 8 database outcomes matched the model's predictions and the final committed rows are identical; the invariant reads only committed rows, so it is violated on the real server"
+  },
+  "runtime": {
+    "performed": true,
+    "status": "confirmed",
+    "postgresVersion": "postgres (PostgreSQL) 17.11 (Homebrew)",
+    "observations": [
+      {
+        "transition": 1,
+        "actor": "Alice",
+        "sql": "BEGIN ISOLATION LEVEL REPEATABLE READ;",
+        "predicted": "ok",
+        "observed": "ok",
+        "agree": true
+      },
+      {
+        "transition": 2,
+        "actor": "Alice",
+        "sql": "SELECT count(*) FROM \"doctors\" WHERE ((\"on_call\" = TRUE) AND (\"id\" <> 'alice'));",
+        "predicted": "count 1",
+        "observed": "count 1",
+        "agree": true
+      },
+      {
+        "transition": 3,
+        "actor": "Alice",
+        "sql": "WITH r AS (UPDATE \"doctors\" SET \"on_call\" = FALSE WHERE (\"id\" = 'alice') RETURNING 1) SELECT count(*) FROM r;",
+        "predicted": "1 row(s)",
+        "observed": "1 row(s)",
+        "agree": true
+      },
+      {
+        "transition": 4,
+        "actor": "Bob",
+        "sql": "BEGIN ISOLATION LEVEL REPEATABLE READ;",
+        "predicted": "ok",
+        "observed": "ok",
+        "agree": true
+      },
+      {
+        "transition": 5,
+        "actor": "Bob",
+        "sql": "SELECT count(*) FROM \"doctors\" WHERE ((\"on_call\" = TRUE) AND (\"id\" <> 'bob'));",
+        "predicted": "count 1",
+        "observed": "count 1",
+        "agree": true
+      },
+      {
+        "transition": 6,
+        "actor": "Bob",
+        "sql": "WITH r AS (UPDATE \"doctors\" SET \"on_call\" = FALSE WHERE (\"id\" = 'bob') RETURNING 1) SELECT count(*) FROM r;",
+        "predicted": "1 row(s)",
+        "observed": "1 row(s)",
+        "agree": true
+      },
+      {
+        "transition": 7,
+        "actor": "Bob",
+        "sql": "COMMIT;",
+        "predicted": "ok",
+        "observed": "ok",
+        "agree": true
+      },
+      {
+        "transition": 8,
+        "actor": "Alice",
+        "sql": "COMMIT;",
+        "predicted": "ok",
+        "observed": "ok",
+        "agree": true
+      }
+    ],
+    "sqlstates": [],
+    "tablesAgree": true,
+    "modelTables": {
+      "doctors": [
+        {
+          "id": "alice",
+          "on_call": false
+        },
+        {
+          "id": "bob",
+          "on_call": false
+        }
+      ]
+    },
+    "postgresTables": {
+      "doctors": [
+        {
+          "id": "alice",
+          "on_call": false
+        },
+        {
+          "id": "bob",
+          "on_call": false
+        }
+      ]
+    },
+    "sqlOrigin": {
+      "Alice": "model-derived (extracted from source)",
+      "Bob": "model-derived (extracted from source)"
+    },
+    "note": "Each actor ran on its own PostgreSQL connection (a psql process) against a private, disposable cluster; the model's schedule decided which session sent its next statement, and a statement counts as blocked only when the server reported a lock wait. Deadlock victim choice depends on PostgreSQL's deadlock timer and is steered with delays. Not exercised: the original TypeScript/Drizzle code, application-level retries, external services."
+  },
+  "assumptions": [
+    "database default isolation: repeatable-read (PostgreSQL semantics, see docs/phase6/POSTGRES-ISOLATION.md)",
+    "a database statement is atomic unless it must wait for another transaction; waiting statements resume with their original snapshot",
+    "autocommit (root `db`) statements are single-statement transactions at the default isolation level",
+    "local computation is not a scheduling point; it is folded into the preceding transition",
+    "rows are read in primary-key order for LIMIT 1 (the declared programs and generated SQL both use ORDER BY the primary key)",
+    "tasks of different actors never share a transaction, connection or event loop; actors listed with the same process share in-process variables and crash together",
+    "a process crash rolls back open transactions and loses local state; committed data and performed external effects remain"
+  ],
+  "diagnostics": [
+    {
+      "code": "CP7001",
+      "severity": "warning",
+      "message": "invariant `someone-stays-on-call` can be violated by a bounded schedule of 8 transitions (2 context switches); evidence: postgres-confirmed-schedule"
+    }
+  ]
+}

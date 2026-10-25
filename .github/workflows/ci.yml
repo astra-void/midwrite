@@ -1,0 +1,106 @@
+# CommitRift CI. Static analysis and unit tests on Linux and macOS; required
+# runtime replay (PostgreSQL + bubblewrap isolation + Node.js/Drizzle + Bun)
+# on Linux. Replay tests run with COMMITRIFT_REQUIRE_REPLAY=1: a missing
+# prerequisite or a blocked isolation backend FAILS the job instead of
+# skipping (docs/phase4/LINUX-ISOLATION.md).
+#
+# Nothing is uploaded anywhere: reports stay in the job's workspace and are
+# summarized in the log.
+#
+# Status: written in Phase 4 and exercised locally (scripts/linux-replay-docker.sh
+# reproduces the replay job's steps on Debian bookworm); it has not run on
+# GitHub-hosted runners yet, because the repository has no remote.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  lint:
+    name: fmt + clippy
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  static:
+    name: static tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build (release)
+        run: cargo build --release --locked
+      - name: Build without the replay feature
+        run: cargo build --locked -p commitrift-cli --no-default-features
+      # Replay tests are not required here: without their prerequisites they
+      # print SKIPPED and do not count as runtime verification.
+      - name: Tests (static analysis, unit, CLI)
+        run: cargo test --workspace --locked
+      - name: SARIF and trace schema validation
+        run: |
+          python3 -m venv .venv && .venv/bin/pip install --quiet jsonschema
+          curl -fsSL -o sarif-2.1.0.json https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json
+          ./target/release/commitrift check fixtures --config fixtures/commitrift.json --format sarif --fail-on never > fixtures.sarif
+          ./target/release/commitrift trace fixtures --config fixtures/commitrift.json --format json > fixtures.traces.json
+          .venv/bin/python scripts/validate-schemas.py --sarif-schema sarif-2.1.0.json fixtures.sarif fixtures.traces.json
+
+  replay-linux:
+    name: required replay (Linux, bubblewrap)
+    runs-on: ubuntu-24.04
+    env:
+      COMMITRIFT_REQUIRE_REPLAY: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.3"
+      - name: Install PostgreSQL server binaries and bubblewrap
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql bubblewrap
+          echo "COMMITRIFT_PG_BIN=$(ls -d /usr/lib/postgresql/*/bin | sort -V | tail -1)" >> "$GITHUB_ENV"
+      # Ubuntu 23.10+ restricts unprivileged user namespaces through AppArmor;
+      # bubblewrap needs them. This enables the kernel feature on the
+      # disposable runner; CommitRift's isolation stays fully enabled.
+      - name: Allow unprivileged user namespaces
+        run: |
+          if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          bwrap --unshare-user --unshare-net --unshare-pid --ro-bind / / --dev /dev --proc /proc true
+      - name: Install the Drizzle fixture's pinned dependencies
+        working-directory: fixtures/replay/drizzle-node
+        run: npm ci --ignore-scripts --no-audit --no-fund && npm run build
+      - name: Tests including required replay
+        run: cargo test --workspace --locked
+      - name: Drizzle replay (CLI) and verification schema validation
+        run: |
+          cargo build --release --locked
+          ./target/release/commitrift replay fixtures/replay/drizzle-node --allow-execution --format json --output drizzle-node.json > /dev/null
+          ./target/release/commitrift replay fixtures/replay/order-vulnerable --allow-execution \
+            --baseline reports/phase3/replay/order-vulnerable.json \
+            --format json --output order-vulnerable.json --regression-output order-vulnerable.regression.json > /dev/null
+          python3 -m venv .venv && .venv/bin/pip install --quiet jsonschema
+          .venv/bin/python scripts/validate-schemas.py drizzle-node.json order-vulnerable.json order-vulnerable.regression.json
+          python3 -c "import json; r=json.load(open('drizzle-node.json')); assert r['environment']['isolation']=='bubblewrap', r['environment']; print(r['summary'])"

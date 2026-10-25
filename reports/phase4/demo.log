@@ -1,0 +1,186 @@
+
+== 0. Build CommitRift and install the fixture's pinned dependencies (npm ci, lockfile)
+
+== 1. Scan real TypeScript + Drizzle ORM code (nothing is executed)
+warning[CP1002]: external effect followed by an independent database commit
+  --> src/relay.ts:15:11 (in `relayOutbox`, confidence: medium)
+     |
+  15 |     await queue.publish(row.topic, row.payload, { id: row.id });
+     |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = `queue.publish(row.topic, row.payload, { id: row.id })` (message-publish) is performed before `db.update(outbox)` commits; a failure in between leaves an external effect without the database change
+  failure sequence:
+    1. `queue.publish(row.topic, row.payload, { id: row.id })` (15:11) performs an external effect (message-publish); other systems can observe it as soon as it succeeds.
+    2. The process crashes, or the database operation fails, after `queue.publish(row.topic, row.payload, { id: row.id })` and before `db.update(outbox)` commits.
+    3. `db.update(outbox)` never commits.
+    4. Result: other systems observe the external effect, but the database change it implies never commits.
+  help: Commit the database change first and drive the external effect from it (transactional outbox), or make the external effect safe to observe without the database change (idempotent, reversible, or reconciled).
+  note: `queue.publish(row.topic, row.payload, { id: row.id })` runs inside a for-of loop at 14:3; only zero or one iteration is modeled.
+  note: `db.update(outbox)` runs inside a for-of loop at 14:3; only zero or one iteration is modeled.
+
+warning[CP1001]: database commit followed by an independent external effect
+  --> src/service.ts:15:9 (in `completeOrder`, confidence: high)
+     |
+  15 |   await queue.publish("order.completed", { orderId });
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = `db.update(orders)` commits before `queue.publish("order.completed", { orderId })` (message-publish); a failure in between leaves the database changed without the external effect
+  failure sequence:
+    1. `db.update(orders)` (13:9) commits immediately: it is not inside a recognized transaction.
+    2. The process crashes or is restarted, or the call fails, after the commit and before `queue.publish("order.completed", { orderId })` completes.
+    3. `queue.publish("order.completed", { orderId })` is never performed.
+    4. Result: the database change is durable but the external effect never happens, and nothing records that it is still owed.
+  help: Record the intent in the same database transaction as the state change (transactional outbox) and perform the external effect from a relay that retries until it succeeds, or make a reconciliation job derive the missing effect from database state.
+
+warning[CP1003]: external effect executed inside a database transaction before commit
+  --> src/service.ts:33:11 (in `shipOrder`, confidence: high)
+     |
+  33 |     await queue.publish("order.shipped", { orderId, trackingNumber }, { id: `order.shipped:${orderId}` });
+     |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = `queue.publish("order.shipped", …)` (message-publish) runs inside the transaction started at 31:9 before it commits; if the transaction rolls back, the external effect remains
+  failure sequence:
+    1. The transaction started by `db.transaction(…)` (31:9) stages its writes without committing them: `tx.update(orders)` (32:11), `tx.insert(shipments)` (34:11).
+    2. `queue.publish("order.shipped", …)` (33:11) performs an external effect (message-publish) while the transaction is still open.
+    3. The transaction then fails to commit: a later statement throws, the commit is rejected (constraint, serialization or connection failure), or the process dies. Its staged writes roll back.
+    4. Result: the external effect is visible while the transaction's writes may still roll back; consumers may also act before the data is committed.
+  help: Do not perform external effects inside the transaction callback. Insert an outbox row with the transaction handle instead, and publish after commit from a relay.
+
+commitrift: analyzed 6 of 6 file(s), 9 function(s); 3 warning(s), 0 error(s), 0 info; config: commitrift.json
+Findings are potential hazards, not reproduced failures. Run `commitrift explain <CODE>` for details.
+
+== 2./3. The failure trace of the CP1001 finding (a static candidate)
+tr-2a5439a0b830cdc6 CP1001 4f53a6215ac16913 in `completeOrder` (src/service.ts:15:9) [STATIC_CANDIDATE; Complete]
+    0. dbWrite     Committed   db.update(orders) @ 13:9 <- completes first
+       ---- failure injection boundary (after-db-commit / before-event-publish) ----
+    1. external    NotReached  queue.publish("order.completed", { orderId }) @ 15:9 <- not yet performed
+  simulated: If the process dies right after step 0: durable or visible: `db.update(orders)` (step 0); never performed: `queue.publish("order.completed", { orderId })` (step 1).
+
+commitrift: 1 finding(s): 1 trace(s) (1 complete, 0 approximated, 0 incomplete), 0 without a trace. Traces are static candidates, not reproduced failures.
+
+== 4. Generate an editable replay harness from the finding (writes only into the new directory)
+commitrift init-replay: wrote a Node.js replay skeleton for finding 4f53a6215ac16913 (CP1001 in `completeOrder`, src/service.ts:15) to .gen-demo-1213
+  commitrift-replay.json
+  harness.ts
+  schema.sql
+  package.json
+  README.md
+  finding.json
+  tsconfig.json
+  commitrift-runtime/ (the replay client, vendored)
+Nothing was executed or installed. Complete every COMMITRIFT-TODO marker (README.md lists them); `commitrift replay` refuses to run until then.
+--- replay refuses the unfinished skeleton:
+error: the replay manifest `fixtures/replay/drizzle-node/.gen-demo-1213/commitrift-replay.json` still has 13 unfinished placeholder(s) (COMMITRIFT-TODO) at /cases/0/input/COMMITRIFT-TODO, /cases/0/verifyBeforeInjection/0/equals, /cases/1/input/COMMITRIFT-TODO, /cases/1/verifyBeforeInjection/0/equals, /cases/2/input/COMMITRIFT-TODO, /cases/3/input/COMMITRIFT-TODO, /cases/4/input/COMMITRIFT-TODO, /control/input/COMMITRIFT-TODO, /invariants/0/description, /invariants/0/require/0/equals, /invariants/0/when/0/equals, /observations/0/sql, /observations/1/events/topic; replace them with your application's observations, invariants and scenarios before running replay
+
+== 5. MANUAL: the developer fills in the marked integration points (completed version shown)
+--- fixtures/replay/drizzle-node/.gen-demo-1213/commitrift-replay.json	2026-10-25 15:48:44
++++ fixtures/replay/drizzle-node/generated-harness/commitrift-replay.json	2026-10-25 15:12:11
+@@ -5,7 +5,7 @@
+   "runtime": "node",
+   "command": [
+     "node",
+-    "dist/.gen-demo-1213/harness.js"
++    "dist/generated-harness/harness.js"
+   ],
+   "timeoutSeconds": 30,
+   "database": {
+@@ -24,12 +24,12 @@
+   "observations": [
+     {
+       "name": "ordersState",
+-      "sql": "COMMITRIFT-TODO: a read-only SQL query returning one value (one row, one column) that shows whether `db.update(orders)` (src/service.ts:13:9) took effect for the record the scenario changes"
++      "sql": "SELECT status FROM orders WHERE id = 'order-1'"
+     },
+     {
+       "name": "queuePublishEvents",
+       "events": {
+-        "topic": "COMMITRIFT-TODO: the topic your event-log adapter records for `queue.publish(\"order.completed\", { orderId })` (src/service.ts:15:9)",
++        "topic": "order.completed",
+         "measure": "count"
+       }
+     }
+@@ -37,17 +37,17 @@
+   "invariants": [
+     {
+       "id": "application-contract",
+-      "description": "COMMITRIFT-TODO: the application contract this finding may break, in your own words; e.g. \"when `db.update(orders)` took effect, `queue.publish(\"order.completed\", { orderId })` must have happened too (or be durably owed)\". CommitRift does not know your business rules.",
++      "description": "An order marked paid has its order.completed event published: fulfilment only learns about paid orders from that event.",
+       "when": [
+         {
+           "observation": "ordersState",
+-          "equals": "COMMITRIFT-TODO: the value of `ordersState` after `db.update(orders)`"
++          "equals": "paid"
+         }
+       ],
+       "require": [
+         {
+           "observation": "queuePublishEvents",
+-          "equals": "COMMITRIFT-TODO: the value `queuePublishEvents` must have then"
++          "atLeast": 1
+         }
+       ]
+     }
+@@ -55,7 +55,7 @@
+   "control": {
+     "scenario": "completeOrder",
+     "input": {
+-      "COMMITRIFT-TODO": "the arguments for `completeOrder` as JSON (the harness passes this object to your scenario)"
++      "orderId": "order-1"
+     }
+   },
+   "cases": [
+@@ -67,7 +67,7 @@
+       },
+       "scenario": "completeOrder",
+       "input": {
+
+== 6./7. Authorized, isolated replay; observe the surviving PostgreSQL state
+commitrift replay: harness `completeorder-cp1001` — Generated by `commitrift init-replay` from finding 4f53a6215ac16913 (CP1001 in `completeOrder`, src/service.ts:15; trace tr-2a5439a0b830cdc6). Edit freely.
+  environment: macos aarch64, postgres (PostgreSQL) 17.11 (Homebrew), node v22.23.2; network: sandbox-exec: IP networking denied; Unix sockets and file writes limited to the replay directory
+  control run (no injection): RUNTIME_NOT_REPRODUCED — all 1 declared invariant check(s) held; state: ordersState="paid" queuePublishEvents=1
+
+case kill-after-db-commit: processKill at `after-db-commit`  [RUNTIME_REPRODUCED, as expected]
+  CP1001: fail (processKill) right after `db.update(orders)` completed (src/service.ts:13:9), before `queue.publish("order.completed", { orderId })`. This is the trace's failure window.
+  static link: Matched — finding 4f53a6215ac16913 (CP1001 in `completeOrder`, src/service.ts:15); trace tr-2a5439a0b830cdc6 (OnTraceBoundary)
+  run 1: RUNTIME_REPRODUCED — declared invariant violated: `application-contract` at after: VIOLATED: queuePublishEvents >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: ordersState = "paid" -> ok (observed "paid")
+    before:        ordersState="pending" queuePublishEvents=0
+    after:         ordersState="paid" queuePublishEvents=0
+  run 2: RUNTIME_REPRODUCED — declared invariant violated: `application-contract` at after: VIOLATED: queuePublishEvents >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: ordersState = "paid" -> ok (observed "paid")
+    before:        ordersState="pending" queuePublishEvents=0
+    after:         ordersState="paid" queuePublishEvents=0
+  run 3: RUNTIME_REPRODUCED — declared invariant violated: `application-contract` at after: VIOLATED: queuePublishEvents >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: ordersState = "paid" -> ok (observed "paid")
+    before:        ordersState="pending" queuePublishEvents=0
+    after:         ordersState="paid" queuePublishEvents=0
+  run 4: RUNTIME_REPRODUCED — declared invariant violated: `application-contract` at after: VIOLATED: queuePublishEvents >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: ordersState = "paid" -> ok (observed "paid")
+    before:        ordersState="pending" queuePublishEvents=0
+    after:         ordersState="paid" queuePublishEvents=0
+  run 5: RUNTIME_REPRODUCED — declared invariant violated: `application-contract` at after: VIOLATED: queuePublishEvents >= 1 (observed 0)
+    injected=true outcome=killed exit=signaled (signal 9)
+    before injecting: ordersState = "paid" -> ok (observed "paid")
+    before:        ordersState="pending" queuePublishEvents=0
+    after:         ordersState="paid" queuePublishEvents=0
+
+1 case(s): 1 RUNTIME_REPRODUCED, 0 RUNTIME_NOT_REPRODUCED, 0 INCONCLUSIVE; 1 as expected, 0 not as expected.
+Results describe this harness under the recorded conditions; RUNTIME_NOT_REPRODUCED does not prove the application safe.
+
+== 8. Render the verification report
+wrote <demo-output>/generated-harness.html
+
+== 9. Compare with the transactional outbox (the same commit point, plus relay failures)
+case d-kill-after-tx-commit: processKill at `after-db-commit`  [RUNTIME_NOT_REPRODUCED, as expected]
+    after:         completedEvents=0 confirmedDuplicates=0 confirmedEvents=0 confirmedWithoutId=0 order1Status="pending" order2Payments=0 order2Status="pending" order3Shipments=0 order3Status="pending" order4Status="confirmed" outboxRows=1 pendingOutbox=1 shippedEvents=0
+    afterRecovery: completedEvents=0 confirmedDuplicates=0 confirmedEvents=1 confirmedWithoutId=0 order1Status="pending" order2Payments=0 order2Status="pending" order3Shipments=0 order3Status="pending" order4Status="confirmed" outboxRows=1 pendingOutbox=0 shippedEvents=0
+  recovery (runtime observation): Observed at runtime: after relay every declared invariant held in 1 of 1 run(s); in 0 of them an invariant had been violated before recovery. This harness and environment only.
+case d-kill-relay-after-publish-before-ack: processKill at `after-event-publish`  [RUNTIME_NOT_REPRODUCED, as expected]
+    after:         completedEvents=0 confirmedDuplicates=0 confirmedEvents=1 confirmedWithoutId=0 order1Status="pending" order2Payments=0 order2Status="pending" order3Shipments=0 order3Status="pending" order4Status="confirmed" outboxRows=1 pendingOutbox=1 shippedEvents=0
+    afterRecovery: completedEvents=0 confirmedDuplicates=1 confirmedEvents=2 confirmedWithoutId=0 order1Status="pending" order2Payments=0 order2Status="pending" order3Shipments=0 order3Status="pending" order4Status="confirmed" outboxRows=1 pendingOutbox=0 shippedEvents=0
+  recovery (runtime observation): Observed at runtime: after relay every declared invariant held in 1 of 1 run(s); in 0 of them an invariant had been violated before recovery. This harness and environment only.
+case a-kill-after-db-commit: processKill at `after-db-commit`  [RUNTIME_REPRODUCED, as expected]
+  run 1: RUNTIME_REPRODUCED — declared invariant violated: `paid-order-has-completed-event` at after: VIOLATED: completedEvents >= 1 (observed 0)
+    after:         completedEvents=0 confirmedDuplicates=0 confirmedEvents=0 confirmedWithoutId=0 order1Status="paid" order2Payments=0 order2Status="pending" order3Shipments=0 order3Status="pending" order4Status="pending" outboxRows=0 pendingOutbox=0 shippedEvents=0
+wrote <demo-output>/drizzle-node.html

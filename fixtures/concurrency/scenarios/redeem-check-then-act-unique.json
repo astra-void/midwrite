@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "name": "redeem-check-then-act-unique",
+  "description": "Same code, but the scenario declares UNIQUE(code): the second insert fails instead of duplicating.",
+  "extraction": {
+    "root": "../project"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "redemptions",
+        "columns": [
+          {
+            "name": "id",
+            "type": "text",
+            "notNull": true
+          },
+          {
+            "name": "code",
+            "type": "text"
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "unique": [
+          [
+            "code"
+          ]
+        ]
+      }
+    ],
+    "initialState": {
+      "redemptions": []
+    }
+  },
+  "actors": [
+    {
+      "name": "A",
+      "function": "redeemCode",
+      "file": "src/redeem.ts",
+      "arguments": [
+        "SAVE10",
+        "req-A"
+      ]
+    },
+    {
+      "name": "B",
+      "function": "redeemCode",
+      "file": "src/redeem.ts",
+      "arguments": [
+        "SAVE10",
+        "req-B"
+      ]
+    }
+  ],
+  "bounds": {
+    "maxSteps": 40
+  },
+  "invariants": [
+    {
+      "name": "redeemed-at-most-once",
+      "when": "final",
+      "assert": {
+        "le": [
+          {
+            "count": {
+              "table": "redemptions",
+              "where": {
+                "code": "SAVE10"
+              }
+            }
+          },
+          1
+        ]
+      }
+    }
+  ]
+}

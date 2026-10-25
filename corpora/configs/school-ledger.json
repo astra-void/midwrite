@@ -1,0 +1,5 @@
+{
+  "databaseReceivers": ["db"],
+  "transactionMethods": ["transaction"],
+  "externalEffects": []
+}
