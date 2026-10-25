@@ -43,6 +43,8 @@ cd work
   echo "max_user_namespaces=$(cat /proc/sys/user/max_user_namespaces)"
 } > /out/environment-$MODE.txt 2>&1
 (cd fixtures/replay/drizzle-node && npm ci --ignore-scripts --no-audit --no-fund && npm run build) > /out/npm-ci-$MODE.txt 2>&1
+# Phase 7: the first-party application used for original-code verification.
+(cd fixtures/phase7/team-app && npm ci --ignore-scripts --no-audit --no-fund && npm run build) >> /out/npm-ci-$MODE.txt 2>&1
 if [[ "$MODE" == "isolated" ]]; then
   cargo fmt --all -- --check > /out/fmt.txt 2>&1; echo "exit $?" >> /out/fmt.txt
   cargo clippy --workspace --all-targets -- -D warnings > /out/clippy.txt 2>&1; echo "exit $?" >> /out/clippy.txt
