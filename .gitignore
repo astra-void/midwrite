@@ -14,6 +14,8 @@
 # local tooling caches.
 node_modules/
 /fixtures/replay/**/dist/
+# Phase 7: build output of the first-party source-verification application.
+/fixtures/phase7/**/dist/
 /fixtures/replay/drizzle-node/.gen-*
 /digest.txt
 .DS_Store

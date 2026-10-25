@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "kind": "commitrift.source-harness",
+  "harness": "team-app",
+  "description": "Runs the team application's original Server Actions against a disposable PostgreSQL database, one process per actor, with every statement released by the CommitRift coordinator.",
+  "command": [
+    "node",
+    "--enable-source-maps",
+    "dist/verify/harness.js"
+  ],
+  "runtime": {
+    "node": ">=22"
+  },
+  "schema": [
+    "drizzle/0000_init.sql"
+  ],
+  "network": "deny",
+  "timeoutMs": 20000,
+  "entries": {
+    "inviteTeamMember": {
+      "selector": "src/app/actions.ts#inviteTeamMember/arg[1]",
+      "description": "The exported action: validatedActionWithUser(inviteTeamMemberSchema, callback). The harness calls the exported action; the model checks the callback."
+    },
+    "acceptInvitation": {
+      "selector": "src/app/actions.ts#acceptInvitation/arg[1]",
+      "description": "The exported action: validatedActionWithUser(acceptInvitationSchema, callback) running a Drizzle transaction."
+    }
+  }
+}
