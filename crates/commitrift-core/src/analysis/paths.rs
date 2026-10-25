@@ -76,6 +76,81 @@ pub(crate) enum Event<'ir> {
 
 pub(crate) type Trace<'ir> = Vec<Event<'ir>>;
 
+/// How inlined calls are walked (Phase 7).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PathMode {
+    /// Every trace that reaches an inlined call is walked through the
+    /// callee's body (Phases 2–6).
+    Legacy,
+    /// A call whose facts share no variable with facts outside it is walked
+    /// once; the resulting *compact summary* (its trace fragments, grouped
+    /// by exit) is spliced onto every incoming trace. Produces exactly the
+    /// legacy traces, in the same order, with the same statistics
+    /// (`docs/phase7/COMPACT-SUMMARIES.md`).
+    Compact,
+}
+
+static PATH_MODE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(1);
+
+/// Select how inlined calls are walked for this process (the CLI reads
+/// `COMMITRIFT_PATHS=legacy|compact`).
+pub fn set_path_mode(mode: PathMode) {
+    PATH_MODE.store(
+        match mode {
+            PathMode::Legacy => 0,
+            PathMode::Compact => 1,
+        },
+        std::sync::atomic::Ordering::Relaxed,
+    );
+}
+
+/// Apply `COMMITRIFT_PATHS` (`legacy` or `compact`) if set.
+pub fn path_mode_from_env() -> Result<(), String> {
+    match std::env::var("COMMITRIFT_PATHS").as_deref() {
+        Err(_) => Ok(()),
+        Ok("legacy") => {
+            set_path_mode(PathMode::Legacy);
+            Ok(())
+        }
+        Ok("compact") => {
+            set_path_mode(PathMode::Compact);
+            Ok(())
+        }
+        Ok(other) => Err(format!(
+            "COMMITRIFT_PATHS=`{other}`: expected `legacy` or `compact`"
+        )),
+    }
+}
+
+pub fn path_mode() -> PathMode {
+    match PATH_MODE.load(std::sync::atomic::Ordering::Relaxed) {
+        0 => PathMode::Legacy,
+        _ => PathMode::Compact,
+    }
+}
+
+/// Counters of compact-summary use (for measurements; never in reports).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct CompactStats {
+    /// Call scopes summarized (walked once).
+    pub built: usize,
+    /// Incoming traces served from a summary instead of a walk.
+    pub reused: usize,
+    /// Calls walked the legacy way because their facts are shared.
+    pub shared_facts: usize,
+}
+
+/// The traces a call scope produces from an empty trace, grouped like the
+/// legacy walk groups them after leaving the call.
+struct Compact<'ir> {
+    normal: Vec<Trace<'ir>>,
+    returned: Vec<Trace<'ir>>,
+    thrown: Vec<Trace<'ir>>,
+    pruned: usize,
+    merged: usize,
+    truncated: bool,
+}
+
 #[derive(Debug)]
 pub(crate) struct Paths<'ir> {
     pub traces: Vec<Trace<'ir>>,
@@ -103,6 +178,17 @@ pub(crate) fn enumerate_with(
     max_paths: usize,
     include_reads: bool,
 ) -> Paths<'_> {
+    enumerate_in(function, max_paths, include_reads, path_mode()).0
+}
+
+/// [`enumerate_with`] in an explicit [`PathMode`], with compact-summary
+/// counters.
+pub(crate) fn enumerate_in(
+    function: &FunctionIr,
+    max_paths: usize,
+    include_reads: bool,
+    mode: PathMode,
+) -> (Paths<'_>, CompactStats) {
     let mut walker = Walker {
         include_reads,
         max_paths: max_paths.max(1),
@@ -112,6 +198,9 @@ pub(crate) fn enumerate_with(
         ctx: EffectContext::default(),
         fact_uses: HashMap::new(),
         live: HashMap::new(),
+        compact: mode == PathMode::Compact,
+        summaries: HashMap::new(),
+        stats: CompactStats::default(),
     };
     count_fact_variables(&function.body, &mut walker.fact_uses);
     let flow = walker.block(&function.body, vec![Vec::new()]);
@@ -121,12 +210,15 @@ pub(crate) fn enumerate_with(
     // `break`/`continue` cannot leave a function body; keep them anyway.
     traces.extend(flow.broke);
     traces.extend(flow.continued);
-    Paths {
-        traces,
-        truncated: walker.truncated,
-        pruned: walker.pruned,
-        merged: walker.merged,
-    }
+    (
+        Paths {
+            traces,
+            truncated: walker.truncated,
+            pruned: walker.pruned,
+            merged: walker.merged,
+        },
+        walker.stats,
+    )
 }
 
 /// Traces leaving a node, grouped by how they leave it.
@@ -182,6 +274,10 @@ struct Walker<'ir> {
     /// Per inlined call (by address): the fact variables of its body that
     /// facts outside the call also mention (live after the call).
     live: HashMap<usize, HashSet<String>>,
+    compact: bool,
+    /// Compact summaries by (call address, effect context).
+    summaries: HashMap<(usize, [usize; 3]), Compact<'ir>>,
+    stats: CompactStats,
 }
 
 impl<'ir> Walker<'ir> {
@@ -339,6 +435,17 @@ impl<'ir> Walker<'ir> {
                 .collect();
             self.live.insert(address, live);
         }
+        // A callee whose facts share no variable with facts outside it is
+        // walked identically whatever the incoming trace is: its branch
+        // feasibility only consults its own facts (contradiction needs a
+        // common variable), and everything else depends only on the effect
+        // context. Walk it once and splice.
+        if self.compact && self.live.get(&address).is_some_and(HashSet::is_empty) {
+            return self.call_compact(call, address, input);
+        }
+        if self.compact {
+            self.stats.shared_facts += 1;
+        }
         let mut out = Flow::default();
         for trace in input {
             if out.len() >= self.max_paths {
@@ -364,6 +471,93 @@ impl<'ir> Walker<'ir> {
             out.thrown
                 .extend(self.merge_equivalent(inner.thrown, entry, address));
         }
+        out
+    }
+
+    /// [`Self::call`] through a compact summary: the callee is walked from an
+    /// empty trace (exactly the per-trace work of the legacy walk, with the
+    /// same budget, pruning and merging) once per effect context, and its
+    /// fragments are appended to each incoming trace. Statistics are
+    /// accounted per incoming trace, as the legacy walk accounts them.
+    fn call_compact(
+        &mut self,
+        call: &'ir CallScope,
+        address: usize,
+        input: Vec<Trace<'ir>>,
+    ) -> Flow<'ir> {
+        let ctx = [
+            self.ctx
+                .in_loop
+                .map_or(0, |l| std::ptr::from_ref(l) as usize),
+            self.ctx
+                .guarded_by
+                .map_or(0, |t| std::ptr::from_ref(t) as usize),
+            self.ctx
+                .in_handler
+                .map_or(0, |t| std::ptr::from_ref(t) as usize),
+        ];
+        let key = (address, ctx);
+        if !self.summaries.contains_key(&key) {
+            let (pruned, merged, truncated) = (self.pruned, self.merged, self.truncated);
+            self.truncated = false;
+            let inner = self.block(&call.body, vec![Vec::new()]);
+            let mut normal = inner.normal;
+            let mut returned = Vec::new();
+            for trace in inner.returned {
+                if matches!(trace.last(), Some(Event::Incomplete(_))) {
+                    returned.push(trace);
+                } else {
+                    normal.push(trace);
+                }
+            }
+            normal.extend(inner.broke);
+            normal.extend(inner.continued);
+            let normal = self.merge_equivalent(normal, 0, address);
+            let thrown = self.merge_equivalent(inner.thrown, 0, address);
+            let summary = Compact {
+                normal,
+                returned,
+                thrown,
+                pruned: self.pruned - pruned,
+                merged: self.merged - merged,
+                truncated: self.truncated,
+            };
+            self.pruned = pruned;
+            self.merged = merged;
+            self.truncated = truncated;
+            self.summaries.insert(key, summary);
+            self.stats.built += 1;
+        }
+        let summary = &self.summaries[&key];
+        let mut out = Flow::default();
+        let (mut pruned, mut merged, mut truncated) = (0, 0, false);
+        for trace in input {
+            if out.len() >= self.max_paths {
+                truncated = true;
+                break;
+            }
+            pruned += summary.pruned;
+            merged += summary.merged;
+            truncated |= summary.truncated;
+            let splice = |fragments: &[Trace<'ir>], into: &mut Vec<Trace<'ir>>| {
+                for fragment in fragments {
+                    let mut t = Vec::with_capacity(trace.len() + fragment.len());
+                    t.extend_from_slice(&trace);
+                    t.extend_from_slice(fragment);
+                    into.push(t);
+                }
+            };
+            // The legacy walk emits, per incoming trace, returned
+            // (incomplete) traces, then the merged normal ones, then the
+            // merged thrown ones, each in walk order.
+            splice(&summary.returned, &mut out.returned);
+            splice(&summary.normal, &mut out.normal);
+            splice(&summary.thrown, &mut out.thrown);
+            self.stats.reused += 1;
+        }
+        self.pruned += pruned;
+        self.merged += merged;
+        self.truncated |= truncated;
         out
     }
 
@@ -610,6 +804,29 @@ impl<'ir> Walker<'ir> {
             current.truncate(keep);
         }
     }
+}
+
+/// Whether two traces consist of the same events (IR identity, arms,
+/// contexts).
+pub(crate) fn same_trace(a: &Trace<'_>, b: &Trace<'_>) -> bool {
+    a.len() == b.len()
+        && a.iter().zip(b).all(|(x, y)| {
+            event_key(x) == event_key(y)
+                && match (x, y) {
+                    (
+                        Event::Decision(Decision::Arm { arm: p, .. }),
+                        Event::Decision(Decision::Arm { arm: q, .. }),
+                    ) => p == q,
+                    (
+                        Event::Decision(Decision::Case { case: p, .. }),
+                        Event::Decision(Decision::Case { case: q, .. }),
+                    ) => p == q,
+                    (Event::Decision(d), Event::Decision(e)) => {
+                        std::mem::discriminant(d) == std::mem::discriminant(e)
+                    }
+                    _ => true,
+                }
+        })
 }
 
 fn with_decision<'ir>(traces: &[Trace<'ir>], decision: Decision<'ir>) -> Vec<Trace<'ir>> {

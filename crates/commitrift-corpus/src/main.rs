@@ -951,6 +951,12 @@ enum Classification {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
+    if let Err(message) = commitrift_core::analysis::path_mode_from_env() {
+        eprintln!("error: {message}");
+        return ExitCode::from(2);
+    }
+    let differential = std::env::var_os("COMMITRIFT_PATHS_DIFFERENTIAL").is_some();
+    commitrift_core::analysis::enable_path_differential(differential);
     let result = match cli.command {
         Commands::Traces { manifest, unknowns } => match traces(&manifest, unknowns.as_deref()) {
             Ok(true) => return ExitCode::SUCCESS,
@@ -988,6 +994,22 @@ fn main() -> ExitCode {
             traces,
         } => memory(&manifest, max_call_depth, traces),
     };
+    if differential {
+        let (functions, stats, differences) = commitrift_core::analysis::take_path_differential();
+        eprintln!(
+            "path differential: {functions} function analyses compared (legacy vs compact), {} difference(s); compact summaries built {}, incoming traces spliced {}, calls with shared facts {}",
+            differences.len(),
+            stats.built,
+            stats.reused,
+            stats.shared_facts
+        );
+        for d in differences.iter().take(20) {
+            eprintln!("  {d}");
+        }
+        if !differences.is_empty() {
+            return ExitCode::from(1);
+        }
+    }
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(message) => {

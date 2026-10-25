@@ -18,6 +18,7 @@
 
 mod detect;
 mod paths;
+pub use paths::{CompactStats, PathMode, path_mode, path_mode_from_env, set_path_mode};
 mod render;
 mod summary;
 mod trace;
@@ -108,12 +109,104 @@ pub fn trace_function_in(
     run(function, src, options, true)
 }
 
+static DIFFERENTIAL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static DIFFERENTIAL_LOG: std::sync::Mutex<(usize, CompactStats, Vec<String>)> =
+    std::sync::Mutex::new((
+        0,
+        CompactStats {
+            built: 0,
+            reused: 0,
+            shared_facts: 0,
+        },
+        Vec::new(),
+    ));
+
+/// Compare both path modes on every function analyzed from now on (Phase 7
+/// differential testing; `COMMITRIFT_PATHS_DIFFERENTIAL=1` in the CLI).
+pub fn enable_path_differential(on: bool) {
+    DIFFERENTIAL.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Functions compared, summed compact counters and differences so far
+/// (and reset).
+pub fn take_path_differential() -> (usize, CompactStats, Vec<String>) {
+    let mut log = DIFFERENTIAL_LOG
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    std::mem::take(&mut *log)
+}
+
+/// Phase 7 differential check: enumerate `function`'s paths in both
+/// [`PathMode`]s and compare them event by event (by IR identity), plus the
+/// truncation flag and the pruned/merged counters. Returns the compact
+/// summary counters, or the first difference.
+pub fn compare_path_modes(
+    function: &FunctionIr,
+    options: &AnalysisOptions,
+    include_reads: bool,
+) -> Result<CompactStats, String> {
+    let function = resolve_parameters(function);
+    let function = function.as_ref();
+    let (legacy, _) =
+        paths::enumerate_in(function, options.max_paths, include_reads, PathMode::Legacy);
+    let (compact, stats) = paths::enumerate_in(
+        function,
+        options.max_paths,
+        include_reads,
+        PathMode::Compact,
+    );
+    if legacy.truncated != compact.truncated
+        || legacy.pruned != compact.pruned
+        || legacy.merged != compact.merged
+    {
+        return Err(format!(
+            "`{}`: truncated/pruned/merged legacy {}/{}/{} compact {}/{}/{}",
+            function.name,
+            legacy.truncated,
+            legacy.pruned,
+            legacy.merged,
+            compact.truncated,
+            compact.pruned,
+            compact.merged
+        ));
+    }
+    if legacy.traces.len() != compact.traces.len() {
+        return Err(format!(
+            "`{}`: {} legacy traces, {} compact",
+            function.name,
+            legacy.traces.len(),
+            compact.traces.len()
+        ));
+    }
+    for (i, (a, b)) in legacy.traces.iter().zip(&compact.traces).enumerate() {
+        if !paths::same_trace(a, b) {
+            return Err(format!("`{}`: trace {i} differs", function.name));
+        }
+    }
+    Ok(stats)
+}
+
 fn run(
     function: &FunctionIr,
     src: Sources<'_>,
     options: &AnalysisOptions,
     with_traces: bool,
 ) -> (FunctionAnalysis, Vec<TraceOutcome>) {
+    if DIFFERENTIAL.load(std::sync::atomic::Ordering::Relaxed) {
+        let result = compare_path_modes(function, options, with_traces);
+        let mut log = DIFFERENTIAL_LOG
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        log.0 += 1;
+        match result {
+            Ok(stats) => {
+                log.1.built += stats.built;
+                log.1.reused += stats.reused;
+                log.1.shared_facts += stats.shared_facts;
+            }
+            Err(difference) => log.2.push(difference),
+        }
+    }
     let function = resolve_parameters(function);
     let function = function.as_ref();
     let paths = paths::enumerate_with(function, options.max_paths, with_traces);

@@ -333,6 +333,10 @@ pub fn run(invocation: Invocation) -> ExitCode {
         );
     }
     let cli = Cli::parse();
+    if let Err(message) = commitrift_core::analysis::path_mode_from_env() {
+        eprintln!("error: {message}");
+        return ExitCode::from(EXIT_USAGE);
+    }
     let result = match cli.command {
         Command::Check(args) => check(&args),
         Command::Explain { code } => explain(code.as_deref()),
