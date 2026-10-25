@@ -207,8 +207,11 @@ Results are `COUNTEREXAMPLE_FOUND`, `NO_COUNTEREXAMPLE_WITHIN_BOUNDS` (only
 within the declared bounds — not a proof of race freedom), `INCONCLUSIVE`
 or `UNSUPPORTED`, with diagnostics `CP7001` (invariant violated), `CP7002`
 (inconclusive), `CP7003` (unsupported behavior), `CP7101` (PostgreSQL did not
-reproduce) and `CP7102` (validation unavailable). Semantics, supported subset, validation against
-PostgreSQL and limitations: [`docs/phase6/`](docs/phase6/FINAL-REPORT.md).
+reproduce), `CP7102` (validation unavailable) and `CP7103` (the original
+code did not reproduce the counterexample, Phase 7). Semantics, supported
+subset, validation against PostgreSQL and limitations:
+[`docs/phase6/`](docs/phase6/FINAL-REPORT.md) and
+[`docs/phase7/`](docs/phase7/FINAL-REPORT.md).
 
 ## What CommitRift does not do
 

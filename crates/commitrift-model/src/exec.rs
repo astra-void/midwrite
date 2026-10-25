@@ -13,9 +13,9 @@ use crate::db::{
     matches_row, pk_key,
 };
 use crate::footprint::{Access, Footprint};
-use crate::ir::{Isolation, LockMode, OnConflict};
+use crate::ir::{Isolation, JoinKind, LockMode, OnConflict, ProjItem};
 use crate::model::Model;
-use crate::state::{ClosedStmt, Pending, State};
+use crate::state::{ClosedJoin, ClosedStmt, Pending, State};
 use crate::value::{Expr, Locals, Mode, Row, Value};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -291,6 +291,180 @@ fn apply_set(schema: &TableSchema, target: &Row, set: &[(String, Expr)]) -> Resu
     Ok(new)
 }
 
+/// Rows of `SELECT ... FROM table JOIN ...` visible in `snap`, as flat rows
+/// with qualified keys (`table.column`), in key order of the base table and
+/// then of each joined table (the order the oracle requests with `ORDER BY`).
+/// A `LEFT JOIN` without a match contributes `NULL` for every column of the
+/// joined table. Only equality joins between columns are supported.
+fn join_rows(
+    model: &Model,
+    s: &State,
+    table: u16,
+    joins: &[ClosedJoin],
+    pred: &Expr,
+    snap: Snapshot,
+) -> Result<Vec<Row>, DbError> {
+    let qualify = |t: u16, row: Option<&Row>, out: &mut Row| {
+        let schema = model.schema.table(t);
+        for c in &schema.columns {
+            let v = row
+                .and_then(|r| r.get(&c.name))
+                .cloned()
+                .unwrap_or(Value::Null);
+            out.insert(format!("{}.{}", schema.name, c.name), v);
+        }
+    };
+    let visible = |t: u16| -> Vec<Row> {
+        let schema = model.schema.table(t);
+        let mut rows: Vec<Row> = s
+            .store
+            .table_rows(t)
+            .filter_map(|id| s.store.visible_values(id, snap).cloned())
+            .collect();
+        rows.sort_by_key(|r| pk_key(schema, r));
+        rows
+    };
+    let mut partial: Vec<Row> = visible(table)
+        .iter()
+        .map(|r| {
+            let mut out = Row::new();
+            qualify(table, Some(r), &mut out);
+            out
+        })
+        .collect();
+    for j in joins {
+        let candidates = visible(j.table);
+        let mut next = Vec::new();
+        for left in partial {
+            let mut matched = false;
+            for r in &candidates {
+                let mut combined = left.clone();
+                qualify(j.table, Some(r), &mut combined);
+                let on = Expr::bin(
+                    crate::value::BinOp::Eq,
+                    Expr::Col(j.left.clone()),
+                    Expr::Col(j.right.clone()),
+                );
+                if matches_row(&on, &combined)? {
+                    matched = true;
+                    next.push(combined);
+                }
+            }
+            if !matched && j.kind == JoinKind::Left {
+                let mut combined = left;
+                qualify(j.table, None, &mut combined);
+                next.push(combined);
+            }
+        }
+        partial = next;
+    }
+    let mut out = Vec::new();
+    for row in partial {
+        if matches_row(pred, &row)? {
+            out.push(row);
+        }
+    }
+    Ok(out)
+}
+
+/// The nested row of table `t` in a flat joined row, or `null` when every
+/// primary-key column is `NULL` (an unmatched `LEFT JOIN`).
+fn nested(model: &Model, t: u16, flat: &Row) -> Value {
+    let schema = model.schema.table(t);
+    let mut row = Row::new();
+    for c in &schema.columns {
+        let v = flat
+            .get(&format!("{}.{}", schema.name, c.name))
+            .cloned()
+            .unwrap_or(Value::Null);
+        row.insert(c.name.clone(), v);
+    }
+    let key: Vec<&String> = if schema.primary_key.is_empty() {
+        schema.columns.iter().map(|c| &c.name).collect()
+    } else {
+        schema.primary_key.iter().collect()
+    };
+    if key.iter().all(|k| row.get(*k).is_none_or(Value::is_null)) {
+        Value::Null
+    } else {
+        Value::Row(row)
+    }
+}
+
+/// The result row a projection yields. Without joins `flat` has plain
+/// column names; with joins it has qualified ones and the default result
+/// nests each table's row under its name (Drizzle's shape).
+pub fn project(
+    model: &Model,
+    table: u16,
+    joins: &[ClosedJoin],
+    projection: Option<&[(String, ProjItem)]>,
+    flat: &Row,
+) -> Row {
+    let joined = !joins.is_empty();
+    let tables: Vec<u16> = std::iter::once(table)
+        .chain(joins.iter().map(|j| j.table))
+        .collect();
+    let Some(projection) = projection else {
+        if !joined {
+            return flat.clone();
+        }
+        return tables
+            .iter()
+            .map(|t| (model.schema.table(*t).name.clone(), nested(model, *t, flat)))
+            .collect();
+    };
+    let mut out = Row::new();
+    for (field, item) in projection {
+        let v = match item {
+            ProjItem::Column(c) => flat.get(c).cloned().unwrap_or(Value::Null),
+            ProjItem::Table(name) => match model.schema.index(name) {
+                Some(t) if joined => nested(model, t, flat),
+                Some(_) => Value::Row(flat.clone()),
+                None => Value::Null,
+            },
+        };
+        out.insert(field.clone(), v);
+    }
+    out
+}
+
+/// Assign column defaults to an insert's values the first time it runs:
+/// constants, and the next value of each sequence. Sequences are advanced
+/// before any constraint is checked (as PostgreSQL evaluates defaults before
+/// inserting), so a failing or conflicting insert still consumes its value.
+fn apply_defaults(
+    model: &Model,
+    s: &mut State,
+    table: u16,
+    values: &mut Row,
+    foot: &mut Footprint,
+) {
+    let schema = model.schema.table(table);
+    for c in &schema.columns {
+        if values.contains_key(&c.name) {
+            continue;
+        }
+        match &c.default {
+            Some(crate::db::ColumnDefault::Value(v)) => {
+                values.insert(c.name.clone(), v.clone());
+            }
+            Some(crate::db::ColumnDefault::Sequence(_)) => {
+                let index = model
+                    .sequences()
+                    .iter()
+                    .position(|(t, col, _)| *t == table && *col == c.name)
+                    .expect("every sequence column is listed");
+                let n = s.seqs[index];
+                s.seqs[index] = n.saturating_add(1);
+                foot.push(Access::Seq(index as u16));
+                values.insert(c.name.clone(), Value::Int(n));
+            }
+            None => {}
+        }
+    }
+}
+
 /// Run (or resume) a statement. `p` carries the progress between calls.
 ///
 /// For SERIALIZABLE transactions the serialization graph is re-checked after
@@ -323,9 +497,25 @@ fn run_stmt_inner(model: &Model, s: &mut State, p: &mut Pending, foot: &mut Foot
     match p.stmt.clone() {
         ClosedStmt::Insert {
             table,
-            values,
+            mut values,
             on_conflict,
-        } => run_insert(model, s, p, foot, table, values, on_conflict, iso),
+            returning,
+        } => {
+            if !p.started {
+                p.started = true;
+                apply_defaults(model, s, table, &mut values, foot);
+                if let ClosedStmt::Insert { values: v, .. } = &mut p.stmt {
+                    v.clone_from(&values);
+                }
+            }
+            let step = run_insert(model, s, p, foot, table, values, on_conflict, iso);
+            match step {
+                StmtStep::Done(StmtResult::Affected(n)) if returning => {
+                    StmtStep::Done(StmtResult::Row(if n > 0 { p.found.take() } else { None }))
+                }
+                other => other,
+            }
+        }
         ClosedStmt::Count { table, pred } => {
             let rows = match scan(model, s, table, &pred, snap) {
                 Ok(r) => r,
@@ -340,7 +530,42 @@ fn run_stmt_inner(model: &Model, s: &mut State, p: &mut Pending, foot: &mut Foot
             }
             StmtStep::Done(StmtResult::Count(rows.len() as i64))
         }
-        ClosedStmt::Select { table, pred, lock } => {
+        ClosedStmt::Select {
+            table,
+            pred,
+            joins,
+            projection,
+            ..
+        } if !joins.is_empty() => {
+            // Joins are read-only here (row locks on joins are not modeled;
+            // the extractor refuses them). Every joined table is read as a
+            // whole: a conservative footprint (any write to a joined table
+            // is dependent) and, under SERIALIZABLE, a whole-table read set.
+            let rows = match join_rows(model, s, table, &joins, &pred, snap) {
+                Ok(r) => r,
+                Err(e) => return StmtStep::Failed(e),
+            };
+            for t in std::iter::once(table).chain(joins.iter().map(|j| j.table)) {
+                foot.push(Access::Pred {
+                    table: t,
+                    pred: Expr::lit(true),
+                });
+                if iso == Isolation::Serializable {
+                    ser_read(s, p.txn, t, &Expr::lit(true), snap, foot);
+                }
+            }
+            let first = rows
+                .first()
+                .map(|r| project(model, table, &joins, projection.as_deref(), r));
+            StmtStep::Done(StmtResult::Row(first))
+        }
+        ClosedStmt::Select {
+            table,
+            pred,
+            lock,
+            projection,
+            ..
+        } => {
             if !p.started {
                 p.started = true;
                 let rows = match scan(model, s, table, &pred, snap) {
@@ -358,6 +583,8 @@ fn run_stmt_inner(model: &Model, s: &mut State, p: &mut Pending, foot: &mut Foot
                             select_read_predicate(model.schema.table(table), &pred, first.as_ref());
                         ser_read(s, p.txn, table, &read, snap, foot);
                     }
+                    let first =
+                        first.map(|r| project(model, table, &[], projection.as_deref(), &r));
                     return StmtStep::Done(StmtResult::Row(first));
                 }
                 p.todo = rows.into_iter().map(|r| r.0).collect();
@@ -370,7 +597,12 @@ fn run_stmt_inner(model: &Model, s: &mut State, p: &mut Pending, foot: &mut Foot
                     select_read_predicate(model.schema.table(table), &pred, returned.as_ref());
                 ser_read(s, p.txn, table, &read, snap, foot);
             }
-            step
+            match step {
+                StmtStep::Done(StmtResult::Row(Some(r))) if projection.is_some() => StmtStep::Done(
+                    StmtResult::Row(Some(project(model, table, &[], projection.as_deref(), &r))),
+                ),
+                other => other,
+            }
         }
         ClosedStmt::Update { table, pred, set } => {
             if !p.started {
@@ -677,5 +909,6 @@ fn run_insert(
         new: Some(values.clone()),
     });
     ser_write(s, p.txn, row, None, None, Some(&values), foot);
+    p.found = Some(values);
     StmtStep::Done(StmtResult::Affected(1))
 }

@@ -83,6 +83,37 @@ pub enum OnConflict {
     DoNothing,
 }
 
+/// `INNER JOIN` / `LEFT JOIN` (Phase 7): only equality of two columns.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum JoinKind {
+    Inner,
+    Left,
+}
+
+/// One join of a [`StmtKind::Select`]: `JOIN table ON left = right`, where
+/// `left` and `right` are qualified columns (`table.column`) of tables
+/// already in the query.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Join {
+    pub kind: JoinKind,
+    pub table: String,
+    pub left: String,
+    pub right: String,
+}
+
+/// One field of a projected result row (Phase 7).
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ProjItem {
+    /// The whole row of a table, nested (`null` for an unmatched `LEFT
+    /// JOIN`, as Drizzle returns it).
+    Table(String),
+    /// One column: plain (`email`) without joins, qualified with joins.
+    Column(String),
+}
+
 /// A database statement of the supported subset.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -95,6 +126,14 @@ pub enum StmtKind {
         pred: Expr,
         lock: LockMode,
         into: String,
+        /// Joined tables (Phase 7). With joins, columns in `pred` are
+        /// qualified (`table.column`) and the result row is keyed by table
+        /// name unless `projection` says otherwise.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        joins: Vec<Join>,
+        /// Projected result fields (Phase 7); `None` reads the full row.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        projection: Option<Vec<(String, ProjItem)>>,
     },
     /// `SELECT count(*) FROM table WHERE pred`.
     SelectCount {
@@ -116,6 +155,10 @@ pub enum StmtKind {
         values: Vec<(String, Expr)>,
         on_conflict: OnConflict,
         affected: Option<String>,
+        /// `RETURNING *` (Phase 7): the inserted row, including generated
+        /// and default values, or `null` when nothing was inserted.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        returning: Option<String>,
     },
     /// `DELETE FROM table WHERE pred`.
     Delete {
@@ -209,6 +252,25 @@ pub enum Op {
     },
     /// Wait for every non-detached child spawned by this thread.
     Join,
+    /// Enter a `try` block (Phase 7; local, not a scheduling point): a
+    /// failure of this thread before the matching [`Op::EndTry`] resumes at
+    /// `handler` instead of failing the thread. The failure's reason is
+    /// bound to `error` when given (an opaque value: the extractor never lets
+    /// code inspect it). A transaction opened inside the block is rolled
+    /// back before the handler runs, as Drizzle's `transaction` does before
+    /// re-throwing. A process crash never runs handlers.
+    Try {
+        handler: usize,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        error: Option<String>,
+    },
+    /// Leave the innermost `try` block (local).
+    EndTry,
+    /// Fail with the reason held in `local` (re-throw after a `finally`
+    /// block; local).
+    Rethrow {
+        local: String,
+    },
     /// Behavior the extractor did not understand.
     Unknown {
         detail: String,
@@ -234,6 +296,12 @@ pub struct SourceRef {
     pub line: u32,
     #[serde(default)]
     pub column: u32,
+    /// Last line of the operation's source span (Phase 7; 0 = unknown).
+    /// Runtime statements are attributed to an operation when their
+    /// application frame lies in `line..=end_line`.
+    /// In memory only: reports keep the v1 `sourceRef` shape.
+    #[serde(default, skip_serializing)]
+    pub end_line: u32,
     /// The function the operation is written in.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub function: String,
@@ -261,6 +329,7 @@ impl SourceRef {
             file: String::new(),
             line,
             column: 0,
+            end_line: 0,
             function: String::new(),
             call_chain: Vec::new(),
             effect_id: None,

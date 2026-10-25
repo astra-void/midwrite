@@ -196,6 +196,19 @@ The result must not be reported as a confirmed race.
 Validation was requested but could not run. The counterexample remains a
 model counterexample.
 
+## CP7103: original code did not reproduce the counterexample
+
+Phase 7. With `commitrift model-check --verify-source --allow-execution`,
+the actors' original application code ran through an authorized source
+harness under the counterexample's schedule against a disposable
+PostgreSQL database, and the run did not reproduce the violation: the
+application sent different statements (`diverged`), PostgreSQL answered
+differently, an expected statement never came (`inconclusive`), the
+verification could not run (`blocked`, `unsupported`), or the invariant held
+on the observed rows (`not-reproduced`). The counterexample keeps its own
+evidence level; `sourceVerification` lists every difference statement by
+statement. See [`docs/phase7/DIFFERENTIAL-VERIFICATION.md`](phase7/DIFFERENTIAL-VERIFICATION.md).
+
 ## Confidence
 
 Two dimensions are reported separately and combined into `confidence`:

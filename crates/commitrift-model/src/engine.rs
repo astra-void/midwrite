@@ -214,6 +214,7 @@ pub fn initial_state(model: &Model) -> State {
         crashes: 0,
         retries: 0,
         deps: Default::default(),
+        seqs: model.sequences().into_iter().map(|(_, _, n)| n).collect(),
         steps: 0,
         last_thread: None,
         switches: 0,
@@ -228,6 +229,7 @@ pub fn initial_state(model: &Model) -> State {
 
 fn main_thread() -> Thread {
     Thread {
+        handlers: Vec::new(),
         code: 0,
         pc: 0,
         status: TStatus::Running,
@@ -283,6 +285,9 @@ pub fn enabled(model: &Model, s: &State) -> Vec<Transition> {
                     | Op::Jump { .. }
                     | Op::Return
                     | Op::Throw { .. }
+                    | Op::Try { .. }
+                    | Op::EndTry
+                    | Op::Rethrow { .. }
                     | Op::Join
                     | Op::Spawn { .. }
             );
@@ -760,11 +765,25 @@ fn close_stmt(model: &Model, locals: &Locals, stmt: &Stmt) -> Result<ClosedStmt,
             table: t,
             pred,
             lock,
+            joins,
+            projection,
             ..
         } => ClosedStmt::Select {
             table: table(t)?,
             pred: close(pred)?,
             lock: *lock,
+            joins: joins
+                .iter()
+                .map(|j| {
+                    Ok(crate::state::ClosedJoin {
+                        kind: j.kind,
+                        table: table(&j.table)?,
+                        left: j.left.clone(),
+                        right: j.right.clone(),
+                    })
+                })
+                .collect::<Result<_, String>>()?,
+            projection: projection.clone(),
         },
         StmtKind::SelectCount { table: t, pred, .. } => ClosedStmt::Count {
             table: table(t)?,
@@ -787,6 +806,7 @@ fn close_stmt(model: &Model, locals: &Locals, stmt: &Stmt) -> Result<ClosedStmt,
             table: t,
             values,
             on_conflict,
+            returning,
             ..
         } => {
             let mut row = Row::new();
@@ -807,6 +827,7 @@ fn close_stmt(model: &Model, locals: &Locals, stmt: &Stmt) -> Result<ClosedStmt,
                 table: table(t)?,
                 values: row,
                 on_conflict: *on_conflict,
+                returning: returning.is_some(),
             }
         }
         StmtKind::Delete { table: t, pred, .. } => ClosedStmt::Delete {
@@ -819,9 +840,28 @@ fn close_stmt(model: &Model, locals: &Locals, stmt: &Stmt) -> Result<ClosedStmt,
 pub fn describe(model: &Model, c: &ClosedStmt) -> String {
     let name = |t: u16| model.schema.table(t).name.clone();
     match c {
-        ClosedStmt::Select { table, pred, lock } => format!(
-            "SELECT {} WHERE {}{}",
+        ClosedStmt::Select {
+            table,
+            pred,
+            lock,
+            joins,
+            ..
+        } => format!(
+            "SELECT {}{} WHERE {}{}",
             name(*table),
+            joins
+                .iter()
+                .map(|j| format!(
+                    " {} {} ON {} = {}",
+                    match j.kind {
+                        crate::ir::JoinKind::Inner => "JOIN",
+                        crate::ir::JoinKind::Left => "LEFT JOIN",
+                    },
+                    name(j.table),
+                    j.left,
+                    j.right
+                ))
+                .collect::<String>(),
             pred.render(),
             match lock {
                 crate::ir::LockMode::None => "",
@@ -846,6 +886,7 @@ pub fn describe(model: &Model, c: &ClosedStmt) -> String {
             table,
             values,
             on_conflict,
+            ..
         } => format!(
             "INSERT {} {}{}",
             name(*table),
@@ -1055,13 +1096,37 @@ fn deliver(
     let Op::Db { stmt } = &step.op else {
         unreachable!("delivering a result to a non-statement")
     };
+    let is_write = matches!(
+        stmt.kind,
+        StmtKind::Update { .. } | StmtKind::Insert { .. } | StmtKind::Delete { .. }
+    );
     let (value, kind) = match result {
-        StmtResult::Row(r) => (r.clone().map_or(Value::Null, Value::Row), EventKind::Read),
+        StmtResult::Row(r) => (
+            r.clone().map_or(Value::Null, Value::Row),
+            if is_write {
+                EventKind::Write
+            } else {
+                EventKind::Read
+            },
+        ),
         StmtResult::Count(n) => (Value::Int(*n), EventKind::Read),
         StmtResult::Affected(n) => (Value::Int(*n), EventKind::Write),
     };
     let target = match &stmt.kind {
         StmtKind::Select { into, .. } | StmtKind::SelectCount { into, .. } => Some(into.clone()),
+        StmtKind::Insert {
+            affected,
+            returning: Some(row),
+            ..
+        } => {
+            // `INSERT ... RETURNING *`: the row (or null) and the count.
+            s.actors[a].locals.insert(row.clone(), value.clone());
+            if let Some(count) = affected {
+                let n = i64::from(!value.is_null());
+                s.actors[a].locals.insert(count.clone(), Value::Int(n));
+            }
+            None
+        }
         StmtKind::Update { affected, .. }
         | StmtKind::Insert { affected, .. }
         | StmtKind::Delete { affected, .. } => affected.clone(),
@@ -1431,6 +1496,26 @@ fn settle_thread(
                 }
             },
             Op::Jump { target } => s.actors[a].threads[th].pc = *target as u32,
+            Op::Try { handler, error } => {
+                let open = s.actors[a].txn.is_some();
+                let t = &mut s.actors[a].threads[th];
+                t.handlers.push((*handler as u32, error.clone(), open));
+                t.pc += 1;
+            }
+            Op::EndTry => {
+                let t = &mut s.actors[a].threads[th];
+                t.handlers.pop();
+                t.pc += 1;
+            }
+            Op::Rethrow { local } => {
+                let reason = match s.actors[a].locals.get(local) {
+                    Some(Value::Str(r)) => r.clone(),
+                    Some(other) => other.render(),
+                    None => "rethrown".to_owned(),
+                };
+                fail_thread(model, s, a, th, reason, foot, rec);
+                return;
+            }
             Op::Return => {
                 finish_ok(model, s, a, th, foot, rec);
                 return;
@@ -1496,6 +1581,7 @@ fn settle_thread(
                         detached: *detached,
                         pending: None,
                         failure: None,
+                        handlers: Vec::new(),
                     });
                 }
                 s.actors[a].threads[th].pc += 1;
@@ -1557,6 +1643,40 @@ fn fail_thread(
     foot: &mut Footprint,
     rec: &mut Recorder,
 ) {
+    // An active `try` handler catches the failure (Phase 7).
+    if let Some((handler, error, opened_in_txn)) = s.actors[a].threads[th].handlers.pop() {
+        if !opened_in_txn
+            && th == 0
+            && let Some(id) = s.actors[a].txn.take()
+        {
+            // The transaction callback re-throws: Drizzle rolls back first.
+            cancel_pendings(s, id, a, 0);
+            abort_txn(model, s, id, foot);
+            rec.act(|| Action::Abort {
+                actor: a as u16,
+                conn: Conn::Tx,
+            });
+        }
+        if let Some(local) = error {
+            s.actors[a].locals.insert(local, Value::Str(reason.clone()));
+        }
+        let t = &mut s.actors[a].threads[th];
+        t.pending = None;
+        t.pc = handler;
+        t.status = TStatus::Running;
+        rec.add(
+            a,
+            th,
+            EventKind::Fail,
+            None,
+            || format!("caught: {reason}"),
+            None,
+            None,
+        );
+        // The handler may start with local operations.
+        settle_actor(model, s, a, foot, rec);
+        return;
+    }
     let t = &mut s.actors[a].threads[th];
     t.status = TStatus::DoneFailed;
     t.failure = Some(reason.clone());

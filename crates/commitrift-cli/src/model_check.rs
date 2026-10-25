@@ -8,7 +8,7 @@ use clap::{Args, ValueEnum};
 use commitrift_analyzer::TsActorProvider;
 use commitrift_model::model::Strategy;
 use commitrift_model::provider::{ActorProvider, ExtractRequest, Extracted};
-use commitrift_model::report::{CheckOptions, check, render_text};
+use commitrift_model::report::{CheckOptions, SourceOptions, check, render_text};
 use commitrift_model::scenario::load_file;
 
 use crate::{EXIT_FINDINGS, EXIT_INCOMPLETE, EXIT_OK};
@@ -69,6 +69,28 @@ pub struct ModelCheckArgs {
     /// Text output: also list every modeling assumption.
     #[arg(long, short)]
     pub verbose: bool,
+    /// Run the counterexample against the actors' ORIGINAL application code
+    /// (an authorized source harness, the scenario's `sourceVerification`
+    /// section). Executes code: requires --allow-execution.
+    #[arg(long)]
+    pub verify_source: bool,
+    /// The source-harness manifest (default: `sourceVerification.harness`
+    /// in the scenario, relative to it).
+    #[arg(long, value_name = "MANIFEST", requires = "verify_source")]
+    pub harness: Option<PathBuf>,
+    /// Authorize executing the application code named by the harness.
+    /// --validate-postgres never runs application code; this flag is the
+    /// only way to.
+    #[arg(long)]
+    pub allow_execution: bool,
+    /// Run the original code this many times, each on a fresh database.
+    #[arg(
+        long,
+        value_name = "N",
+        default_value_t = 1,
+        requires = "verify_source"
+    )]
+    pub source_repeat: u32,
 }
 
 /// Extract functions from the project each request names (the scenario's
@@ -149,7 +171,7 @@ fn link_effects(root: &std::path::Path, extracted: &mut Extracted) -> Result<(),
 }
 
 pub fn model_check(args: &ModelCheckArgs) -> Result<u8, String> {
-    let (mut model, _load) = load_file(&args.scenario, &ScenarioProvider)
+    let (mut model, load) = load_file(&args.scenario, &ScenarioProvider)
         .map_err(|e| format!("invalid scenario: {e}"))?;
     if args.no_por {
         model.options.por = false;
@@ -172,12 +194,46 @@ pub fn model_check(args: &ModelCheckArgs) -> Result<u8, String> {
     if let Some(v) = args.max_wall_ms {
         model.bounds.max_wall_ms = Some(v);
     }
+    let source = if args.verify_source {
+        let Some(spec) = load.source.clone() else {
+            return Err(
+                "--verify-source needs the scenario's `sourceVerification` section (how each actor's original code is called)"
+                    .to_owned(),
+            );
+        };
+        let harness = match (&args.harness, &spec.harness) {
+            (Some(path), _) => path.clone(),
+            (None, Some(rel)) => args
+                .scenario
+                .parent()
+                .unwrap_or(std::path::Path::new("."))
+                .join(rel),
+            (None, None) => {
+                return Err(
+                    "--verify-source needs --harness or `sourceVerification.harness`".to_owned(),
+                );
+            }
+        };
+        if args.source_repeat == 0 || args.source_repeat > 20 {
+            return Err("--source-repeat must be between 1 and 20".to_owned());
+        }
+        Some(SourceOptions {
+            harness,
+            spec,
+            allow_execution: args.allow_execution,
+            repeat: args.source_repeat,
+        })
+    } else {
+        None
+    };
     let options = CheckOptions {
         validate_postgres: args.validate_postgres,
         include_timing: !args.no_timing,
         scenario_file: Some(args.scenario.display().to_string()),
         source_revision: args.source_revision.clone(),
         tool_version: env!("CARGO_PKG_VERSION").to_owned(),
+        load,
+        source,
     };
     let report = check(&model, &options);
     let output = match args.format {

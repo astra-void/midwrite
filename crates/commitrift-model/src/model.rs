@@ -139,6 +139,31 @@ impl Model {
         self.actors.iter().position(|a| a.name == name)
     }
 
+    /// Sequence-backed columns `(table, column, first value)`, in schema
+    /// order: the index into `State::seqs`. The first value is the declared
+    /// start, else one more than the largest initial value, else 1.
+    pub fn sequences(&self) -> Vec<(u16, String, i64)> {
+        let mut out = Vec::new();
+        for (ti, t) in self.schema.tables.iter().enumerate() {
+            for c in &t.columns {
+                if let Some(crate::db::ColumnDefault::Sequence(spec)) = &c.default {
+                    let start = spec.start.unwrap_or_else(|| {
+                        self.initial_rows[ti]
+                            .iter()
+                            .filter_map(|r| match r.get(&c.name) {
+                                Some(Value::Int(n)) => Some(*n),
+                                _ => None,
+                            })
+                            .max()
+                            .map_or(1, |m| m.saturating_add(1))
+                    });
+                    out.push((ti as u16, c.name.clone(), start));
+                }
+            }
+        }
+        out
+    }
+
     /// Row ids of the initial state, in table order.
     pub fn initial_row_ids(&self) -> Vec<(RowId, Row)> {
         let mut out = Vec::new();

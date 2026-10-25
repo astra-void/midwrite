@@ -78,6 +78,18 @@ fn tokenize(line: u32, text: &str) -> Result<Vec<Tok>, ParseError> {
             while i < chars.len() && (chars[i].is_alphanumeric() || chars[i] == '_') {
                 i += 1;
             }
+            // `@table.column`: a qualified column of a joined query.
+            if at
+                && chars.get(i) == Some(&'.')
+                && chars
+                    .get(i + 1)
+                    .is_some_and(|c| c.is_alphabetic() || *c == '_')
+            {
+                i += 1;
+                while i < chars.len() && (chars[i].is_alphanumeric() || chars[i] == '_') {
+                    i += 1;
+                }
+            }
             let s: String = chars[start..i].iter().collect();
             if s.is_empty() {
                 return err(line, "`@` must be followed by a column name");
@@ -487,15 +499,46 @@ fn parse_stmt(
             c.expect_sym("=")?;
             if c.eat_kw("select") {
                 let table = c.ident("a table")?;
+                let mut joins = Vec::new();
+                loop {
+                    // `left join`, `inner join` or plain `join` (inner).
+                    let kind = if c.eat_kw("left") {
+                        crate::ir::JoinKind::Left
+                    } else if c.eat_kw("inner") || c.is_kw("join") {
+                        crate::ir::JoinKind::Inner
+                    } else {
+                        break;
+                    };
+                    c.expect_kw("join")?;
+                    let joined = c.ident("a table")?;
+                    c.expect_kw("on")?;
+                    let (Some(Tok::Col(left)), Some(Tok::Sym("=="))) = (c.next(), c.next()) else {
+                        return err(c.line, "a join condition is `@t.a == @u.b`");
+                    };
+                    let Some(Tok::Col(right)) = c.next() else {
+                        return err(c.line, "a join condition is `@t.a == @u.b`");
+                    };
+                    joins.push(crate::ir::Join {
+                        kind,
+                        table: joined,
+                        left,
+                        right,
+                    });
+                }
                 c.expect_kw("where")?;
                 let pred = c.expr()?;
                 let lock = parse_lock(&mut c)?;
                 done(&c)?;
+                if !joins.is_empty() && lock != LockMode::None {
+                    return err(c.line, "row locks on joins are not modeled");
+                }
                 let kind = StmtKind::Select {
                     table,
                     pred,
                     lock,
                     into: name,
+                    joins,
+                    projection: None,
                 };
                 push(
                     b,
@@ -554,8 +597,12 @@ fn parse_stmt(
         }
         "insert" => {
             let table = c.ident("a table")?;
-            c.expect_kw("set")?;
-            let values = c.assigns_until_into(true)?;
+            let values = if c.eat_kw("default") {
+                Vec::new()
+            } else {
+                c.expect_kw("set")?;
+                c.assigns_until_into(true)?
+            };
             let mut on_conflict = OnConflict::Error;
             if c.eat_kw("on") {
                 c.expect_kw("conflict")?;
@@ -564,12 +611,18 @@ fn parse_stmt(
                 on_conflict = OnConflict::DoNothing;
             }
             let affected = parse_into(&mut c)?;
+            let returning = if c.eat_kw("returning") {
+                Some(c.ident("a local")?)
+            } else {
+                None
+            };
             done(&c)?;
             let kind = StmtKind::Insert {
                 table,
                 values,
                 on_conflict,
                 affected,
+                returning,
             };
             push(
                 b,

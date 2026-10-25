@@ -29,14 +29,18 @@ use oxc_syntax::operator::{AssignmentOperator, BinaryOperator, LogicalOperator, 
 use commitrift_core::config::Config;
 use commitrift_core::location::LineIndex;
 use commitrift_model::ir::{
-    Conn, Isolation, LockMode, OnConflict, Op, Origin, SourceRef, Step, Stmt, StmtKind,
+    Conn, Isolation, Join, JoinKind, LockMode, OnConflict, Op, Origin, ProjItem, SourceRef, Step,
+    Stmt, StmtKind,
 };
 use commitrift_model::provider::{
-    ActorProvider, ExternalBinding, ExtractRequest, Extracted, TableBinding,
+    ActorProvider, EntryInfo, ExternalBinding, ExtractRequest, Extracted, InvocationContract,
+    TableBinding, WrapperFacts,
 };
 use commitrift_model::value::{BinOp, Expr, Value};
 
+use crate::identity;
 use crate::resolve::{Resolution, Resolver, absolute};
+use crate::wrapper;
 
 /// Lowers functions of a TypeScript project to the concurrency IR.
 #[derive(Clone, Debug)]
@@ -86,19 +90,33 @@ impl ActorProvider for TsActorProvider {
         } else {
             request.root.clone()
         };
-        let main_abs = absolute(&root.join(&request.file));
-        let source = std::fs::read_to_string(&main_abs)
-            .map_err(|e| format!("cannot read `{}`: {e}", request.file))?;
+        let selector = request
+            .selector
+            .as_deref()
+            .map(identity::Selector::parse)
+            .transpose()?;
+        let file = selector
+            .as_ref()
+            .map_or_else(|| request.file.clone(), |s| s.module.clone());
+        let main_abs = absolute(&root.join(&file));
+        let source =
+            std::fs::read_to_string(&main_abs).map_err(|e| format!("cannot read `{file}`: {e}"))?;
         let allocator = Allocator::default();
-        let parsed =
-            load(&allocator, &main_abs, &source).map_err(|e| format!("`{}`: {e}", request.file))?;
-        let module = Module::new(&main_abs, request.file.clone(), &source, &parsed);
-        let info = find_function(&module, &request.function).ok_or_else(|| {
-            format!(
-                "function `{}` was not found in `{}`",
-                request.function, request.file
-            )
-        })?;
+        let parsed = load(&allocator, &main_abs, &source).map_err(|e| format!("`{file}`: {e}"))?;
+        let module = Module::new(&main_abs, file.clone(), &source, &parsed);
+        let found = selector
+            .as_ref()
+            .map(|sel| identity::resolve(&parsed, &module.lines, sel))
+            .transpose()?;
+        let info = match &found {
+            Some(found) => fn_info_of(found),
+            None => find_function(&module, &request.function).ok_or_else(|| {
+                format!(
+                    "function `{}` was not found in `{}`",
+                    request.function, request.file
+                )
+            })?,
+        };
 
         let root_abs = absolute(&root);
         let mut files: Vec<PathBuf> = crate::discover(std::slice::from_ref(&root_abs))
@@ -124,13 +142,61 @@ impl ActorProvider for TsActorProvider {
             counter: 0,
             tx_open: 0,
             assumptions: Vec::new(),
+            qualify: false,
+        };
+        let entry = match (&found, &selector) {
+            (Some(found), Some(selector)) => {
+                Some(lowerer.entry_info(&module, found, selector, request.contract.clone())?)
+            }
+            _ => None,
         };
         let params = lowerer.lower_main(&module, &info, request);
         Ok(Extracted {
             params,
             codes: lowerer.codes,
             assumptions: lowerer.assumptions,
+            entry,
         })
+    }
+}
+
+/// The name `commitrift check` gives a selected function: its binding for a
+/// plain `#binding` selector, `Class.method` for methods, else the
+/// position-based `<anonymous@line:column>`. Linking uses the anchor; the
+/// name is for display.
+fn static_name(found: &identity::Found<'_>, selector: &identity::Selector) -> String {
+    if let identity::FnNode::Function(f) = found.node
+        && let Some(id) = &f.id
+    {
+        return id.name.as_str().to_owned();
+    }
+    match &selector.target {
+        identity::Target::Path { binding, steps } => match steps.last() {
+            None => binding.clone(),
+            Some(identity::Step::Method(m) | identity::Step::Static(m)) if steps.len() == 1 => {
+                format!("{binding}.{m}")
+            }
+            _ => identity::anonymous_name(found.line, found.column),
+        },
+        identity::Target::Anchor { .. } => identity::anonymous_name(found.line, found.column),
+    }
+}
+
+fn fn_info_of<'a>(found: &identity::Found<'a>) -> FnInfo<'a> {
+    let name = match found.node {
+        identity::FnNode::Function(f) => f.id.as_ref().map(|id| id.name.as_str().to_owned()),
+        identity::FnNode::Arrow(_) => None,
+    }
+    .unwrap_or_else(|| identity::anonymous_name(found.line, found.column));
+    FnInfo {
+        name,
+        is_async: found.node.is_async(),
+        params: found.node.params(),
+        body: match found.node.body() {
+            Ok(b) => FnBody::Block(b),
+            Err(e) => FnBody::Expr(e),
+        },
+        span: found.span,
     }
 }
 
@@ -188,6 +254,7 @@ struct FnInfo<'a> {
     is_async: bool,
     params: &'a FormalParameters<'a>,
     body: FnBody<'a>,
+    span: Span,
 }
 
 fn info_of_function<'a>(name: &str, function: &'a Function<'a>) -> Option<FnInfo<'a>> {
@@ -197,6 +264,7 @@ fn info_of_function<'a>(name: &str, function: &'a Function<'a>) -> Option<FnInfo
         is_async: function.r#async,
         params: &function.params,
         body: FnBody::Block(body),
+        span: function.span,
     })
 }
 
@@ -210,6 +278,7 @@ fn info_of_expression<'a>(name: &str, expression: &'a Expression<'a>) -> Option<
                 ArrowFunctionBody::FunctionBody(body) => FnBody::Block(body),
                 other => FnBody::Expr(other.as_expression()?),
             },
+            span: arrow.span,
         }),
         Expression::FunctionExpression(function) => info_of_function(name, function),
         _ => None,
@@ -401,6 +470,65 @@ fn module_constant(module: &Module<'_>, name: &str) -> Option<Expr> {
     None
 }
 
+/// `name.member` for a top-level `enum name { ... }` (string or numeric
+/// members) or `const name = { member: <literal> }` (optionally `as const`)
+/// that is never reassigned (a `const`).
+fn enum_member_in(module: &Module<'_>, name: &str, member: &str) -> Option<Expr> {
+    use oxc_ast::ast::{TSEnumDeclaration, TSEnumMemberName};
+    fn from_enum(e: &TSEnumDeclaration<'_>, member: &str) -> Option<Expr> {
+        let mut next: Option<i64> = Some(0);
+        for m in &e.body.members {
+            let key = match &m.id {
+                TSEnumMemberName::Identifier(id) => id.name.as_str().to_owned(),
+                TSEnumMemberName::String(s) => s.value.as_str().unwrap_or_default().to_owned(),
+                _ => return None,
+            };
+            let value = match &m.initializer {
+                Some(init) => literal(init)?,
+                None => Expr::lit(next?),
+            };
+            next = match &value {
+                Expr::Lit(Value::Int(n)) => n.checked_add(1),
+                _ => None,
+            };
+            if key == member {
+                return Some(value);
+            }
+        }
+        None
+    }
+    for statement in &module.program.body {
+        let declaration = match statement {
+            Statement::ExportDeclaration(e) => Some(&e.declaration),
+            other => other.as_declaration(),
+        };
+        match declaration {
+            Some(Declaration::TSEnumDeclaration(e)) if e.id.name.as_str() == name => {
+                return from_enum(e, member);
+            }
+            Some(Declaration::VariableDeclaration(v)) if v.kind.is_const() => {
+                for d in &v.declarations {
+                    if let (BindingPattern::BindingIdentifier(id), Some(init)) = (&d.id, &d.init)
+                        && id.name.as_str() == name
+                        && let Expression::ObjectExpression(o) = init.get_inner_expression()
+                    {
+                        return o.properties.iter().find_map(|p| match p {
+                            ObjectPropertyKind::ObjectProperty(p)
+                                if !p.computed && static_key(&p.key).as_deref() == Some(member) =>
+                            {
+                                literal(&p.value)
+                            }
+                            _ => None,
+                        });
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 fn literal(expression: &Expression<'_>) -> Option<Expr> {
     match expression.get_inner_expression() {
         Expression::NumericLiteral(n) => integer(n.value).map(Expr::lit),
@@ -432,6 +560,18 @@ enum Binding {
     /// An object whose listed fields are locals (`rows.length`,
     /// `{ n: count() }` rows).
     Virtual(BTreeMap<String, String>),
+    /// An array of at most one row (`select ... limit(1)`, a single-row
+    /// `insert ... returning()`): `length` and `[0]` are modeled exactly.
+    Rows {
+        row: String,
+        length: String,
+    },
+    /// A `const` object literal whose properties are expressions evaluated
+    /// at its declaration (Phase 7; `values(obj)`, `obj.key`).
+    Object(Vec<(String, Expr)>),
+    /// A caught exception: its properties (driver messages, SQLSTATE
+    /// wrappers) are not modeled; only its truthiness is.
+    Opaque,
 }
 
 struct Ret {
@@ -448,7 +588,19 @@ struct Frame {
     rets: Vec<Ret>,
     used: HashSet<String>,
     key: (PathBuf, String),
+    /// `try` blocks entered and not left in this frame (a `return` from an
+    /// inlined helper leaves them).
+    tries: u32,
+    /// Enclosing `switch`/loop targets: pending `break` jumps, pending
+    /// `continue` jumps (`None` for a `switch`), and the `try` depth at
+    /// entry (jumping out leaves inner `try` blocks).
+    breaks: Vec<JumpTarget>,
 }
+
+/// Pending jumps (code vector, index) to an enclosing `switch` or loop:
+/// `break`s, `continue`s (`None` for a `switch`), and the `try` depth at
+/// entry.
+type JumpTarget = (Vec<(usize, usize)>, Option<Vec<(usize, usize)>>, u32);
 
 #[derive(Clone, Copy)]
 struct Cx {
@@ -487,6 +639,11 @@ enum Res {
         field: String,
         local: String,
     },
+    /// An array of at most one row.
+    Rows {
+        row: String,
+        length: String,
+    },
 }
 
 enum ArgVal {
@@ -506,6 +663,9 @@ struct Lowerer<'r> {
     counter: u32,
     tx_open: u32,
     assumptions: Vec<String>,
+    /// Column references are qualified (`table.column`): set while lowering
+    /// a joined query.
+    qualify: bool,
 }
 
 enum Seg<'a, 'b> {
@@ -539,6 +699,9 @@ impl<'r> Lowerer<'r> {
 
     fn src(&self, module: &Module<'_>, span: Span) -> SourceRef {
         let (line, column) = module.lines.position(span.start);
+        let (end_line, _) = module
+            .lines
+            .position(span.end.saturating_sub(1).max(span.start));
         let end = (span.end as usize).min(module.source.len());
         let start = (span.start as usize).min(end);
         let mut text: String = module.source[start..end]
@@ -558,6 +721,7 @@ impl<'r> Lowerer<'r> {
             file: module.rel.clone(),
             line,
             column,
+            end_line,
             function: frame.function.clone(),
             call_chain: chain,
             effect_id: None,
@@ -578,6 +742,7 @@ impl<'r> Lowerer<'r> {
     fn patch(&mut self, at: (usize, usize), target: usize) {
         match &mut self.codes[at.0][at.1].op {
             Op::JumpIf { target: t, .. } | Op::Jump { target: t } => *t = target,
+            Op::Try { handler: t, .. } => *t = target,
             _ => unreachable!("patching a non-jump"),
         }
     }
@@ -673,6 +838,151 @@ impl<'r> Lowerer<'r> {
         (child, result)
     }
 
+    // -- selected entries (Phase 7) ----------------------------------------
+
+    /// Facts about the selected entry and the wrapper it is passed to, and
+    /// how the scenario's declared contract relates to them.
+    fn entry_info(
+        &mut self,
+        m: &Module<'_>,
+        found: &identity::Found<'_>,
+        selector: &identity::Selector,
+        contract: Option<InvocationContract>,
+    ) -> Result<EntryInfo, String> {
+        let wrapper = found
+            .via_call
+            .map(|(callee, index)| self.wrapper_facts(m, callee, index));
+        let declared = contract.as_ref().and_then(|c| c.invocation.clone());
+        if let Some(d) = &declared
+            && !matches!(d.as_str(), "awaited" | "fire-and-forget")
+        {
+            return Err(format!(
+                "entry.invocation `{d}`: expected `awaited` or `fire-and-forget`"
+            ));
+        }
+        let status = match &wrapper {
+            None => "not-needed",
+            Some(w) => {
+                let source_mode = match w.invocation.as_str() {
+                    "returned-function-awaits"
+                    | "returned-function-returns-promise"
+                    | "invoked-during-wrap" => Some("awaited"),
+                    "returned-function-fire-and-forget" | "invoked-during-wrap-unawaited" => {
+                        Some("fire-and-forget")
+                    }
+                    "not-invoked" => {
+                        return Err(format!(
+                            "`{}` never invokes the selected callback ({}): there is nothing to model",
+                            w.wrapper, w.detail
+                        ));
+                    }
+                    _ => None,
+                };
+                match (source_mode, &declared) {
+                    (Some(s), Some(d)) if s != d => {
+                        return Err(format!(
+                            "entry.invocation `{d}` contradicts the wrapper's source: `{}` {} ({})",
+                            w.wrapper,
+                            w.invocation,
+                            w.defined_at.as_deref().unwrap_or("")
+                        ));
+                    }
+                    (Some(_), _) if w.conditional && contract.is_none() => {
+                        return Err(format!(
+                            "`{}` invokes the callback only when its guards pass ({}); declare the conditions you assume in `entry.preconditions`",
+                            w.wrapper,
+                            w.guards.join("; ")
+                        ));
+                    }
+                    (Some(_), Some(_)) => "consistent",
+                    (Some(_), None) if contract.is_some() => "consistent",
+                    (Some(_), None) => "absent",
+                    (None, Some(_)) => "required",
+                    (None, None) => {
+                        return Err(format!(
+                            "how `{}` invokes the callback is unknown ({}); declare `entry.invocation` (and `entry.preconditions`) if you know it",
+                            w.wrapper, w.detail
+                        ));
+                    }
+                }
+            }
+        };
+        if let Some(w) = &wrapper {
+            self.assume(format!(
+                "entry: the callback {} of `{}` is modeled from its own body; the wrapper's code around the call is not part of the actor",
+                selector, w.wrapper
+            ));
+        }
+        if let Some(c) = &contract {
+            for p in &c.preconditions {
+                self.assume(format!("declared precondition (scenario, not source): {p}"));
+            }
+            if let Some(i) = &c.invocation {
+                self.assume(format!("declared invocation (scenario, not source): {i}"));
+            }
+        }
+        Ok(EntryInfo {
+            selector: selector.to_string(),
+            anchor: format!("{}@{}:{}", m.rel, found.line, found.column),
+            file: m.rel.clone(),
+            end_line: m.lines.position(found.span.end.saturating_sub(1)).0,
+            static_name: static_name(found, selector),
+            wrapper,
+            contract,
+            contract_status: status.to_owned(),
+        })
+    }
+
+    fn wrapper_facts(
+        &mut self,
+        m: &Module<'_>,
+        callee: &Expression<'_>,
+        index: usize,
+    ) -> WrapperFacts {
+        let label = callee_text(callee).unwrap_or_else(|| "<expression>".to_owned());
+        let analyze = |info: &FnInfo<'_>, module: &Module<'_>| -> WrapperFacts {
+            match &info.body {
+                FnBody::Block(body) => wrapper::analyze(
+                    &label,
+                    info.params,
+                    body,
+                    index,
+                    &wrapper::Source {
+                        rel: &module.rel,
+                        text: module.source,
+                        lines: &module.lines,
+                    },
+                    info.span,
+                ),
+                FnBody::Expr(_) => wrapper::unknown(
+                    &label,
+                    "a wrapper with a concise arrow body is not analyzed",
+                ),
+            }
+        };
+        match self.resolve_callee(m, callee) {
+            Callee::Local(info) => analyze(&info, m),
+            Callee::Imported {
+                abs, rel, export, ..
+            } => {
+                let Ok(source) = std::fs::read_to_string(&abs) else {
+                    return wrapper::unknown(&label, format!("cannot read `{rel}`"));
+                };
+                let allocator = Allocator::default();
+                let program = match load(&allocator, &abs, &source) {
+                    Ok(p) => p,
+                    Err(e) => return wrapper::unknown(&label, format!("`{rel}`: {e}")),
+                };
+                let module = Module::new(&abs, rel.clone(), &source, &program);
+                match find_export(&module, &export) {
+                    Ok(info) => analyze(&info, &module),
+                    Err(why) => wrapper::unknown(&label, why),
+                }
+            }
+            Callee::Unresolvable(why) => wrapper::unknown(&label, why),
+        }
+    }
+
     // -- entry --------------------------------------------------------------
 
     fn lower_main(
@@ -693,6 +1003,8 @@ impl<'r> Lowerer<'r> {
             }],
             used: HashSet::new(),
             key: (module.abs.clone(), info.name.clone()),
+            tries: 0,
+            breaks: Vec::new(),
         });
         let mut params = Vec::new();
         for (index, item) in info.params.items.iter().enumerate() {
@@ -704,12 +1016,19 @@ impl<'r> Lowerer<'r> {
             } else {
                 let name = format!("_param{index}");
                 self.frame_mut().used.insert(name.clone());
-                params.push(name);
-                self.unknown_op(
-                    module,
-                    item.span,
-                    "destructured parameters are not supported",
-                );
+                params.push(name.clone());
+                match &item.pattern {
+                    BindingPattern::ObjectPattern(object) => {
+                        self.destructure(module, object, Expr::Local(name), item.span);
+                    }
+                    _ => {
+                        self.unknown_op(
+                            module,
+                            item.span,
+                            "only `{ a, b: c }` parameter destructuring is supported",
+                        );
+                    }
+                }
             }
         }
         if info.params.rest.is_some() {
@@ -742,6 +1061,44 @@ impl<'r> Lowerer<'r> {
             FnBody::Expr(expression) => {
                 self.return_value(module, Some(expression), expression.span());
             }
+        }
+    }
+
+    /// `{ a, b: c }` bound from `base` (a parameter): each property is read
+    /// once, as JavaScript does (reading a property of `null` throws).
+    fn destructure(
+        &mut self,
+        m: &Module<'_>,
+        object: &oxc_ast::ast::ObjectPattern<'_>,
+        base: Expr,
+        span: Span,
+    ) {
+        if object.rest.is_some() {
+            self.unknown_op(m, span, "object rest patterns are not supported");
+            return;
+        }
+        for property in &object.properties {
+            let (Some(key), BindingPattern::BindingIdentifier(id)) = (
+                static_key(&property.key).filter(|_| !property.computed),
+                &property.value,
+            ) else {
+                self.unknown_op(
+                    m,
+                    property.span,
+                    "only `{ a, b: c }` destructuring without defaults or nesting is supported",
+                );
+                continue;
+            };
+            let local = self.fresh(id.name.as_str());
+            self.emit(
+                m,
+                property.span,
+                Op::Let {
+                    local: local.clone(),
+                    expr: Expr::Field(Box::new(base.clone()), key),
+                },
+            );
+            self.declare(id.name.as_str(), Binding::Local(local));
         }
     }
 
@@ -804,6 +1161,26 @@ impl<'r> Lowerer<'r> {
                 let message = throw_message(&s.argument);
                 self.emit(m, s.span, Op::Throw { message });
             }
+            Statement::TryStatement(t) => self.try_statement(m, t),
+            Statement::SwitchStatement(sw) => self.switch_statement(m, sw),
+            Statement::ForOfStatement(f) => self.for_of(m, f),
+            Statement::BreakStatement(b)
+                if b.label.is_none() && !self.frame().breaks.is_empty() =>
+            {
+                self.jump_out(m, b.span, false);
+            }
+            Statement::ContinueStatement(c)
+                if c.label.is_none()
+                    && self
+                        .frame()
+                        .breaks
+                        .iter()
+                        .rev()
+                        .find_map(|(_, c, _)| c.as_ref())
+                        .is_some() =>
+            {
+                self.jump_out(m, c.span, true);
+            }
             Statement::EmptyStatement(_)
             | Statement::FunctionDeclaration(_)
             | Statement::TSTypeAliasDeclaration(_)
@@ -816,7 +1193,6 @@ impl<'r> Lowerer<'r> {
                     Statement::WhileStatement(_) | Statement::DoWhileStatement(_) => {
                         "`while` loops"
                     }
-                    Statement::TryStatement(_) => "`try`/`catch`/`finally`",
                     Statement::SwitchStatement(_) => "`switch` statements",
                     Statement::BreakStatement(_) | Statement::ContinueStatement(_) => {
                         "`break`/`continue`"
@@ -831,6 +1207,310 @@ impl<'r> Lowerer<'r> {
                     format!("{what} are not part of the supported concurrency subset"),
                 );
             }
+        }
+    }
+
+    /// `try { B } catch (e) { C } finally { F }` (Phase 7). A failure in
+    /// `B` (a throw, a rejected await, a database error) resumes at the
+    /// handler; `F` runs on the normal path and, re-throwing afterwards, on
+    /// the exceptional paths. A crash runs nothing. Not modeled: `try`
+    /// inside a transaction callback (PostgreSQL's aborted-transaction
+    /// state), exits through a `finally`, and inspecting the caught error.
+    fn try_statement(&mut self, m: &Module<'_>, t: &oxc_ast::ast::TryStatement<'_>) {
+        if self.tx_open > 0 {
+            self.unknown_op(
+                m,
+                t.span,
+                "`try` inside a transaction callback is not modeled (after a database error PostgreSQL's transaction is aborted)",
+            );
+            return;
+        }
+        let jumps_out = |statements: &[Statement<'_>]| statements.iter().any(has_jump);
+        if t.finalizer.is_some()
+            && (jumps_out(&t.block.body)
+                || t.handler.as_ref().is_some_and(|h| jumps_out(&h.body.body)))
+        {
+            self.unknown_op(
+                m,
+                t.span,
+                "`return`/`break`/`continue` inside a `try` with `finally` is not modeled",
+            );
+            return;
+        }
+        let rethrow = (t.handler.is_none()).then(|| self.tmp("err"));
+        let enter = self.emit(
+            m,
+            t.block.span,
+            Op::Try {
+                handler: usize::MAX,
+                error: rethrow.clone(),
+            },
+        );
+        self.frame_mut().tries += 1;
+        self.frame_mut().scopes.push(HashMap::new());
+        for statement in &t.block.body {
+            self.statement(m, statement);
+        }
+        self.frame_mut().scopes.pop();
+        self.frame_mut().tries -= 1;
+        self.emit(m, t.block.span, Op::EndTry);
+        let finally = |this: &mut Self| {
+            if let Some(f) = &t.finalizer {
+                this.frame_mut().scopes.push(HashMap::new());
+                for statement in &f.body {
+                    this.statement(m, statement);
+                }
+                this.frame_mut().scopes.pop();
+            }
+        };
+        finally(self);
+        let mut ends = vec![self.emit(m, t.span, Op::Jump { target: usize::MAX })];
+        let handler_pc = self.here();
+        self.patch(enter, handler_pc);
+        match (&t.handler, &rethrow) {
+            (Some(catch), _) => {
+                // The catch body may throw: run `finally`, then re-throw.
+                let caught = t.finalizer.is_some().then(|| self.tmp("err"));
+                let inner = caught.as_ref().map(|err| {
+                    self.emit(
+                        m,
+                        catch.span,
+                        Op::Try {
+                            handler: usize::MAX,
+                            error: Some(err.clone()),
+                        },
+                    )
+                });
+                if inner.is_some() {
+                    self.frame_mut().tries += 1;
+                }
+                self.frame_mut().scopes.push(HashMap::new());
+                if let Some(param) = &catch.param {
+                    match &param.pattern {
+                        BindingPattern::BindingIdentifier(id) => {
+                            self.declare(id.name.as_str(), Binding::Opaque);
+                        }
+                        _ => {
+                            self.unknown_op(
+                                m,
+                                catch.span,
+                                "a destructured catch parameter is not modeled",
+                            );
+                        }
+                    }
+                }
+                for statement in &catch.body.body {
+                    self.statement(m, statement);
+                }
+                self.frame_mut().scopes.pop();
+                if let (Some(inner), Some(err)) = (inner, caught) {
+                    self.frame_mut().tries -= 1;
+                    self.emit(m, catch.span, Op::EndTry);
+                    finally(self);
+                    ends.push(self.emit(m, t.span, Op::Jump { target: usize::MAX }));
+                    let pc = self.here();
+                    self.patch(inner, pc);
+                    finally(self);
+                    self.emit(m, t.span, Op::Rethrow { local: err });
+                }
+            }
+            (None, Some(err)) => {
+                finally(self);
+                self.emit(m, t.span, Op::Rethrow { local: err.clone() });
+            }
+            (None, None) => unreachable!("a try statement has a catch or a finally"),
+        }
+        let end = self.here();
+        for jump in ends {
+            self.patch(jump, end);
+        }
+    }
+
+    /// `break` (or `continue`) to the innermost enclosing target.
+    fn jump_out(&mut self, m: &Module<'_>, span: Span, cont: bool) {
+        let tries = self.frame().tries;
+        let index = if cont {
+            self.frame()
+                .breaks
+                .iter()
+                .rposition(|(_, c, _)| c.is_some())
+        } else {
+            self.frame().breaks.len().checked_sub(1)
+        };
+        let Some(index) = index else {
+            self.unknown_op(m, span, "`break`/`continue` without a supported target");
+            return;
+        };
+        let depth = self.frame().breaks[index].2;
+        for _ in depth..tries {
+            self.emit(m, span, Op::EndTry);
+        }
+        let jump = self.emit(m, span, Op::Jump { target: usize::MAX });
+        let target = &mut self.frame_mut().breaks[index];
+        if cont {
+            target.1.as_mut().expect("a loop target").push(jump);
+        } else {
+            target.0.push(jump);
+        }
+    }
+
+    /// `switch (d) { case a: ... default: ... }` with JavaScript's strict
+    /// equality and fall-through. Case tests must be free of side effects
+    /// (literals, variables, property reads): JavaScript evaluates them
+    /// lazily, the model up front.
+    fn switch_statement(&mut self, m: &Module<'_>, sw: &oxc_ast::ast::SwitchStatement<'_>) {
+        let pure = |e: &Expression<'_>| {
+            matches!(
+                e.get_inner_expression(),
+                Expression::NumericLiteral(_)
+                    | Expression::StringLiteral(_)
+                    | Expression::BooleanLiteral(_)
+                    | Expression::NullLiteral(_)
+                    | Expression::Identifier(_)
+                    | Expression::StaticMemberExpression(_)
+            )
+        };
+        if sw
+            .cases
+            .iter()
+            .any(|c| c.test.as_ref().is_some_and(|t| !pure(t)))
+        {
+            self.unknown_op(
+                m,
+                sw.span,
+                "a `case` test with possible side effects is not modeled",
+            );
+            return;
+        }
+        let discriminant = self.expr(m, &sw.discriminant, TOP);
+        let tmp = self.tmp("switch");
+        self.emit(
+            m,
+            sw.discriminant.span(),
+            Op::Let {
+                local: tmp.clone(),
+                expr: discriminant,
+            },
+        );
+        let mut entries = Vec::new();
+        for case in &sw.cases {
+            if let Some(test) = &case.test {
+                let value = self.expr(m, test, TOP);
+                entries.push(Some(self.emit(
+                    m,
+                    test.span(),
+                    Op::JumpIf {
+                        cond: Expr::bin(BinOp::Eq, Expr::Local(tmp.clone()), value),
+                        target: usize::MAX,
+                    },
+                )));
+            } else {
+                entries.push(None);
+            }
+        }
+        let no_match = self.emit(m, sw.span, Op::Jump { target: usize::MAX });
+        let tries = self.frame().tries;
+        self.frame_mut().breaks.push((Vec::new(), None, tries));
+        self.frame_mut().scopes.push(HashMap::new());
+        let mut default_pc = None;
+        for (case, entry) in sw.cases.iter().zip(entries) {
+            let pc = self.here();
+            match entry {
+                Some(jump) => self.patch(jump, pc),
+                None => default_pc = Some(pc),
+            }
+            for statement in &case.consequent {
+                self.statement(m, statement);
+            }
+        }
+        self.frame_mut().scopes.pop();
+        let (breaks, _, _) = self.frame_mut().breaks.pop().expect("pushed above");
+        let end = self.here();
+        self.patch(no_match, default_pc.unwrap_or(end));
+        for jump in breaks {
+            self.patch(jump, end);
+        }
+    }
+
+    /// `for (const x of [a, b, c]) { ... }`: unrolled over the literal's
+    /// elements (evaluated first, as JavaScript does). Iterating anything
+    /// else has an unknown number of iterations and is not modeled.
+    fn for_of(&mut self, m: &Module<'_>, f: &oxc_ast::ast::ForOfStatement<'_>) {
+        use oxc_ast::ast::ForStatementLeft;
+        let Expression::ArrayExpression(array) = f.right.get_inner_expression() else {
+            self.unknown_op(
+                m,
+                f.span,
+                "a loop over a collection of unknown length is not modeled (only `for (const x of [literal, ...])`)",
+            );
+            return;
+        };
+        let name = match &f.left {
+            ForStatementLeft::VariableDeclaration(d) if d.declarations.len() == 1 && !f.r#await => {
+                match &d.declarations[0].id {
+                    BindingPattern::BindingIdentifier(id) => id.name.as_str().to_owned(),
+                    _ => {
+                        self.unknown_op(
+                            m,
+                            f.span,
+                            "destructuring in a `for...of` head is not modeled",
+                        );
+                        return;
+                    }
+                }
+            }
+            _ => {
+                self.unknown_op(m, f.span, "this `for...of` head is not modeled");
+                return;
+            }
+        };
+        let mut elements = Vec::new();
+        for element in &array.elements {
+            match element.as_expression() {
+                Some(e) => elements.push((self.expr(m, e, TOP), element.span())),
+                None => {
+                    self.unknown_op(m, element.span(), "a spread or hole in a `for...of` array");
+                    return;
+                }
+            }
+        }
+        let tries = self.frame().tries;
+        self.frame_mut()
+            .breaks
+            .push((Vec::new(), Some(Vec::new()), tries));
+        for (value, span) in elements {
+            self.frame_mut().scopes.push(HashMap::new());
+            let local = self.fresh(&name);
+            self.emit(
+                m,
+                span,
+                Op::Let {
+                    local: local.clone(),
+                    expr: value,
+                },
+            );
+            self.declare(&name, Binding::Local(local));
+            self.statement(m, &f.body);
+            self.frame_mut().scopes.pop();
+            // `continue` goes to the next iteration.
+            let next = self.here();
+            let continues = std::mem::take(
+                self.frame_mut()
+                    .breaks
+                    .last_mut()
+                    .expect("pushed above")
+                    .1
+                    .as_mut()
+                    .expect("a loop target"),
+            );
+            for jump in continues {
+                self.patch(jump, next);
+            }
+        }
+        let (breaks, _, _) = self.frame_mut().breaks.pop().expect("pushed above");
+        let end = self.here();
+        for jump in breaks {
+            self.patch(jump, end);
         }
     }
 
@@ -862,6 +1542,10 @@ impl<'r> Lowerer<'r> {
         if main {
             self.emit(m, span, Op::Return);
         } else {
+            // Returning from an inlined helper leaves its open `try` blocks.
+            for _ in 0..self.frame().tries {
+                self.emit(m, span, Op::EndTry);
+            }
             self.emit(
                 m,
                 span,
@@ -885,7 +1569,7 @@ impl<'r> Lowerer<'r> {
             Res::Unit => Expr::Lit(Value::Null),
             Res::Value(e) => e,
             Res::Row(l) => Expr::Local(l),
-            Res::Affected(_) | Res::Aggregate { .. } => {
+            Res::Affected(_) | Res::Aggregate { .. } | Res::Rows { .. } => {
                 Expr::Unknown("an array of rows used as a value".to_owned())
             }
         }
@@ -964,6 +1648,34 @@ impl<'r> Lowerer<'r> {
                 {
                     let handle = self.handle_of(src.name.as_str()).expect("checked");
                     self.declare(name, handle);
+                } else if let Expression::ObjectExpression(object) = inner {
+                    // Properties are evaluated now, in source order.
+                    let mut fields = Vec::new();
+                    for property in &object.properties {
+                        match property {
+                            ObjectPropertyKind::ObjectProperty(p)
+                                if !p.computed
+                                    && !p.method
+                                    && p.kind == oxc_ast::ast::PropertyKind::Init =>
+                            {
+                                let Some(key) = static_key(&p.key) else {
+                                    self.unknown_op(m, p.span, "object literal key is not static");
+                                    continue;
+                                };
+                                let value = self.expr(m, &p.value, TOP);
+                                fields.retain(|(k, _): &(String, Expr)| *k != key);
+                                fields.push((key, value));
+                            }
+                            other => {
+                                self.unknown_op(
+                                    m,
+                                    other.span(),
+                                    "spread, computed, method or accessor property in an object literal",
+                                );
+                            }
+                        }
+                    }
+                    self.declare(name, Binding::Object(fields));
                 } else {
                     let value = self.value_of(m, init);
                     let local = self.fresh(name);
@@ -1054,6 +1766,11 @@ impl<'r> Lowerer<'r> {
                 let name = id.name.as_str();
                 match res {
                     Res::Row(local) => self.declare(name, Binding::Local(local)),
+                    Res::Rows { row, length } if single => {
+                        self.declare(name, Binding::Local(row));
+                        let _ = length;
+                    }
+                    Res::Rows { row, length } => self.declare(name, Binding::Rows { row, length }),
                     Res::Affected(count) if single => {
                         // `const [row] = await ...returning()`: only the
                         // truthiness of `row` (`count > 0`) is modeled.
@@ -1174,12 +1891,19 @@ impl<'r> Lowerer<'r> {
                 other => Expr::Unknown(format!("unary operator `{}`", other.as_str())),
             },
             Expression::BinaryExpression(b) => self.binary(m, b, cx),
+            Expression::LogicalExpression(l)
+                if !cx.col_ok && (!cx.truthy || l.operator == LogicalOperator::Coalesce) =>
+            {
+                // In value position `a || b` is `a` or `b`, not a boolean:
+                // evaluate `a`, then `b` only when JavaScript would.
+                self.logical_value(m, l, cx)
+            }
             Expression::LogicalExpression(l) => {
                 let op = match l.operator {
                     LogicalOperator::And => BinOp::And,
                     LogicalOperator::Or => BinOp::Or,
                     LogicalOperator::Coalesce => {
-                        return Expr::Unknown("`??` is not supported".to_owned());
+                        return Expr::Unknown("`??` in a query is not supported".to_owned());
                     }
                 };
                 let left = self.expr(m, &l.left, cx);
@@ -1187,6 +1911,55 @@ impl<'r> Lowerer<'r> {
                 Expr::bin(op, left, right)
             }
             Expression::ConditionalExpression(c) => self.conditional(m, c, cx),
+            Expression::ObjectExpression(object) if !cx.col_ok => {
+                let mut fields: Vec<(String, Expr)> = Vec::new();
+                for property in &object.properties {
+                    match property {
+                        ObjectPropertyKind::ObjectProperty(p)
+                            if !p.computed
+                                && !p.method
+                                && p.kind == oxc_ast::ast::PropertyKind::Init =>
+                        {
+                            let Some(key) = static_key(&p.key) else {
+                                return Expr::Unknown(
+                                    "object literal key is not static".to_owned(),
+                                );
+                            };
+                            let value = self.expr(
+                                m,
+                                &p.value,
+                                Cx {
+                                    truthy: false,
+                                    ..cx
+                                },
+                            );
+                            fields.retain(|(k, _)| *k != key);
+                            fields.push((key, value));
+                        }
+                        _ => {
+                            return Expr::Unknown(
+                                "spread, computed, method or accessor property in an object literal".to_owned(),
+                            );
+                        }
+                    }
+                }
+                Expr::Object(fields)
+            }
+            Expression::ComputedMemberExpression(cm) => {
+                let index = match cm.expression.get_inner_expression() {
+                    Expression::NumericLiteral(n) => integer(n.value),
+                    _ => None,
+                };
+                match (cm.object.get_inner_expression(), index) {
+                    (Expression::Identifier(id), Some(i)) => match self.lookup(id.name.as_str()) {
+                        Some(Binding::Rows { row, .. }) if i == 0 => Expr::Local(row),
+                        // An array of at most one row has nothing at 1, 2, ...
+                        Some(Binding::Rows { .. }) if i > 0 => Expr::Lit(Value::Null),
+                        _ => Expr::Unknown("computed member access".to_owned()),
+                    },
+                    _ => Expr::Unknown("computed member access".to_owned()),
+                }
+            }
             Expression::AwaitExpression(a) => {
                 if cx.cond {
                     return Expr::Unknown(
@@ -1236,10 +2009,24 @@ impl<'r> Lowerer<'r> {
             Some(Binding::Virtual(_)) => Expr::Unknown(format!(
                 "`{name}` is only modeled through its listed fields"
             )),
+            // An array is truthy whether or not it is empty.
+            Some(Binding::Rows { .. }) if cx.truthy => Expr::lit(true),
+            Some(Binding::Rows { .. }) => Expr::Unknown(format!(
+                "`{name}` (an array of rows) is only modeled through `length` and `[0]`"
+            )),
+            Some(Binding::Opaque) if cx.truthy => Expr::lit(true),
+            Some(Binding::Opaque) => Expr::Unknown(format!(
+                "the caught error `{name}` is not modeled (only that it was thrown)"
+            )),
+            Some(Binding::Object(_)) if cx.truthy => Expr::lit(true),
+            Some(Binding::Object(_)) => Expr::Unknown(format!(
+                "the object `{name}` is only modeled through its properties"
+            )),
             None => {
                 if let Some(constant) = module_constant(m, name) {
                     return constant;
                 }
+                let _ = cx;
                 if self.table(name).is_some() {
                     return Expr::Unknown(format!("table `{name}` used as a value"));
                 }
@@ -1271,6 +2058,25 @@ impl<'r> Lowerer<'r> {
                         "`{name}.{property}`: fields of a returned row are not modeled"
                     ));
                 }
+                Some(Binding::Opaque) => {
+                    return Expr::Unknown(format!(
+                        "`{name}.{property}`: the caught error's properties are not modeled"
+                    ));
+                }
+                Some(Binding::Rows { length, .. }) => {
+                    return if property == "length" {
+                        Expr::Local(length)
+                    } else {
+                        Expr::Unknown(format!("`{name}.{property}` on an array of rows"))
+                    };
+                }
+                Some(Binding::Object(fields)) => {
+                    // A missing property of an object literal is `undefined`.
+                    return fields
+                        .iter()
+                        .find(|(k, _)| k == property)
+                        .map_or(Expr::Lit(Value::Null), |(_, e)| e.clone());
+                }
                 None => {
                     if let Some(table) = self.table(name) {
                         if !cx.col_ok {
@@ -1284,7 +2090,13 @@ impl<'r> Lowerer<'r> {
                                 table.table
                             ));
                         }
+                        if self.qualify {
+                            return Expr::Col(format!("{}.{property}", table.table));
+                        }
                         return Expr::Col(property.to_owned());
+                    }
+                    if let Some(value) = self.enum_member(m, name, property) {
+                        return value;
                     }
                 }
                 _ => {}
@@ -1345,6 +2157,95 @@ impl<'r> Lowerer<'r> {
             },
         );
         Expr::Field(Box::new(base), property.to_owned())
+    }
+
+    /// `a || b`, `a && b`, `a ?? b` whose *value* is used: hoisted as
+    /// `t = a; if <short-circuit> skip; t = b`, so `b` (and any call in it)
+    /// is evaluated exactly when JavaScript evaluates it.
+    fn logical_value(
+        &mut self,
+        m: &Module<'_>,
+        l: &oxc_ast::ast::LogicalExpression<'_>,
+        cx: Cx,
+    ) -> Expr {
+        if cx.cond {
+            return Expr::Unknown(
+                "a value-producing `||`/`&&`/`??` inside a conditionally evaluated operand"
+                    .to_owned(),
+            );
+        }
+        let left = self.expr(
+            m,
+            &l.left,
+            Cx {
+                truthy: false,
+                ..cx
+            },
+        );
+        let tmp = self.tmp("logic");
+        self.emit(
+            m,
+            l.left.span(),
+            Op::Let {
+                local: tmp.clone(),
+                expr: left,
+            },
+        );
+        let skip = match l.operator {
+            LogicalOperator::Or => Expr::Local(tmp.clone()),
+            LogicalOperator::And => Expr::not(Expr::Local(tmp.clone())),
+            LogicalOperator::Coalesce => {
+                Expr::not(Expr::IsNull(Box::new(Expr::Local(tmp.clone()))))
+            }
+        };
+        let jump = self.emit(
+            m,
+            l.span,
+            Op::JumpIf {
+                cond: skip,
+                target: usize::MAX,
+            },
+        );
+        let right = self.expr(
+            m,
+            &l.right,
+            Cx {
+                truthy: false,
+                ..cx
+            },
+        );
+        self.emit(
+            m,
+            l.right.span(),
+            Op::Let {
+                local: tmp.clone(),
+                expr: right,
+            },
+        );
+        let end = self.here();
+        self.patch(jump, end);
+        Expr::Local(tmp)
+    }
+
+    /// `E.MEMBER` of a TypeScript `enum` (or a `const` object literal of
+    /// literals) declared in this module or imported from an analyzed one.
+    fn enum_member(&mut self, m: &Module<'_>, name: &str, member: &str) -> Option<Expr> {
+        if let Some(v) = enum_member_in(m, name, member) {
+            return Some(v);
+        }
+        let (source, export) = match find_import(m, name)? {
+            ImportRef::Named { source, name } => (source, name),
+            _ => return None,
+        };
+        let Resolution::File(index) = self.resolver.resolve(&m.abs, &source) else {
+            return None;
+        };
+        let abs = self.files[index].clone();
+        let text = std::fs::read_to_string(&abs).ok()?;
+        let allocator = Allocator::default();
+        let program = load(&allocator, &abs, &text).ok()?;
+        let module = Module::new(&abs, relative(&self.root, &abs), &text, &program);
+        enum_member_in(&module, &export, member)
     }
 
     fn binary(&mut self, m: &Module<'_>, b: &oxc_ast::ast::BinaryExpression<'_>, cx: Cx) -> Expr {
@@ -1854,6 +2755,8 @@ impl<'r> Lowerer<'r> {
             }],
             used,
             key: (callee_module.abs.clone(), info.name.clone()),
+            tries: 0,
+            breaks: Vec::new(),
         });
         self.emit(
             callee_module,
@@ -1867,11 +2770,27 @@ impl<'r> Lowerer<'r> {
         for (index, item) in info.params.items.iter().enumerate() {
             let supplied = args.next();
             let BindingPattern::BindingIdentifier(id) = &item.pattern else {
-                self.unknown_op(
-                    callee_module,
-                    item.span,
-                    "destructured parameters are not supported",
-                );
+                match (&item.pattern, supplied) {
+                    (BindingPattern::ObjectPattern(object), Some(ArgVal::Expr(e))) => {
+                        let tmp = self.tmp("arg");
+                        self.emit(
+                            callee_module,
+                            item.span,
+                            Op::Let {
+                                local: tmp.clone(),
+                                expr: e,
+                            },
+                        );
+                        self.destructure(callee_module, object, Expr::Local(tmp), item.span);
+                    }
+                    _ => {
+                        self.unknown_op(
+                            callee_module,
+                            item.span,
+                            "only `{ a, b: c }` destructuring of a value argument is supported",
+                        );
+                    }
+                }
                 continue;
             };
             let name = id.name.as_str();
@@ -2283,6 +3202,8 @@ impl<'r> Lowerer<'r> {
             pred: pred.clone(),
             lock: LockMode::None,
             into: into.clone(),
+            joins: Vec::new(),
+            projection: None,
         };
         match self.emit_db(m, span, conn, kind, &[&pred]) {
             Some(()) => Res::Row(into),
@@ -2305,31 +3226,8 @@ impl<'r> Lowerer<'r> {
                 "a select result is only supported as `const [row] = await db.select()...`, `const rows = await db.select()...limit(1)` (or a count)",
             );
         }
-        let mut aggregate: Option<String> = None;
-        if let Some(projection) = steps[0].args.first() {
-            let Some(Expression::ObjectExpression(object)) = projection
-                .as_expression()
-                .map(Expression::get_inner_expression)
-            else {
-                return self.unknown_op(m, span, "select projection is not an object literal");
-            };
-            let is_count = object.properties.len() == 1
-                && matches!(&object.properties[0], ObjectPropertyKind::ObjectProperty(p)
-                    if matches!(p.value.get_inner_expression(), Expression::CallExpression(c)
-                        if c.arguments.is_empty()
-                            && matches!(c.callee.get_inner_expression(), Expression::Identifier(i) if i.name.as_str() == "count")));
-            if is_count {
-                if let ObjectPropertyKind::ObjectProperty(p) = &object.properties[0] {
-                    aggregate = static_key(&p.key);
-                }
-                if aggregate.is_none() {
-                    return self.unknown_op(m, span, "computed key in a count projection");
-                }
-            } else {
-                self.assume("column projection of `select` is ignored: the full row is read");
-            }
-        }
         let mut table: Option<&TableBinding> = None;
+        let mut joins: Vec<(JoinKind, &TableBinding, &ChainStep<'_, '_>)> = Vec::new();
         let mut where_step = None;
         let mut limit: Option<i64> = None;
         let mut lock = LockMode::None;
@@ -2344,6 +3242,39 @@ impl<'r> Lowerer<'r> {
                     Ok(_) => return self.unknown_op(m, span, "more than one `from`"),
                     Err(why) => return self.unknown_op(m, span, why),
                 },
+                "leftJoin" | "innerJoin" if table.is_some() && where_step.is_none() => {
+                    let kind = if step.method == "leftJoin" {
+                        JoinKind::Left
+                    } else {
+                        JoinKind::Inner
+                    };
+                    match self.table_arg(step.args.first()) {
+                        Ok(t)
+                            if joins.iter().all(|(_, j, _)| j.table != t.table)
+                                && table.is_some_and(|b| b.table != t.table) =>
+                        {
+                            joins.push((kind, t, step));
+                        }
+                        Ok(t) => {
+                            return self.unknown_op(
+                                m,
+                                span,
+                                format!(
+                                    "table `{}` joined twice (aliases are not supported)",
+                                    t.table
+                                ),
+                            );
+                        }
+                        Err(why) => return self.unknown_op(m, span, why),
+                    }
+                }
+                "rightJoin" | "fullJoin" | "crossJoin" | "leftJoinLateral" | "innerJoinLateral" => {
+                    return self.unknown_op(
+                        m,
+                        span,
+                        format!("`{}` is not supported (only `innerJoin`/`leftJoin` on column equality)", step.method),
+                    );
+                }
                 "where" if where_step.is_none() => where_step = Some(step),
                 "limit" => {
                     limit = step
@@ -2406,6 +3337,7 @@ impl<'r> Lowerer<'r> {
         let Some(table) = table else {
             return self.unknown_op(m, span, "select without `from`");
         };
+        let joined = !joins.is_empty();
         if lock != LockMode::None && limit != Some(1) {
             return self.unknown_op(
                 m,
@@ -2413,18 +3345,127 @@ impl<'r> Lowerer<'r> {
                 "row locking is only supported with `.limit(1)` (a multi-row lock is not modeled)",
             );
         }
-        // `const rows = await db.select()...limit(1)`: only `rows.length`
-        // is modeled (exact: 0 or 1 row); anything else about `rows` is
-        // unknown. Without `.limit(1)` the array could hold any number of
-        // rows, which the model does not represent.
+        if lock != LockMode::None && joined {
+            return self.unknown_op(m, span, "row locking on a join is not modeled");
+        }
+        // `const rows = await db.select()...limit(1)`: `rows.length` and
+        // `rows[0]` are modeled (exact: 0 or 1 row). Without `.limit(1)` the
+        // array could hold any number of rows, which the model does not
+        // represent.
+        if want == Want::Scalar && limit != Some(1) && steps[0].args.is_empty() {
+            return self.unknown_op(
+                m,
+                span,
+                "a select result bound to a variable is only supported with `.limit(1)` (its `length` and `[0]` are modeled)",
+            );
+        }
+        // Projection.
+        let in_query = |t: &str| t == table.table || joins.iter().any(|(_, j, _)| j.table == t);
+        let mut aggregate: Option<String> = None;
+        let mut projection: Option<Vec<(String, ProjItem)>> = None;
+        if let Some(argument) = steps[0].args.first() {
+            let Some(Expression::ObjectExpression(object)) = argument
+                .as_expression()
+                .map(Expression::get_inner_expression)
+            else {
+                return self.unknown_op(m, span, "select projection is not an object literal");
+            };
+            let is_count = object.properties.len() == 1
+                && matches!(&object.properties[0], ObjectPropertyKind::ObjectProperty(p)
+                    if matches!(p.value.get_inner_expression(), Expression::CallExpression(c)
+                        if c.arguments.is_empty()
+                            && matches!(c.callee.get_inner_expression(), Expression::Identifier(i) if i.name.as_str() == "count")));
+            if is_count && !joined {
+                if let ObjectPropertyKind::ObjectProperty(p) = &object.properties[0] {
+                    aggregate = static_key(&p.key);
+                }
+                if aggregate.is_none() {
+                    return self.unknown_op(m, span, "computed key in a count projection");
+                }
+            } else {
+                let mut items = Vec::new();
+                for property in &object.properties {
+                    let ObjectPropertyKind::ObjectProperty(p) = property else {
+                        return self.unknown_op(m, span, "spread in a select projection");
+                    };
+                    let Some(field) = static_key(&p.key).filter(|_| !p.computed) else {
+                        return self.unknown_op(m, span, "computed key in a select projection");
+                    };
+                    let item = match p.value.get_inner_expression() {
+                        Expression::Identifier(id) => self
+                            .table(id.name.as_str())
+                            .filter(|t| in_query(&t.table))
+                            .map(|t| ProjItem::Table(t.table.clone())),
+                        Expression::StaticMemberExpression(member) => {
+                            match member.object.get_inner_expression() {
+                                Expression::Identifier(id) => self
+                                    .table(id.name.as_str())
+                                    .filter(|t| {
+                                        in_query(&t.table)
+                                            && t.columns
+                                                .iter()
+                                                .any(|c| c == member.property.name.as_str())
+                                    })
+                                    .map(|t| {
+                                        ProjItem::Column(if joined {
+                                            format!("{}.{}", t.table, member.property.name)
+                                        } else {
+                                            member.property.name.as_str().to_owned()
+                                        })
+                                    }),
+                                _ => None,
+                            }
+                        }
+                        _ => None,
+                    };
+                    let Some(item) = item else {
+                        return self.unknown_op(
+                            m,
+                            span,
+                            format!("projected field `{field}` is not a table or a column of a table in the query"),
+                        );
+                    };
+                    items.push((field, item));
+                }
+                projection = Some(items);
+            }
+        }
         if want == Want::Scalar && aggregate.is_none() && limit != Some(1) {
             return self.unknown_op(
                 m,
                 span,
-                "a select result bound to a variable is only supported with `.limit(1)` (its `length` is modeled)",
+                "a select result bound to a variable is only supported with `.limit(1)` (its `length` and `[0]` are modeled)",
             );
         }
+        // Join conditions and the predicate use qualified columns.
+        self.qualify = joined;
+        let mut ir_joins = Vec::new();
+        for (kind, t, step) in &joins {
+            let condition = step.args.get(1).and_then(Argument::as_expression);
+            let pair = condition.and_then(|c| match self.pred(m, c) {
+                Expr::Bin(BinOp::Eq, a, b) => match (*a, *b) {
+                    (Expr::Col(a), Expr::Col(b)) => Some((a, b)),
+                    _ => None,
+                },
+                _ => None,
+            });
+            let Some((left, right)) = pair.filter(|_| step.args.len() == 2) else {
+                self.qualify = false;
+                return self.unknown_op(
+                    m,
+                    span,
+                    "a join condition other than `eq(column, column)` is not supported",
+                );
+            };
+            ir_joins.push(Join {
+                kind: *kind,
+                table: t.table.clone(),
+                left,
+                right,
+            });
+        }
         let pred = self.where_clause(m, where_step);
+        self.qualify = false;
         if let Some(field) = aggregate {
             let local = self.tmp("count");
             let kind = StmtKind::SelectCount {
@@ -2442,48 +3483,58 @@ impl<'r> Lowerer<'r> {
         } else {
             "select without orderBy: the first row in primary-key order is used"
         });
+        if joined {
+            self.assume("a join without orderBy: rows are taken in primary-key order of the first table, then of each joined table");
+        }
         let into = self.tmp("row");
         let kind = StmtKind::Select {
             table: table.table.clone(),
             pred: pred.clone(),
             lock,
             into: into.clone(),
+            joins: ir_joins,
+            projection,
         };
         match self.emit_db(m, span, conn, kind, &[&pred]) {
             Some(()) if want == Want::Scalar => {
-                // length = row is null ? 0 : 1
-                let length = self.tmp("length");
-                self.emit(
-                    m,
-                    span,
-                    Op::Let {
-                        local: length.clone(),
-                        expr: Expr::lit(1),
-                    },
-                );
-                let jump = self.emit(
-                    m,
-                    span,
-                    Op::JumpIf {
-                        cond: Expr::not(Expr::IsNull(Box::new(Expr::Local(into)))),
-                        target: usize::MAX,
-                    },
-                );
-                self.emit(
-                    m,
-                    span,
-                    Op::Let {
-                        local: length.clone(),
-                        expr: Expr::lit(0),
-                    },
-                );
-                let end = self.here();
-                self.patch(jump, end);
-                Res::Affected(length)
+                let length = self.length_of(m, span, &into);
+                Res::Rows { row: into, length }
             }
             Some(()) => Res::Row(into),
             None => Res::Value(Expr::Unknown("select predicate".to_owned())),
         }
+    }
+
+    /// `length = row is null ? 0 : 1` for an array of at most one row.
+    fn length_of(&mut self, m: &Module<'_>, span: Span, row: &str) -> String {
+        let length = self.tmp("length");
+        self.emit(
+            m,
+            span,
+            Op::Let {
+                local: length.clone(),
+                expr: Expr::lit(1),
+            },
+        );
+        let jump = self.emit(
+            m,
+            span,
+            Op::JumpIf {
+                cond: Expr::not(Expr::IsNull(Box::new(Expr::Local(row.to_owned())))),
+                target: usize::MAX,
+            },
+        );
+        self.emit(
+            m,
+            span,
+            Op::Let {
+                local: length.clone(),
+                expr: Expr::lit(0),
+            },
+        );
+        let end = self.here();
+        self.patch(jump, end);
+        length
     }
 
     fn mutation(
@@ -2503,6 +3554,7 @@ impl<'r> Lowerer<'r> {
         let mut values: Option<&ChainStep<'_, '_>> = None;
         let mut where_step = None;
         let mut returning = false;
+        let mut returning_projected = false;
         let mut on_conflict = OnConflict::Error;
         for step in &steps[1..] {
             if !step.path.is_empty() {
@@ -2514,7 +3566,10 @@ impl<'r> Lowerer<'r> {
                 (Mutation::Update | Mutation::Delete, "where") if where_step.is_none() => {
                     where_step = Some(step)
                 }
-                (_, "returning") => returning = true,
+                (_, "returning") => {
+                    returning = true;
+                    returning_projected = !step.args.is_empty();
+                }
                 (Mutation::Insert, "onConflictDoNothing") => on_conflict = OnConflict::DoNothing,
                 (_, other) => {
                     return self.unknown_op(
@@ -2533,10 +3588,26 @@ impl<'r> Lowerer<'r> {
                 "the result of a mutation without `returning()` is not modeled",
             );
         }
+        // A single-row `insert ... returning()` returns the inserted row
+        // (with generated and default values); other mutations only their
+        // row count.
+        let returned_row =
+            (kind == Mutation::Insert && want != Want::Discard).then(|| self.tmp("inserted"));
+        if returned_row.is_some() && returning_projected {
+            return self.unknown_op(
+                m,
+                span,
+                "`returning({...})` with a projection is not modeled (use `returning()`)",
+            );
+        }
         let affected_name = affected.clone();
-        let res = match &affected {
-            Some(local) => Res::Affected(local.clone()),
-            None => Res::Unit,
+        let res = match (&affected, &returned_row) {
+            (Some(length), Some(row)) => Res::Rows {
+                row: row.clone(),
+                length: length.clone(),
+            },
+            (Some(local), None) => Res::Affected(local.clone()),
+            _ => Res::Unit,
         };
         match kind {
             Mutation::Update => {
@@ -2603,20 +3674,48 @@ impl<'r> Lowerer<'r> {
                 let Some(values) = values else {
                     return self.unknown_op(m, span, "insert without `values`");
                 };
-                let Some(Expression::ObjectExpression(object)) = values
+                let argument = values
                     .args
                     .first()
                     .and_then(Argument::as_expression)
-                    .map(Expression::get_inner_expression)
-                else {
-                    return self.unknown_op(
-                        m,
-                        span,
-                        "`values` argument is not a single object literal (multi-row inserts are not supported)",
-                    );
+                    .map(Expression::get_inner_expression);
+                // `values(obj)` with `const obj = { ... }` declared before.
+                let declared = match argument {
+                    Some(Expression::Identifier(id)) => match self.lookup(id.name.as_str()) {
+                        Some(Binding::Object(fields)) => Some(fields),
+                        _ => None,
+                    },
+                    _ => None,
                 };
                 let mut assignments = Vec::new();
-                for property in &object.properties {
+                let from_declared = declared.is_some();
+                if let Some(fields) = declared {
+                    for (column, value) in fields {
+                        if !table.columns.contains(&column) {
+                            return self.unknown_op(
+                                m,
+                                span,
+                                format!(
+                                    "`{column}` is not a column of table `{}` (property names must equal column names)",
+                                    table.table
+                                ),
+                            );
+                        }
+                        assignments.push((column, value));
+                    }
+                }
+                let object = match argument {
+                    Some(Expression::ObjectExpression(object)) => Some(object),
+                    _ if from_declared => None,
+                    _ => {
+                        return self.unknown_op(
+                            m,
+                            span,
+                            "`values` argument is not a single object literal or a `const` object (multi-row inserts are not supported)",
+                        );
+                    }
+                };
+                for property in object.map(|o| o.properties.as_slice()).unwrap_or_default() {
                     let ObjectPropertyKind::ObjectProperty(p) = property else {
                         return self.unknown_op(m, span, "spread in `values`");
                     };
@@ -2642,6 +3741,7 @@ impl<'r> Lowerer<'r> {
                     values: assignments.clone(),
                     on_conflict,
                     affected: affected_name,
+                    returning: returned_row,
                 };
                 match self.emit_db(m, span, conn, stmt, &refs) {
                     Some(()) => res,
@@ -2718,6 +3818,30 @@ fn static_key(key: &PropertyKey<'_>) -> Option<String> {
         PropertyKey::StaticIdentifier(id) => Some(id.name.as_str().to_owned()),
         PropertyKey::StringLiteral(s) => Some(s.value.as_str().unwrap_or_default().to_owned()),
         _ => None,
+    }
+}
+
+/// Whether a statement can jump out of its block (`return`, `break`,
+/// `continue`; a `throw` is caught by the enclosing handler).
+fn has_jump(statement: &Statement<'_>) -> bool {
+    match statement {
+        Statement::ReturnStatement(_)
+        | Statement::BreakStatement(_)
+        | Statement::ContinueStatement(_) => true,
+        Statement::BlockStatement(b) => b.body.iter().any(has_jump),
+        Statement::IfStatement(i) => {
+            has_jump(&i.consequent) || i.alternate.as_ref().is_some_and(has_jump)
+        }
+        Statement::TryStatement(t) => {
+            t.block.body.iter().any(has_jump)
+                || t.handler
+                    .as_ref()
+                    .is_some_and(|h| h.body.body.iter().any(has_jump))
+                || t.finalizer
+                    .as_ref()
+                    .is_some_and(|f| f.body.iter().any(has_jump))
+        }
+        _ => false,
     }
 }
 

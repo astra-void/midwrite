@@ -27,12 +27,13 @@ use commitrift_replay::postgres::{Binaries, Cluster, USER};
 use commitrift_replay::safety::ReplayRoot;
 use serde::{Deserialize, Serialize};
 
+use crate::db::ColumnDefault;
 use crate::engine::{Action, Expect, Recorder, apply, initial_state};
 use crate::exec::StmtResult;
-use crate::ir::{Conn, LockMode, OnConflict, Op, Origin, StmtKind};
+use crate::ir::{Conn, JoinKind, LockMode, OnConflict, Op, Origin, ProjItem, StmtKind};
 use crate::model::Model;
 pub use crate::oracle_types::Observation;
-use crate::state::{ClosedStmt, TKind, Transition};
+use crate::state::{ClosedJoin, ClosedStmt, TKind, Transition};
 use crate::value::{BinOp, Expr, Row, Value};
 
 /// PostgreSQL's `deadlock_timeout` used by the oracle's sessions.
@@ -45,6 +46,63 @@ const PORT: &str = "5432";
 
 fn quote_ident(name: &str) -> String {
     format!("\"{}\"", name.replace('"', "\"\""))
+}
+
+/// `table.column` (a joined query's qualified column) or a plain column.
+fn qualified_ident(name: &str) -> String {
+    match name.split_once('.') {
+        Some((t, c)) => format!("{}.{}", quote_ident(t), quote_ident(c)),
+        None => quote_ident(name),
+    }
+}
+
+/// `to_json(table)`, or `NULL` for the unmatched side of a `LEFT JOIN`.
+fn nested_json(model: &Model, t: u16) -> String {
+    let schema = model.schema.table(t);
+    let key: Vec<&String> = if schema.primary_key.is_empty() {
+        schema.columns.iter().map(|c| &c.name).collect()
+    } else {
+        schema.primary_key.iter().collect()
+    };
+    let null = key
+        .iter()
+        .map(|k| format!("{}.{} IS NULL", quote_ident(&schema.name), quote_ident(k)))
+        .collect::<Vec<_>>()
+        .join(" AND ");
+    format!(
+        "CASE WHEN {null} THEN NULL ELSE to_json({}) END",
+        quote_ident(&schema.name)
+    )
+}
+
+/// The JSON object a (joined or projected) select returns per row.
+fn select_json(
+    model: &Model,
+    table: u16,
+    joins: &[ClosedJoin],
+    projection: Option<&[(String, ProjItem)]>,
+) -> String {
+    let name = |t: u16| model.schema.table(t).name.clone();
+    let fields: Vec<String> = match projection {
+        None => std::iter::once(table)
+            .chain(joins.iter().map(|j| j.table))
+            .map(|t| format!("{}, {}", quote_literal(&name(t)), nested_json(model, t)))
+            .collect(),
+        Some(items) => items
+            .iter()
+            .map(|(field, item)| {
+                let value = match item {
+                    ProjItem::Column(c) => qualified_ident(c),
+                    ProjItem::Table(t) => match model.schema.index(t) {
+                        Some(ti) if !joins.is_empty() => nested_json(model, ti),
+                        _ => format!("to_json({})", quote_ident(t)),
+                    },
+                };
+                format!("{}, {value}", quote_literal(field))
+            })
+            .collect(),
+    };
+    format!("json_build_object({})", fields.join(", "))
 }
 
 fn quote_literal(text: &str) -> String {
@@ -64,7 +122,7 @@ fn value_sql(v: &Value) -> Result<String, String> {
 pub fn expr_sql(e: &Expr) -> Result<String, String> {
     Ok(match e {
         Expr::Lit(v) => value_sql(v)?,
-        Expr::Col(c) => quote_ident(c),
+        Expr::Col(c) => qualified_ident(c),
         Expr::Not(x) => format!("(NOT {})", expr_sql(x)?),
         Expr::IsNull(x) => format!("({} IS NULL)", expr_sql(x)?),
         Expr::Bin(op, a, b) => {
@@ -85,8 +143,22 @@ pub fn expr_sql(e: &Expr) -> Result<String, String> {
         }
         Expr::Local(n) => return Err(format!("unresolved local `{n}`")),
         Expr::Field(..) => return Err("property access in SQL".into()),
+        Expr::Object(..) => return Err("an object value in SQL".into()),
         Expr::Unknown(d) => return Err(format!("unsupported expression: {d}")),
     })
+}
+
+fn qualified_order(model: &Model, table: u16) -> String {
+    let t = model.schema.table(table);
+    let cols: Vec<&String> = if t.primary_key.is_empty() {
+        t.columns.iter().map(|c| &c.name).collect()
+    } else {
+        t.primary_key.iter().collect()
+    };
+    cols.iter()
+        .map(|c| format!("{}.{}", quote_ident(&t.name), quote_ident(c)))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn pk_order(model: &Model, table: u16) -> String {
@@ -104,7 +176,57 @@ fn pk_order(model: &Model, table: u16) -> String {
 pub fn stmt_sql(model: &Model, stmt: &ClosedStmt) -> Result<String, String> {
     let name = |t: u16| quote_ident(&model.schema.table(t).name);
     Ok(match stmt {
-        ClosedStmt::Select { table, pred, lock } => format!(
+        ClosedStmt::Select {
+            table,
+            pred,
+            joins,
+            projection,
+            ..
+        } if !joins.is_empty() => {
+            let mut from = name(*table);
+            let mut order = vec![qualified_order(model, *table)];
+            for j in joins {
+                from.push_str(&format!(
+                    " {} {} ON {} = {}",
+                    match j.kind {
+                        JoinKind::Inner => "JOIN",
+                        JoinKind::Left => "LEFT JOIN",
+                    },
+                    name(j.table),
+                    qualified_ident(&j.left),
+                    qualified_ident(&j.right)
+                ));
+                order.push(qualified_order(model, j.table));
+            }
+            format!(
+                "SELECT {} FROM {from} WHERE {} ORDER BY {} LIMIT 1;",
+                select_json(model, *table, joins, projection.as_deref()),
+                expr_sql(pred)?,
+                order.join(", ")
+            )
+        }
+        ClosedStmt::Select {
+            table,
+            pred,
+            lock,
+            projection: Some(projection),
+            ..
+        } => format!(
+            "SELECT {} FROM {} WHERE {} ORDER BY {} LIMIT 1{};",
+            select_json(model, *table, &[], Some(projection)),
+            name(*table),
+            expr_sql(pred)?,
+            pk_order(model, *table),
+            match lock {
+                LockMode::None => "",
+                LockMode::ForUpdate => " FOR UPDATE",
+                LockMode::SkipLocked => " FOR UPDATE SKIP LOCKED",
+                LockMode::NoWait => " FOR UPDATE NOWAIT",
+            }
+        ),
+        ClosedStmt::Select {
+            table, pred, lock, ..
+        } => format!(
             "SELECT row_to_json(t) FROM (SELECT * FROM {} WHERE {} ORDER BY {} LIMIT 1{}) t;",
             name(*table),
             expr_sql(pred)?,
@@ -139,20 +261,30 @@ pub fn stmt_sql(model: &Model, stmt: &ClosedStmt) -> Result<String, String> {
             table,
             values,
             on_conflict,
+            returning,
         } => {
             let cols: Vec<String> = values.keys().map(|c| quote_ident(c)).collect();
             let vals: Result<Vec<String>, String> = values.values().map(value_sql).collect();
-            format!(
-                "WITH r AS (INSERT INTO {} ({}) VALUES ({}){} RETURNING 1) SELECT count(*) FROM r;",
-                name(*table),
-                cols.join(", "),
-                vals?.join(", "),
-                if *on_conflict == OnConflict::DoNothing {
-                    " ON CONFLICT DO NOTHING"
-                } else {
-                    ""
-                }
-            )
+            let insert = if values.is_empty() {
+                format!("INSERT INTO {} DEFAULT VALUES", name(*table))
+            } else {
+                format!(
+                    "INSERT INTO {} ({}) VALUES ({})",
+                    name(*table),
+                    cols.join(", "),
+                    vals?.join(", ")
+                )
+            };
+            let conflict = if *on_conflict == OnConflict::DoNothing {
+                " ON CONFLICT DO NOTHING"
+            } else {
+                ""
+            };
+            if *returning {
+                format!("WITH r AS ({insert}{conflict} RETURNING *) SELECT row_to_json(r) FROM r;")
+            } else {
+                format!("WITH r AS ({insert}{conflict} RETURNING 1) SELECT count(*) FROM r;")
+            }
         }
         ClosedStmt::Delete { table, pred } => format!(
             "WITH r AS (DELETE FROM {} WHERE {} RETURNING 1) SELECT count(*) FROM r;",
@@ -273,13 +405,25 @@ fn column_types(model: &Model) -> Vec<Vec<&'static str>> {
 
 fn ddl(model: &Model) -> Result<String, String> {
     let types = column_types(model);
+    let sequences = model.sequences();
     let mut out = String::new();
     for (ti, t) in model.schema.tables.iter().enumerate() {
         let mut parts: Vec<String> = Vec::new();
         for (ci, c) in t.columns.iter().enumerate() {
             let not_null = c.not_null || t.primary_key.contains(&c.name);
+            let default = match &c.default {
+                None => String::new(),
+                Some(ColumnDefault::Value(v)) => format!(" DEFAULT {}", value_sql(v)?),
+                Some(ColumnDefault::Sequence(_)) => {
+                    let start = sequences
+                        .iter()
+                        .find(|(st, sc, _)| *st as usize == ti && *sc == c.name)
+                        .map_or(1, |(_, _, n)| *n);
+                    format!(" GENERATED BY DEFAULT AS IDENTITY (START WITH {start})")
+                }
+            };
             parts.push(format!(
-                "{} {}{}",
+                "{} {}{}{default}",
                 quote_ident(&c.name),
                 types[ti][ci],
                 if not_null { " NOT NULL" } else { "" }
@@ -550,6 +694,20 @@ fn parse_result(stmt: &ClosedStmt, lines: &[String]) -> Result<StmtResult, Strin
             more => Err(format!("{} rows for LIMIT 1", more.len())),
         },
         ClosedStmt::Count { .. } => parse_count(&data).map(StmtResult::Count),
+        ClosedStmt::Insert {
+            returning: true, ..
+        } => match data.as_slice() {
+            [] => Ok(StmtResult::Row(None)),
+            [one] => {
+                let json: serde_json::Value =
+                    serde_json::from_str(one).map_err(|e| format!("bad row JSON `{one}`: {e}"))?;
+                match json_to_value(&json) {
+                    Value::Row(r) => Ok(StmtResult::Row(Some(r))),
+                    other => Err(format!("unexpected row value {other:?}")),
+                }
+            }
+            more => Err(format!("{} rows for a single-row INSERT", more.len())),
+        },
         _ => parse_count(&data).map(StmtResult::Affected),
     }
 }

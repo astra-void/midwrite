@@ -31,6 +31,7 @@ SCHEMAS = {
     ("commitrift.verification", 2): ROOT / "docs/phase4/schemas/verification-report.v2.schema.json",
     ("commitrift.regression", 1): ROOT / "docs/phase4/schemas/regression-report.v1.schema.json",
     ("commitrift.model-check", 1): ROOT / "docs/phase6/schemas/model-check-report.v1.schema.json",
+    ("commitrift.model-check", 2): ROOT / "docs/phase7/schemas/model-check-report.v2.schema.json",
 }
 
 

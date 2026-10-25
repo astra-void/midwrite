@@ -7,6 +7,8 @@
 
 use std::path::PathBuf;
 
+use serde::{Deserialize, Serialize};
+
 use crate::ir::Step;
 use crate::value::Value;
 
@@ -32,6 +34,77 @@ pub struct ExternalBinding {
     pub key_argument: Option<usize>,
 }
 
+/// What a scenario *declares* about how a wrapper invokes the selected
+/// callback (Phase 7). It is an assumption supplied by the scenario author,
+/// reported as such, and never shown as proven source semantics.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct InvocationContract {
+    /// `awaited` (the wrapper awaits or returns the callback's promise) or
+    /// `fire-and-forget`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub invocation: Option<String>,
+    /// Conditions under which the wrapper invokes the callback
+    /// (`authenticated-user`, `validation-succeeded`, ...): free text.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub preconditions: Vec<String>,
+}
+
+/// How a wrapper uses a callback, as far as its analyzed source shows.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WrapperFacts {
+    /// The wrapper as called (`validatedActionWithUser`).
+    pub wrapper: String,
+    /// Where the wrapper is defined (`src/lib/auth/middleware.ts:28:1`), if
+    /// its source was analyzed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub defined_at: Option<String>,
+    /// `returned-function-awaits`, `returned-function-returns-promise`,
+    /// `returned-function-fire-and-forget`, `invoked-during-wrap`, `stored`,
+    /// `not-invoked` or `unknown`.
+    pub invocation: String,
+    /// Whether some path of the invoking function exits before the call.
+    pub conditional: bool,
+    /// The exits that can prevent the call (`if (!user) throw ...`), with
+    /// locations.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub guards: Vec<String>,
+    /// What the wrapper passes for each callback parameter, as written.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub arguments: Vec<String>,
+    /// Why the invocation is unknown, or other remarks.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub detail: String,
+}
+
+/// The selected entry function of an actor (Phase 7).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EntryInfo {
+    /// The selector as written in the scenario.
+    pub selector: String,
+    /// `file@line:column` of the function node: its identity.
+    pub anchor: String,
+    /// The function's source file and last line (with the anchor line:
+    /// the region the model represents).
+    #[serde(default)]
+    pub file: String,
+    #[serde(default)]
+    pub end_line: u32,
+    /// The name `commitrift check` reports for this function, for linking
+    /// (by position): its own name or `<anonymous@line:column>`.
+    pub static_name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wrapper: Option<WrapperFacts>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub contract: Option<InvocationContract>,
+    /// How the declared contract relates to the source facts:
+    /// `not-needed` (direct function), `consistent`, `required` (source
+    /// facts are unknown; the contract is the only basis) or `absent`.
+    pub contract_status: String,
+}
+
 #[derive(Clone, Debug)]
 pub struct ExtractRequest {
     /// Project root; `file` is relative to it.
@@ -45,6 +118,11 @@ pub struct ExtractRequest {
     /// How many levels of calls to local/imported helper functions are
     /// inlined.
     pub max_inline_depth: usize,
+    /// A source selector (`file#binding/arg[1]`, `file@line:col`) choosing
+    /// the entry function instead of `function` (Phase 7).
+    pub selector: Option<String>,
+    /// Declared invocation assumptions for a wrapped callback.
+    pub contract: Option<InvocationContract>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -56,6 +134,8 @@ pub struct Extracted {
     pub codes: Vec<Vec<Step>>,
     /// Assumptions made during extraction (for the report).
     pub assumptions: Vec<String>,
+    /// The selected entry (Phase 7; only for selector-based actors).
+    pub entry: Option<EntryInfo>,
 }
 
 pub trait ActorProvider {

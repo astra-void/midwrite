@@ -78,7 +78,7 @@ fn kind_class(k: EventKind) -> &'static str {
 fn evidence_class(l: EvidenceLevel) -> &'static str {
     match l {
         EvidenceLevel::ModelCounterexample => "ev-model",
-        EvidenceLevel::PostgresConfirmedSchedule => "ev-pg",
+        EvidenceLevel::PostgresConfirmedSchedule | EvidenceLevel::OriginalCodeReproduced => "ev-pg",
         _ => "ev-none",
     }
 }
@@ -90,6 +90,9 @@ fn evidence_label(l: EvidenceLevel) -> &'static str {
         EvidenceLevel::PostgresConfirmedSchedule => "POSTGRESQL-CONFIRMED SCHEDULE",
         EvidenceLevel::PostgresDidNotReproduce => "POSTGRESQL DID NOT REPRODUCE",
         EvidenceLevel::RuntimeInconclusive => "RUNTIME VALIDATION INCONCLUSIVE",
+        EvidenceLevel::OriginalCodeReproduced => {
+            "ORIGINAL CODE REPRODUCED (application ran on PostgreSQL)"
+        }
     }
 }
 
@@ -325,6 +328,103 @@ pub fn model_check_html(r: &ModelCheckReport) -> String {
                 "<p>SQLSTATEs observed: <code>{}</code></p>",
                 escape(&r.runtime.sqlstates.join(", "))
             );
+        }
+        b.push_str("</div>");
+    }
+
+    // Phase 7: extraction facts and the original-code verification.
+    for x in &r.extraction {
+        let _ = write!(
+            b,
+            "<div class=\"card\"><div class=\"label\">Extraction · {} · {}</div><p>{} represented, {} assumed, {} unsupported operation(s); declared contract: {}</p><ul>",
+            escape(&x.actor),
+            escape(&x.entry.selector),
+            x.source_coverage.represented_operations,
+            x.source_coverage.assumed_operations,
+            x.source_coverage.unsupported_operations,
+            escape(&x.entry.contract_status)
+        );
+        for f in &x.source_facts {
+            let _ = write!(b, "<li>source: {}</li>", escape(f));
+        }
+        for a in &x.scenario_assumptions {
+            let _ = write!(b, "<li><b>declared</b> (not proven): {}</li>", escape(a));
+        }
+        b.push_str("</ul></div>");
+    }
+    if let Some(sv) = &r.source_verification {
+        let _ = write!(
+            b,
+            "<div class=\"card pg\"><div class=\"label\">Original-code verification · {} · harness {}{}</div><p>{}</p>",
+            escape(&sv.status),
+            escape(&sv.harness),
+            sv.postgres_version
+                .as_ref()
+                .map(|v| format!(" · {}", escape(v)))
+                .unwrap_or_default(),
+            escape(&sv.note)
+        );
+        for run in &sv.runs {
+            let _ = write!(
+                b,
+                "<p>run {}: coordination {}, statements {}, final rows {}, outcomes {}, invariant on observed rows: {}</p>",
+                run.run,
+                escape(&run.coordination),
+                if run.statements_agree {
+                    "agree"
+                } else {
+                    "differ"
+                },
+                if run.tables_agree { "agree" } else { "differ" },
+                if run.outcomes_agree {
+                    "agree"
+                } else {
+                    "differ"
+                },
+                escape(&run.invariant)
+            );
+        }
+        if !sv.statements.is_empty() {
+            b.push_str("<table><tr><th></th><th>#</th><th>Actor</th><th>Model operation</th><th>SQL the application sent</th><th>Predicted</th><th>Observed</th></tr>");
+            for c in &sv.statements {
+                let ok = c.status == "agree";
+                let _ = write!(
+                    b,
+                    "<tr><td class=\"{}\">{}</td><td>{}</td><td>{}</td><td class=\"mono\">{}<br>{}</td><td class=\"mono\">{}<br>{}</td><td>{}</td><td>{}{}</td></tr>",
+                    if ok { "ok" } else { "bad" },
+                    if ok { "=" } else { "≠" },
+                    c.transition,
+                    escape(&c.actor),
+                    escape(&c.model),
+                    escape(&c.model_source),
+                    escape(&c.sql),
+                    escape(&c.runtime_source),
+                    escape(&c.predicted),
+                    escape(&c.observed),
+                    c.differences
+                        .iter()
+                        .map(|d| format!("<br><span class=\"bad\">{}</span>", escape(d)))
+                        .collect::<String>()
+                );
+            }
+            b.push_str("</table>");
+        }
+        for o in &sv.outside_model {
+            let _ = write!(
+                b,
+                "<p>outside the model (declared preconditions): <code>{}</code></p>",
+                escape(o)
+            );
+        }
+        for u in &sv.unexpected {
+            let _ = write!(
+                b,
+                "<p class=\"bad\">unexpected: <code>{}</code></p>",
+                escape(u)
+            );
+        }
+        for p in &sv.problems {
+            let _ = write!(b, "<p class=\"bad\">problem: {}</p>", escape(p));
         }
         b.push_str("</div>");
     }

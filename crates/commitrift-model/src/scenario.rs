@@ -60,6 +60,10 @@ struct RawScenario {
     invariants: Vec<Invariant>,
     #[serde(default)]
     extraction: RawExtraction,
+    /// Phase 7: how to run each actor's original code
+    /// (`commitrift model-check --verify-source`).
+    #[serde(default)]
+    source_verification: Option<crate::source_types::SourceSpec>,
 }
 
 #[derive(Deserialize)]
@@ -130,9 +134,17 @@ struct RawExternal {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RawActor {
     name: Option<String>,
+    /// The function's name (for display), or a source selector when
+    /// `entry` is not given.
+    #[serde(default)]
     function: String,
     #[serde(default)]
     file: Option<String>,
+    /// Phase 7: select the entry function by a source selector (anonymous
+    /// callbacks, methods, returned functions) with optional declared
+    /// invocation assumptions.
+    #[serde(default)]
+    entry: Option<RawEntry>,
     /// Positional (`[..]`, for extracted functions) or named (`{..}`).
     #[serde(default)]
     arguments: RawArguments,
@@ -150,6 +162,16 @@ struct RawActor {
     description: String,
 }
 
+#[derive(Deserialize, Clone)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RawEntry {
+    selector: String,
+    #[serde(default)]
+    invocation: Option<String>,
+    #[serde(default)]
+    preconditions: Vec<String>,
+}
+
 #[derive(Deserialize, Default)]
 #[serde(untagged)]
 enum RawArguments {
@@ -164,6 +186,10 @@ enum RawArguments {
 pub struct LoadReport {
     /// Extraction assumptions per actor.
     pub assumptions: Vec<(String, Vec<String>)>,
+    /// Selected entry functions per actor (Phase 7).
+    pub entries: Vec<(String, crate::provider::EntryInfo)>,
+    /// The scenario's `sourceVerification` section (Phase 7).
+    pub source: Option<crate::source_types::SourceSpec>,
 }
 
 pub fn load_file(
@@ -226,7 +252,10 @@ fn build(
             ),
         );
     }
-    let mut report = LoadReport::default();
+    let mut report = LoadReport {
+        source: raw.source_verification.clone(),
+        ..LoadReport::default()
+    };
     let mut actors = Vec::new();
     let mut process_names: Vec<String> = Vec::new();
     let mut process_of = Vec::new();
@@ -244,10 +273,20 @@ fn build(
                 format!("duplicate actor name `{name}`"),
             );
         }
-        let (params, codes, arguments, assumptions) =
+        if a.function.is_empty() && a.entry.is_none() {
+            return bad(
+                format!("{path}.function"),
+                "an actor needs `function` or `entry`",
+            );
+        }
+        let (params, mut codes, arguments, assumptions, entry) =
             actor_program(a, &path, extraction, &schema, base_dir, provider)?;
+        seal_unknowns(&mut codes);
         if !assumptions.is_empty() {
             report.assumptions.push((name.clone(), assumptions));
+        }
+        if let Some(entry) = entry {
+            report.entries.push((name.clone(), entry));
         }
         let process = a.process.clone().unwrap_or_else(|| name.clone());
         let pi = match process_names.iter().position(|p| *p == process) {
@@ -262,8 +301,19 @@ fn build(
         actors.push(ActorSpec {
             name,
             function: FunctionRef {
-                name: a.function.clone(),
-                file: a.file.clone(),
+                name: if a.function.is_empty() {
+                    a.entry
+                        .as_ref()
+                        .map(|e| e.selector.clone())
+                        .unwrap_or_default()
+                } else {
+                    a.function.clone()
+                },
+                file: a.file.clone().or_else(|| {
+                    a.entry
+                        .as_ref()
+                        .and_then(|e| e.selector.split(['#', '@']).next().map(str::to_owned))
+                }),
             },
             arguments,
             codes,
@@ -321,6 +371,8 @@ fn build_schema(raw: &[RawTable]) -> Result<Schema, ScenarioError> {
                     name: n.clone(),
                     not_null: false,
                     sql_type: None,
+                    default: None,
+                    sql_name: None,
                 },
                 RawColumn::Full(c) => c.clone(),
             })
@@ -456,6 +508,7 @@ type ActorBuild = (
     Vec<Vec<Step>>,
     Vec<(String, Value)>,
     Vec<String>,
+    Option<crate::provider::EntryInfo>,
 );
 
 fn actor_program(
@@ -476,7 +529,7 @@ fn actor_program(
         })?;
         let RawArguments::Named(map) = &a.arguments else {
             if matches!(a.arguments, RawArguments::None) {
-                return Ok((Vec::new(), codes, Vec::new(), Vec::new()));
+                return Ok((Vec::new(), codes, Vec::new(), Vec::new(), None));
             }
             return bad(
                 format!("{path}.arguments"),
@@ -488,26 +541,33 @@ fn actor_program(
             codes,
             map.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
             Vec::new(),
+            None,
         ));
     }
     if let Some(codes) = &a.codes {
         let RawArguments::Named(map) = &a.arguments else {
-            return Ok((Vec::new(), codes.clone(), Vec::new(), Vec::new()));
+            return Ok((Vec::new(), codes.clone(), Vec::new(), Vec::new(), None));
         };
         return Ok((
             map.keys().cloned().collect(),
             codes.clone(),
             map.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
             Vec::new(),
+            None,
         ));
     }
     // Extraction from TypeScript.
-    let Some(file) = &a.file else {
+    let selector_file = a
+        .entry
+        .as_ref()
+        .and_then(|e| e.selector.split(['#', '@']).next().map(str::to_owned));
+    let Some(file) = a.file.clone().or(selector_file) else {
         return bad(
             path,
-            "an actor needs `program`, `codes`, or `file` + `function` to extract from TypeScript",
+            "an actor needs `program`, `codes`, `entry`, or `file` + `function` to extract from TypeScript",
         );
     };
+    let file = &file;
     let root = base_dir.join(extraction.root.as_deref().unwrap_or("."));
     let args = match &a.arguments {
         RawArguments::Positional(v) => v.clone(),
@@ -550,6 +610,15 @@ fn actor_program(
         tables,
         externals,
         max_inline_depth: extraction.max_inline_depth.unwrap_or(3),
+        selector: a.entry.as_ref().map(|e| e.selector.clone()),
+        contract: a.entry.as_ref().and_then(|e| {
+            (e.invocation.is_some() || !e.preconditions.is_empty()).then(|| {
+                crate::provider::InvocationContract {
+                    invocation: e.invocation.clone(),
+                    preconditions: e.preconditions.clone(),
+                }
+            })
+        }),
     };
     let extracted = provider.extract(&request).map_err(|e| ScenarioError {
         path: path.to_owned(),
@@ -584,7 +653,44 @@ fn actor_program(
         extracted.codes,
         bound,
         extracted.assumptions,
+        extracted.entry,
     ))
+}
+
+/// Make every operation whose expression is unknown an [`Op::Unknown`]
+/// (Phase 7). Evaluating an unknown expression used to fail the actor, which
+/// silently turned unsupported source into a modeled exception; reaching it
+/// now makes the result `UNSUPPORTED`. Indices are kept, so jumps stay valid.
+pub fn seal_unknowns(codes: &mut [Vec<Step>]) {
+    for code in codes {
+        for step in code {
+            let mut exprs: Vec<&crate::value::Expr> = Vec::new();
+            match &step.op {
+                Op::Let { expr, .. } | Op::AppWrite { expr, .. } => exprs.push(expr),
+                Op::JumpIf { cond, .. } => exprs.push(cond),
+                Op::External { payload, key, .. } => {
+                    exprs.extend(payload.iter().map(|(_, e)| e));
+                    exprs.extend(key.iter());
+                }
+                Op::Db { stmt } => match &stmt.kind {
+                    StmtKind::Select { pred, .. }
+                    | StmtKind::SelectCount { pred, .. }
+                    | StmtKind::Delete { pred, .. } => exprs.push(pred),
+                    StmtKind::Update { pred, set, .. } => {
+                        exprs.push(pred);
+                        exprs.extend(set.iter().map(|(_, e)| e));
+                    }
+                    StmtKind::Insert { values, .. } => exprs.extend(values.iter().map(|(_, e)| e)),
+                },
+                _ => {}
+            }
+            if let Some(detail) = exprs.iter().find_map(|e| e.unknown_detail()) {
+                step.op = Op::Unknown {
+                    detail: detail.to_owned(),
+                };
+            }
+        }
+    }
 }
 
 /// Static validation of the assembled model.
@@ -605,9 +711,22 @@ pub fn validate(model: &Model) -> Result<(), ScenarioError> {
                     Op::AppRead { into, .. } => {
                         defined.insert(into.clone());
                     }
+                    Op::Try {
+                        error: Some(local), ..
+                    } => {
+                        defined.insert(local.clone());
+                    }
                     Op::Db { stmt } => match &stmt.kind {
                         StmtKind::Select { into, .. } | StmtKind::SelectCount { into, .. } => {
                             defined.insert(into.clone());
+                        }
+                        StmtKind::Insert {
+                            affected,
+                            returning: Some(row),
+                            ..
+                        } => {
+                            defined.insert(row.clone());
+                            defined.extend(affected.clone());
                         }
                         StmtKind::Update {
                             affected: Some(n), ..
@@ -736,7 +855,10 @@ fn check_step(
             }
             check_expr(model, cond, None, defined, at)
         }
-        Op::Jump { target } => {
+        Op::Jump { target }
+        | Op::Try {
+            handler: target, ..
+        } => {
             if *target >= code_len {
                 return bad(at, "jump target out of range");
             }
@@ -759,6 +881,62 @@ fn check_step(
         }
         Op::AppWrite { expr, .. } => check_expr(model, expr, None, defined, at),
         Op::Db { stmt } => match &stmt.kind {
+            StmtKind::Select {
+                table,
+                pred,
+                joins,
+                projection,
+                ..
+            } if !joins.is_empty() || projection.is_some() => {
+                // Joined selects use qualified columns (`table.column`).
+                let mut tables = vec![table_of(table)?];
+                for j in joins {
+                    tables.push(table_of(&j.table)?);
+                }
+                let known = |q: &str| -> bool {
+                    match q.split_once('.') {
+                        Some((t, c)) => tables.iter().any(|x| x.name == t && x.has_column(c)),
+                        None => joins.is_empty() && tables[0].has_column(q),
+                    }
+                };
+                for j in joins {
+                    for c in [&j.left, &j.right] {
+                        if !known(c) || !c.contains('.') {
+                            return bad(
+                                at,
+                                format!(
+                                    "join column `{c}` is not a qualified column of a joined table"
+                                ),
+                            );
+                        }
+                    }
+                }
+                for (field, item) in projection.iter().flatten() {
+                    let ok = match item {
+                        crate::ir::ProjItem::Column(c) => known(c),
+                        crate::ir::ProjItem::Table(t) => tables.iter().any(|x| &x.name == t),
+                    };
+                    if !ok {
+                        return bad(
+                            at,
+                            format!(
+                                "projected field `{field}` refers to an unknown column or table"
+                            ),
+                        );
+                    }
+                }
+                let mut locals = Vec::new();
+                pred.locals(&mut locals);
+                if let Some(l) = locals.iter().find(|l| !defined.contains(*l)) {
+                    return bad(at, format!("`{l}` is never assigned"));
+                }
+                let mut cols = Vec::new();
+                pred.columns(&mut cols);
+                if let Some(c) = cols.iter().find(|c| !known(c)) {
+                    return bad(at, format!("unknown column `{c}`"));
+                }
+                Ok(())
+            }
             StmtKind::Select { table, pred, .. } | StmtKind::SelectCount { table, pred, .. } => {
                 check_expr(model, pred, Some(table_of(table)?), defined, at)
             }

@@ -153,6 +153,11 @@ pub enum EvidenceLevel {
     PostgresDidNotReproduce,
     /// Runtime validation was requested but could not be carried out.
     RuntimeInconclusive,
+    /// Phase 7: the actors' ORIGINAL application code ran under the
+    /// counterexample's schedule against PostgreSQL, every statement and
+    /// outcome matched the model, and the invariant is violated on the rows
+    /// the run left (`sourceVerification`).
+    OriginalCodeReproduced,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -222,6 +227,13 @@ pub struct ModelCheckReport {
     pub diagnostics: Vec<ModelDiagnostic>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timing: Option<Timing>,
+    /// Phase 7 (report schema 2): extraction reports of actors selected by
+    /// a source selector.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extraction: Vec<crate::source_types::ExtractionReport>,
+    /// Phase 7 (report schema 2): the original-code verification.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_verification: Option<crate::source_types::SourceVerification>,
 }
 
 impl ModelCheckReport {
@@ -244,6 +256,178 @@ pub struct CheckOptions {
     pub scenario_file: Option<String>,
     pub source_revision: Option<String>,
     pub tool_version: String,
+    /// What the scenario loader learned (extraction reports, Phase 7).
+    pub load: crate::scenario::LoadReport,
+    /// Run the counterexample against the original code (Phase 7).
+    pub source: Option<SourceOptions>,
+}
+
+/// `--verify-source`: the harness and the explicit authorization.
+#[derive(Clone, Debug, Default)]
+pub struct SourceOptions {
+    pub harness: std::path::PathBuf,
+    pub spec: crate::source_types::SourceSpec,
+    /// `--allow-execution`.
+    pub allow_execution: bool,
+    pub repeat: u32,
+}
+
+/// Extraction reports for actors selected by a source selector.
+fn extraction_reports(
+    model: &Model,
+    load: &crate::scenario::LoadReport,
+) -> Vec<crate::source_types::ExtractionReport> {
+    use crate::ir::Op;
+    let mut out = Vec::new();
+    for (name, entry) in &load.entries {
+        let Some(actor) = model.actors.iter().find(|a| &a.name == name) else {
+            continue;
+        };
+        let mut coverage = crate::source_types::Coverage::default();
+        for step in actor.codes.iter().flatten() {
+            match &step.op {
+                Op::Db { .. }
+                | Op::Begin { .. }
+                | Op::Commit
+                | Op::Rollback
+                | Op::External { .. }
+                | Op::AppRead { .. }
+                | Op::AppWrite { .. } => coverage.represented_operations += 1,
+                Op::Unknown { detail } => {
+                    coverage.unsupported_operations += 1;
+                    coverage
+                        .unsupported
+                        .push(format!("{}: {detail}", step.src.label()));
+                }
+                _ => {}
+            }
+        }
+        let mut source_facts = vec![format!(
+            "entry `{}` is the function at {} (`{}` in `commitrift check`)",
+            entry.selector, entry.anchor, entry.static_name
+        )];
+        if let Some(w) = &entry.wrapper {
+            source_facts.push(format!(
+                "`{}`{}: {}{}",
+                w.wrapper,
+                w.defined_at
+                    .as_deref()
+                    .map(|d| format!(" ({d})"))
+                    .unwrap_or_default(),
+                w.invocation,
+                if w.detail.is_empty() {
+                    String::new()
+                } else {
+                    format!(" — {}", w.detail)
+                }
+            ));
+            for g in &w.guards {
+                source_facts.push(format!("guard before the call: {g}"));
+            }
+            if !w.arguments.is_empty() {
+                source_facts.push(format!("the wrapper passes ({})", w.arguments.join(", ")));
+            }
+        }
+        let mut scenario_assumptions = Vec::new();
+        if let Some(c) = &entry.contract {
+            if let Some(i) = &c.invocation {
+                scenario_assumptions.push(format!("invocation: {i}"));
+            }
+            scenario_assumptions
+                .extend(c.preconditions.iter().map(|p| format!("precondition: {p}")));
+        }
+        // The wrapper's own work around the call is not part of the actor:
+        // it is assumed (its preconditions), not represented.
+        coverage.assumed_operations =
+            usize::from(entry.wrapper.is_some()) + scenario_assumptions.len();
+        out.push(crate::source_types::ExtractionReport {
+            actor: name.clone(),
+            entry: entry.clone(),
+            source_coverage: coverage,
+            source_facts,
+            scenario_assumptions,
+        });
+    }
+    out
+}
+
+#[cfg(feature = "postgres")]
+fn verify_source(
+    model: &Model,
+    w: &Witness,
+    load: &crate::scenario::LoadReport,
+    so: &SourceOptions,
+) -> crate::source_types::SourceVerification {
+    use crate::source_types::SourceVerification;
+    let refused = |status: &str, harness: &str, why: String| SourceVerification {
+        performed: false,
+        status: status.to_owned(),
+        harness: harness.to_owned(),
+        runs: Vec::new(),
+        statements: Vec::new(),
+        outside_model: Vec::new(),
+        unexpected: Vec::new(),
+        model_tables: BTreeMap::new(),
+        runtime_tables: BTreeMap::new(),
+        actors: Vec::new(),
+        problems: vec![why],
+        assumptions: Vec::new(),
+        postgres_version: None,
+        isolation: String::new(),
+        note: String::new(),
+    };
+    let harness = match commitrift_replay::source::load_manifest(&so.harness) {
+        Ok(h) => h,
+        Err(e) => return refused("blocked", &so.harness.display().to_string(), e),
+    };
+    let Some(invariant) = model.invariants.iter().find(|i| i.name == w.invariant) else {
+        return refused(
+            "unsupported",
+            &harness.manifest.harness,
+            "the violated invariant is unknown".to_owned(),
+        );
+    };
+    let final_state = match crate::witness::replay(model, &w.schedule, false) {
+        Ok(r) => r.state,
+        Err(e) => return refused("unsupported", &harness.manifest.harness, e.reason),
+    };
+    crate::source_verify::verify(&crate::source_verify::VerifyRequest {
+        model,
+        schedule: &w.schedule,
+        final_state: &final_state,
+        invariant,
+        harness: &harness,
+        spec: &so.spec,
+        entries: &load.entries,
+        allow_execution: so.allow_execution,
+        repeat: so.repeat,
+    })
+}
+
+#[cfg(not(feature = "postgres"))]
+fn verify_source(
+    _: &Model,
+    _: &Witness,
+    _: &crate::scenario::LoadReport,
+    so: &SourceOptions,
+) -> crate::source_types::SourceVerification {
+    crate::source_types::SourceVerification {
+        performed: false,
+        status: "blocked".to_owned(),
+        harness: so.harness.display().to_string(),
+        runs: Vec::new(),
+        statements: Vec::new(),
+        outside_model: Vec::new(),
+        unexpected: Vec::new(),
+        model_tables: BTreeMap::new(),
+        runtime_tables: BTreeMap::new(),
+        actors: Vec::new(),
+        problems: vec!["this build has no PostgreSQL support (feature `postgres`)".to_owned()],
+        assumptions: Vec::new(),
+        postgres_version: None,
+        isolation: String::new(),
+        note: String::new(),
+    }
 }
 
 /// Diagnostic codes of the concurrency category. They are separate from the
@@ -261,6 +445,9 @@ pub fn explain(code: &str) -> Option<&'static str> {
         }
         "CP7101" => {
             "PostgreSQL did not reproduce the model's counterexample: some statement behaved differently from the model's prediction. Either the model is imprecise for this construct (please report the mismatch) or PostgreSQL prevents the schedule. The model result must not be reported as a confirmed race."
+        }
+        "CP7103" => {
+            "The original code did not reproduce the counterexample. With --verify-source --allow-execution, CommitRift ran the actors' original application code under the model's counterexample schedule against a disposable PostgreSQL database, and the run did not reproduce the violation: the application sent different statements (diverged), PostgreSQL answered differently, an expected statement never came (inconclusive), or the invariant held on the observed rows. The model counterexample keeps its own evidence level; the differences are reported statement by statement. A difference can reveal a modeling gap, an unsupported construct, or a declared assumption the run did not establish."
         }
         "CP7102" => {
             "PostgreSQL validation was requested but could not run (no PostgreSQL server binaries, or the cluster could not be driven). The counterexample remains a model counterexample."
@@ -532,6 +719,39 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
         ),
     };
 
+    // Phase 7: the original code under the counterexample's schedule.
+    let source_verification = opts.source.as_ref().map(|so| match &witness {
+        Some(w) => verify_source(model, w, &opts.load, so),
+        None => crate::source_types::SourceVerification {
+            performed: false,
+            status: "not-run".to_owned(),
+            harness: so.harness.display().to_string(),
+            runs: Vec::new(),
+            statements: Vec::new(),
+            outside_model: Vec::new(),
+            unexpected: Vec::new(),
+            model_tables: BTreeMap::new(),
+            runtime_tables: BTreeMap::new(),
+            actors: Vec::new(),
+            problems: vec!["there is no counterexample to run".to_owned()],
+            assumptions: Vec::new(),
+            postgres_version: None,
+            isolation: String::new(),
+            note: String::new(),
+        },
+    });
+    let (level, summary) = match &source_verification {
+        Some(sv) if sv.status == "reproduced" => (
+            EvidenceLevel::OriginalCodeReproduced,
+            format!(
+                "the actors' original application code ran under this schedule against PostgreSQL in {} of {} run(s): every statement, result and outcome matched the model, and the invariant is violated on the rows the run left",
+                sv.runs.iter().filter(|r| r.reproduced).count(),
+                sv.runs.len()
+            ),
+        ),
+        _ => (level, summary),
+    };
+
     if let Some(w) = &witness {
         diagnostics.push(ModelDiagnostic {
             code: "CP7001".into(),
@@ -581,6 +801,24 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
         }),
         _ => {}
     }
+    if let Some(sv) = &source_verification
+        && witness.is_some()
+        && sv.status != "reproduced"
+    {
+        diagnostics.push(ModelDiagnostic {
+            code: "CP7103".into(),
+            severity: "info".into(),
+            message: format!(
+                "the original code did not reproduce the counterexample (source verification: {}){}",
+                sv.status,
+                sv.problems
+                    .first()
+                    .map(|p| format!(": {p}"))
+                    .unwrap_or_default()
+            ),
+        });
+    }
+    let extraction = extraction_reports(model, &opts.load);
 
     let disabled_because = if explore_opts.por && model.bounds.max_context_switches.is_some() {
         Some(
@@ -594,7 +832,11 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
     };
     ModelCheckReport {
         kind: REPORT_KIND.into(),
-        schema_version: REPORT_SCHEMA_VERSION,
+        schema_version: if extraction.is_empty() && source_verification.is_none() {
+            REPORT_SCHEMA_VERSION
+        } else {
+            2
+        },
         model_version: MODEL_VERSION.into(),
         tool: ToolInfo {
             name: "commitrift".into(),
@@ -634,6 +876,8 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
             wall_ms: result.metrics.wall_ms,
             first_violation_ms: result.metrics.first_violation_ms,
         }),
+        extraction,
+        source_verification,
     }
 }
 
@@ -681,6 +925,82 @@ pub fn render_text(model: &Model, r: &ModelCheckReport, verbose: bool) -> String
             out.push_str(&format!("  {}\n", r.runtime.note));
         }
     }
+    for x in &r.extraction {
+        out.push_str(&format!(
+            "\nExtraction ({}): {} — {} represented, {} assumed, {} unsupported operation(s); declared contract: {}\n",
+            x.actor,
+            x.entry.selector,
+            x.source_coverage.represented_operations,
+            x.source_coverage.assumed_operations,
+            x.source_coverage.unsupported_operations,
+            x.entry.contract_status
+        ));
+        for f in &x.source_facts {
+            out.push_str(&format!("  source:   {f}\n"));
+        }
+        for a in &x.scenario_assumptions {
+            out.push_str(&format!("  declared: {a}\n"));
+        }
+    }
+    if let Some(sv) = &r.source_verification {
+        out.push_str(&format!(
+            "\nOriginal-code verification: {} (harness `{}`{})\n",
+            sv.status,
+            sv.harness,
+            sv.postgres_version
+                .as_deref()
+                .map(|v| format!(", {v}"))
+                .unwrap_or_default()
+        ));
+        for run in &sv.runs {
+            out.push_str(&format!(
+                "  run {}: coordination {}, statements {}, final rows {}, outcomes {}, invariant on observed rows: {}{}\n",
+                run.run,
+                run.coordination,
+                if run.statements_agree { "agree" } else { "differ" },
+                if run.tables_agree { "agree" } else { "differ" },
+                if run.outcomes_agree { "agree" } else { "differ" },
+                run.invariant,
+                if run.reproduced { " → reproduced" } else { "" }
+            ));
+        }
+        for c in &sv.statements {
+            out.push_str(&format!(
+                "  {} #{:<2} {:<8} model: {} [{}]\n           sql:   {} [{}]\n           predicted {} · observed {}\n",
+                if c.status == "agree" { "=" } else { "≠" },
+                c.transition,
+                c.actor,
+                c.model,
+                c.model_source,
+                if c.sql.is_empty() { "(none)" } else { &c.sql },
+                c.runtime_source,
+                c.predicted,
+                c.observed
+            ));
+            for d in &c.differences {
+                out.push_str(&format!("           difference: {d}\n"));
+            }
+        }
+        for o in &sv.outside_model {
+            out.push_str(&format!(
+                "  outside the model (declared preconditions): {o}\n"
+            ));
+        }
+        for u in &sv.unexpected {
+            out.push_str(&format!("  unexpected: {u}\n"));
+        }
+        for (actor, model_outcome, runtime) in &sv.actors {
+            out.push_str(&format!(
+                "  actor {actor}: model {model_outcome}, original code {runtime}\n"
+            ));
+        }
+        for p in &sv.problems {
+            out.push_str(&format!("  problem: {p}\n"));
+        }
+        if !sv.note.is_empty() {
+            out.push_str(&format!("  {}\n", sv.note));
+        }
+    }
     let t = &r.exploration.truncation;
     if t.resource_limit() {
         out.push_str("\nTruncated by:");
@@ -706,6 +1026,7 @@ pub fn render_text(model: &Model, r: &ModelCheckReport, verbose: bool) -> String
     out.push_str("\nWhat this does and does not say: ");
     out.push_str(match r.exploration.verdict.as_str() {
         "NO_COUNTEREXAMPLE_WITHIN_BOUNDS" => "no invariant violation exists in any behavior of the modeled actors within the declared bounds and assumptions. It does not prove the application race-free.\n",
+        "COUNTEREXAMPLE_FOUND" if r.evidence.level == EvidenceLevel::OriginalCodeReproduced => "the application's original code, run under this schedule with the declared inputs and preconditions on a disposable PostgreSQL, violated the invariant. Whether such concurrent requests occur in production, and whether the declared preconditions hold there, is not established.\n",
         "COUNTEREXAMPLE_FOUND" => "a bounded schedule of the modeled actors violates the invariant under the stated assumptions. It is not by itself a confirmed application bug.\n",
         "INCONCLUSIVE" => "the search ended at a resource limit; nothing is established beyond the explored part.\n",
         _ => "the scenario cannot be verified: it reaches unsupported behavior.\n",

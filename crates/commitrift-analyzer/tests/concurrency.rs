@@ -79,6 +79,8 @@ fn extract_with_depth(
         tables: tables(),
         externals: externals(),
         max_inline_depth: depth,
+        selector: None,
+        contract: None,
     })
 }
 
@@ -104,6 +106,7 @@ fn render_op(op: &Op) -> String {
                     pred,
                     lock,
                     into,
+                    ..
                 } => format!(
                     "{conn} select {table} where {} lock={lock:?} -> {into}",
                     pred.render()
@@ -130,6 +133,7 @@ fn render_op(op: &Op) -> String {
                     values,
                     on_conflict,
                     affected,
+                    ..
                 } => format!(
                     "{conn} insert {table} {} on_conflict={on_conflict:?} affected={}",
                     values
@@ -172,6 +176,9 @@ fn render_op(op: &Op) -> String {
         Op::AppWrite { var, expr } => format!("app_write {var} = {}", expr.render()),
         Op::Spawn { children, detached } => format!("spawn {children:?} detached={detached}"),
         Op::Join => "join".into(),
+        Op::Try { handler, .. } => format!("try -> {handler}"),
+        Op::EndTry => "end try".into(),
+        Op::Rethrow { local } => format!("rethrow {local}"),
         Op::Unknown { detail } => format!("UNKNOWN {detail}"),
     }
 }
@@ -616,16 +623,19 @@ fn optional_chaining_and_ternaries_are_hoisted_exactly() {
 #[test]
 fn unsupported_constructs_become_unknown_ops_with_the_right_line() {
     let src = with_imports(
-        r#"export async function f(id: string) {
-  for (const n of [1, 2]) {
+        // Phase 7 models `for...of` over an array literal and `try`/`catch`;
+        // a loop of unknown length and a `return` through `finally` stay
+        // unknown.
+        r#"export async function f(id: string, ids: string[]) {
+  for (const n of ids) {
     await db.delete(products).where(eq(products.id, id));
   }
   await db.execute(sql`delete from products`);
   await mystery(id);
   try {
-    await db.delete(products).where(eq(products.id, id));
-  } catch (e) {
-    throw e;
+    return await db.delete(products).where(eq(products.id, id));
+  } finally {
+    await mystery(id);
   }
   await db.update(products).set({ stock: id.length }).where(like(products.id, "p%"));
 }
@@ -646,10 +656,10 @@ fn unsupported_constructs_become_unknown_ops_with_the_right_line() {
             .map(|(_, d)| d.clone())
             .unwrap_or_else(|| panic!("no unknown at line {line}: {found:?}"))
     };
-    assert!(detail(line_of("for (const n")).contains("`for` loops"));
+    assert!(detail(line_of("for (const n")).contains("unknown length"));
     assert!(detail(line_of("db.execute")).contains("raw SQL"));
     assert!(detail(line_of("mystery(id)")).contains("mystery"));
-    assert!(detail(line_of("try {")).contains("try"));
+    assert!(detail(line_of("try {")).contains("`finally`"));
     // An unsupported predicate operator makes the statement unknown (not a
     // no-op, not an unconditional update).
     assert!(detail(line_of("like(")).contains("like"));
@@ -819,6 +829,8 @@ fn external_calls_carry_their_idempotency_key_and_payload() {
                 key_argument: Some(0),
             }],
             max_inline_depth: 3,
+            selector: None,
+            contract: None,
         })
         .unwrap();
     assert_ops(

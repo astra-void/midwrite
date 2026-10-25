@@ -46,6 +46,9 @@ pub enum Access {
     Wait,
     Ext(String),
     App(usize, String),
+    /// Allocation from a sequence (index into `Model::sequences`): the value
+    /// an insert gets depends on the order of allocations (Phase 7).
+    Seq(u16),
     /// Conflicts with everything.
     Global,
 }
@@ -98,6 +101,7 @@ fn conflict(model: &Model, x: &Access, y: &Access) -> bool {
         (Snapshot, CommitWrite) | (CommitWrite, Snapshot) => true,
         (Ext(a), Ext(b)) => a == b,
         (App(p, v), App(q, w)) => p == q && v == w,
+        (Seq(a), Seq(b)) => a == b,
         (LockCheck(a), LockChange(b))
         | (LockChange(a), LockCheck(b))
         | (LockChange(a), LockChange(b)) => a == b,

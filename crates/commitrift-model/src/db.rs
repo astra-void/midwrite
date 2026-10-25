@@ -49,6 +49,39 @@ pub struct ColumnSchema {
     /// abstract model is untyped; when omitted the oracle infers it.
     #[serde(default, rename = "type", skip_serializing_if = "Option::is_none")]
     pub sql_type: Option<String>,
+    /// The value an `INSERT` that omits the column stores (Phase 7). Without
+    /// a declared default an omitted column is `NULL`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default: Option<ColumnDefault>,
+    /// The column's name in the application's SQL schema when it differs
+    /// from the model name (Drizzle property `teamId` → column `team_id`).
+    /// Used only to compare the model with the original application's
+    /// database; the model and its oracle use `name`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sql_name: Option<String>,
+}
+
+/// A column default (Phase 7).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub enum ColumnDefault {
+    /// A constant (`DEFAULT 'pending'`).
+    Value(Value),
+    /// A sequence (`serial`, `GENERATED ... AS IDENTITY`): every insert that
+    /// omits the column takes the next value. As in PostgreSQL, allocation
+    /// is not transactional: a value taken by an insert that later fails or
+    /// is rolled back is not reused. Values are concrete only because the
+    /// disposable database starts the sequence at a known value (`start`,
+    /// default: one more than the largest initial value, else 1); they say
+    /// nothing about identifiers in another database.
+    Sequence(SequenceSpec),
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SequenceSpec {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start: Option<i64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -282,11 +315,15 @@ mod tests {
                     name: "id".into(),
                     not_null: true,
                     sql_type: None,
+                    default: None,
+                    sql_name: None,
                 },
                 ColumnSchema {
                     name: "stock".into(),
                     not_null: false,
                     sql_type: None,
+                    default: None,
+                    sql_name: None,
                 },
             ],
             primary_key: vec!["id".into()],

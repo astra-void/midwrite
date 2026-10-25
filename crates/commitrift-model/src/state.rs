@@ -13,7 +13,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::db::{RowId, Snapshot, Store, TxnId};
-use crate::ir::{Conn, Isolation, LockMode, OnConflict};
+use crate::ir::{Conn, Isolation, JoinKind, LockMode, OnConflict, ProjItem};
 use crate::model::Model;
 use crate::value::{Expr, Locals, Row, Value};
 
@@ -24,6 +24,8 @@ pub enum ClosedStmt {
         table: u16,
         pred: Expr,
         lock: LockMode,
+        joins: Vec<ClosedJoin>,
+        projection: Option<Vec<(String, ProjItem)>>,
     },
     Count {
         table: u16,
@@ -38,11 +40,20 @@ pub enum ClosedStmt {
         table: u16,
         values: Row,
         on_conflict: OnConflict,
+        returning: bool,
     },
     Delete {
         table: u16,
         pred: Expr,
     },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ClosedJoin {
+    pub kind: JoinKind,
+    pub table: u16,
+    pub left: String,
+    pub right: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -77,6 +88,9 @@ pub struct Thread {
     pub detached: bool,
     pub pending: Option<Pending>,
     pub failure: Option<String>,
+    /// Active `try` handlers, innermost last: (handler pc, error local,
+    /// whether a transaction was open when the block was entered).
+    pub handlers: Vec<(u32, Option<String>, bool)>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -162,6 +176,9 @@ pub struct State {
     pub retries: u32,
     /// Serialization dependency edges between transactions (SERIALIZABLE).
     pub deps: BTreeSet<(TxnId, TxnId)>,
+    /// Next value of each sequence-backed column (`Model::sequences` order).
+    /// Not transactional: an aborted insert does not give its value back.
+    pub seqs: Vec<i64>,
     // Path-dependent bookkeeping (not part of the canonical encoding unless
     // the context-switch bound is active).
     pub steps: u32,
@@ -343,6 +360,14 @@ impl State {
                 e.u32(t.parent.map_or(u32::MAX, u32::from));
                 e.u8(u8::from(t.detached));
                 e.str(t.failure.as_deref().unwrap_or(""));
+                if !t.handlers.is_empty() {
+                    e.u32(t.handlers.len() as u32);
+                    for (pc, local, open) in &t.handlers {
+                        e.u32(*pc);
+                        e.str(local.as_deref().unwrap_or(""));
+                        e.u8(u8::from(*open));
+                    }
+                }
                 match &t.pending {
                     None => e.u8(0),
                     Some(p) => {
@@ -416,6 +441,12 @@ impl State {
         }
         e.u32(self.crashes);
         e.u32(self.retries);
+        if !self.seqs.is_empty() {
+            e.u32(self.seqs.len() as u32);
+            for n in &self.seqs {
+                e.value(&Value::Int(*n));
+            }
+        }
         if model.bounds.max_context_switches.is_some() {
             let (a, t) = self.last_thread.unwrap_or((u16::MAX, u16::MAX));
             e.u16(a);

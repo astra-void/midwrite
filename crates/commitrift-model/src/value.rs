@@ -131,6 +131,9 @@ pub enum Expr {
     Not(Box<Expr>),
     IsNull(Box<Expr>),
     Bin(BinOp, Box<Expr>, Box<Expr>),
+    /// An object literal (Phase 7): evaluates to a row of its properties,
+    /// in JavaScript mode only.
+    Object(Vec<(String, Expr)>),
     /// An expression the extractor did not understand. Evaluating it is an
     /// error: unknown behavior is never turned into a value.
     Unknown(String),
@@ -189,6 +192,7 @@ impl Expr {
             Self::Lit(_) | Self::Local(_) | Self::Unknown(_) => false,
             Self::Field(e, _) | Self::Not(e) | Self::IsNull(e) => e.mentions_column(),
             Self::Bin(_, a, b) => a.mentions_column() || b.mentions_column(),
+            Self::Object(fields) => fields.iter().any(|(_, e)| e.mentions_column()),
         }
     }
 
@@ -199,6 +203,7 @@ impl Expr {
             Self::Lit(_) | Self::Local(_) | Self::Col(_) => None,
             Self::Field(e, _) | Self::Not(e) | Self::IsNull(e) => e.unknown_detail(),
             Self::Bin(_, a, b) => a.unknown_detail().or_else(|| b.unknown_detail()),
+            Self::Object(fields) => fields.iter().find_map(|(_, e)| e.unknown_detail()),
         }
     }
 
@@ -212,6 +217,7 @@ impl Expr {
                 a.locals(out);
                 b.locals(out);
             }
+            Self::Object(fields) => fields.iter().for_each(|(_, e)| e.locals(out)),
         }
     }
 
@@ -225,6 +231,7 @@ impl Expr {
                 a.columns(out);
                 b.columns(out);
             }
+            Self::Object(fields) => fields.iter().for_each(|(_, e)| e.columns(out)),
         }
     }
 
@@ -265,6 +272,13 @@ impl Expr {
             Self::IsNull(e) => Ok(Value::Bool(e.eval(locals, row, mode)?.is_null())),
             Self::Unknown(d) => Err(EvalError::Unknown(d.clone())),
             Self::Bin(op, a, b) => eval_bin(*op, a, b, locals, row, mode),
+            Self::Object(fields) => {
+                let mut out = Row::new();
+                for (k, e) in fields {
+                    out.insert(k.clone(), e.eval(locals, row, mode)?);
+                }
+                Ok(Value::Row(out))
+            }
         }
     }
 
@@ -298,6 +312,14 @@ impl Expr {
             Self::Field(e, n) => format!("{}.{n}", e.render()),
             Self::Not(e) => format!("!{}", e.render()),
             Self::IsNull(e) => format!("{} is null", e.render()),
+            Self::Object(fields) => format!(
+                "{{{}}}",
+                fields
+                    .iter()
+                    .map(|(k, e)| format!("{k}: {}", e.render()))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
             Self::Unknown(d) => format!("<unknown: {d}>"),
             Self::Bin(op, a, b) => format!("({} {} {})", a.render(), op.symbol(), b.render()),
         }

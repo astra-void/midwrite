@@ -42,12 +42,14 @@ mod discover;
 mod error;
 mod exports;
 mod functions;
+pub mod identity;
 mod link;
 mod lower;
 mod project;
 mod recognize;
 mod resolve;
 mod values;
+mod wrapper;
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};

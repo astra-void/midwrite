@@ -19,6 +19,9 @@ pub mod oracle_types;
 pub mod provider;
 pub mod report;
 pub mod scenario;
+pub mod source_types;
+#[cfg(feature = "postgres")]
+pub mod source_verify;
 pub mod state;
 pub mod value;
 pub mod witness;
