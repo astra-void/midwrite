@@ -346,7 +346,12 @@ lowering (per function)                     project / single file
 
 **1. Path enumeration** (`paths.rs`). Traces are enumerated forward. Each IR
 node maps the set of traces reaching it to the traces leaving it normally,
-plus traces leaving via `return`, `throw`, `break` and `continue`:
+plus traces leaving via `return`, `throw`, `break` and `continue`.
+Since Phase 7 an inlined call whose facts share no variable with facts
+outside it is walked once per effect context and its exit-grouped trace
+fragments are spliced onto every incoming trace (*compact summaries*,
+exact, the default; `COMMITRIFT_PATHS=legacy` walks every trace through the
+body as before — [`phase7/COMPACT-SUMMARIES.md`](phase7/COMPACT-SUMMARIES.md)):
 
 * `Branch`: one copy of the incoming traces per arm, each tagged with a
   `Decision`. A copy whose arm facts contradict the facts of an earlier
@@ -467,3 +472,12 @@ corpus runs).
   `detect.rs`, plus a catalog entry in `diagnostic.rs` and fixtures.
 * **A new language** is a new frontend producing `FunctionIr` (and, for call
   summaries, the call sites per function with their argument handles).
+
+## Phase 7: source identity and original-code verification
+
+Function identity by source position shared with the concurrency
+extractor (`analyzer::identity`), wrapper invocation analysis
+(`analyzer::wrapper`), the original-code coordinator
+(`commitrift-replay::source`, `runtime/node/source.js`) and the
+differential comparison (`commitrift-model::source_verify`):
+[`phase7/ARCHITECTURE.md`](phase7/ARCHITECTURE.md).

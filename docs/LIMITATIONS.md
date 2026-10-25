@@ -243,3 +243,12 @@ hold only for the declared scenario (actors, data, isolation level, bounds)
 and the model's semantics; SERIALIZABLE is a conservative serialization-graph
 abstraction, and the TypeScript and SQL subsets are small. Full list:
 [`phase6/LIMITATIONS.md`](phase6/LIMITATIONS.md).
+
+## Phase 7: source selectors and original-code verification
+
+Wrapped callbacks are modeled from their own body; the wrapper's guards are
+declared preconditions, not proofs. `original-code-reproduced` holds for the
+harness inputs, the schedule and the disposable database of the run, not
+for production traffic. Only Node.js + `pg` + Drizzle are coordinated;
+crashes and retries are not executed against original code. Full list:
+[`phase7/LIMITATIONS.md`](phase7/LIMITATIONS.md).

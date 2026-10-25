@@ -213,6 +213,37 @@ subset, validation against PostgreSQL and limitations:
 [`docs/phase6/`](docs/phase6/FINAL-REPORT.md) and
 [`docs/phase7/`](docs/phase7/FINAL-REPORT.md).
 
+## Original-code verification (Phase 7, opt-in, executes code)
+
+A scenario can select an actor's entry function by a **source selector** —
+including the anonymous callback of a wrapped Server Action
+(`src/app/actions.ts#inviteTeamMember/arg[1]`). The extractor reads the
+wrapper's source to learn how it invokes the callback and requires the
+scenario to declare any precondition it cannot prove. Joins, projections,
+`RETURNING`, generated keys, defaults, `try`/`catch`/`finally`, `switch` and
+loops over literal arrays are now modeled.
+
+With an authorized source harness, the counterexample is then run against
+the **original application code**: one worker per actor, every SQL
+statement Drizzle sends held and released in the counterexample's order,
+PostgreSQL's answers and lock waits observed, and the invariant evaluated
+on the rows the run left.
+
+```bash
+commitrift model-check fixtures/phase7/scenarios/team-app-invite-double-submit.json \
+  --verify-source --allow-execution --source-repeat 5
+```
+
+```text
+Evidence: OriginalCodeReproduced — the actors' original application code ran under this schedule against PostgreSQL in 5 of 5 run(s) ...
+  = #7  Submit1  model: INSERT invitations {...} [src/app/actions.ts:80:11]
+           sql:   insert into "invitations" ("id", "team_id", ...) values (default, $1, ...) [src/app/actions.ts:80:34]
+```
+
+`--validate-postgres` still replays only the model's SQL; running code
+needs `--allow-execution`. Details:
+[`docs/phase7/FINAL-REPORT.md`](docs/phase7/FINAL-REPORT.md).
+
 ## What CommitRift does not do
 
 * It does **not** prove business consistency. It knows nothing about your
