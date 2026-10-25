@@ -20,6 +20,10 @@
     "./event-log": {
       "types": "./event-log.d.ts",
       "default": "./event-log.js"
+    },
+    "./source": {
+      "types": "./source.d.ts",
+      "default": "./source.js"
     }
   },
   "files": [
@@ -29,6 +33,8 @@
     "pg.d.ts",
     "event-log.js",
     "event-log.d.ts",
-    "README.md"
+    "README.md",
+    "source.js",
+    "source.d.ts"
   ]
 }

@@ -17,6 +17,7 @@ pub mod manifest;
 pub mod observe;
 pub mod postgres;
 pub mod safety;
+pub mod source;
 pub mod supervisor;
 
 use std::collections::BTreeMap;
