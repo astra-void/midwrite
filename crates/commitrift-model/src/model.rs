@@ -35,6 +35,9 @@ pub struct Bounds {
     /// (default): no in-flight faults, exactly the Phase 8 transition system.
     #[serde(default)]
     pub max_in_flight: u32,
+    /// Phase 9: where crashes may happen (see [`CrashPolicy`]).
+    #[serde(default, skip_serializing_if = "is_any")]
+    pub crash_policy: CrashPolicy,
     /// Maximum context switches on one schedule. Reduction is disabled when
     /// this is set (see `docs/phase6/PARTIAL-ORDER-REDUCTION.md`).
     #[serde(default)]
@@ -48,6 +51,10 @@ pub struct Bounds {
     /// Maximum approximate memory of the visited-state table, in bytes.
     #[serde(default)]
     pub max_memory_bytes: Option<u64>,
+}
+
+fn is_any(p: &CrashPolicy) -> bool {
+    *p == CrashPolicy::Any
 }
 
 fn d_actors() -> usize {
@@ -69,12 +76,28 @@ impl Default for Bounds {
             max_crashes: 0,
             max_retries: 0,
             max_in_flight: 0,
+            crash_policy: CrashPolicy::Any,
             max_context_switches: None,
             max_transitions: None,
             max_wall_ms: None,
             max_memory_bytes: None,
         }
     }
+}
+
+/// Where a process crash may happen (Phase 9).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum CrashPolicy {
+    /// Between any two operations, and (with `maxInFlight`) with operations
+    /// in flight. The Phase 8 crash points are all kept.
+    #[default]
+    Any,
+    /// Only with an operation in flight (a COMMIT or an autocommit write
+    /// submitted and not acknowledged): the failure Phase 8 could not
+    /// reproduce against original code. Restricts the explored crash points;
+    /// a "no counterexample" verdict holds for this fault model only.
+    InFlightOnly,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -28,20 +28,20 @@ use std::time::Duration;
 use serde_json::Value as Json;
 
 use commitrift_replay::source::{
-    self, ActorLaunch, CrashStep, Expected, LoadedSource, Observed, PlanStep, Region, RestartStep,
-    RunRequest, SourceRun, SqlKind,
+    self, ActorLaunch, CrashStep, Expected, Fate, InFlightStep, LoadedSource, Observed, PlanStep,
+    Region, RestartStep, RunRequest, ServerCompleteStep, SourceRun, SqlKind,
 };
 
 use crate::db::{ColumnDefault, INITIAL_TXN, RowId, TableSchema, Version};
-use crate::engine::{Action, Expect, Recorder, apply, initial_state};
+use crate::engine::{Action, Expect, Recorder, apply, in_flight_ops, initial_state};
 use crate::exec::StmtResult;
 use crate::invariant::Invariant;
 use crate::ir::{Conn, Op, Origin, ProjItem, SourceRef, StmtKind};
 use crate::model::Model;
 use crate::provider::EntryInfo;
 pub use crate::source_types::{
-    CrashCheck, EffectComparison, RecoveryVerification, RestartCheck, RunSummary, SourceActor,
-    SourceSpec, SourceVerification, StatementComparison,
+    CompletionCheck, CrashCheck, EffectComparison, InFlightCheck, RecoveryVerification,
+    RestartCheck, RunSummary, SourceActor, SourceSpec, SourceVerification, StatementComparison,
 };
 use crate::state::{ClosedStmt, ExternalEvent, State, TKind, TStatus, Transition};
 use crate::value::{Mode, Row, Value};
@@ -98,6 +98,18 @@ struct CrashPrediction {
     boundary: String,
     /// Committed rows right after the crash.
     tables: BTreeMap<String, Vec<Row>>,
+    /// Phase 9: the fate of the operation in flight, and its description.
+    in_flight: Option<(Fate, String)>,
+}
+
+/// Phase 9: what the model predicts when the server completes a held
+/// operation.
+#[derive(Clone, Debug)]
+struct CompletionPrediction {
+    transition: usize,
+    actor: usize,
+    attempt: u32,
+    tables: BTreeMap<String, Vec<Row>>,
 }
 
 /// Phase 8: a new execution of an actor.
@@ -115,6 +127,7 @@ struct Plan {
     predictions: Vec<Prediction>,
     crashes: Vec<CrashPrediction>,
     restarts: Vec<RestartPrediction>,
+    completions: Vec<CompletionPrediction>,
 }
 
 fn region(src: &SourceRef) -> Option<Region> {
@@ -287,6 +300,8 @@ fn mechanism(model: &Model, a: usize) -> String {
 fn plan(model: &Model, schedule: &[Transition]) -> Result<Plan, String> {
     let mut state = initial_state(model);
     let mut out = Plan::default();
+    // Completions realized together with the crash (answered at once).
+    let mut skip_completion: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
     for (i, t) in schedule.iter().enumerate() {
         // The visible operation this transition executes (before it runs).
         let src = state
@@ -302,11 +317,145 @@ fn plan(model: &Model, schedule: &[Transition]) -> Result<Plan, String> {
             .map(|s| s.src.clone());
         match t.kind {
             TKind::Deadlock => return Err("the counterexample picks a deadlock victim: victim steering is not done against original code".to_owned()),
-            TKind::LostCommitted
-            | TKind::LostNotCommitted
-            | TKind::CrashInFlight
-            | TKind::ServerComplete => {
-                return Err("in-flight faults are not planned against original code yet".to_owned());
+            TKind::LostCommitted | TKind::LostNotCommitted => {
+                return Err("a lost acknowledgment with a live process (a broken connection) is not planned against original code: only a process crash with the operation in flight is".to_owned());
+            }
+            TKind::ServerComplete => {
+                let orphan = state
+                    .orphans
+                    .iter()
+                    .find(|o| o.actor == t.actor && o.seq == u32::from(t.thread))
+                    .ok_or("the schedule completes an operation the server does not hold")?;
+                let attempt = orphan.attempt + 1;
+                let applied = apply(model, &state, *t, &mut Recorder::off())
+                    .map_err(|u| format!("the schedule reaches unsupported behavior: {}", u.detail))?;
+                let tables = committed(model, &applied.state);
+                if skip_completion.remove(&i) {
+                    // Realized by the proxy answering at once (planned with
+                    // the crash): no separate delivery.
+                } else {
+                    out.steps.push(PlanStep::ServerComplete(ServerCompleteStep {
+                        actor: t.actor as usize,
+                        transition: i + 1,
+                        attempt,
+                    }));
+                    out.completions.push(CompletionPrediction {
+                        transition: i + 1,
+                        actor: t.actor as usize,
+                        attempt,
+                        tables,
+                    });
+                }
+                state = applied.state;
+                continue;
+            }
+            TKind::CrashInFlight => {
+                let process = t.thread as usize;
+                let ops = in_flight_ops(model, &state, process);
+                let applied = apply(model, &state, *t, &mut Recorder::off())
+                    .map_err(|u| format!("the schedule reaches unsupported behavior: {}", u.detail))?;
+                let mut fates: BTreeMap<usize, Fate> = BTreeMap::new();
+                for a in 0..model.actors.len() {
+                    if model.process_of[a] != process
+                        || !state.actors[a]
+                            .threads
+                            .iter()
+                            .any(|th| th.status == TStatus::Running)
+                    {
+                        continue;
+                    }
+                    let Some(bit) = ops.iter().position(|(x, _, _)| *x == a) else {
+                        // Not in flight: an ordinary crash checkpoint.
+                        let (next, waiting, boundary) = checkpoint(model, &state, a, i + 1)?;
+                        out.steps.push(PlanStep::Crash(CrashStep {
+                            actor: a,
+                            transition: i + 1,
+                            next,
+                            waiting,
+                            may_have_run: waiting && boundary.starts_with("after the lock"),
+                            label: boundary.clone(),
+                        }));
+                        out.crashes.push(CrashPrediction {
+                            transition: i + 1,
+                            actor: a,
+                            attempt: state.actors[a].attempt + 1,
+                            boundary,
+                            tables: committed(model, &applied.state),
+                            in_flight: None,
+                        });
+                        continue;
+                    };
+                    let reaches = (t.actor >> bit) & 1 == 1;
+                    let fate = if !reaches {
+                        Fate::NotReached
+                    } else {
+                        let orphan = applied
+                            .state
+                            .orphans
+                            .iter()
+                            .find(|o| {
+                                o.actor as usize == a
+                                    && !state.orphans.iter().any(|p| p.actor == o.actor && p.seq == o.seq)
+                            })
+                            .ok_or("the model holds no operation for an actor that reached the server")?;
+                        let next = schedule.get(i + 1);
+                        if next.is_some_and(|n| {
+                            n.kind == TKind::ServerComplete
+                                && n.actor == orphan.actor
+                                && u32::from(n.thread) == orphan.seq
+                        }) {
+                            skip_completion.insert(i + 1);
+                            Fate::AnsweredAndWithheld
+                        } else {
+                            Fate::HeldForLaterDelivery
+                        }
+                    };
+                    fates.insert(a, fate);
+                    let (next, waiting, _) = checkpoint(model, &state, a, i + 1)?;
+                    let Some(operation) = next.filter(|_| !waiting) else {
+                        return Err(format!(
+                            "{} has no operation that can be put in flight at runtime",
+                            model.actors[a].name
+                        ));
+                    };
+                    let label = format!(
+                        "{} in flight, {}",
+                        operation.label,
+                        match fate {
+                            Fate::NotReached => "never received by the server",
+                            Fate::AnsweredAndWithheld =>
+                                "completed by the server, answer withheld from the application",
+                            Fate::HeldForLaterDelivery =>
+                                "received by the server only later (after the application is gone)",
+                        }
+                    );
+                    out.steps.push(PlanStep::InFlight(InFlightStep {
+                        actor: a,
+                        transition: i + 1,
+                        operation,
+                        fate,
+                        label: label.clone(),
+                    }));
+                    // The model's durable state right after the kill: with
+                    // an immediate completion, after it.
+                    let mut after = applied.state.clone();
+                    if fate == Fate::AnsweredAndWithheld
+                        && let Some(n) = schedule.get(i + 1)
+                        && let Ok(x) = apply(model, &after, *n, &mut Recorder::off())
+                    {
+                        after = x.state;
+                    }
+                    out.crashes.push(CrashPrediction {
+                        transition: i + 1,
+                        actor: a,
+                        attempt: state.actors[a].attempt + 1,
+                        boundary: label.clone(),
+                        tables: committed(model, &after),
+                        in_flight: Some((fate, label)),
+                    });
+                }
+                state = applied.state;
+                continue;
             }
             TKind::Crash => {
                 let process = t.thread as usize;
@@ -334,6 +483,7 @@ fn plan(model: &Model, schedule: &[Transition]) -> Result<Plan, String> {
                         attempt: state.actors[a].attempt + 1,
                         boundary,
                         tables: BTreeMap::new(),
+                        in_flight: None,
                     });
                 }
                 let applied = apply(model, &state, *t, &mut Recorder::off())
@@ -1172,6 +1322,7 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
     let names: Vec<String> = model.actors.iter().map(|a| a.name.clone()).collect();
     let has_recovery = !plan.crashes.is_empty()
         || !plan.restarts.is_empty()
+        || !plan.completions.is_empty()
         || plan.predictions.iter().any(|p| p.effect.is_some());
     let mut contracts = Vec::new();
     let mut channels = BTreeMap::new();
@@ -1305,6 +1456,7 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
             .iter()
             .map(|c| {
                 let mut check = CrashCheck {
+                    in_flight: None,
                     transition: c.transition,
                     actor: names[c.actor].clone(),
                     attempt: c.attempt,
@@ -1338,10 +1490,75 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
                         .differences
                         .push("the worker was not terminated by SIGKILL".to_owned());
                 }
-                if !e.sessions_ended {
+                let held = matches!(c.in_flight, Some((Fate::HeldForLaterDelivery, _)));
+                if !e.sessions_ended && !held {
                     check.differences.push(
                         "PostgreSQL did not end the worker's sessions: whether its transaction committed is not established".to_owned(),
                     );
+                }
+                if let (Some((fate, _)), Some(ev)) = (&c.in_flight, &e.in_flight) {
+                    let name = |f: &Fate| match f {
+                        Fate::NotReached => "not-reached",
+                        Fate::AnsweredAndWithheld => "answered-and-withheld",
+                        Fate::HeldForLaterDelivery => "held-for-later-delivery",
+                    };
+                    let physical = match fate {
+                        Fate::NotReached => {
+                            "not committed (the server never received the operation; PostgreSQL rolled the transaction back)"
+                        }
+                        Fate::AnsweredAndWithheld => {
+                            "completed by the server before the application died (its answer was observed on the wire)"
+                        }
+                        Fate::HeldForLaterDelivery => {
+                            "pending on the server: the operation reaches PostgreSQL only later"
+                        }
+                    };
+                    let mut differences = Vec::new();
+                    if ev.fate != name(fate) {
+                        differences.push(format!(
+                            "fate: model {}, run {}",
+                            name(fate),
+                            ev.fate
+                        ));
+                    }
+                    if ev.client_acknowledged {
+                        differences.push("the application received an answer".to_owned());
+                    }
+                    match fate {
+                        Fate::AnsweredAndWithheld if ev.server_answer.is_empty() => differences
+                            .push("PostgreSQL's answer to the operation was not observed".to_owned()),
+                        Fate::NotReached | Fate::HeldForLaterDelivery
+                            if ev.backend_state_before_kill != "idle in transaction"
+                                && c_is_commit(&ev.operation) =>
+                        {
+                            differences.push(format!(
+                                "the backend was `{}` instead of `idle in transaction` while the COMMIT was withheld",
+                                ev.backend_state_before_kill
+                            ));
+                        }
+                        _ => {}
+                    }
+                    if matches!(fate, Fate::HeldForLaterDelivery) && !ev.session_open_after_kill {
+                        differences.push(
+                            "the server session did not survive the kill although the operation was to be delivered later".to_owned(),
+                        );
+                    }
+                    check.differences.extend(differences);
+                    check.in_flight = Some(InFlightCheck {
+                        operation: ev.operation.clone(),
+                        model_fate: name(fate).to_owned(),
+                        observed_fate: ev.fate.clone(),
+                        mechanism: ev.mechanism.clone(),
+                        forwarded_to_server: ev.forwarded_to_server,
+                        withheld_from_server: ev.withheld_from_server,
+                        server_answer: ev.server_answer.clone(),
+                        client_acknowledged: ev.client_acknowledged,
+                        backend_state_before_kill: ev.backend_state_before_kill.clone(),
+                        session_open_after_kill: ev.session_open_after_kill,
+                        wire_events: ev.proxy_events.clone(),
+                        application_knowledge: "ambiguous: the application sent the operation and received no answer; it cannot tell whether PostgreSQL executed it".to_owned(),
+                        physical_outcome: physical.to_owned(),
+                    });
                 }
                 if check.runtime_tables != check.model_tables {
                     check.differences.push(
@@ -1378,6 +1595,46 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
                     check.previous_pid = e.previous_pid;
                     check.previous_outcome.clone_from(&e.previous_outcome);
                     check.status = if e.attempt == r.attempt && e.pid != e.previous_pid {
+                        "agree"
+                    } else {
+                        "differ"
+                    }
+                    .to_owned();
+                }
+                check
+            })
+            .collect();
+        let completion_checks: Vec<CompletionCheck> = plan
+            .completions
+            .iter()
+            .map(|c| {
+                let mut check = CompletionCheck {
+                    transition: c.transition,
+                    actor: names[c.actor].clone(),
+                    attempt: c.attempt,
+                    model_tables: c.tables.clone(),
+                    status: "not-observed".to_owned(),
+                    ..CompletionCheck::default()
+                };
+                if let Some(e) = run
+                    .completions
+                    .iter()
+                    .find(|e| e.transition == c.transition && e.actor == c.actor)
+                {
+                    check.server_answer.clone_from(&e.server_answer);
+                    check.session_ended = e.session_ended;
+                    check.runtime_tables = rows_of(&e.tables);
+                    if check.runtime_tables != check.model_tables {
+                        check.differences.push(
+                            "the committed rows after the server completed the operation differ from the model's".to_owned(),
+                        );
+                    }
+                    if !e.session_ended {
+                        check.differences.push(
+                            "the backend of the delivered operation did not end".to_owned(),
+                        );
+                    }
+                    check.status = if check.differences.is_empty() {
                         "agree"
                     } else {
                         "differ"
@@ -1457,6 +1714,7 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
         let recovery_agrees = has_recovery.then(|| {
             crash_checks.iter().all(|c| c.status == "agree")
                 && restart_checks.iter().all(|r| r.status == "agree")
+                && completion_checks.iter().all(|c| c.status == "agree")
                 && effects_agree
                 && attempts_agree
         });
@@ -1520,10 +1778,22 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
                 fidelity.postgres_version.clone_from(&run.postgres_version);
                 out.schema_fidelity = Some(fidelity);
             }
+            out.wire_log = run
+                .proxy_log
+                .iter()
+                .filter(|e| !matches!(e.kind, commitrift_replay::proxy::EventKind::Message))
+                .map(|e| {
+                    format!(
+                        "[{} ms] conn {} {:?}: {}",
+                        e.at_ms, e.conn, e.kind, e.detail
+                    )
+                })
+                .collect();
             if has_recovery {
                 out.recovery = Some(RecoveryVerification {
                     crashes: crash_checks,
                     restarts: restart_checks,
+                    completions: completion_checks,
                     effects: EffectComparison {
                         model: model_effects,
                         runtime: runtime_effects,
@@ -1572,8 +1842,19 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
     // (or a recovery probe): Phase 7 runs keep their meaning unchanged.
     if crash_or_retry || req.probe {
         out.evidence = evidence_label(&out.status).to_owned();
+        let in_flight = plan
+            .steps
+            .iter()
+            .any(|s| matches!(s, PlanStep::InFlight(_)));
+        if in_flight && out.evidence == "ORIGINAL_CODE_CRASH_REPRODUCED" {
+            out.evidence = "ORIGINAL_CODE_IN_FLIGHT_FAILURE_REPRODUCED".to_owned();
+        }
     }
     out
+}
+
+fn c_is_commit(operation: &str) -> bool {
+    operation.starts_with("COMMIT")
 }
 
 fn evidence_label(status: &str) -> &'static str {

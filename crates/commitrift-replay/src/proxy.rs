@@ -62,6 +62,17 @@ pub enum Fault {
     HoldRequest,
 }
 
+/// Which client operation a fault applies to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Target {
+    /// The next plain COMMIT.
+    Commit,
+    /// The next statement that is not transaction control (an autocommit
+    /// write): from its first message through its Sync.
+    Statement,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum EventKind {
@@ -71,12 +82,12 @@ pub enum EventKind {
     Message,
     FaultArmed,
     /// The COMMIT was forwarded to the server.
-    CommitForwarded,
+    OperationForwarded,
     /// The COMMIT (all of its messages) is withheld from the server.
-    CommitHeld,
+    OperationHeld,
     /// The server's answer to the COMMIT was observed (`detail`: command tag
     /// or SQLSTATE and transaction status).
-    CommitCompleted,
+    OperationCompleted,
     /// The server's answer, and everything after it, is withheld from the
     /// client.
     ResponseWithheld,
@@ -103,6 +114,7 @@ pub struct ProxyEvent {
 struct Rule {
     application_name: String,
     fault: Fault,
+    target: Target,
 }
 
 #[derive(Default)]
@@ -115,8 +127,9 @@ struct ConnState {
     commit_statements: BTreeMap<String, bool>,
     /// Portals bound to a COMMIT statement.
     commit_portals: BTreeMap<String, bool>,
-    /// The armed COMMIT was forwarded; the next answer is the one to withhold.
-    awaiting_commit_answer: bool,
+    /// The armed operation was forwarded; the next answer is the one to
+    /// withhold.
+    awaiting_answer: Option<Target>,
     /// Server messages are withheld from the client from now on.
     withholding: bool,
     /// Client messages are held (not forwarded) from now on.
@@ -225,17 +238,18 @@ impl FaultProxy {
         })
     }
 
-    /// Arm `fault` for the next COMMIT of a connection whose
+    /// Arm `fault` for the next `target` operation of a connection whose
     /// `application_name` is `application_name`. One-shot.
-    pub fn arm(&self, application_name: &str, fault: Fault) {
+    pub fn arm(&self, application_name: &str, fault: Fault, target: Target) {
         self.shared.lock().rules.push(Rule {
             application_name: application_name.to_owned(),
             fault,
+            target,
         });
         self.shared.event(
             0,
             EventKind::FaultArmed,
-            format!("{fault:?} for application_name {application_name}"),
+            format!("{fault:?} on the next {target:?} of application_name {application_name}"),
         );
     }
 
@@ -289,7 +303,7 @@ impl FaultProxy {
     }
 
     /// Deliver the held COMMIT of `conn` to the server (the client may be
-    /// gone). The server's answer arrives as a `CommitCompleted` event.
+    /// gone). The server's answer arrives as a `OperationCompleted` event.
     pub fn deliver(&self, conn: u64) -> Result<(), String> {
         let (bytes, mut upstream) = {
             let mut g = self.shared.lock();
@@ -305,8 +319,12 @@ impl FaultProxy {
                 .map_err(|e| e.to_string())?;
             (std::mem::take(&mut c.held), up)
         };
+        // The held messages, then Terminate: the backend completes the
+        // COMMIT and exits, as it does for a client that closes cleanly.
+        let mut message = bytes;
+        message.extend_from_slice(&[b'X', 0, 0, 0, 4]);
         upstream
-            .write_all(&bytes)
+            .write_all(&message)
             .and_then(|()| upstream.flush())
             .map_err(|e| format!("delivering the held COMMIT failed: {e}"))?;
         self.shared.event(
@@ -720,19 +738,22 @@ fn client_closed(shared: &Shared, id: u64, server: UnixStream) {
 
 /// Forward (or hold) one client message. `false`: stop the connection.
 fn forward_client_frame(shared: &Shared, id: u64, f: &Frame, server: &mut UnixStream) -> bool {
-    // Message log (redacted) and COMMIT detection.
+    // Message log (redacted) and COMMIT / statement detection.
     let mut is_commit_frame = false;
+    let mut is_statement_frame = false;
     let mut detail = format!("{} bytes", f.raw.len());
     match f.tag {
         b'Q' => {
             let (sql, _) = cstr(&f.body);
             is_commit_frame = classify_sql(&sql) == Control::Commit;
+            is_statement_frame = classify_sql(&sql) == Control::Other;
             detail = redacted_sql(&sql);
         }
         b'P' => {
             let (name, rest) = cstr(&f.body);
             let (sql, _) = cstr(rest);
             let commit = classify_sql(&sql) == Control::Commit;
+            is_statement_frame = classify_sql(&sql) == Control::Other;
             detail = format!(
                 "{} (statement name {})",
                 redacted_sql(&sql),
@@ -779,7 +800,7 @@ fn forward_client_frame(shared: &Shared, id: u64, f: &Frame, server: &mut UnixSt
         EventKind::Message,
         format!("client → server {} {detail}", f.tag as char),
     );
-    // Is a fault armed for this COMMIT?
+    // Is a fault armed for this operation?
     let (hold_now, arm) = {
         let mut g = shared.lock();
         let supported;
@@ -795,12 +816,24 @@ fn forward_client_frame(shared: &Shared, id: u64, f: &Frame, server: &mut UnixSt
         }
         if holding {
             (true, None)
-        } else if is_commit_frame && supported {
-            let at = g.rules.iter().position(|r| r.application_name == app);
+        } else if supported
+            && (is_commit_frame || is_statement_frame)
+            && !matches!(f.tag, b'B' | b'E')
+        {
+            let at = g.rules.iter().position(|r| {
+                r.application_name == app
+                    && match r.target {
+                        Target::Commit => is_commit_frame,
+                        Target::Statement => is_statement_frame,
+                    }
+            });
             match at {
                 Some(i) => {
                     let rule = g.rules.remove(i);
-                    (rule.fault == Fault::HoldRequest, Some(rule.fault))
+                    (
+                        rule.fault == Fault::HoldRequest,
+                        Some((rule.fault, rule.target)),
+                    )
                 }
                 None => (false, None),
             }
@@ -808,7 +841,7 @@ fn forward_client_frame(shared: &Shared, id: u64, f: &Frame, server: &mut UnixSt
             (false, None)
         }
     };
-    if let Some(fault) = arm {
+    if let Some((fault, target)) = arm {
         match fault {
             Fault::HoldRequest => {
                 if let Some(c) = shared.lock().conns.get_mut(&id) {
@@ -816,18 +849,18 @@ fn forward_client_frame(shared: &Shared, id: u64, f: &Frame, server: &mut UnixSt
                 }
                 shared.event(
                     id,
-                    EventKind::CommitHeld,
-                    "the COMMIT is withheld from the server",
+                    EventKind::OperationHeld,
+                    format!("the {target:?} is withheld from the server"),
                 );
             }
             Fault::DropResponse => {
                 if let Some(c) = shared.lock().conns.get_mut(&id) {
-                    c.awaiting_commit_answer = true;
+                    c.awaiting_answer = Some(target);
                 }
                 shared.event(
                     id,
-                    EventKind::CommitForwarded,
-                    "the COMMIT is forwarded; its answer will be withheld",
+                    EventKind::OperationForwarded,
+                    format!("the {target:?} is forwarded; its answer will be withheld"),
                 );
             }
         }
@@ -896,6 +929,7 @@ fn server_to_client(shared: &Shared, id: u64, mut server: UnixStream, mut client
 fn forward_server_frame(shared: &Shared, id: u64, f: &Frame, client: &mut UnixStream) -> bool {
     let mut detail = format!("{} bytes", f.raw.len());
     let mut commit_answer: Option<String> = None;
+    let mut any_answer: Option<String> = None;
     match f.tag {
         b'K' if f.body.len() >= 4 => {
             let pid = i64::from(u32::from_be_bytes([
@@ -915,6 +949,7 @@ fn forward_server_frame(shared: &Shared, id: u64, f: &Frame, client: &mut UnixSt
         b'C' => {
             let (tag, _) = cstr(&f.body);
             detail = format!("CommandComplete {tag}");
+            any_answer = Some(format!("CommandComplete {tag}"));
             if tag == "COMMIT" {
                 commit_answer = Some("CommandComplete COMMIT".to_owned());
             }
@@ -923,6 +958,7 @@ fn forward_server_frame(shared: &Shared, id: u64, f: &Frame, client: &mut UnixSt
             let sqlstate = error_sqlstate(&f.body);
             detail = format!("ErrorResponse {sqlstate}");
             commit_answer = Some(format!("ErrorResponse {sqlstate}"));
+            any_answer = commit_answer.clone();
         }
         b'Z' => {
             let status = f.body.first().map_or('?', |b| *b as char);
@@ -949,19 +985,24 @@ fn forward_server_frame(shared: &Shared, id: u64, f: &Frame, client: &mut UnixSt
         };
         if c.withholding {
             (true, None)
-        } else if c.awaiting_commit_answer && commit_answer.is_some() {
-            c.awaiting_commit_answer = false;
-            c.withholding = true;
-            (true, commit_answer.clone())
         } else {
-            (false, None)
+            let answer = match c.awaiting_answer {
+                Some(Target::Commit) => commit_answer.clone(),
+                Some(Target::Statement) => any_answer.clone(),
+                None => None,
+            };
+            if answer.is_some() {
+                c.awaiting_answer = None;
+                c.withholding = true;
+            }
+            (answer.is_some(), answer)
         }
     };
     if let Some(a) = answered {
         shared.event(
             id,
-            EventKind::CommitCompleted,
-            format!("the server answered the COMMIT: {a}"),
+            EventKind::OperationCompleted,
+            format!("the server answered: {a}"),
         );
         shared.event(
             id,
@@ -981,8 +1022,8 @@ fn forward_server_frame(shared: &Shared, id: u64, f: &Frame, client: &mut UnixSt
     if gone_answer && let Some(a) = commit_answer {
         shared.event(
             id,
-            EventKind::CommitCompleted,
-            format!("the server answered the delivered COMMIT: {a}"),
+            EventKind::OperationCompleted,
+            format!("the server answered the delivered operation: {a}"),
         );
         return false;
     }

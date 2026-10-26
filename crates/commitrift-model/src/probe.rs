@@ -30,6 +30,10 @@ fn events(model: &Model, t: Transition, actions: &[Action]) -> Vec<String> {
     for a in actions {
         match a {
             Action::Crash { actor } => out.push(format!("crash:{}", name(*actor))),
+            Action::Orphan { actor, .. } => out.push(format!("reaches-server:{}", name(*actor))),
+            Action::OrphanCommit { actor, .. } => {
+                out.push(format!("server-complete:{}", name(*actor)));
+            }
             Action::External { channel, .. } => out.push(format!("external:{channel}")),
             Action::Commit { actor, expect, .. } => {
                 if let Expect::Error(code) = expect {
@@ -75,10 +79,14 @@ pub fn find(model: &Model, require: &[String]) -> Result<Vec<Transition>, String
             "error:",
             "statement:",
             "blocked:",
+            "reaches-server:",
+            "server-complete:",
+            "lost-committed:",
+            "lost-not-committed:",
         ];
         if !known.iter().any(|k| r.starts_with(k) && r.len() > k.len()) {
             return Err(format!(
-                "unknown probe event `{r}` (external:, crash:, retry:, commit:, error:, statement:, blocked:)"
+                "unknown probe event `{r}` (external:, crash:, retry:, commit:, error:, statement:, blocked:, reaches-server:, server-complete:, lost-committed:, lost-not-committed:)"
             ));
         }
     }

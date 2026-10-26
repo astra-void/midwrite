@@ -89,6 +89,7 @@ fn evidence_class(l: EvidenceLevel) -> &'static str {
         EvidenceLevel::PostgresConfirmedSchedule
         | EvidenceLevel::OriginalCodeReproduced
         | EvidenceLevel::OriginalCodeCrashReproduced
+        | EvidenceLevel::OriginalCodeInFlightFailureReproduced
         | EvidenceLevel::OriginalCodeRecoveryReproduced
         | EvidenceLevel::OriginalCodeInvariantHeld => "ev-pg",
         _ => "ev-none",
@@ -107,6 +108,9 @@ fn evidence_label(l: EvidenceLevel) -> &'static str {
         }
         EvidenceLevel::OriginalCodeCrashReproduced => {
             "ORIGINAL CODE CRASH REPRODUCED (workers killed and retried on PostgreSQL)"
+        }
+        EvidenceLevel::OriginalCodeInFlightFailureReproduced => {
+            "ORIGINAL CODE IN-FLIGHT FAILURE REPRODUCED (operation in flight when the worker was killed; wire and PostgreSQL state observed)"
         }
         EvidenceLevel::OriginalCodeRecoveryReproduced => {
             "ORIGINAL CODE RECOVERY REPRODUCED (invariant held under a real crash and retry; bounded)"

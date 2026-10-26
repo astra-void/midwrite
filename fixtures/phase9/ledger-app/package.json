@@ -1,0 +1,21 @@
+{
+  "name": "commitrift-fixture-ledger-app",
+  "private": true,
+  "version": "0.0.0",
+  "description": "CommitRift Phase 9 first-party application: a payment ledger written in the three ways an application typically recovers from a COMMIT whose outcome it does not know (blind retry, idempotency key, look-then-insert). Used for in-flight failure verification of original code on real Drizzle ORM and node-postgres.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@commitrift/replay": "file:../../../runtime/node",
+    "drizzle-orm": "0.45.4",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/pg": "8.23.1",
+    "typescript": "5.9.3"
+  }
+}

@@ -174,6 +174,12 @@ pub enum EvidenceLevel {
     /// consumers) ran against the original code, matched the model, and the
     /// invariant holds on the observed state. Bounded evidence, not a proof.
     OriginalCodeInvariantHeld,
+    /// Phase 9: as `OriginalCodeCrashReproduced`, for a counterexample in
+    /// which an operation (a COMMIT or an autocommit write) was IN FLIGHT
+    /// when the worker was killed: the proxy established on the wire what the
+    /// server received, PostgreSQL's own state confirmed the outcome, and the
+    /// application never received an answer.
+    OriginalCodeInFlightFailureReproduced,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -869,6 +875,19 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
     });
     let (level, summary) = match &source_verification {
         Some(sv)
+            if sv.status == "reproduced"
+                && sv.evidence == "ORIGINAL_CODE_IN_FLIGHT_FAILURE_REPRODUCED" =>
+        {
+            (
+                EvidenceLevel::OriginalCodeInFlightFailureReproduced,
+                format!(
+                    "the actors' original application code ran under this schedule against PostgreSQL in {} of {} run(s) with an operation IN FLIGHT when the worker was killed (SIGKILL): the proxy established on the wire what the server received, PostgreSQL's own state confirmed the outcome, the application never received an answer, the retry ran as a new process, every statement, effect and outcome matched the model, and the invariant is violated on the observed state",
+                    sv.runs.iter().filter(|r| r.reproduced).count(),
+                    sv.runs.len()
+                ),
+            )
+        }
+        Some(sv)
             if sv.status == "reproduced" && sv.evidence == "ORIGINAL_CODE_CRASH_REPRODUCED" =>
         {
             (
@@ -997,7 +1016,11 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
     };
     ModelCheckReport {
         kind: REPORT_KIND.into(),
-        schema_version: if epistemic.is_some() {
+        schema_version: if epistemic.is_some()
+            || source_verification
+                .as_ref()
+                .is_some_and(crate::source_types::SourceVerification::has_phase9_fields)
+        {
             4
         } else if !opts.load.schema.is_empty()
             || source_verification

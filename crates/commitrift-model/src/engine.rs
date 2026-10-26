@@ -375,7 +375,7 @@ pub fn enabled(model: &Model, s: &State) -> Vec<Transition> {
                 Vec::new()
             };
             if ops.is_empty() {
-                if alive {
+                if alive && model.bounds.crash_policy == crate::model::CrashPolicy::Any {
                     let first = model.process_of.iter().position(|q| *q == p).unwrap_or(0);
                     out.push(Transition {
                         kind: TKind::Crash,
@@ -1993,6 +1993,10 @@ fn in_flight_effect(
                 txn: None,
                 stmt: Some(closed),
                 attempt,
+            });
+            rec.act(|| Action::Orphan {
+                actor: a as u16,
+                seq,
             });
             Ok(Some(seq))
         }

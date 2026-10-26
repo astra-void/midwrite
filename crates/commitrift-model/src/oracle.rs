@@ -1119,15 +1119,33 @@ impl Run<'_> {
                 // The client is gone but its COMMIT is on the server: the
                 // connection stays open (idle in transaction) until the
                 // model's server completes it.
-                if let Some(s) = self.sessions.remove(&Key::Tx(*actor)) {
-                    self.sessions.insert(Key::Orphan(*actor, *seq), s);
-                }
+                let moved = match self.sessions.remove(&Key::Tx(*actor)) {
+                    Some(s) => {
+                        self.sessions.insert(Key::Orphan(*actor, *seq), s);
+                        true
+                    }
+                    None => false,
+                };
                 self.record(
                     i,
                     *actor,
-                    "(COMMIT held by the server)",
-                    "transaction stays open".into(),
-                    "connection kept open".into(),
+                    if moved {
+                        "(COMMIT held by the server)"
+                    } else {
+                        "(statement held by the server)"
+                    },
+                    if moved {
+                        "transaction stays open"
+                    } else {
+                        "statement not yet executed"
+                    }
+                    .into(),
+                    if moved {
+                        "connection kept open"
+                    } else {
+                        "nothing sent"
+                    }
+                    .into(),
                     true,
                 );
                 Ok(true)

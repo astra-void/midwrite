@@ -147,6 +147,18 @@ pub fn check_schedule(
     }
 }
 
+/// Phase 9: how late the server completes the operations it held (the sum
+/// of the positions of its completions). Of two equally short schedules the
+/// one with the earlier completions is the simpler explanation.
+pub fn completion_delay(schedule: &[Transition]) -> usize {
+    schedule
+        .iter()
+        .enumerate()
+        .filter(|(_, t)| t.kind == TKind::ServerComplete)
+        .map(|(i, _)| i)
+        .sum()
+}
+
 pub fn context_switches(schedule: &[Transition]) -> usize {
     let mut n = 0;
     let mut last: Option<(u16, u16)> = None;
@@ -170,7 +182,8 @@ pub fn minimize(model: &Model, ce: &Counterexample) -> Vec<Transition> {
         return ce.schedule.clone();
     };
     let better = |a: &[Transition], b: &[Transition]| {
-        a.len() < b.len() || (a.len() == b.len() && context_switches(a) < context_switches(b))
+        (a.len(), context_switches(a), completion_delay(a))
+            < (b.len(), context_switches(b), completion_delay(b))
     };
     let mut budget = 4000usize;
     loop {
@@ -199,7 +212,10 @@ pub fn minimize(model: &Model, ce: &Counterexample) -> Vec<Transition> {
             if budget == 0 {
                 return best;
             }
-            if (best[i].actor, best[i].thread) == (best[i + 1].actor, best[i + 1].thread) {
+            // The server completing a held operation is not a step of the
+            // actor that submitted it.
+            let who = |t: &Transition| (t.actor, t.thread, t.kind == TKind::ServerComplete);
+            if who(&best[i]) == who(&best[i + 1]) {
                 continue;
             }
             budget -= 1;

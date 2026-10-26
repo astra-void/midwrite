@@ -101,11 +101,65 @@ pub struct RunSummary {
     pub recovery_reproduced: Option<bool>,
 }
 
+/// Phase 9: the operation that was in flight at a crash, as the model
+/// describes it and as the wire and PostgreSQL showed it. Each fact says
+/// whether it was observed (by the proxy or by PostgreSQL) — none is
+/// inferred from timing.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InFlightCheck {
+    pub operation: String,
+    /// The fate the model chose: `not-reached`, `answered-and-withheld`,
+    /// `held-for-later-delivery`.
+    pub model_fate: String,
+    /// The fate the run established: the same names.
+    pub observed_fate: String,
+    pub mechanism: String,
+    pub forwarded_to_server: bool,
+    pub withheld_from_server: bool,
+    /// PostgreSQL's own answer, as the proxy observed it before withholding
+    /// it from the client.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub server_answer: String,
+    /// The application received an answer (never, in a verified run).
+    pub client_acknowledged: bool,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub backend_state_before_kill: String,
+    pub session_open_after_kill: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub wire_events: Vec<String>,
+    /// What the application could conclude (always ambiguous after a lost
+    /// acknowledgment) and what PostgreSQL did: kept apart.
+    pub application_knowledge: String,
+    pub physical_outcome: String,
+}
+
+/// Phase 9: the server completing a held operation.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompletionCheck {
+    pub transition: usize,
+    pub actor: String,
+    pub attempt: u32,
+    pub server_answer: String,
+    pub session_ended: bool,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub model_tables: BTreeMap<String, Vec<Row>>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub runtime_tables: BTreeMap<String, Vec<Row>>,
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub differences: Vec<String>,
+}
+
 /// Phase 8: one planned crash, as the model describes it and as it
 /// happened.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CrashCheck {
+    /// Phase 9: set when an operation was in flight at the crash.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub in_flight: Option<InFlightCheck>,
     pub transition: usize,
     pub actor: String,
     pub attempt: u32,
@@ -172,6 +226,9 @@ pub struct RecoveryVerification {
     pub crashes: Vec<CrashCheck>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub restarts: Vec<RestartCheck>,
+    /// Phase 9: held operations the server completed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub completions: Vec<CompletionCheck>,
     pub effects: EffectComparison,
     /// (actor, executions in the model, executions observed).
     pub attempts: Vec<(String, u32, u32)>,
@@ -245,6 +302,10 @@ pub struct SourceVerification {
     /// isolation level ...`), released as part of that BEGIN.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub transaction_config: Vec<String>,
+    /// Phase 9: the proxy's redacted wire log of the first run (only with
+    /// in-flight steps).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub wire_log: Vec<String>,
 }
 
 /// Semantic operation coverage of one extracted actor (Phase 7). Counts
@@ -281,6 +342,14 @@ pub struct ExtractionReport {
 }
 
 impl SourceVerification {
+    /// Whether any Phase 9 field is present (the report is then schema 4).
+    pub fn has_phase9_fields(&self) -> bool {
+        !self.wire_log.is_empty()
+            || self.recovery.as_ref().is_some_and(|r| {
+                !r.completions.is_empty() || r.crashes.iter().any(|c| c.in_flight.is_some())
+            })
+    }
+
     /// Whether any Phase 8 field is present (the report is then schema 3).
     pub fn has_phase8_fields(&self) -> bool {
         !self.evidence.is_empty()

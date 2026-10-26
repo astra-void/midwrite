@@ -10,7 +10,7 @@ use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
 use commitrift_replay::postgres::{Binaries, Cluster, USER};
-use commitrift_replay::proxy::{EventKind, Fault, FaultProxy};
+use commitrift_replay::proxy::{EventKind, Fault, FaultProxy, Target};
 use commitrift_replay::safety::ReplayRoot;
 use serde_json::Value;
 
@@ -153,12 +153,12 @@ const PAY: &str =
 fn a_dropped_response_leaves_a_committed_row_the_client_never_heard_about() {
     let bins = require!();
     let rig = rig(bins);
-    rig.proxy.arm("w#1", Fault::DropResponse);
+    rig.proxy.arm("w#1", Fault::DropResponse, Target::Commit);
     let since = rig.proxy.cursor();
     let mut client = rig.client("w#1", PAY);
     let done = rig
         .proxy
-        .wait(since, WAIT, |e| e.kind == EventKind::CommitCompleted)
+        .wait(since, WAIT, |e| e.kind == EventKind::OperationCompleted)
         .expect("the server answered the COMMIT");
     assert!(done.detail.contains("CommandComplete COMMIT"), "{done:?}");
     // The client is still waiting: it was not told.
@@ -184,12 +184,12 @@ fn a_dropped_response_leaves_a_committed_row_the_client_never_heard_about() {
 fn a_held_commit_is_not_on_the_server_until_it_is_delivered() {
     let bins = require!();
     let rig = rig(bins);
-    rig.proxy.arm("w#1", Fault::HoldRequest);
+    rig.proxy.arm("w#1", Fault::HoldRequest, Target::Commit);
     let since = rig.proxy.cursor();
     let mut client = rig.client("w#1", PAY);
     let held = rig
         .proxy
-        .wait(since, WAIT, |e| e.kind == EventKind::CommitHeld)
+        .wait(since, WAIT, |e| e.kind == EventKind::OperationHeld)
         .expect("the COMMIT was withheld");
     let conn = held.conn;
     let pid = rig.proxy.backend_pid(conn).expect("backend pid");
@@ -208,7 +208,7 @@ fn a_held_commit_is_not_on_the_server_until_it_is_delivered() {
     rig.proxy.deliver(conn).expect("deliver");
     let done = rig
         .proxy
-        .wait(since, WAIT, |e| e.kind == EventKind::CommitCompleted)
+        .wait(since, WAIT, |e| e.kind == EventKind::OperationCompleted)
         .expect("the server answered the delivered COMMIT");
     assert!(done.detail.contains("COMMIT"), "{done:?}");
     assert_eq!(rig.count(), 1);
@@ -218,12 +218,12 @@ fn a_held_commit_is_not_on_the_server_until_it_is_delivered() {
 fn a_discarded_commit_never_commits_and_the_server_cleans_up() {
     let bins = require!();
     let rig = rig(bins);
-    rig.proxy.arm("w#1", Fault::HoldRequest);
+    rig.proxy.arm("w#1", Fault::HoldRequest, Target::Commit);
     let since = rig.proxy.cursor();
     let mut client = rig.client("w#1", PAY);
     let held = rig
         .proxy
-        .wait(since, WAIT, |e| e.kind == EventKind::CommitHeld)
+        .wait(since, WAIT, |e| e.kind == EventKind::OperationHeld)
         .unwrap();
     let pid = rig.proxy.backend_pid(held.conn).unwrap();
     client.kill();
@@ -236,7 +236,8 @@ fn a_discarded_commit_never_commits_and_the_server_cleans_up() {
 fn only_the_armed_connection_is_touched_and_other_traffic_is_unchanged() {
     let bins = require!();
     let rig = rig(bins);
-    rig.proxy.arm("victim#1", Fault::DropResponse);
+    rig.proxy
+        .arm("victim#1", Fault::DropResponse, Target::Commit);
     // Another client through the same proxy is not affected.
     let mut other = rig.client("other#1", PAY);
     until("the other client finished", || {
@@ -261,7 +262,7 @@ fn only_the_armed_connection_is_touched_and_other_traffic_is_unchanged() {
 fn a_rollback_or_other_statement_is_never_mistaken_for_a_commit() {
     let bins = require!();
     let rig = rig(bins);
-    rig.proxy.arm("w#1", Fault::DropResponse);
+    rig.proxy.arm("w#1", Fault::DropResponse, Target::Commit);
     let mut client = rig.client(
         "w#1",
         "BEGIN;\nINSERT INTO payments (req) VALUES ('commit');\nROLLBACK;\nSELECT 'done';\n",
@@ -275,7 +276,7 @@ fn a_rollback_or_other_statement_is_never_mistaken_for_a_commit() {
         !rig.proxy
             .events()
             .iter()
-            .any(|e| e.kind == EventKind::CommitCompleted)
+            .any(|e| e.kind == EventKind::OperationCompleted)
     );
 }
 
@@ -295,4 +296,46 @@ fn the_proxy_socket_is_private_and_removed() {
         assert_eq!(mode & 0o077, 0, "the proxy directory is private");
     }
     assert!(!Path::new(&path).exists());
+}
+
+#[test]
+fn an_autocommit_statement_can_be_answered_and_withheld() {
+    let bins = require!();
+    let rig = rig(bins);
+    rig.proxy.arm("w#1", Fault::DropResponse, Target::Statement);
+    let since = rig.proxy.cursor();
+    let mut client = rig.client(
+        "w#1",
+        "INSERT INTO payments (req) VALUES ('auto');\nSELECT 'after';\n",
+    );
+    let done = rig
+        .proxy
+        .wait(since, WAIT, |e| e.kind == EventKind::OperationCompleted)
+        .expect("the server answered the statement");
+    assert!(done.detail.contains("INSERT"), "{done:?}");
+    assert!(client.child.try_wait().unwrap().is_none());
+    client.kill();
+    assert_eq!(
+        rig.count(),
+        1,
+        "autocommitted although the client never heard"
+    );
+}
+
+#[test]
+fn an_autocommit_statement_can_be_held_and_delivered_later() {
+    let bins = require!();
+    let rig = rig(bins);
+    rig.proxy.arm("w#1", Fault::HoldRequest, Target::Statement);
+    let since = rig.proxy.cursor();
+    let mut client = rig.client("w#1", "INSERT INTO payments (req) VALUES ('auto');\n");
+    let held = rig
+        .proxy
+        .wait(since, WAIT, |e| e.kind == EventKind::OperationHeld)
+        .expect("held");
+    client.kill();
+    std::thread::sleep(Duration::from_millis(150));
+    assert_eq!(rig.count(), 0, "the statement has not run");
+    rig.proxy.deliver(held.conn).unwrap();
+    until("the late statement ran", || rig.count() == 1);
 }

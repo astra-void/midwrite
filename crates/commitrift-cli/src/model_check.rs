@@ -21,6 +21,12 @@ pub enum McFormat {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub enum FaultMode {
+    Any,
+    InFlight,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 pub enum StrategyArg {
     Bfs,
     Dfs,
@@ -63,6 +69,17 @@ pub struct ModelCheckArgs {
     /// Override bounds.maxWallMs.
     #[arg(long)]
     pub max_wall_ms: Option<u64>,
+    /// Override bounds.maxInFlight (operations whose acknowledgment is lost
+    /// in flight, Phase 9).
+    #[arg(long)]
+    pub max_in_flight: Option<u32>,
+    /// Which crashes are explored: `any` (every crash point, plus in-flight
+    /// ones when bounds.maxInFlight is set) or `in-flight` (a process only
+    /// crashes with a COMMIT or an autocommit write submitted and not
+    /// acknowledged; needs bounds.maxInFlight >= 1 and bounds.maxCrashes >=
+    /// 1). Restricts the explored crash points.
+    #[arg(long, value_enum)]
+    pub fault_mode: Option<FaultMode>,
     /// Revision of the analyzed project to record in the report.
     #[arg(long, value_name = "REV")]
     pub source_revision: Option<String>,
@@ -201,6 +218,23 @@ pub fn model_check(args: &ModelCheckArgs) -> Result<u8, String> {
     }
     if let Some(v) = args.max_wall_ms {
         model.bounds.max_wall_ms = Some(v);
+    }
+    if let Some(v) = args.max_in_flight {
+        model.bounds.max_in_flight = v;
+    }
+    if let Some(mode) = args.fault_mode {
+        model.bounds.crash_policy = match mode {
+            FaultMode::Any => commitrift_model::model::CrashPolicy::Any,
+            FaultMode::InFlight => commitrift_model::model::CrashPolicy::InFlightOnly,
+        };
+    }
+    if model.bounds.crash_policy == commitrift_model::model::CrashPolicy::InFlightOnly
+        && (model.bounds.max_in_flight == 0 || model.bounds.max_crashes == 0)
+    {
+        return Err(
+            "the in-flight fault mode needs bounds.maxInFlight >= 1 and bounds.maxCrashes >= 1 (nothing could crash otherwise)"
+                .to_owned(),
+        );
     }
     let source = if args.verify_source {
         let Some(spec) = load.source.clone() else {
