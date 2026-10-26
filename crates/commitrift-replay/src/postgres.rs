@@ -71,6 +71,15 @@ impl Binaries {
     }
 }
 
+/// The major version in `postgres --version` output (`postgres (PostgreSQL)
+/// 17.11` → 17); 0 when it cannot be read.
+pub fn major_version(version: &str) -> u32 {
+    version
+        .split_whitespace()
+        .find_map(|w| w.split('.').next().and_then(|m| m.parse().ok()))
+        .unwrap_or(0)
+}
+
 pub fn find_on_path(program: &str) -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
     std::env::split_paths(&path)
@@ -91,6 +100,24 @@ pub struct Cluster {
 impl Cluster {
     /// Create and start a cluster under `root` (which must be private).
     pub fn start(bins: Binaries, root: &Path) -> Result<Self, String> {
+        Self::start_with(bins, root, &[])
+    }
+
+    /// [`Self::start`] with extra server settings (`name=value`, names and
+    /// values restricted to `[A-Za-z0-9_.]`).
+    pub fn start_with(bins: Binaries, root: &Path, settings: &[String]) -> Result<Self, String> {
+        for setting in settings {
+            let ok = setting.split_once('=').is_some_and(|(k, v)| {
+                !k.is_empty()
+                    && !v.is_empty()
+                    && setting
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '='))
+            });
+            if !ok {
+                return Err(format!("refusing the server setting `{setting}`"));
+            }
+        }
         let data = root.join("pgdata");
         let socket_dir = root.join("pg");
         let log = root.join("postgres.log");
@@ -121,10 +148,13 @@ impl Cluster {
             log,
             running: false,
         };
-        let options = format!(
+        let mut options = format!(
             "-c listen_addresses='' -k {} -p {PORT} -c max_connections=40",
             cluster.socket_dir.display()
         );
+        for setting in settings {
+            options.push_str(&format!(" -c {setting}"));
+        }
         let output = cluster
             .bins
             .tool("pg_ctl")

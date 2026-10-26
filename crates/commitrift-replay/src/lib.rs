@@ -12,6 +12,7 @@
 //!
 //! Static analysis (`commitrift check`) never calls into this crate.
 
+pub mod catalog;
 pub mod isolation;
 pub mod manifest;
 pub mod observe;

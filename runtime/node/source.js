@@ -1,4 +1,4 @@
-// CommitRift source-execution client (protocol version 2, Phase 7).
+// CommitRift source-execution client (protocol version 3, Phases 7–8).
 //
 // Runs ONE actor of a model-checking scenario: an authorized harness calls
 // an original application function (for example an exported Server Action)
@@ -22,7 +22,7 @@
 //
 // Protocol (JSON lines over the Unix socket in COMMITRIFT_SOURCE_SOCKET):
 //
-//   worker -> coordinator  {"type":"hello","protocol":2,"actor":"A","pid":123}
+//   worker -> coordinator  {"type":"hello","protocol":3,"actor":"A","attempt":1,"pid":123}
 //   worker -> coordinator  {"type":"query","seq":1,"client":1,"backendPid":456,
 //                           "sql":"...","params":[...],"site":{...}|null}
 //   coordinator -> worker  {"type":"go"} | {"type":"stop","reason":"..."}
@@ -31,6 +31,20 @@
 //                        | {"type":"error","seq":1,"sqlstate":"23505","message":"..."}
 //   worker -> coordinator  {"type":"done","outcome":"returned"|"threw","value":...,"error":"..."}
 //
+// Phase 8 (protocol 3) adds external effects and restarted workers:
+//
+//   worker -> coordinator  {"type":"effect","seq":2,"channel":"card-charge",
+//                           "key":"req-1"|null,"payload":{...},"site":{...}|null}
+//   coordinator -> worker  {"type":"go","effect":{"id":1,"deduplicated":false}}
+//   worker -> coordinator  {"type":"result","seq":2,"command":"EFFECT",...}
+//
+// An effect is held like a statement. The receiving side of the channel is
+// a TEST DOUBLE hosted by the coordinator (it outlives a killed worker): it
+// records the effect when it releases it and applies the channel's
+// DECLARED deduplication contract. `COMMITRIFT_SOURCE_ATTEMPT` numbers the
+// executions of one actor: a retried actor is a NEW process (attempt 2, 3,
+// ...) with fresh connections; nothing of a killed attempt is reused.
+//
 // A "stop" makes the held statement fail with CoordinatorStop (the run is
 // then inconclusive); the coordinator never fakes a result.
 
@@ -38,7 +52,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { connect } from "node:net";
 import { fileURLToPath } from "node:url";
 
-export const SOURCE_PROTOCOL_VERSION = 2;
+export const SOURCE_PROTOCOL_VERSION = 3;
 
 /** Thrown into a held statement when the coordinator stops the run. */
 export class CoordinatorStop extends Error {
@@ -77,6 +91,9 @@ class Channel {
     });
     socket.on("close", () => {
       this.closed = true;
+      // The coordinator is gone (it ended the run, or it died): this worker
+      // must not keep running unsupervised.
+      if (!this.ending) process.exit(75);
       for (const waiter of this.waiters.splice(0)) {
         waiter.reject(new Error("the coordinator closed the connection"));
       }
@@ -105,6 +122,7 @@ class Channel {
   }
 
   close() {
+    this.ending = true;
     return new Promise((resolve) => this.socket.end(() => resolve()));
   }
 }
@@ -112,6 +130,12 @@ class Channel {
 /** Whether this process runs under `commitrift model-check --verify-source`. */
 export function sourceActive() {
   return process.env.COMMITRIFT_SOURCE === "1" && !!process.env.COMMITRIFT_SOURCE_SOCKET;
+}
+
+/** Which execution of this actor this process is (1 for the first). */
+export function sourceAttempt() {
+  const n = Number(process.env.COMMITRIFT_SOURCE_ATTEMPT ?? "1");
+  return Number.isInteger(n) && n > 0 ? n : 1;
 }
 
 function insideRoot(path, root) {
@@ -144,7 +168,7 @@ export function sourcePoolConfig(overrides = {}) {
     port: Number(match[2]),
     database,
     user,
-    application_name: `commitrift-actor-${process.env.COMMITRIFT_SOURCE_ACTOR ?? "?"}`,
+    application_name: `commitrift-actor-${process.env.COMMITRIFT_SOURCE_ACTOR ?? "?"}#${sourceAttempt()}`,
   };
 }
 
@@ -192,6 +216,45 @@ function applicationFrames() {
   return frames;
 }
 
+// Async call-chain reconstruction. V8's async stack traces follow `await`
+// chains only: after `return helper()` (no `await`) resumes the helper from
+// a microtask, the caller's frame is missing. Within ONE execution of the
+// actor, each application frame position is remembered with the outer
+// application frames seen below it the first time; a chain whose outermost
+// frame was seen with exactly one caller chain is extended by it. When a
+// position was seen with different caller chains, nothing is extended.
+const callers = new Map();
+
+function frameKey(f) {
+  return `${f.file}:${f.line}:${f.column}:${f.function}`;
+}
+
+function rememberCallers(frames) {
+  for (let i = 0; i < frames.length; i += 1) {
+    const key = frameKey(frames[i]);
+    const rest = JSON.stringify(frames.slice(i + 1));
+    const seen = callers.get(key);
+    if (seen === undefined) callers.set(key, rest);
+    else if (seen !== rest && rest !== "[]" && seen !== "[]") callers.set(key, null);
+    else if (seen === "[]" && rest !== "[]") callers.set(key, rest);
+  }
+}
+
+/** The application frames of the current stack, as a site. */
+function currentSite() {
+  const frames = applicationFrames();
+  if (frames.length === 0) return null;
+  rememberCallers(frames);
+  const outer = callers.get(frameKey(frames[frames.length - 1]));
+  if (typeof outer === "string" && outer !== "[]") {
+    const restored = JSON.parse(outer);
+    // A complete chain ends where the remembered one ends: only extend a
+    // chain that is a strict prefix of what was seen before.
+    return { frames: frames.concat(restored), reconstructed: true };
+  }
+  return { frames };
+}
+
 function wrapMethods(prototype) {
   if (!prototype || prototype[COORDINATED]) return;
   Object.defineProperty(prototype, COORDINATED, { value: true });
@@ -201,10 +264,9 @@ function wrapMethods(prototype) {
     if (!descriptor || typeof descriptor.value !== "function" || descriptor.get || descriptor.set) continue;
     const original = descriptor.value;
     const wrapped = function (...args) {
-      const frames = applicationFrames();
+      const site = currentSite();
       const result = original.apply(this, args);
-      if (frames.length > 0) {
-        const site = { frames };
+      if (site) {
         for (const target of [this, result]) {
           if (target && typeof target === "object") {
             try {
@@ -268,8 +330,7 @@ export function instrumentDrizzle(drizzle, pgCore) {
   if (database && typeof database.transaction === "function" && !database.transaction[COORDINATED]) {
     const transaction = database.transaction;
     const wrapped = function (...args) {
-      const frames = applicationFrames();
-      const site = frames.length > 0 ? { frames } : scope.getStore()?.site;
+      const site = currentSite() ?? scope.getStore()?.site;
       return site ? scope.run({ site }, () => transaction.apply(this, args)) : transaction.apply(this, args);
     };
     Object.defineProperty(wrapped, COORDINATED, { value: true });
@@ -327,7 +388,7 @@ async function hold(client, text, params) {
   if (!channel) throw new Error("source coordination is not connected");
   seq += 1;
   const id = seq;
-  const site = scope.getStore()?.site ?? (applicationFrames().length > 0 ? { frames: applicationFrames() } : null);
+  const site = scope.getStore()?.site ?? currentSite();
   await channel.send({
     type: "query",
     seq: id,
@@ -343,7 +404,7 @@ async function hold(client, text, params) {
   throw new Error(`unexpected coordination message: ${reply.type}`);
 }
 
-async function report(id, result, error) {
+async function report(id, result, error, shape = resultShape) {
   if (!channel) return;
   if (error) {
     await channel.send({
@@ -353,16 +414,53 @@ async function report(id, result, error) {
       message: String(error.message ?? error),
     });
   } else {
-    const { fields, rows } = resultShape(result);
+    const { fields, rows } = shape(result);
     await channel.send({
       type: "result",
       seq: id,
       command: typeof result?.command === "string" ? result.command : null,
-      rowCount: typeof result?.rowCount === "number" ? result.rowCount : null,
+      // node-postgres: `rowCount`; postgres-js: `count`.
+      rowCount:
+        typeof result?.rowCount === "number"
+          ? result.rowCount
+          : typeof result?.count === "number"
+            ? result.count
+            : null,
       fields,
       rows,
     });
   }
+}
+
+/**
+ * Perform an external effect (a payment-provider call, a queue publish)
+ * through the coordinator's test double. Held until released, like a
+ * statement; resolves with the double's receipt `{ id, deduplicated }`.
+ * Application code never calls this: an approved test adapter in the
+ * harness implements the application's provider seam with it.
+ */
+export async function sourceEffect(name, request = {}) {
+  if (!channel) throw new Error("source coordination is not connected");
+  if (typeof name !== "string" || name.length === 0) throw new Error("an effect needs a channel name");
+  seq += 1;
+  const id = seq;
+  await channel.send({
+    type: "effect",
+    seq: id,
+    channel: name,
+    key: jsonable(request.key ?? null),
+    payload: jsonable(request.payload ?? {}),
+    site: currentSite(),
+  });
+  const reply = JSON.parse(await channel.next());
+  if (reply.type === "stop") throw new CoordinatorStop(String(reply.reason ?? ""));
+  if (reply.type !== "go") throw new Error(`unexpected coordination message: ${reply.type}`);
+  const receipt = {
+    id: reply.effect?.id ?? null,
+    deduplicated: reply.effect?.deduplicated === true,
+  };
+  await channel.send({ type: "result", seq: id, command: "EFFECT", rowCount: 1, fields: [], rows: [] });
+  return receipt;
 }
 
 function coordinateClient(client) {
@@ -405,6 +503,103 @@ function coordinateClient(client) {
   return client;
 }
 
+// ---------------------------------------------------------------------------
+// postgres-js (Phase 8)
+// ---------------------------------------------------------------------------
+
+/**
+ * postgres-js versions whose internals the adapter was verified against. The
+ * adapter holds statements in `Query.prototype.handle`, the one place every
+ * query (the application's, Drizzle's, and postgres-js's own BEGIN, COMMIT,
+ * ROLLBACK and SAVEPOINT) is handed to a connection; postgres-js has no
+ * public hook that can delay a statement (`debug` is synchronous). Other
+ * versions are refused rather than assumed compatible.
+ */
+export const POSTGRES_JS_VERSIONS = ["3.4.5"];
+
+/**
+ * `POSTGRES_URL` for this actor on the run's disposable database: no host
+ * in the URL, so postgres-js takes the Unix socket directory from PGHOST
+ * (set here, with PGPORT and PGUSER); `application_name` identifies the
+ * actor's sessions to the coordinator. Never reads an existing URL.
+ */
+export function sourcePostgresUrl() {
+  const config = sourcePoolConfig();
+  process.env.PGHOST = config.host;
+  process.env.PGPORT = String(config.port);
+  process.env.PGUSER = config.user;
+  delete process.env.PGPASSWORD;
+  return `postgres:///${encodeURIComponent(config.database)}?application_name=${encodeURIComponent(config.application_name)}`;
+}
+
+function postgresJsShape(result) {
+  const fields = Array.isArray(result?.columns)
+    ? result.columns.map((c) => ({ name: c.name, tableID: c.table ?? 0, columnID: c.number ?? 0 }))
+    : [];
+  const rows = Array.isArray(result)
+    ? Array.from(result, (row) => (Array.isArray(row) ? row.map(jsonable) : fields.map((f) => jsonable(row[f.name]))))
+    : [];
+  return { fields, rows };
+}
+
+/**
+ * Coordinate every query of the postgres-js module `postgres` (its default
+ * export): queries are announced and held until released, then executed
+ * unchanged; their completion is the query's own settlement (never the
+ * call of a tagged template). Cursors, `forEach` and streams are reported as
+ * unsupported. `version` is the installed package version.
+ */
+export function coordinatePostgresJs(postgres, version) {
+  if (!POSTGRES_JS_VERSIONS.includes(version)) {
+    throw new Error(
+      `postgres-js ${version} is not supported by source verification (verified: ${POSTGRES_JS_VERSIONS.join(", ")})`,
+    );
+  }
+  // A client that never connects, to reach the Query prototype shared by
+  // every client of this module instance.
+  const probe = postgres({ host: "/nonexistent-commitrift", max: 1, onnotice: () => {} });
+  const prototype = Object.getPrototypeOf(probe.unsafe("select 1"));
+  if (prototype[COORDINATED]) return;
+  if (typeof prototype.handle !== "function" || typeof prototype.then !== "function") {
+    throw new Error("postgres-js internals differ from the verified version: refusing to coordinate");
+  }
+  Object.defineProperty(prototype, COORDINATED, { value: true });
+  const connection = { [COORDINATED]: { id: "postgres-js" } };
+  prototype.handle = async function () {
+    if (this.executed) return;
+    this.executed = true;
+    await 1;
+    // Driver-internal catalog reads issued by a connection for itself
+    // (array types after connecting, `target_session_attrs` probes) use the
+    // connection's own `execute` as handler; they precede the application's
+    // statements on that connection and are not held (they would block it).
+    // Reported, not hidden.
+    if (this.handler?.name === "execute") {
+      const text = Array.isArray(this.strings) ? this.strings.join("$?") : String(this.strings);
+      channel?.send({ type: "driver-internal", sql: text.trim() });
+      return this.handler(this);
+    }
+    if (this.cursorFn || this.forEachFn || this.streaming) {
+      seq += 1;
+      channel?.send({ type: "unsupported", seq, reason: "a postgres-js cursor, forEach or stream" });
+      return this.handler(this);
+    }
+    const text = Array.isArray(this.strings) ? this.strings.join("$?") : String(this.strings);
+    let id;
+    try {
+      id = await hold(connection, text, this.args ?? []);
+    } catch (error) {
+      return this.reject(error);
+    }
+    Promise.prototype.then.call(
+      this,
+      (result) => report(id, result, undefined, postgresJsShape),
+      (error) => report(id, undefined, error),
+    );
+    return this.handler(this);
+  };
+}
+
 /**
  * Coordinate every connection of `pool` (a `pg.Pool`): clients the pool
  * creates (for `pool.query` and `pool.connect`) have their statements held
@@ -434,7 +629,14 @@ export async function runSourceActor(entries, cleanup) {
   channel = await Channel.open(process.env.COMMITRIFT_SOURCE_SOCKET);
   const actor = process.env.COMMITRIFT_SOURCE_ACTOR ?? "";
   const entry = process.env.COMMITRIFT_SOURCE_ENTRY ?? "";
-  await channel.send({ type: "hello", protocol: SOURCE_PROTOCOL_VERSION, actor, entry, pid: process.pid });
+  await channel.send({
+    type: "hello",
+    protocol: SOURCE_PROTOCOL_VERSION,
+    actor,
+    entry,
+    attempt: sourceAttempt(),
+    pid: process.pid,
+  });
   const input = JSON.parse(process.env.COMMITRIFT_SOURCE_INPUT ?? "null");
   let outcome = "returned";
   let value = null;
