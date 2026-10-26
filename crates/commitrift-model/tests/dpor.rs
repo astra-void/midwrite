@@ -157,6 +157,80 @@ fn targeted_workloads_keep_every_terminal_state() {
     eprintln!("{report}");
 }
 
+/// Phase 9 dependencies: a COMMIT whose acknowledgment is lost and that the
+/// server completes later (`ServerComplete`) racing a retry or a second
+/// delivery, crashes of a process with several tasks, and connection-pool
+/// acquisition and release. Terminal states, verdicts and stuck states must
+/// be those of the unreduced search.
+#[test]
+fn in_flight_and_pool_workloads_keep_every_terminal_state() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/phase9/model-scenarios");
+    let mut scenarios: Vec<(String, Value)> = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.extension().is_some_and(|x| x == "json"))
+        .map(|p| {
+            let doc: Value = serde_json::from_str(&std::fs::read_to_string(&p).unwrap()).unwrap();
+            (p.file_name().unwrap().to_string_lossy().into_owned(), doc)
+        })
+        .collect();
+    scenarios.sort_by(|a, b| a.0.cmp(&b.0));
+    let pay = |pool: Option<u64>, crashes: u64, in_flight: u64| {
+        let mut doc = json!({
+            "schemaVersion": 1, "name": "pay",
+            "database": {"isolation": "read-committed",
+                "tables": [{"name": "payments", "columns": [
+                    {"name": "id", "type": "int", "notNull": true, "default": {"sequence": {}}},
+                    {"name": "req", "type": "text"}], "primaryKey": ["id"], "unique": [["req"]]}],
+                "initialState": {"payments": []}},
+            "actors": (0..3).map(|i| json!({
+                "name": format!("C{i}"), "function": "pay",
+                "program": "begin\ninsert payments set @req = rid on conflict do nothing\ncommit\n",
+                "arguments": {"rid": format!("r{}", i % 2)}})).collect::<Vec<_>>(),
+            "bounds": {"maxSteps": 60, "maxCrashes": crashes, "maxInFlight": in_flight, "maxStates": 2_000_000},
+            "invariants": [{"name": "once", "when": "final",
+                "assert": {"le": [{"count": {"table": "payments", "where": {}}}, 2]}}]
+        });
+        if let Some(n) = pool {
+            doc["pools"] = json!({"P": n});
+            for a in doc["actors"].as_array_mut().unwrap() {
+                a["process"] = "P".into();
+            }
+        }
+        doc
+    };
+    for (label, pool, crashes, in_flight) in [
+        ("3 tasks, pool of 1", Some(1), 0, 0),
+        ("3 tasks, pool of 2", Some(2), 0, 0),
+        ("3 tasks, pool of 2, process crash", Some(2), 1, 0),
+        (
+            "3 tasks, pool of 1, crash with COMMIT in flight",
+            Some(1),
+            1,
+            1,
+        ),
+        ("3 processes, crash with COMMIT in flight", None, 1, 1),
+    ] {
+        scenarios.push((label.to_owned(), pay(pool, crashes, in_flight)));
+    }
+    let mut report = String::new();
+    let mut failed = Vec::new();
+    for (label, doc) in scenarios {
+        let model = model_from_json(doc);
+        assert_eq!(dpor_inapplicable(&model), None, "{label}");
+        match std::panic::catch_unwind(|| compare(&label, &model)) {
+            Ok(Some((f, s, d))) => report.push_str(&format!(
+                "{label}: transitions full {f}, sleep sets {s}, dpor {d}\n"
+            )),
+            Ok(None) => failed.push(format!("{label}: exploration hit a limit")),
+            Err(_) => failed.push(label),
+        }
+    }
+    eprintln!("{report}");
+    assert!(failed.is_empty(), "not preserved: {failed:?}");
+}
+
 /// A random scenario with only final invariants (DPOR is refused for
 /// `always` ones) and, for some seeds, in-flight faults.
 fn dpor_model(seed: u64) -> (Value, Model) {

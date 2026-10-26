@@ -361,11 +361,14 @@ fn drop_thread_lease(model: &Model, s: &mut State, a: usize, th: usize, foot: &m
     }
 }
 
-/// The task's connection is used by the operation it starts now.
-fn claim_lease(model: &Model, s: &mut State, a: usize, th: usize) -> bool {
+/// The task's connection is used by the operation it starts now. The step
+/// touches the pool: it can only run after the release or arrival that gave
+/// the task its connection, and DPOR's happens-before must know that.
+fn claim_lease(model: &Model, s: &mut State, a: usize, th: usize, foot: &mut Footprint) -> bool {
     if model.pool_of(a).is_none() {
         return false;
     }
+    foot.push(Access::Pool(model.process_of[a]));
     let t = &mut s.actors[a].threads[th];
     let held = t.lease == Lease::Held;
     t.lease = Lease::None;
@@ -741,7 +744,7 @@ fn step_thread(
             }
             let iso = isolation.unwrap_or(model.isolation);
             let id = new_txn(s, a, iso, false);
-            let leased = claim_lease(model, s, a, th);
+            let leased = claim_lease(model, s, a, th, foot);
             if let Some(t) = s.txns.get_mut(&id) {
                 t.leased = leased;
             }
@@ -1179,7 +1182,7 @@ fn db_step(
         },
         Conn::Pool => {
             let id = new_txn(s, a, model.isolation, true);
-            let leased = claim_lease(model, s, a, th);
+            let leased = claim_lease(model, s, a, th, foot);
             if let Some(t) = s.txns.get_mut(&id) {
                 t.leased = leased;
             }
