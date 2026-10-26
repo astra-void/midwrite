@@ -1,0 +1,30 @@
+
+added 20 packages in 2s
+npm notice
+npm notice New major version of npm available! 10.9.9 -> 12.2.1
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.1
+npm notice To update run: npm install -g npm@12.2.1
+npm notice
+
+> commitrift-fixture-drizzle-node@0.0.0 build
+> tsc -p tsconfig.json
+
+
+added 20 packages in 1s
+
+> commitrift-fixture-team-app@0.0.0 build
+> tsc -p tsconfig.json
+
+
+added 20 packages in 1s
+
+> commitrift-fixture-shop-app@0.0.0 build
+> tsc -p tsconfig.json
+
+
+added 6 packages in 1s
+
+> commitrift-fixture-pgjs-app@0.0.0 build
+> tsc -p tsconfig.json
+
+exit 0

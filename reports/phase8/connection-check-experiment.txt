@@ -1,0 +1,21 @@
+Experiment (2026-10-26, macOS arm64, PostgreSQL 17.11): crash a worker while
+its UPDATE waits for a row lock (fixtures/phase8/scenarios/accept-crash-while-waiting.json).
+
+With client_connection_check_interval = 0 (PostgreSQL's default; code edited
+temporarily, then restored):
+  status inconclusive / evidence INCONCLUSIVE
+  problem: "plan step 8: PostgreSQL still had sessions of the killed Accept2
+  (attempt 1) after 10022 ms: the transaction's fate is not established"
+  -> a backend blocked on a lock does not notice its client's death; it
+     would hold its locks (and run the statement once the lock is granted,
+     then fail on the dead socket) — the model's "crash releases locks at
+     once" is NOT what a default server does.
+
+With client_connection_check_interval = 50ms (what source verification now
+sets for plans that contain a crash):
+  status recovery-reproduced, 3 of 3 runs; sessions ended 47 ms after SIGKILL.
+
+Consequence (docs/phase8/CRASH-RETRY-SEMANTICS.md): crash results for
+schedules that kill a worker while it waits for a lock hold for servers with
+this setting; on a default production server the crashed transaction keeps
+its locks until the backend next touches the socket.

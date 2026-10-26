@@ -1,0 +1,727 @@
+{
+  "kind": "commitrift.model-check",
+  "schemaVersion": 3,
+  "modelVersion": "1.0.0",
+  "tool": {
+    "name": "commitrift",
+    "version": "0.1.0"
+  },
+  "scenario": {
+    "name": "inventory-retry-exhausted",
+    "description": "FIRST-PARTY APPLICATION: reservations without retry (attempts: 1): the 40001 is final and the request fails; the failed transaction's changes never commit.",
+    "scenarioVersion": 1,
+    "file": "/Users/returnf4lse/Desktop/Workspace/rust/crash-proof/fixtures/phase8/scenarios/inventory-retry-exhausted.json"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "products",
+        "columns": [
+          "id",
+          "sku",
+          "stock"
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "unique": [
+          [
+            "sku"
+          ]
+        ],
+        "checks": [],
+        "initialRows": [
+          {
+            "id": 1,
+            "sku": "SKU-1",
+            "stock": 10
+          }
+        ]
+      },
+      {
+        "name": "reservations",
+        "columns": [
+          "id",
+          "productId",
+          "quantity"
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "unique": [],
+        "checks": [],
+        "initialRows": []
+      }
+    ]
+  },
+  "actors": [
+    {
+      "name": "R1",
+      "function": "src/app/inventory.ts#reserveStockOnce",
+      "file": "src/app/inventory.ts",
+      "arguments": [
+        [
+          "input",
+          {
+            "productId": 1,
+            "quantity": 2
+          }
+        ]
+      ],
+      "process": "R1",
+      "origin": "extracted",
+      "tasks": 1,
+      "operations": 12,
+      "sourceRefs": [
+        {
+          "origin": "extracted",
+          "file": "src/app/inventory.ts",
+          "line": 66,
+          "column": 10,
+          "function": "reserveStockOnce",
+          "text": "withTransactionRetry( async (tx) => { const [product] = await tx .select() .f..."
+        },
+        {
+          "origin": "extracted",
+          "file": "src/app/inventory.ts",
+          "line": 68,
+          "column": 31,
+          "function": "reserveStockOnce",
+          "text": "tx .select() .from(products) .where(eq(products.id, input.productId)) .limit(1)"
+        },
+        {
+          "origin": "extracted",
+          "file": "src/app/inventory.ts",
+          "line": 76,
+          "column": 13,
+          "function": "reserveStockOnce",
+          "diagnostics": [
+            "CP1004@dc5502369062a698"
+          ],
+          "text": "tx .update(products) .set({ stock: product.stock - input.quantity }) .where(e..."
+        },
+        {
+          "origin": "extracted",
+          "file": "src/app/inventory.ts",
+          "line": 80,
+          "column": 13,
+          "function": "reserveStockOnce",
+          "diagnostics": [
+            "CP1004@dc5502369062a698"
+          ],
+          "text": "tx.insert(reservations).values({ productId: product.id, quantity: input.quant..."
+        },
+        {
+          "origin": "extracted",
+          "file": "src/app/inventory.ts",
+          "line": 66,
+          "column": 10,
+          "function": "reserveStockOnce",
+          "text": "withTransactionRetry( async (tx) => { const [product] = await tx .select() .f..."
+        }
+      ]
+    },
+    {
+      "name": "R2",
+      "function": "src/app/inventory.ts#reserveStockOnce",
+      "file": "src/app/inventory.ts",
+      "arguments": [
+        [
+          "input",
+          {
+            "productId": 1,
+            "quantity": 2
+          }
+        ]
+      ],
+      "process": "R2",
+      "origin": "extracted",
+      "tasks": 1,
+      "operations": 12,
+      "sourceRefs": [
+        {
+          "origin": "extracted",
+          "file": "src/app/inventory.ts",
+          "line": 66,
+          "column": 10,
+          "function": "reserveStockOnce",
+          "text": "withTransactionRetry( async (tx) => { const [product] = await tx .select() .f..."
+        },
+        {
+          "origin": "extracted",
+          "file": "src/app/inventory.ts",
+          "line": 68,
+          "column": 31,
+          "function": "reserveStockOnce",
+          "text": "tx .select() .from(products) .where(eq(products.id, input.productId)) .limit(1)"
+        },
+        {
+          "origin": "extracted",
+          "file": "src/app/inventory.ts",
+          "line": 76,
+          "column": 13,
+          "function": "reserveStockOnce",
+          "diagnostics": [
+            "CP1004@dc5502369062a698"
+          ],
+          "text": "tx .update(products) .set({ stock: product.stock - input.quantity }) .where(e..."
+        },
+        {
+          "origin": "extracted",
+          "file": "src/app/inventory.ts",
+          "line": 80,
+          "column": 13,
+          "function": "reserveStockOnce",
+          "diagnostics": [
+            "CP1004@dc5502369062a698"
+          ],
+          "text": "tx.insert(reservations).values({ productId: product.id, quantity: input.quant..."
+        },
+        {
+          "origin": "extracted",
+          "file": "src/app/inventory.ts",
+          "line": 66,
+          "column": 10,
+          "function": "reserveStockOnce",
+          "text": "withTransactionRetry( async (tx) => { const [product] = await tx .select() .f..."
+        }
+      ]
+    }
+  ],
+  "bounds": {
+    "declared": {
+      "maxActors": 4,
+      "maxSteps": 60,
+      "maxStates": 200000,
+      "maxCrashes": 0,
+      "maxRetries": 0,
+      "maxContextSwitches": null,
+      "maxTransitions": null,
+      "maxWallMs": null,
+      "maxMemoryBytes": null
+    },
+    "partialOrderReduction": true,
+    "strategy": "dfs"
+  },
+  "exploration": {
+    "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS",
+    "complete": true,
+    "truncation": {
+      "maxStates": false,
+      "maxTransitions": false,
+      "maxWallTime": false,
+      "maxMemory": false,
+      "maxSteps": false,
+      "maxContextSwitches": false
+    },
+    "metrics": {
+      "states": 43,
+      "transitions": 47,
+      "terminalStates": 4,
+      "duplicateStateHits": 5,
+      "sleepPrunedTransitions": 12,
+      "contextPrunedTransitions": 0,
+      "maxDepth": 10,
+      "schedulesInExploredGraph": 15,
+      "visitedBytes": 37073
+    },
+    "unsupported": [],
+    "stuckStates": 0
+  },
+  "invariants": [
+    {
+      "name": "stock-accounted",
+      "when": "final",
+      "formula": "(committed(products[id=1].stock) + sum(reservations.quantity)) = 10",
+      "description": "remaining stock plus reserved quantity equals the initial stock",
+      "status": "holds-within-bounds"
+    }
+  ],
+  "evidence": {
+    "level": "original-code-invariant-held",
+    "summary": "no counterexample within the bounds; the model's probe schedule ran against the original code in 5 of 5 run(s), matched the model, and the invariant holds on the observed state — bounded evidence about this schedule, not a proof"
+  },
+  "runtime": {
+    "performed": false,
+    "status": "not-requested",
+    "observations": [],
+    "sqlstates": [],
+    "note": "no runtime validation was requested (--validate-postgres)"
+  },
+  "assumptions": [
+    "database default isolation: read-committed (PostgreSQL semantics, see docs/phase6/POSTGRES-ISOLATION.md)",
+    "a database statement is atomic unless it must wait for another transaction; waiting statements resume with their original snapshot",
+    "autocommit (root `db`) statements are single-statement transactions at the default isolation level",
+    "local computation is not a scheduling point; it is folded into the preceding transition",
+    "rows are read in primary-key order for LIMIT 1 (the declared programs and generated SQL both use ORDER BY the primary key)",
+    "tasks of different actors never share a transaction, connection or event loop; actors listed with the same process share in-process variables and crash together",
+    "a process crash rolls back open transactions and loses local state; committed data and performed external effects remain",
+    "actor R1: declared invocation (scenario, not source): awaited",
+    "actor R1: declared contract: `withTransactionRetry` runs its callback in a new transaction and re-runs it from BEGIN after SQLSTATE 40001/40P01, at most 1 time(s) in total, then rethrows; the helper's own code is not analyzed (source verification runs it)",
+    "actor R1: select without orderBy: the first row in primary-key order is used",
+    "actor R2: declared invocation (scenario, not source): awaited",
+    "actor R2: declared contract: `withTransactionRetry` runs its callback in a new transaction and re-runs it from BEGIN after SQLSTATE 40001/40P01, at most 1 time(s) in total, then rethrows; the helper's own code is not analyzed (source verification runs it)",
+    "actor R2: select without orderBy: the first row in primary-key order is used"
+  ],
+  "diagnostics": [],
+  "timing": {
+    "wallMs": 0
+  },
+  "extraction": [
+    {
+      "actor": "R1",
+      "entry": {
+        "selector": "src/app/inventory.ts#reserveStockOnce",
+        "anchor": "src/app/inventory.ts@65:8",
+        "file": "src/app/inventory.ts",
+        "endLine": 85,
+        "staticName": "reserveStockOnce",
+        "contract": {
+          "invocation": "awaited"
+        },
+        "contractStatus": "not-needed"
+      },
+      "sourceCoverage": {
+        "representedOperations": 5,
+        "assumedOperations": 1,
+        "unsupportedOperations": 0
+      },
+      "sourceFacts": [
+        "entry `src/app/inventory.ts#reserveStockOnce` is the function at src/app/inventory.ts@65:8 (`reserveStockOnce` in `commitrift check`)"
+      ],
+      "scenarioAssumptions": [
+        "invocation: awaited"
+      ]
+    },
+    {
+      "actor": "R2",
+      "entry": {
+        "selector": "src/app/inventory.ts#reserveStockOnce",
+        "anchor": "src/app/inventory.ts@65:8",
+        "file": "src/app/inventory.ts",
+        "endLine": 85,
+        "staticName": "reserveStockOnce",
+        "contract": {
+          "invocation": "awaited"
+        },
+        "contractStatus": "not-needed"
+      },
+      "sourceCoverage": {
+        "representedOperations": 5,
+        "assumedOperations": 1,
+        "unsupportedOperations": 0
+      },
+      "sourceFacts": [
+        "entry `src/app/inventory.ts#reserveStockOnce` is the function at src/app/inventory.ts@65:8 (`reserveStockOnce` in `commitrift check`)"
+      ],
+      "scenarioAssumptions": [
+        "invocation: awaited"
+      ]
+    }
+  ],
+  "sourceVerification": {
+    "performed": true,
+    "status": "invariant-held",
+    "harness": "shop-app",
+    "runs": [
+      {
+        "run": 1,
+        "coordination": "followed",
+        "statementsAgree": true,
+        "tablesAgree": true,
+        "outcomesAgree": true,
+        "invariant": "holds",
+        "reproduced": false,
+        "elapsedMs": 1558,
+        "recoveryReproduced": true
+      },
+      {
+        "run": 2,
+        "coordination": "followed",
+        "statementsAgree": true,
+        "tablesAgree": true,
+        "outcomesAgree": true,
+        "invariant": "holds",
+        "reproduced": false,
+        "elapsedMs": 1544,
+        "recoveryReproduced": true
+      },
+      {
+        "run": 3,
+        "coordination": "followed",
+        "statementsAgree": true,
+        "tablesAgree": true,
+        "outcomesAgree": true,
+        "invariant": "holds",
+        "reproduced": false,
+        "elapsedMs": 1568,
+        "recoveryReproduced": true
+      },
+      {
+        "run": 4,
+        "coordination": "followed",
+        "statementsAgree": true,
+        "tablesAgree": true,
+        "outcomesAgree": true,
+        "invariant": "holds",
+        "reproduced": false,
+        "elapsedMs": 1510,
+        "recoveryReproduced": true
+      },
+      {
+        "run": 5,
+        "coordination": "followed",
+        "statementsAgree": true,
+        "tablesAgree": true,
+        "outcomesAgree": true,
+        "invariant": "holds",
+        "reproduced": false,
+        "elapsedMs": 1536,
+        "recoveryReproduced": true
+      }
+    ],
+    "statements": [
+      {
+        "transition": 1,
+        "actor": "R1",
+        "model": "BEGIN",
+        "modelSource": "src/app/inventory.ts:66:10",
+        "predicted": "ok",
+        "sql": "begin isolation level repeatable read",
+        "runtimeSource": "src/lib/db/retry.ts:35:23",
+        "observed": "begin",
+        "status": "agree"
+      },
+      {
+        "transition": 2,
+        "actor": "R1",
+        "model": "SELECT products WHERE (@id = 1)",
+        "modelSource": "src/app/inventory.ts:68:31",
+        "predicted": "{id=1, sku=\"SKU-1\", stock=10}",
+        "sql": "select \"id\", \"sku\", \"stock\" from \"products\" where \"products\".\"id\" = $1 limit $2",
+        "runtimeSource": "src/app/inventory.ts:72:10",
+        "observed": "{\"products.id\":1,\"products.sku\":\"SKU-1\",\"products.stock\":10}",
+        "status": "agree"
+      },
+      {
+        "transition": 3,
+        "actor": "R1",
+        "model": "UPDATE products SET stock = 8 WHERE (@id = 1)",
+        "modelSource": "src/app/inventory.ts:76:13",
+        "predicted": "1 row(s)",
+        "sql": "update \"products\" set \"stock\" = $1 where \"products\".\"id\" = $2",
+        "runtimeSource": "src/app/inventory.ts:78:10",
+        "observed": "1 row(s)",
+        "status": "agree"
+      },
+      {
+        "transition": 4,
+        "actor": "R1",
+        "model": "INSERT reservations {id=1, productId=1, quantity=2}",
+        "modelSource": "src/app/inventory.ts:80:13",
+        "predicted": "1 row(s)",
+        "sql": "insert into \"reservations\" (\"id\", \"product_id\", \"quantity\") values (default, $1, $2)",
+        "runtimeSource": "src/app/inventory.ts:80:37",
+        "observed": "1 row(s)",
+        "status": "agree"
+      },
+      {
+        "transition": 5,
+        "actor": "R2",
+        "model": "BEGIN",
+        "modelSource": "src/app/inventory.ts:66:10",
+        "predicted": "ok",
+        "sql": "begin isolation level repeatable read",
+        "runtimeSource": "src/lib/db/retry.ts:35:23",
+        "observed": "begin",
+        "status": "agree"
+      },
+      {
+        "transition": 6,
+        "actor": "R2",
+        "model": "SELECT products WHERE (@id = 1)",
+        "modelSource": "src/app/inventory.ts:68:31",
+        "predicted": "{id=1, sku=\"SKU-1\", stock=10}",
+        "sql": "select \"id\", \"sku\", \"stock\" from \"products\" where \"products\".\"id\" = $1 limit $2",
+        "runtimeSource": "src/app/inventory.ts:72:10",
+        "observed": "{\"products.id\":1,\"products.sku\":\"SKU-1\",\"products.stock\":10}",
+        "status": "agree"
+      },
+      {
+        "transition": 7,
+        "actor": "R1",
+        "model": "COMMIT",
+        "modelSource": "src/app/inventory.ts:66:10",
+        "predicted": "ok",
+        "sql": "commit",
+        "runtimeSource": "src/lib/db/retry.ts:35:23",
+        "observed": "commit",
+        "status": "agree"
+      },
+      {
+        "transition": 8,
+        "actor": "R2",
+        "model": "UPDATE products SET stock = 8 WHERE (@id = 1)",
+        "modelSource": "src/app/inventory.ts:76:13",
+        "predicted": "SQLSTATE 40001",
+        "sql": "update \"products\" set \"stock\" = $1 where \"products\".\"id\" = $2",
+        "runtimeSource": "src/app/inventory.ts:78:10",
+        "observed": "SQLSTATE 40001",
+        "status": "agree"
+      },
+      {
+        "transition": 8,
+        "actor": "R2",
+        "model": "ROLLBACK (after a failure)",
+        "modelSource": "src/app/inventory.ts:66:10",
+        "predicted": "ok",
+        "sql": "rollback",
+        "runtimeSource": "src/lib/db/retry.ts:35:23",
+        "observed": "rollback",
+        "status": "agree"
+      }
+    ],
+    "modelTables": {
+      "products": [
+        {
+          "id": 1,
+          "sku": "SKU-1",
+          "stock": 8
+        }
+      ],
+      "reservations": [
+        {
+          "id": 1,
+          "productId": 1,
+          "quantity": 2
+        }
+      ]
+    },
+    "runtimeTables": {
+      "products": [
+        {
+          "id": 1,
+          "sku": "SKU-1",
+          "stock": 8
+        }
+      ],
+      "reservations": [
+        {
+          "id": 1,
+          "productId": 1,
+          "quantity": 2
+        }
+      ]
+    },
+    "actors": [
+      [
+        "R1",
+        "ok",
+        "returned"
+      ],
+      [
+        "R2",
+        "failed: 40001: could not serialize access due to concurrent update",
+        "threw: Error: Failed query: update \"products\" set \"stock\" = $1 where \"products\".\"id\" = $2\nparams: 8,1 (caused by error: could not serialize access due to concurrent update)"
+      ]
+    ],
+    "assumptions": [
+      "reservations.id: generated values are compared exactly because both the model and the disposable database start the sequence at the same value",
+      "Only the columns the scenario models are compared; other columns of the application's tables keep their database defaults."
+    ],
+    "postgresVersion": "postgres (PostgreSQL) 17.11 (Homebrew)",
+    "isolation": "sandbox-exec: IP networking denied; Unix sockets and file writes limited to the replay directory",
+    "note": "Each actor's ORIGINAL application code ran in its own worker process (an authorized harness) against a private, disposable PostgreSQL database; every SQL statement the application sent was held until the coordinator released it in the order of the model's counterexample, and PostgreSQL's answers (rows, row counts, SQLSTATEs, lock waits reported by pg_stat_activity) were recorded. The invariant was evaluated on the rows the run left in the database. This is evidence about this application, this input and this schedule on this PostgreSQL; it is not a claim about production traffic.",
+    "evidence": "ORIGINAL_CODE_INVARIANT_HELD",
+    "probeSchedule": [
+      "step R1/0",
+      "step R1/0",
+      "step R1/0",
+      "step R1/0",
+      "step R2/0",
+      "step R2/0",
+      "step R1/0",
+      "step R2/0"
+    ],
+    "schemaFidelity": {
+      "status": "agree",
+      "tables": [
+        {
+          "table": "products",
+          "items": [
+            {
+              "fact": "column id type integer",
+              "status": "agree"
+            },
+            {
+              "fact": "column id NOT NULL",
+              "status": "agree"
+            },
+            {
+              "fact": "column id default",
+              "status": "agree"
+            },
+            {
+              "fact": "column sku type text",
+              "status": "agree"
+            },
+            {
+              "fact": "column sku NOT NULL",
+              "status": "agree"
+            },
+            {
+              "fact": "column sku default",
+              "status": "agree"
+            },
+            {
+              "fact": "column stock type integer",
+              "status": "agree"
+            },
+            {
+              "fact": "column stock NOT NULL",
+              "status": "agree"
+            },
+            {
+              "fact": "column stock default",
+              "status": "agree"
+            },
+            {
+              "fact": "primary key (id)",
+              "status": "agree"
+            },
+            {
+              "fact": "unique (sku)",
+              "status": "agree"
+            }
+          ]
+        },
+        {
+          "table": "reservations",
+          "items": [
+            {
+              "fact": "column id type integer",
+              "status": "agree"
+            },
+            {
+              "fact": "column id NOT NULL",
+              "status": "agree"
+            },
+            {
+              "fact": "column id default",
+              "status": "agree"
+            },
+            {
+              "fact": "column product_id type integer",
+              "status": "agree"
+            },
+            {
+              "fact": "column product_id NOT NULL",
+              "status": "agree"
+            },
+            {
+              "fact": "column product_id default",
+              "status": "agree"
+            },
+            {
+              "fact": "column quantity type integer",
+              "status": "agree"
+            },
+            {
+              "fact": "column quantity NOT NULL",
+              "status": "agree"
+            },
+            {
+              "fact": "column quantity default",
+              "status": "agree"
+            },
+            {
+              "fact": "primary key (id)",
+              "status": "agree"
+            },
+            {
+              "fact": "foreign key (product_id) → products(id)",
+              "status": "agree"
+            }
+          ]
+        }
+      ],
+      "postgresVersion": "postgres (PostgreSQL) 17.11 (Homebrew)",
+      "note": "Schema facts extracted statically from the Drizzle source, compared with the catalog of a disposable PostgreSQL database initialized by the application's migrations. A drift means the model (built from source) and the database the application runs on disagree; nothing was changed to make them agree."
+    }
+  },
+  "schemaFacts": [
+    {
+      "table": "products",
+      "binding": "products",
+      "facts": [
+        {
+          "fact": "table `products` from binding `products`",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:59"
+        },
+        {
+          "fact": "column `id` → `id` int NOT NULL",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:60"
+        },
+        {
+          "fact": "column `sku` → `sku` text NOT NULL",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:61"
+        },
+        {
+          "fact": "column `stock` → `stock` int NOT NULL",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:62"
+        },
+        {
+          "fact": "primary key (id)",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:59"
+        },
+        {
+          "fact": "unique constraint `sku` on (sku)",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:61"
+        }
+      ]
+    },
+    {
+      "table": "reservations",
+      "binding": "reservations",
+      "facts": [
+        {
+          "fact": "table `reservations` from binding `reservations`",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:65"
+        },
+        {
+          "fact": "column `id` → `id` int NOT NULL generated (sequence)",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:66"
+        },
+        {
+          "fact": "column `productId` → `product_id` int NOT NULL",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:67"
+        },
+        {
+          "fact": "column `quantity` → `quantity` int NOT NULL",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:70"
+        },
+        {
+          "fact": "primary key (id)",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:65"
+        },
+        {
+          "fact": "foreign key (product_id) → products(id): not modeled (a violation, SQLSTATE 23503, is not predicted)",
+          "origin": "not-modeled",
+          "source": "src/lib/db/schema.ts:67"
+        }
+      ]
+    }
+  ]
+}

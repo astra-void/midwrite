@@ -1,0 +1,20 @@
+alone 1 exit 0
+alone 2 exit 0
+alone 3 exit 0
+alone 4 exit 0
+alone 5 exit 0
+alone 6 exit 0
+alone 7 exit 0
+alone 8 exit 0
+alone 9 exit 0
+alone 10 exit 0
+parallel 1 exit 0 0 deadlock-failures
+parallel 2 exit 0 0 deadlock-failures
+parallel 3 exit 0 0 deadlock-failures
+parallel 4 exit 0 0 deadlock-failures
+parallel 5 exit 0 0 deadlock-failures
+parallel 6 exit 0 0 deadlock-failures
+parallel 7 exit 0 0 deadlock-failures
+parallel 8 exit 0 0 deadlock-failures
+parallel 9 exit 0 0 deadlock-failures
+parallel 10 exit 0 0 deadlock-failures
