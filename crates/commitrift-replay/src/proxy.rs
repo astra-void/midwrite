@@ -113,6 +113,9 @@ pub struct ProxyEvent {
 #[derive(Clone, Debug)]
 struct Rule {
     application_name: String,
+    /// When set, the rule applies to the connection of this backend (tasks of
+    /// one process share an `application_name`).
+    backend_pid: Option<i64>,
     fault: Fault,
     target: Target,
 }
@@ -243,6 +246,7 @@ impl FaultProxy {
     pub fn arm(&self, application_name: &str, fault: Fault, target: Target) {
         self.shared.lock().rules.push(Rule {
             application_name: application_name.to_owned(),
+            backend_pid: None,
             fault,
             target,
         });
@@ -250,6 +254,23 @@ impl FaultProxy {
             0,
             EventKind::FaultArmed,
             format!("{fault:?} on the next {target:?} of application_name {application_name}"),
+        );
+    }
+
+    /// [`Self::arm`] for the connection of the backend `pid` (as the driver
+    /// reports it): precise when several connections share an
+    /// `application_name`.
+    pub fn arm_backend(&self, pid: i64, fault: Fault, target: Target) {
+        self.shared.lock().rules.push(Rule {
+            application_name: String::new(),
+            backend_pid: Some(pid),
+            fault,
+            target,
+        });
+        self.shared.event(
+            0,
+            EventKind::FaultArmed,
+            format!("{fault:?} on the next {target:?} of backend {pid}"),
         );
     }
 
@@ -806,6 +827,7 @@ fn forward_client_frame(shared: &Shared, id: u64, f: &Frame, server: &mut UnixSt
         let supported;
         let app;
         let holding;
+        let pid;
         {
             let Some(c) = g.conns.get(&id) else {
                 return false;
@@ -813,6 +835,7 @@ fn forward_client_frame(shared: &Shared, id: u64, f: &Frame, server: &mut UnixSt
             supported = c.unsupported.is_none();
             app = c.application_name.clone();
             holding = c.holding;
+            pid = c.backend_pid;
         }
         if holding {
             (true, None)
@@ -821,11 +844,13 @@ fn forward_client_frame(shared: &Shared, id: u64, f: &Frame, server: &mut UnixSt
             && !matches!(f.tag, b'B' | b'E')
         {
             let at = g.rules.iter().position(|r| {
-                r.application_name == app
-                    && match r.target {
-                        Target::Commit => is_commit_frame,
-                        Target::Statement => is_statement_frame,
-                    }
+                (match r.backend_pid {
+                    Some(p) => pid == Some(p),
+                    None => r.application_name == app,
+                }) && match r.target {
+                    Target::Commit => is_commit_frame,
+                    Target::Statement => is_statement_frame,
+                }
             });
             match at {
                 Some(i) => {

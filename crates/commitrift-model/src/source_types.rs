@@ -134,6 +134,34 @@ pub struct InFlightCheck {
     pub physical_outcome: String,
 }
 
+/// Phase 9: a stuck state observed on the original code (every remaining
+/// task waits for a pool connection, or for a lock the application itself
+/// holds), next to what the model predicted.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StuckCheck {
+    /// What the model says it is.
+    pub model_kind: String,
+    pub observed: crate::source_types::StuckObservation,
+    /// `agree` or `differ`.
+    pub status: String,
+}
+
+/// What the run observed at the stuck state (see `commitrift_replay`).
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StuckObservation {
+    pub kind: String,
+    pub quiet_ms: u64,
+    pub unfinished: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pool: Option<(i64, i64, i64)>,
+    #[serde(default)]
+    pub lock_waits: usize,
+    pub confirmed: bool,
+    pub detail: String,
+}
+
 /// Phase 9: the server completing a held operation.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -306,6 +334,14 @@ pub struct SourceVerification {
     /// in-flight steps).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub wire_log: Vec<String>,
+    /// Phase 9: the stuck state the run observed (termination
+    /// counterexamples).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stuck: Option<StuckCheck>,
+    /// Phase 9: processes that ran several tasks (name → tasks) and the
+    /// pool capacity the run verified.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub shared_processes: Vec<String>,
 }
 
 /// Semantic operation coverage of one extracted actor (Phase 7). Counts
@@ -345,6 +381,8 @@ impl SourceVerification {
     /// Whether any Phase 9 field is present (the report is then schema 4).
     pub fn has_phase9_fields(&self) -> bool {
         !self.wire_log.is_empty()
+            || self.stuck.is_some()
+            || !self.shared_processes.is_empty()
             || self.recovery.as_ref().is_some_and(|r| {
                 !r.completions.is_empty() || r.crashes.iter().any(|c| c.in_flight.is_some())
             })

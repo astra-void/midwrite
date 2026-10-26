@@ -1,4 +1,4 @@
-// CommitRift source-execution client (protocol version 3, Phases 7–8).
+// CommitRift source-execution client (protocol version 4, Phases 7–9).
 //
 // Runs ONE actor of a model-checking scenario: an authorized harness calls
 // an original application function (for example an exported Server Action)
@@ -45,6 +45,18 @@
 // executions of one actor: a retried actor is a NEW process (attempt 2, 3,
 // ...) with fresh connections; nothing of a killed attempt is reused.
 //
+// Phase 9 (protocol 4) adds tasks that share a process:
+//
+//   * a process may run several tasks of the model concurrently
+//     (`COMMITRIFT_SOURCE_TASKS`: [{actor, entry, input}]); every message of
+//     a task carries `"task": <actor name>`, taken from a harness-provided
+//     context (AsyncLocalStorage), never guessed from function names;
+//   * the coordinator's replies carry the `seq` they answer, so concurrent
+//     operations are released independently;
+//   * `{"type":"pool?"}` is answered with the pool's own counters
+//     (`{"type":"pool","max","total","idle","waiting"}`): which tasks wait
+//     for a connection is observed, not inferred.
+//
 // A "stop" makes the held statement fail with CoordinatorStop (the run is
 // then inconclusive); the coordinator never fakes a result.
 
@@ -52,7 +64,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { connect } from "node:net";
 import { fileURLToPath } from "node:url";
 
-export const SOURCE_PROTOCOL_VERSION = 3;
+export const SOURCE_PROTOCOL_VERSION = 4;
 
 /** Thrown into a held statement when the coordinator stops the run. */
 export class CoordinatorStop extends Error {
@@ -74,8 +86,9 @@ class Channel {
   constructor(socket) {
     this.socket = socket;
     this.buffer = "";
-    this.lines = [];
-    this.waiters = [];
+    this.unmatched = [];
+    // Replies of the coordinator by the `seq` they answer.
+    this.waiters = new Map();
     this.closed = false;
     socket.setEncoding("utf8");
     socket.on("data", (chunk) => {
@@ -84,9 +97,7 @@ class Channel {
       while ((newline = this.buffer.indexOf("\n")) >= 0) {
         const line = this.buffer.slice(0, newline);
         this.buffer = this.buffer.slice(newline + 1);
-        const waiter = this.waiters.shift();
-        if (waiter) waiter.resolve(line);
-        else this.lines.push(line);
+        this.dispatch(line);
       }
     });
     socket.on("close", () => {
@@ -94,10 +105,31 @@ class Channel {
       // The coordinator is gone (it ended the run, or it died): this worker
       // must not keep running unsupervised.
       if (!this.ending) process.exit(75);
-      for (const waiter of this.waiters.splice(0)) {
+      for (const waiter of this.waiters.values()) {
         waiter.reject(new Error("the coordinator closed the connection"));
       }
+      this.waiters.clear();
     });
+  }
+
+  dispatch(line) {
+    let message;
+    try {
+      message = JSON.parse(line);
+    } catch {
+      return;
+    }
+    if (message.type === "pool?") {
+      void this.send(poolSnapshot());
+      return;
+    }
+    const waiter = this.waiters.get(message.seq);
+    if (waiter) {
+      this.waiters.delete(message.seq);
+      waiter.resolve(line);
+    } else {
+      this.unmatched.push(line);
+    }
   }
 
   static open(path) {
@@ -114,17 +146,32 @@ class Channel {
     });
   }
 
-  next() {
-    const line = this.lines.shift();
-    if (line !== undefined) return Promise.resolve(line);
+  /** The coordinator's reply to the message with this `seq`. */
+  reply(seq) {
+    const at = this.unmatched.findIndex((line) => JSON.parse(line).seq === seq);
+    if (at >= 0) return Promise.resolve(this.unmatched.splice(at, 1)[0]);
     if (this.closed) return Promise.reject(new Error("the coordinator closed the connection"));
-    return new Promise((resolve, reject) => this.waiters.push({ resolve, reject }));
+    return new Promise((resolve, reject) => this.waiters.set(seq, { resolve, reject }));
   }
 
   close() {
     this.ending = true;
     return new Promise((resolve) => this.socket.end(() => resolve()));
   }
+}
+
+let activePool = null;
+
+/** The pool's own counters (node-postgres `pg.Pool`). */
+function poolSnapshot() {
+  const p = activePool;
+  return {
+    type: "pool",
+    max: p?.options?.max ?? null,
+    total: p?.totalCount ?? null,
+    idle: p?.idleCount ?? null,
+    waiting: p?.waitingCount ?? null,
+  };
 }
 
 /** Whether this process runs under `commitrift model-check --verify-source`. */
@@ -291,7 +338,7 @@ function patchThen(prototype) {
   const wrapped = function (onFulfilled, onRejected) {
     const site = this[SITE];
     if (!site) return then.call(this, onFulfilled, onRejected);
-    return scope.run({ site }, () => then.call(this, onFulfilled, onRejected));
+    return scope.run({ ...scope.getStore(), site }, () => then.call(this, onFulfilled, onRejected));
   };
   Object.defineProperty(wrapped, COORDINATED, { value: true });
   prototype.then = wrapped;
@@ -331,7 +378,9 @@ export function instrumentDrizzle(drizzle, pgCore) {
     const transaction = database.transaction;
     const wrapped = function (...args) {
       const site = currentSite() ?? scope.getStore()?.site;
-      return site ? scope.run({ site }, () => transaction.apply(this, args)) : transaction.apply(this, args);
+      return site
+        ? scope.run({ ...scope.getStore(), site }, () => transaction.apply(this, args))
+        : transaction.apply(this, args);
     };
     Object.defineProperty(wrapped, COORDINATED, { value: true });
     database.transaction = wrapped;
@@ -389,8 +438,11 @@ async function hold(client, text, params) {
   seq += 1;
   const id = seq;
   const site = scope.getStore()?.site ?? currentSite();
+  const task = scope.getStore()?.task;
+  const reply = channel.reply(id);
   await channel.send({
     type: "query",
+    ...(task === undefined ? {} : { task }),
     seq: id,
     client: client[COORDINATED]?.id ?? 0,
     backendPid: typeof client.processID === "number" ? client.processID : null,
@@ -398,17 +450,20 @@ async function hold(client, text, params) {
     params: jsonable(params),
     site,
   });
-  const reply = JSON.parse(await channel.next());
-  if (reply.type === "go") return id;
-  if (reply.type === "stop") throw new CoordinatorStop(String(reply.reason ?? ""));
-  throw new Error(`unexpected coordination message: ${reply.type}`);
+  const answer = JSON.parse(await reply);
+  if (answer.type === "go") return id;
+  if (answer.type === "stop") throw new CoordinatorStop(String(answer.reason ?? ""));
+  throw new Error(`unexpected coordination message: ${answer.type}`);
 }
 
 async function report(id, result, error, shape = resultShape) {
   if (!channel) return;
+  const task = scope.getStore()?.task;
+  const tagged = task === undefined ? {} : { task };
   if (error) {
     await channel.send({
       type: "error",
+      ...tagged,
       seq: id,
       sqlstate: typeof error.code === "string" ? error.code : null,
       message: String(error.message ?? error),
@@ -417,6 +472,7 @@ async function report(id, result, error, shape = resultShape) {
     const { fields, rows } = shape(result);
     await channel.send({
       type: "result",
+      ...tagged,
       seq: id,
       command: typeof result?.command === "string" ? result.command : null,
       // node-postgres: `rowCount`; postgres-js: `count`.
@@ -444,22 +500,26 @@ export async function sourceEffect(name, request = {}) {
   if (typeof name !== "string" || name.length === 0) throw new Error("an effect needs a channel name");
   seq += 1;
   const id = seq;
+  const task = scope.getStore()?.task;
+  const tagged = task === undefined ? {} : { task };
+  const answer = channel.reply(id);
   await channel.send({
     type: "effect",
+    ...tagged,
     seq: id,
     channel: name,
     key: jsonable(request.key ?? null),
     payload: jsonable(request.payload ?? {}),
     site: currentSite(),
   });
-  const reply = JSON.parse(await channel.next());
+  const reply = JSON.parse(await answer);
   if (reply.type === "stop") throw new CoordinatorStop(String(reply.reason ?? ""));
   if (reply.type !== "go") throw new Error(`unexpected coordination message: ${reply.type}`);
   const receipt = {
     id: reply.effect?.id ?? null,
     deduplicated: reply.effect?.deduplicated === true,
   };
-  await channel.send({ type: "result", seq: id, command: "EFFECT", rowCount: 1, fields: [], rows: [] });
+  await channel.send({ type: "result", ...tagged, seq: id, command: "EFFECT", rowCount: 1, fields: [], rows: [] });
   return receipt;
 }
 
@@ -609,6 +669,18 @@ export function coordinatePool(pool) {
   if (pool[COORDINATED]) return pool;
   Object.defineProperty(pool, COORDINATED, { value: true });
   pool.on("connect", (client) => coordinateClient(client));
+  // `pool.query` and callback-style `pool.connect` hand the connection to a
+  // callback that runs in the context of whoever returned the previous
+  // connection, not of the task that asked for it: the task's context is
+  // captured when it asks and restored around the callback, so that the
+  // statement is attributed to the task that issued it.
+  const connect = pool.connect;
+  pool.connect = function (callback, ...rest) {
+    if (typeof callback !== "function") return connect.call(this, callback, ...rest);
+    const store = scope.getStore();
+    return connect.call(this, (...args) => scope.run(store, () => callback(...args)), ...rest);
+  };
+  activePool = pool;
   return pool;
 }
 
@@ -629,6 +701,8 @@ export async function runSourceActor(entries, cleanup) {
   channel = await Channel.open(process.env.COMMITRIFT_SOURCE_SOCKET);
   const actor = process.env.COMMITRIFT_SOURCE_ACTOR ?? "";
   const entry = process.env.COMMITRIFT_SOURCE_ENTRY ?? "";
+  // Several tasks of the model sharing this process (Phase 9).
+  const tasks = process.env.COMMITRIFT_SOURCE_TASKS ? JSON.parse(process.env.COMMITRIFT_SOURCE_TASKS) : null;
   await channel.send({
     type: "hello",
     protocol: SOURCE_PROTOCOL_VERSION,
@@ -636,7 +710,37 @@ export async function runSourceActor(entries, cleanup) {
     entry,
     attempt: sourceAttempt(),
     pid: process.pid,
+    ...(tasks ? { tasks: tasks.map((t) => t.actor) } : {}),
+    pool: poolSnapshot(),
   });
+  if (tasks) {
+    // The coordinator may probe the pool before any task has started.
+    const runTask = async (t) => {
+      const run = Object.prototype.hasOwnProperty.call(entries, t.entry) ? entries[t.entry] : undefined;
+      let outcome = "returned";
+      let value = null;
+      let error;
+      try {
+        if (typeof run !== "function") throw new Error(`unknown entry \`${t.entry}\``);
+        value = jsonable(await scope.run({ task: t.actor }, () => run(t.input)));
+      } catch (caught) {
+        outcome = "threw";
+        error = describe(caught);
+        if (caught instanceof Error && caught.cause) error += ` (caused by ${describe(caught.cause)})`;
+      }
+      await channel.send({ type: "done", task: t.actor, outcome, value, error: error ?? null });
+      return outcome;
+    };
+    const outcomes = await Promise.all(tasks.map(runTask));
+    try {
+      await cleanup?.();
+    } catch {
+      // Cleanup failures do not change the outcome.
+    }
+    await channel.send({ type: "done", outcome: outcomes.every((o) => o === "returned") ? "returned" : "threw" });
+    await channel.close();
+    process.exit(outcomes.every((o) => o === "returned") ? 0 : 1);
+  }
   const input = JSON.parse(process.env.COMMITRIFT_SOURCE_INPUT ?? "null");
   let outcome = "returned";
   let value = null;

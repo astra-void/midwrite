@@ -29,7 +29,7 @@ use serde_json::Value as Json;
 
 use commitrift_replay::source::{
     self, ActorLaunch, CrashStep, Expected, Fate, InFlightStep, LoadedSource, Observed, PlanStep,
-    Region, RestartStep, RunRequest, ServerCompleteStep, SourceRun, SqlKind,
+    Region, RestartStep, RunRequest, ServerCompleteStep, SourceRun, SqlKind, StuckStep,
 };
 
 use crate::db::{ColumnDefault, INITIAL_TXN, RowId, TableSchema, Version};
@@ -183,6 +183,9 @@ fn effect_label(channel: &str, key: Option<&Value>) -> String {
 /// The operation an actor performs next, as the coordinator must observe it
 /// when the model crashes the actor's process before it: announced (and
 /// held), or — `waiting` — a released statement waiting for a lock.
+/// The boundary text of a crash while a task waits for a pool connection.
+const POOL_WAIT: &str = "while waiting for a connection of the pool";
+
 fn checkpoint(
     model: &Model,
     s: &State,
@@ -201,6 +204,13 @@ fn checkpoint(
             running.len()
         ));
     };
+    if thread.lease == crate::state::Lease::Waiting {
+        return Ok((
+            None,
+            false,
+            format!("{POOL_WAIT} (the task has sent nothing)"),
+        ));
+    }
     if let Some(p) = &thread.pending {
         let blocker_active = p.blocked_on.is_some_and(|b| s.txn_active(b));
         if blocker_active {
@@ -373,6 +383,7 @@ fn plan(model: &Model, schedule: &[Transition]) -> Result<Plan, String> {
                             next,
                             waiting,
                             may_have_run: waiting && boundary.starts_with("after the lock"),
+                            pool_wait: boundary.starts_with(POOL_WAIT),
                             label: boundary.clone(),
                         }));
                         out.crashes.push(CrashPrediction {
@@ -398,13 +409,14 @@ fn plan(model: &Model, schedule: &[Transition]) -> Result<Plan, String> {
                                     && !state.orphans.iter().any(|p| p.actor == o.actor && p.seq == o.seq)
                             })
                             .ok_or("the model holds no operation for an actor that reached the server")?;
-                        let next = schedule.get(i + 1);
-                        if next.is_some_and(|n| {
-                            n.kind == TKind::ServerComplete
-                                && n.actor == orphan.actor
-                                && u32::from(n.thread) == orphan.seq
+                        // Completions right after the crash happen before
+                        // anything else does: the server answered at once.
+                        let run = schedule[i + 1..]
+                            .iter()
+                            .take_while(|n| n.kind == TKind::ServerComplete);
+                        if run.clone().any(|n| {
+                            n.actor == orphan.actor && u32::from(n.thread) == orphan.seq
                         }) {
-                            skip_completion.insert(i + 1);
                             Fate::AnsweredAndWithheld
                         } else {
                             Fate::HeldForLaterDelivery
@@ -436,23 +448,44 @@ fn plan(model: &Model, schedule: &[Transition]) -> Result<Plan, String> {
                         fate,
                         label: label.clone(),
                     }));
-                    // The model's durable state right after the kill: with
-                    // an immediate completion, after it.
-                    let mut after = applied.state.clone();
-                    if fate == Fate::AnsweredAndWithheld
-                        && let Some(n) = schedule.get(i + 1)
-                        && let Ok(x) = apply(model, &after, *n, &mut Recorder::off())
-                    {
-                        after = x.state;
-                    }
                     out.crashes.push(CrashPrediction {
                         transition: i + 1,
                         actor: a,
                         attempt: state.actors[a].attempt + 1,
                         boundary: label.clone(),
-                        tables: committed(model, &after),
+                        tables: BTreeMap::new(),
                         in_flight: Some((fate, label)),
                     });
+                }
+                // The model's durable state right after the kill: the
+                // completions the server performs at once are in it.
+                let mut after = applied.state.clone();
+                let mut immediate = 0;
+                for n in schedule[i + 1..]
+                    .iter()
+                    .take_while(|n| n.kind == TKind::ServerComplete)
+                {
+                    if let Ok(x) = apply(model, &after, *n, &mut Recorder::off()) {
+                        after = x.state;
+                    }
+                    immediate += 1;
+                }
+                let tables = committed(model, &after);
+                for c in out.crashes.iter_mut().filter(|c| c.transition == i + 1) {
+                    c.tables.clone_from(&tables);
+                }
+                // The completions that were part of the same kill are not
+                // separate steps; the ones that were not (held) are.
+                for (j, n) in schedule[i + 1..].iter().enumerate().take(immediate) {
+                    let answered = out.steps.iter().any(|st| {
+                        matches!(st, PlanStep::InFlight(f)
+                            if f.transition == i + 1
+                                && f.fate == Fate::AnsweredAndWithheld
+                                && f.actor == usize::from(n.actor))
+                    });
+                    if answered {
+                        skip_completion.insert(i + 1 + j);
+                    }
                 }
                 state = applied.state;
                 continue;
@@ -475,6 +508,7 @@ fn plan(model: &Model, schedule: &[Transition]) -> Result<Plan, String> {
                         next,
                         waiting,
                         may_have_run: waiting && boundary.starts_with("after the lock"),
+                        pool_wait: boundary.starts_with(POOL_WAIT),
                         label: boundary.clone(),
                     }));
                     out.crashes.push(CrashPrediction {
@@ -497,6 +531,12 @@ fn plan(model: &Model, schedule: &[Transition]) -> Result<Plan, String> {
             }
             TKind::Retry => {
                 let a = t.actor as usize;
+                if model.process_of.iter().filter(|p| **p == model.process_of[a]).count() > 1 {
+                    return Err(format!(
+                        "{} shares its process with other tasks: a restart starts a new process, not one task of the old one",
+                        model.actors[a].name
+                    ));
+                }
                 let attempt = state.actors[a].attempt + 2;
                 out.steps.push(PlanStep::Restart(RestartStep {
                     actor: a,
@@ -1209,13 +1249,6 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
     // function the harness runs.
     let mut launches = Vec::new();
     let mut assumptions = Vec::new();
-    if model.process_names.len() != model.actors.len() {
-        return SourceVerification::refused(
-            "unsupported",
-            &harness_name,
-            "actors declared in the same process share memory and crash together; source verification runs one process per actor".to_owned(),
-        );
-    }
     for actor in &model.actors {
         let Some(spec) = req.spec.actors.get(&actor.name) else {
             return SourceVerification::refused(
@@ -1291,17 +1324,50 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
                 ));
             }
         }
+        let ai = launches.len();
+        let shared = model
+            .process_of
+            .iter()
+            .filter(|p| **p == model.process_of[ai])
+            .count()
+            > 1;
         launches.push(ActorLaunch {
             name: actor.name.clone(),
             entry: spec.entry.clone(),
             input: spec.input.clone(),
             scope,
+            process: shared.then(|| model.process_names[model.process_of[ai]].clone()),
+            pool: model.pool_of(ai),
         });
     }
-    let plan = match plan(model, req.schedule) {
+    let mut plan = match plan(model, req.schedule) {
         Ok(p) => p,
         Err(e) => return SourceVerification::refused("unsupported", &harness_name, e),
     };
+    // A termination counterexample ends in a state where nothing can proceed:
+    // the run must observe it.
+    let stuck_kind = if req.invariant.name == crate::model::TERMINATION {
+        use crate::explore::StuckKind;
+        match crate::explore::classify_stuck(model, req.final_state) {
+            StuckKind::PoolStarvation => Some("pool-starvation"),
+            StuckKind::ApplicationWaitCycle => Some("application-wait-cycle"),
+            StuckKind::Unexplained => {
+                return SourceVerification::refused(
+                    "unsupported",
+                    &harness_name,
+                    "the model's stuck state is not one the run can observe (neither pool starvation nor an application-level wait cycle)".to_owned(),
+                );
+            }
+        }
+    } else {
+        None
+    };
+    if let Some(kind) = stuck_kind {
+        plan.steps.push(PlanStep::Stuck(StuckStep {
+            transition: req.schedule.len(),
+            kind: kind.to_owned(),
+        }));
+    }
     let seed = match seed_sql(model) {
         Ok(s) => s,
         Err(e) => return SourceVerification::refused("unsupported", &harness_name, e),
@@ -1449,6 +1515,7 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
             (m == "ok" && r == "returned")
                 || (m.starts_with("failed") && r.starts_with("threw"))
                 || (m == "crashed" && r == "killed")
+                || (m == "running" && r == "killed" && stuck_kind.is_some())
         });
         // Phase 8: crashes, restarts, effects, attempts.
         let crash_checks: Vec<CrashCheck> = plan
@@ -1720,7 +1787,15 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
         });
         // The invariant on the observed rows (and effect log).
         let formula = &req.invariant.formula;
-        let invariant = if !formula.reads_only_database_and_externals() {
+        let invariant = if stuck_kind.is_some() {
+            // The invariant is about the run never finishing: it is violated
+            // when the stuck state was observed.
+            if run.stuck.as_ref().is_some_and(|s| s.confirmed) {
+                "violated".to_owned()
+            } else {
+                "holds".to_owned()
+            }
+        } else if !formula.reads_only_database_and_externals() {
             "not-evaluated".to_owned()
         } else if req.invariant.holds(
             model,
@@ -1789,6 +1864,50 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
                     )
                 })
                 .collect();
+            if let (Some(kind), Some(st)) = (stuck_kind, &run.stuck) {
+                out.stuck = Some(crate::source_types::StuckCheck {
+                    model_kind: kind.to_owned(),
+                    observed: crate::source_types::StuckObservation {
+                        kind: st.kind.clone(),
+                        quiet_ms: st.quiet_ms,
+                        unfinished: st.unfinished.clone(),
+                        pool: st.pool,
+                        lock_waits: st.lock_waits,
+                        confirmed: st.confirmed,
+                        detail: st.detail.clone(),
+                    },
+                    status: if st.confirmed && st.kind == kind {
+                        "agree"
+                    } else {
+                        "differ"
+                    }
+                    .to_owned(),
+                });
+            }
+            out.shared_processes =
+                model
+                    .process_names
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(p, name)| {
+                        let tasks: Vec<&str> = model
+                            .actors
+                            .iter()
+                            .enumerate()
+                            .filter(|(i, _)| model.process_of[*i] == p)
+                            .map(|(_, a)| a.name.as_str())
+                            .collect();
+                        (tasks.len() > 1).then(|| {
+                            format!(
+                            "{name}: {} concurrent tasks in one process{}",
+                            tasks.join(", "),
+                            model.pools.get(p).copied().flatten().map_or(String::new(), |c| format!(
+                                "; connection pool of {c} (the harness pool's max was checked)"
+                            ))
+                        )
+                        })
+                    })
+                    .collect();
             if has_recovery {
                 out.recovery = Some(RecoveryVerification {
                     crashes: crash_checks,

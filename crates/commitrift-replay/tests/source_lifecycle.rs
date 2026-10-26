@@ -67,6 +67,8 @@ fn run(entry: &str, plan: &[PlanStep]) -> SourceRun {
         entry: entry.to_owned(),
         input: Value::Null,
         scope: None,
+        process: None,
+        pool: None,
     }];
     source::run(&RunRequest {
         harness: &h,
@@ -100,6 +102,7 @@ fn a_planned_crash_kills_the_worker_with_the_next_operation_never_sent() {
                 next: Some(ping(3)),
                 waiting: false,
                 may_have_run: false,
+                pool_wait: false,
                 label: "before EXTERNAL ping".to_owned(),
             }),
         ],
@@ -131,6 +134,7 @@ fn a_restart_runs_a_new_process_and_the_channel_double_deduplicates() {
                 next: Some(ping(3)),
                 waiting: false,
                 may_have_run: false,
+                pool_wait: false,
                 label: String::new(),
             }),
             PlanStep::Restart(RestartStep {
@@ -168,6 +172,7 @@ fn a_retry_that_fails_to_start_is_inconclusive() {
                 next: Some(ping(3)),
                 waiting: false,
                 may_have_run: false,
+                pool_wait: false,
                 label: String::new(),
             }),
             PlanStep::Restart(RestartStep {

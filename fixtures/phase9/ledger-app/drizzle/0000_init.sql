@@ -17,3 +17,8 @@ CREATE TABLE "orders" (
 	"id" integer PRIMARY KEY NOT NULL,
 	"status" text DEFAULT 'unpaid' NOT NULL
 );
+CREATE TABLE "audit_log" (
+	"id" serial PRIMARY KEY NOT NULL,
+	"request_id" text NOT NULL,
+	"event" text NOT NULL
+);

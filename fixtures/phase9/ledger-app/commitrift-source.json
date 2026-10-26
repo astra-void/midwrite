@@ -36,6 +36,14 @@
     "recordPaymentAutocommit": {
       "selector": "src/app/payments.ts#recordPaymentAutocommit",
       "description": "Blind autocommit insert."
+    },
+    "settleWithAudit": {
+      "selector": "src/app/payments.ts#settleWithAudit",
+      "description": "Transaction; the audit row is written through the pool."
+    },
+    "notifyPayment": {
+      "selector": "src/app/payments.ts#notifyPayment",
+      "description": "Publish a confirmation only."
     }
   }
 }

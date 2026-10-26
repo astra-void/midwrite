@@ -131,6 +131,36 @@ fn verify(name: &str) -> (i32, Value) {
     )
 }
 
+/// A copy of a scenario in a private temporary directory, with the paths that
+/// are relative to the scenario made absolute: the tests never write into the
+/// repository and never depend on each other's files.
+fn temp_scenario(name: &str, tweak: impl Fn(&mut Value)) -> PathBuf {
+    static COUNTER: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let mut doc: Value = serde_json::from_str(&std::fs::read_to_string(scenario(name)).unwrap())
+        .expect("scenario JSON");
+    let base = scenario(name).parent().unwrap().to_path_buf();
+    for (section, key) in [("extraction", "root"), ("sourceVerification", "harness")] {
+        if let Some(rel) = doc[section][key].as_str() {
+            let abs = base.join(rel).canonicalize().expect("path exists");
+            doc[section][key] = abs.display().to_string().into();
+        }
+    }
+    tweak(&mut doc);
+    let dir = std::env::temp_dir().join(format!(
+        "cr-p9-{}-{}",
+        std::process::id(),
+        COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join(name);
+    std::fs::write(&file, serde_json::to_string_pretty(&doc).unwrap()).unwrap();
+    file
+}
+
+fn remove_temp(file: &Path) {
+    let _ = std::fs::remove_dir_all(file.parent().unwrap());
+}
+
 fn crashes(sv: &Value) -> &Vec<Value> {
     sv["recovery"]["crashes"].as_array().expect("crash checks")
 }
@@ -435,22 +465,13 @@ fn the_in_flight_fault_mode_needs_a_budget_for_it() {
 fn a_lost_acknowledgment_with_a_live_process_is_refused_not_faked() {
     // Connection loss while the process lives has no runtime realization yet:
     // the schedule is refused (UNSUPPORTED), never approximated by a crash.
-    let mut doc: Value = serde_json::from_str(
-        &std::fs::read_to_string(scenario("ledger-blind-commit-in-flight.json")).unwrap(),
-    )
-    .unwrap();
-    doc["bounds"]["maxCrashes"] = 0.into();
-    doc["bounds"].as_object_mut().unwrap().remove("crashPolicy");
-    doc["actors"][0]["retry"]["trigger"] = "onFailure".into();
-    let dir = std::env::temp_dir().join(format!("cr-p9-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    // The scenario's relative paths must keep working: write it next to the
-    // others.
-    let file = scenario("zz-tmp-live-connection-loss.json");
-    std::fs::write(&file, serde_json::to_string_pretty(&doc).unwrap()).unwrap();
+    let file = temp_scenario("ledger-blind-commit-in-flight.json", |doc| {
+        doc["bounds"]["maxCrashes"] = 0.into();
+        doc["bounds"].as_object_mut().unwrap().remove("crashPolicy");
+        doc["actors"][0]["retry"]["trigger"] = "onFailure".into();
+    });
     let (_, r) = model_check_json(&file, &["--verify-source", "--allow-execution"]);
-    let _ = std::fs::remove_file(&file);
-    let _ = std::fs::remove_dir_all(&dir);
+    remove_temp(&file);
     let sv = &r["sourceVerification"];
     assert_eq!(sv["status"], "unsupported", "{sv:#}");
     assert_eq!(sv["evidence"], "UNSUPPORTED");
@@ -476,4 +497,186 @@ fn no_worker_or_proxy_outlives_a_run() {
         survivors.is_empty(),
         "a worker survived the run: {survivors:?}"
     );
+}
+
+// ---- tasks that share a process and a pool ---------------------------------
+
+#[test]
+fn a_pool_of_one_connection_starves_the_original_code() {
+    require_source_run!();
+    let (code, r) = verify("ledger-pool-starvation.json");
+    let sv = &r["sourceVerification"];
+    assert_eq!(code, 1);
+    assert_eq!(sv["status"], "reproduced", "{sv:#}");
+    assert_eq!(r["counterexample"]["invariant"], "termination");
+    // The run did not infer the stall: the pool itself reported it.
+    let stuck = &sv["stuck"];
+    assert_eq!(stuck["modelKind"], "pool-starvation");
+    assert_eq!(stuck["status"], "agree");
+    let observed = &stuck["observed"];
+    assert_eq!(observed["confirmed"], true);
+    assert_eq!(
+        observed["pool"],
+        serde_json::json!([1, 0, 1]),
+        "waiting 1, idle 0, total 1"
+    );
+    assert!(observed["quietMs"].as_u64().unwrap() >= 800);
+    assert_eq!(observed["unfinished"], serde_json::json!(["Client"]));
+    // The model's own report distinguishes it from a PostgreSQL deadlock.
+    assert!(
+        r["exploration"]["stuck"][0]
+            .as_str()
+            .unwrap()
+            .contains("pool starvation")
+    );
+}
+
+#[test]
+fn the_same_code_with_two_connections_terminates() {
+    let (code, r) = model_check_json(&scenario("ledger-pool-of-two.json"), &[]);
+    assert_eq!(code, 0);
+    assert_eq!(
+        r["exploration"]["verdict"],
+        "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    );
+    assert!(r["exploration"].get("stuck").is_none());
+}
+
+#[test]
+fn the_declared_pool_must_be_the_harnesss_pool() {
+    require_source_run!();
+    // The scenario says the process has two connections; the harness's
+    // `max` is one: the run would not be about the model's system.
+    let file = temp_scenario("ledger-shared-process-crash.json", |doc| {
+        doc["pools"]["P"] = 2.into();
+    });
+    let (_, r) = model_check_json(&file, &["--verify-source", "--allow-execution"]);
+    remove_temp(&file);
+    let sv = &r["sourceVerification"];
+    assert_eq!(r["exploration"]["verdict"], "COUNTEREXAMPLE_FOUND");
+    assert_ne!(sv["status"], "reproduced", "{sv:#}");
+    let problems = sv["problems"].to_string();
+    assert!(
+        problems.contains("connection pool of 2") && problems.contains("max Some(1)"),
+        "{problems}"
+    );
+}
+
+#[test]
+fn a_process_crash_ends_every_task_of_the_process_and_the_pool_shows_who_waited() {
+    require_source_run!();
+    let (_, r) = verify("ledger-shared-process-crash.json");
+    let sv = &r["sourceVerification"];
+    assert_eq!(
+        sv["evidence"], "ORIGINAL_CODE_IN_FLIGHT_FAILURE_REPRODUCED",
+        "{sv:#}"
+    );
+    assert!(
+        sv["sharedProcesses"][0]
+            .as_str()
+            .unwrap()
+            .contains("A, B, C concurrent tasks in one process")
+    );
+    // One kill, one pid, three tasks.
+    let crashes = crashes(sv);
+    assert_eq!(crashes.len(), 3);
+    let pid = &crashes[0]["pid"];
+    assert!(
+        crashes
+            .iter()
+            .all(|c| &c["pid"] == pid && c["killedBySignal"] == true)
+    );
+    assert!(crashes.iter().all(|c| c["status"] == "agree"));
+    // What was in flight, what was held at its checkpoint.
+    let in_flight: Vec<&Value> = crashes
+        .iter()
+        .filter(|c| c["inFlight"].is_object())
+        .collect();
+    assert_eq!(in_flight.len(), 1);
+    assert!(
+        in_flight[0]["inFlight"]["operation"]
+            .as_str()
+            .unwrap()
+            .starts_with("INSERT")
+    );
+    assert!(crashes.iter().filter(|c| c["inFlight"].is_null()).all(|c| {
+        c["boundary"]
+            .as_str()
+            .unwrap()
+            .contains("EXTERNAL confirmation")
+    }));
+    // Every task of the process was killed.
+    let actors = sv["actors"].as_array().unwrap();
+    assert!(actors.iter().all(|a| a[1] == "crashed" && a[2] == "killed"));
+    // The durable state is what PostgreSQL has: the other task's payment is
+    // there (committed before), and so is the autocommit write that the
+    // application never heard about; no confirmation was published.
+    assert_eq!(rows(sv, "payments").len(), 2);
+}
+
+// ---- the HTML timeline -------------------------------------------------------
+
+fn html_of(name: &str, tweak: impl Fn(&mut Value)) -> String {
+    let file = temp_scenario(name, tweak);
+    let output = bin()
+        .arg("model-check")
+        .arg(&file)
+        .args([
+            "--format",
+            "html",
+            "--verify-source",
+            "--allow-execution",
+            "--no-timing",
+        ])
+        .output()
+        .unwrap();
+    remove_temp(&file);
+    String::from_utf8(output.stdout).unwrap()
+}
+
+#[test]
+fn the_html_timeline_shows_what_was_observed_and_what_is_inferred() {
+    require_source_run!();
+    let html = html_of("ledger-shared-process-crash.json", |_| {});
+    // Lanes: one per task of the shared process, PostgreSQL, the proxy.
+    for lane in ["A#1", "B#1", "C#1", "PostgreSQL", "Protocol proxy (wire)"] {
+        assert!(html.contains(lane), "missing lane {lane}");
+    }
+    // Every wire fact is tagged observed; the application's knowledge is
+    // tagged inferred and never as observed.
+    assert!(html.contains("tag-observed"));
+    assert!(html.contains("tag-inferred"));
+    assert!(html.contains("the application cannot tell whether PostgreSQL executed it"));
+    assert!(html.contains("shared process"));
+    assert!(html.contains("SIGKILL"));
+    // Script-free with a content security policy.
+    assert!(!html.contains("<script"));
+    assert!(html.contains("Content-Security-Policy"));
+    assert!(html.contains("script-src 'none'"));
+}
+
+#[test]
+fn every_string_of_the_in_flight_report_is_escaped() {
+    require_source_run!();
+    let evil = "<script>alert(1)</script><img src=x onerror=alert(2)>";
+    let html = html_of("ledger-blind-commit-in-flight.json", |doc| {
+        doc["description"] = evil.into();
+        doc["actors"][0]["description"] = evil.into();
+        doc["invariants"][0]["name"] = evil.into();
+        doc["invariants"][0]["description"] = evil.into();
+    });
+    assert!(!html.contains("<script>alert"), "raw script in the page");
+    assert!(!html.contains("<img src=x"), "raw element in the page");
+    assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+    // The twin analysis (knowledge) names the invariant: escaped there too.
+    assert!(html.contains("Application knowledge at each lost acknowledgment"));
+}
+
+#[test]
+fn a_stuck_state_is_shown_as_observed() {
+    require_source_run!();
+    let html = html_of("ledger-pool-starvation.json", |_| {});
+    assert!(html.contains("Stuck state"));
+    assert!(html.contains("tag-observed"));
+    assert!(html.contains("the pool reports 1 waiting, 0 idle of 1"));
 }

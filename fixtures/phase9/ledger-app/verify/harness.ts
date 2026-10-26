@@ -42,6 +42,8 @@ await runSourceActor(
     recordPaymentReconciled: (input: PayInput) => payments.recordPaymentReconciled(input),
     settleOrder: (input: PayInput) => payments.settleOrder(input),
     recordPaymentAutocommit: (input: PayInput) => payments.recordPaymentAutocommit(input),
+    settleWithAudit: (input: PayInput) => payments.settleWithAudit(input),
+    notifyPayment: (input: PayInput) => payments.notifyPayment(input),
   },
   () => pool.end(),
 );

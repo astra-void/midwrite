@@ -744,7 +744,12 @@ impl PgEnv {
     pub fn start() -> Result<Self, String> {
         let bins = Binaries::discover()?;
         let root = ReplayRoot::create(false)?;
-        let cluster = Cluster::start(bins.clone(), &root.path)?;
+        // No background statistics: autovacuum's ANALYZE can change a plan
+        // (index scan to sequential scan) between two replays of the same
+        // schedule, and with it the granularity of SERIALIZABLE predicate
+        // locks, which decides some 40001 failures.
+        let cluster =
+            Cluster::start_with(bins.clone(), &root.path, &["autovacuum=off".to_owned()])?;
         Ok(Self {
             _root: root,
             cluster,

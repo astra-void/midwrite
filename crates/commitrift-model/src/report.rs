@@ -1049,6 +1049,11 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
     ModelCheckReport {
         kind: REPORT_KIND.into(),
         schema_version: if epistemic.is_some()
+            || model.bounds.max_in_flight > 0
+            || model.bounds.crash_policy != crate::model::CrashPolicy::Any
+            || model.has_pools()
+            || use_dpor
+            || !result.stuck.is_empty()
             || source_verification
                 .as_ref()
                 .is_some_and(crate::source_types::SourceVerification::has_phase9_fields)

@@ -24,3 +24,10 @@ export const ledger = pgTable("ledger", {
 });
 
 export type Payment = typeof payments.$inferSelect;
+
+// An audit trail row per settled payment.
+export const auditLog = pgTable("audit_log", {
+  id: serial("id").primaryKey(),
+  requestId: text("request_id").notNull(),
+  event: text("event").notNull(),
+});

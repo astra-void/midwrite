@@ -25,6 +25,10 @@ fn env_or_skip() -> Option<PgEnv> {
     }
 }
 
+/// Attempts for a schedule whose deadlock victim PostgreSQL chose differently
+/// from the one the schedule steers to.
+const VICTIM_ATTEMPTS: usize = 3;
+
 struct Outcome {
     schedules: usize,
     total: usize,
@@ -47,8 +51,33 @@ fn differential(env: &mut PgEnv, label: &str, model: &Model, max_runs: usize) ->
         .database(model)
         .unwrap_or_else(|e| panic!("{label}: {e}"));
     let mut mismatches = Vec::new();
+    let mut victim_retries = 0usize;
     for schedule in &picked {
-        match run_schedule(env, &db, model, schedule) {
+        // Which member of a deadlock cycle PostgreSQL aborts depends on
+        // which backend's `deadlock_timeout` expires first, and the oracle
+        // steers that by timing (`DEADLOCK_TIMEOUT_MS`). A load spike can make
+        // PostgreSQL choose the other member: a valid server behavior, not a
+        // model disagreement, but not what this schedule asks for. Only that
+        // observation is retried, a bounded number of times, and every retry
+        // is counted and printed. Any other disagreement fails at once, and
+        // so does a victim that is still wrong after the last attempt.
+        let mut attempt = 1;
+        let result = loop {
+            let r = run_schedule(env, &db, model, schedule);
+            let victim_differs = matches!(&r, Ok(run) if !run.agree
+                && run
+                    .observations
+                    .iter()
+                    .filter(|o| !o.agree)
+                    .all(|o| o.sql == "(deadlock detection)"));
+            if victim_differs && attempt < VICTIM_ATTEMPTS {
+                attempt += 1;
+                victim_retries += 1;
+                continue;
+            }
+            break r;
+        };
+        match result {
             Ok(run) if run.agree => {}
             Ok(run) => {
                 let bad: Vec<String> = run
@@ -83,7 +112,7 @@ fn differential(env: &mut PgEnv, label: &str, model: &Model, max_runs: usize) ->
         }
     }
     eprintln!(
-        "{label}: {} of {} schedule(s) replayed{}, {} mismatch(es)",
+        "{label}: {} of {} schedule(s) replayed{} ({victim_retries} retried after PostgreSQL chose another deadlock victim), {} mismatch(es)",
         picked.len(),
         total,
         if truncated {

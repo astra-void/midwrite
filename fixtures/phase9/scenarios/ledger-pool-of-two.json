@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "name": "ledger-pool-of-two",
+  "description": "The same settlement with a pool of two connections: the audit insert gets the second one and the run terminates (the model finds no stuck state).",
+  "extraction": {
+    "root": "../ledger-app",
+    "externals": [
+      {
+        "callee": "publishConfirmation",
+        "channel": "confirmation"
+      }
+    ],
+    "schema": "src/lib/db/schema.ts"
+  },
+  "channels": {
+    "confirmation": {
+      "dedup": "none"
+    }
+  },
+  "pools": {
+    "Client": 2
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "from": "ledger",
+        "columns": [
+          "id",
+          "requestId",
+          "orderId",
+          "amount"
+        ]
+      },
+      {
+        "from": "auditLog",
+        "columns": [
+          "id",
+          "requestId",
+          "event"
+        ]
+      }
+    ],
+    "initialState": {
+      "ledger": [],
+      "audit_log": []
+    }
+  },
+  "actors": [
+    {
+      "name": "Client",
+      "entry": {
+        "selector": "src/app/payments.ts#settleWithAudit",
+        "invocation": "awaited"
+      },
+      "arguments": [
+        {
+          "requestId": "req-1",
+          "orderId": 1,
+          "amount": 500
+        }
+      ]
+    }
+  ],
+  "bounds": {
+    "maxSteps": 40
+  },
+  "invariants": [
+    {
+      "name": "audited-at-most-once",
+      "when": "final",
+      "description": "at most one ledger row and one audit row",
+      "assert": {
+        "le": [
+          {
+            "count": {
+              "table": "audit_log",
+              "where": {}
+            }
+          },
+          1
+        ]
+      }
+    }
+  ],
+  "sourceVerification": {
+    "harness": "../ledger-app/commitrift-source.json",
+    "actors": {
+      "Client": {
+        "entry": "settleWithAudit",
+        "input": {
+          "requestId": "req-1",
+          "orderId": 1,
+          "amount": 500
+        }
+      }
+    }
+  }
+}

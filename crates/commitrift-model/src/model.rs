@@ -33,7 +33,7 @@ pub struct Bounds {
     /// lost in flight (a COMMIT or an autocommit write that reached the
     /// server, or did not, while the application learns nothing). `0`
     /// (default): no in-flight faults, exactly the Phase 8 transition system.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_zero")]
     pub max_in_flight: u32,
     /// Phase 9: where crashes may happen (see [`CrashPolicy`]).
     #[serde(default, skip_serializing_if = "is_any")]
@@ -51,6 +51,10 @@ pub struct Bounds {
     /// Maximum approximate memory of the visited-state table, in bytes.
     #[serde(default)]
     pub max_memory_bytes: Option<u64>,
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
 }
 
 fn is_any(p: &CrashPolicy) -> bool {

@@ -1,6 +1,6 @@
-// Types of the CommitRift source-execution client (protocol version 3).
+// Types of the CommitRift source-execution client (protocol version 4).
 
-export declare const SOURCE_PROTOCOL_VERSION: 3;
+export declare const SOURCE_PROTOCOL_VERSION: 4;
 
 /** Thrown into a held statement when the coordinator stops the run. */
 export declare class CoordinatorStop extends Error {

@@ -5,7 +5,7 @@
 import { eq } from "drizzle-orm";
 
 import { db } from "../lib/db/drizzle.js";
-import { ledger, orders, payments } from "../lib/db/schema.js";
+import { auditLog, ledger, orders, payments } from "../lib/db/schema.js";
 import { publishConfirmation } from "../lib/messaging/confirmations.js";
 
 export interface PayInput {
@@ -88,4 +88,27 @@ export async function recordPaymentAutocommit(input: PayInput) {
     amount: input.amount,
   });
   return { status: "recorded" };
+}
+
+/**
+ * Settle a payment in a transaction and write the audit row through the pool
+ * "because it does not need the transaction". With a pool of one connection
+ * the audit insert waits for a connection that the open transaction holds,
+ * and the transaction waits for the audit insert.
+ */
+export async function settleWithAudit(input: PayInput) {
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(ledger)
+      .values({ requestId: input.requestId, orderId: input.orderId, amount: input.amount })
+      .onConflictDoNothing();
+    await Promise.all([db.insert(auditLog).values({ requestId: input.requestId, event: "settled" })]);
+  });
+  return { status: "settled" };
+}
+
+/** Tell the customer about a payment that another request recorded. */
+export async function notifyPayment(input: PayInput) {
+  await publishConfirmation({ orderId: input.orderId, requestId: input.requestId });
+  return { status: "notified" };
 }

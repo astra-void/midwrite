@@ -428,6 +428,10 @@ pub struct CrashStep {
     /// (inside a transaction that the crash rolls back).
     #[serde(default)]
     pub may_have_run: bool,
+    /// Phase 9: the task waits for a connection of the process's bounded
+    /// pool and has sent nothing.
+    #[serde(default)]
+    pub pool_wait: bool,
     pub label: String,
 }
 
@@ -488,6 +492,38 @@ pub struct ServerCompleteStep {
     pub attempt: u32,
 }
 
+/// Phase 9: after the plan nothing can proceed: every task is waiting for a
+/// connection of the process's pool, or for a lock the application itself
+/// holds. The coordinator observes quiescence (nothing announced or
+/// completed for a while) and the pool's or PostgreSQL's own counters.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StuckStep {
+    pub transition: usize,
+    /// `pool-starvation` or `application-wait-cycle`.
+    pub kind: String,
+}
+
+/// Phase 9: what was observed at a stuck state.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StuckEvidence {
+    pub kind: String,
+    /// Nothing was announced or completed for this long (ms).
+    pub quiet_ms: u64,
+    /// Tasks that had not ended.
+    pub unfinished: Vec<String>,
+    /// The pool's own counters (waiting, idle, total) of a process with an
+    /// unfinished task.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pool: Option<(i64, i64, i64)>,
+    /// Backends waiting for a lock held by a backend of the same process.
+    #[serde(default)]
+    pub lock_waits: usize,
+    pub confirmed: bool,
+    pub detail: String,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "step")]
 pub enum PlanStep {
@@ -505,13 +541,20 @@ pub enum PlanStep {
     InFlight(InFlightStep),
     /// Phase 9: the server completes a held operation.
     ServerComplete(ServerCompleteStep),
+    /// Phase 9: nothing can proceed any more (observed, then the process is
+    /// killed to end the run).
+    Stuck(StuckStep),
 }
 
 impl PlanStep {
     pub fn is_crash_or_restart(&self) -> bool {
         matches!(
             self,
-            Self::Crash(_) | Self::Restart(_) | Self::InFlight(_) | Self::ServerComplete(_)
+            Self::Crash(_)
+                | Self::Restart(_)
+                | Self::InFlight(_)
+                | Self::ServerComplete(_)
+                | Self::Stuck(_)
         )
     }
 }
@@ -526,6 +569,13 @@ pub struct ActorLaunch {
     /// entry function). Statements none of whose application frames lie in
     /// it are outside the model.
     pub scope: Option<Region>,
+    /// Phase 9: actors with the same process name run as concurrent tasks of
+    /// ONE worker process (shared memory, shared connection pool, one
+    /// failure domain). `None`: a process of its own.
+    pub process: Option<String>,
+    /// Phase 9: the capacity of the process's connection pool in the model
+    /// (the harness's pool must have the same `max`).
+    pub pool: Option<u16>,
 }
 
 /// What became of one statement (or, `kind: effect`, one external effect).
@@ -754,6 +804,9 @@ pub struct SourceRun {
     /// Phase 9: held operations the server completed.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub completions: Vec<CompletionEvidence>,
+    /// Phase 9: the stuck state observed at the end of the plan.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stuck: Option<StuckEvidence>,
     /// Phase 9: the proxy's redacted wire log (only with in-flight steps).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub proxy_log: Vec<proxy::ProxyEvent>,
@@ -812,23 +865,71 @@ pub struct RunRequest<'a> {
 // Workers
 // ---------------------------------------------------------------------------
 
-/// One worker process: one execution (attempt) of one actor.
+/// One worker process: one execution (attempt) of one actor, or of the
+/// tasks of one process (Phase 9).
 struct Worker {
-    actor: usize,
+    /// The actors whose tasks run in this process.
+    actors: Vec<usize>,
     attempt: u32,
     child: Child,
     pid: u32,
     stream: Option<UnixStream>,
     hello: bool,
+    /// The process reported the end of its tasks.
     done: Option<Value>,
-    /// Statements announced and not yet released (in order).
-    held: Vec<usize>,
-    /// Released and not completed.
-    running: Option<usize>,
     stderr_path: PathBuf,
     /// Killed by a planned crash.
     killed: bool,
     reaped: Option<std::process::ExitStatus>,
+}
+
+/// What the coordinator knows about one actor's task (indexed by actor).
+#[derive(Default)]
+struct TaskState {
+    /// The worker (slot) running the actor's current execution.
+    slot: usize,
+    /// Statements announced and not yet released (in order).
+    held: Vec<usize>,
+    /// Released and not completed.
+    running: Option<usize>,
+    /// The task reported its end.
+    done: Option<Value>,
+}
+
+/// A planned crash or in-flight kill whose checkpoint was observed and whose
+/// fault is in place, waiting for the process to be killed (Phase 9).
+enum Prepared {
+    Crash {
+        k: usize,
+        c: CrashStep,
+        checkpoint: String,
+        never_sent: Option<String>,
+    },
+    InFlight {
+        k: usize,
+        s: InFlightStep,
+        fault: proxy::Fault,
+        conn: u64,
+        backend_pid: Option<i64>,
+        backend_state: String,
+        server_answer: String,
+        wire: Vec<String>,
+    },
+}
+
+impl Prepared {
+    fn actor(&self) -> usize {
+        match self {
+            Self::Crash { c, .. } => c.actor,
+            Self::InFlight { s, .. } => s.actor,
+        }
+    }
+
+    fn k(&self) -> usize {
+        match self {
+            Self::Crash { k, .. } | Self::InFlight { k, .. } => *k,
+        }
+    }
 }
 
 enum Message {
@@ -1025,14 +1126,19 @@ struct Coordinator<'r> {
     launcher: Launcher,
     /// Every worker ever started (slots), in start order.
     workers: Vec<Worker>,
-    /// Actor → slot of its current execution.
-    current: Vec<usize>,
+    /// Per actor: its current execution's worker, held statements, ...
+    tasks: Vec<TaskState>,
+    /// Phase 9: the pool the harness reported per worker slot.
+    pool_max: BTreeMap<usize, Option<i64>>,
+    /// Phase 9: the last pool counters a worker reported (answer to a probe).
+    pool_probe: Option<(usize, Value)>,
     rx: Receiver<Message>,
     statements: Vec<Observed>,
     effects: Vec<EffectRecord>,
     crashes: Vec<CrashEvidence>,
     restarts: Vec<RestartEvidence>,
     completions: Vec<CompletionEvidence>,
+    stuck: Option<StuckEvidence>,
     /// Phase 9: the fault proxy (only when the plan has in-flight steps).
     proxy: Option<FaultProxy>,
     /// Phase 9: (actor, attempt) → proxy connection holding its operation.
@@ -1047,9 +1153,34 @@ struct Coordinator<'r> {
 }
 
 impl Coordinator<'_> {
-    /// Start one execution of `actor`; returns its slot.
-    fn spawn(&mut self, actor: usize, attempt: u32) -> Result<usize, String> {
+    /// The actors that share a process with `actor` (itself included).
+    fn group_of(&self, actor: usize) -> Vec<usize> {
+        match &self.req.actors[actor].process {
+            Some(p) => (0..self.req.actors.len())
+                .filter(|i| self.req.actors[*i].process.as_ref() == Some(p))
+                .collect(),
+            None => vec![actor],
+        }
+    }
+
+    /// The `application_name` base of an actor's sessions: its process (when
+    /// it shares one), else its own name.
+    fn app_name(&self, actor: usize, attempt: u32) -> String {
         let a = &self.req.actors[actor];
+        application_name(a.process.as_deref().unwrap_or(&a.name), attempt)
+    }
+
+    /// Start one execution of `actors` (one actor, or the tasks of one
+    /// process); returns its slot.
+    fn spawn(&mut self, actors: &[usize], attempt: u32) -> Result<usize, String> {
+        let a = &self.req.actors[actors[0]];
+        let shared = actors.len() > 1;
+        let base = a
+            .process
+            .as_deref()
+            .filter(|_| shared)
+            .unwrap_or(&a.name)
+            .to_owned();
         let slot = self.workers.len();
         let l = &self.launcher;
         let socket = l.runs.join(format!("w{slot}.sock"));
@@ -1070,7 +1201,7 @@ impl Coordinator<'_> {
             .env_clear()
             .envs(l.env.iter().map(|(k, v)| (k, v)))
             .env("COMMITRIFT_SOURCE_SOCKET", &socket)
-            .env("COMMITRIFT_SOURCE_ACTOR", &a.name)
+            .env("COMMITRIFT_SOURCE_ACTOR", &base)
             .env("COMMITRIFT_SOURCE_ENTRY", &a.entry)
             .env("COMMITRIFT_SOURCE_INPUT", a.input.to_string())
             .env("COMMITRIFT_SOURCE_ATTEMPT", attempt.to_string())
@@ -1079,6 +1210,16 @@ impl Coordinator<'_> {
             .stdout(out)
             .stderr(err)
             .process_group(0);
+        if shared {
+            let tasks: Vec<Value> = actors
+                .iter()
+                .map(|i| {
+                    let t = &self.req.actors[*i];
+                    json!({"actor": t.name, "entry": t.entry, "input": t.input})
+                })
+                .collect();
+            cmd.env("COMMITRIFT_SOURCE_TASKS", Value::Array(tasks).to_string());
+        }
         let limits = l.limits;
         // SAFETY: the closure runs in the forked child before exec and only
         // calls setrlimit(2), which is async-signal-safe.
@@ -1106,8 +1247,7 @@ impl Coordinator<'_> {
             let _ = child.wait();
             let text = std::fs::read_to_string(&stderr).unwrap_or_default();
             return Err(format!(
-                "worker `{}` (attempt {attempt}) did not connect: {}",
-                a.name,
+                "worker `{base}` (attempt {attempt}) did not connect: {}",
                 safety::redact(text.trim(), &l.root)
             ));
         };
@@ -1116,29 +1256,28 @@ impl Coordinator<'_> {
         reader(slot, read_half, l.tx.clone());
         let pid = child.id();
         self.workers.push(Worker {
-            actor,
+            actors: actors.to_vec(),
             attempt,
             child,
             pid,
             stream: Some(stream),
             hello: false,
             done: None,
-            held: Vec::new(),
-            running: None,
             stderr_path: stderr,
             killed: false,
             reaped: None,
         });
-        if actor < self.current.len() {
-            self.current[actor] = slot;
-        } else {
-            self.current.push(slot);
+        for &actor in actors {
+            self.tasks[actor] = TaskState {
+                slot,
+                ..TaskState::default()
+            };
         }
         Ok(slot)
     }
 
     fn slot(&self, actor: usize) -> usize {
-        self.current[actor]
+        self.tasks[actor].slot
     }
 
     fn in_scope(&self, actor: usize, frames: &[Frame]) -> Option<bool> {
@@ -1154,102 +1293,136 @@ impl Coordinator<'_> {
             Message::Closed(w) => {
                 self.workers[w].stream = None;
             }
-            Message::Line(w, v) => match v["type"].as_str().unwrap_or_default() {
-                "hello" => self.workers[w].hello = true,
-                kind @ ("query" | "effect") => {
-                    let frames: Vec<Frame> = v["site"]["frames"]
-                        .as_array()
-                        .map(|f| {
-                            f.iter()
-                                .filter_map(|x| serde_json::from_value(x.clone()).ok())
-                                .collect()
-                        })
-                        .unwrap_or_default();
-                    let (sql, kind, table, params) = if kind == "effect" {
-                        let channel = v["channel"].as_str().unwrap_or_default().to_owned();
-                        (
-                            format!("EFFECT {channel}"),
-                            SqlKind::Effect,
-                            Some(channel),
-                            json!({"key": v["key"].clone(), "payload": v["payload"].clone()}),
-                        )
-                    } else {
-                        let sql = v["sql"].as_str().unwrap_or_default().to_owned();
-                        let (kind, table) = classify(&sql);
-                        (sql, kind, table, v["params"].clone())
-                    };
-                    let index = self.statements.len();
-                    let worker = &self.workers[w];
-                    self.statements.push(Observed {
-                        actor: worker.actor,
-                        attempt: worker.attempt,
-                        seq: v["seq"].as_u64().unwrap_or_default(),
-                        client: v["client"].as_u64().unwrap_or_default(),
-                        backend_pid: v["backendPid"].as_i64(),
-                        sql,
-                        params,
-                        kind: Some(kind),
-                        table,
-                        frames,
-                        reconstructed: v["site"]["reconstructed"] == true,
-                        role: String::new(),
-                        slot: w,
-                        ..Observed::default()
-                    });
-                    self.workers[w].held.push(index);
-                }
-                "result" | "error" => {
-                    let seq = v["seq"].as_u64().unwrap_or_default();
-                    if let Some(s) = self
-                        .statements
-                        .iter_mut()
-                        .find(|s| s.slot == w && s.seq == seq)
-                    {
-                        s.completed = true;
-                        if v["type"] == "result" {
-                            s.command = v["command"].as_str().map(str::to_owned);
-                            s.row_count = v["rowCount"].as_i64();
-                            s.raw_fields = v["fields"]
-                                .as_array()
-                                .map(|f| {
-                                    f.iter()
-                                        .map(|x| {
-                                            (
-                                                x["name"].as_str().unwrap_or_default().to_owned(),
-                                                x["tableID"].as_i64().unwrap_or_default(),
-                                            )
-                                        })
-                                        .collect()
-                                })
-                                .unwrap_or_default();
-                            s.raw_rows = v["rows"].as_array().cloned().unwrap_or_default();
+            Message::Line(w, v) => {
+                // The task a message belongs to: named by the harness for a
+                // process that runs several, else the process's only actor.
+                let a = v["task"]
+                    .as_str()
+                    .and_then(|t| {
+                        self.workers[w]
+                            .actors
+                            .iter()
+                            .copied()
+                            .find(|x| self.req.actors[*x].name == t)
+                    })
+                    .unwrap_or(self.workers[w].actors[0]);
+                match v["type"].as_str().unwrap_or_default() {
+                    "hello" => {
+                        self.workers[w].hello = true;
+                        self.pool_max.insert(w, v["pool"]["max"].as_i64());
+                    }
+                    kind @ ("query" | "effect") => {
+                        let frames: Vec<Frame> = v["site"]["frames"]
+                            .as_array()
+                            .map(|f| {
+                                f.iter()
+                                    .filter_map(|x| serde_json::from_value(x.clone()).ok())
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        let (sql, kind, table, params) = if kind == "effect" {
+                            let channel = v["channel"].as_str().unwrap_or_default().to_owned();
+                            (
+                                format!("EFFECT {channel}"),
+                                SqlKind::Effect,
+                                Some(channel),
+                                json!({"key": v["key"].clone(), "payload": v["payload"].clone()}),
+                            )
                         } else {
-                            s.sqlstate = v["sqlstate"].as_str().map(str::to_owned);
-                            s.error = v["message"].as_str().map(str::to_owned);
+                            let sql = v["sql"].as_str().unwrap_or_default().to_owned();
+                            let (kind, table) = classify(&sql);
+                            (sql, kind, table, v["params"].clone())
+                        };
+                        let index = self.statements.len();
+                        let attempt = self.workers[w].attempt;
+                        self.statements.push(Observed {
+                            actor: a,
+                            attempt,
+                            seq: v["seq"].as_u64().unwrap_or_default(),
+                            client: v["client"].as_u64().unwrap_or_default(),
+                            backend_pid: v["backendPid"].as_i64(),
+                            sql,
+                            params,
+                            kind: Some(kind),
+                            table,
+                            frames,
+                            reconstructed: v["site"]["reconstructed"] == true,
+                            role: String::new(),
+                            slot: w,
+                            ..Observed::default()
+                        });
+                        self.tasks[a].held.push(index);
+                    }
+                    "result" | "error" => {
+                        let seq = v["seq"].as_u64().unwrap_or_default();
+                        if let Some(s) = self
+                            .statements
+                            .iter_mut()
+                            .find(|s| s.slot == w && s.seq == seq)
+                        {
+                            s.completed = true;
+                            if v["type"] == "result" {
+                                s.command = v["command"].as_str().map(str::to_owned);
+                                s.row_count = v["rowCount"].as_i64();
+                                s.raw_fields = v["fields"]
+                                    .as_array()
+                                    .map(|f| {
+                                        f.iter()
+                                            .map(|x| {
+                                                (
+                                                    x["name"]
+                                                        .as_str()
+                                                        .unwrap_or_default()
+                                                        .to_owned(),
+                                                    x["tableID"].as_i64().unwrap_or_default(),
+                                                )
+                                            })
+                                            .collect()
+                                    })
+                                    .unwrap_or_default();
+                                s.raw_rows = v["rows"].as_array().cloned().unwrap_or_default();
+                            } else {
+                                s.sqlstate = v["sqlstate"].as_str().map(str::to_owned);
+                                s.error = v["message"].as_str().map(str::to_owned);
+                            }
+                        }
+                        if let Some(r) = self.tasks[a].running
+                            && self.statements[r].seq == seq
+                        {
+                            self.tasks[a].running = None;
                         }
                     }
-                    if let Some(r) = self.workers[w].running
-                        && self.statements[r].seq == seq
-                    {
-                        self.workers[w].running = None;
+                    "unsupported" => {
+                        let name = &self.req.actors[a].name;
+                        self.problems.push(format!(
+                            "{name}: {}",
+                            v["reason"].as_str().unwrap_or("unsupported query form")
+                        ));
+                        self.inconclusive = true;
                     }
+                    "done" => {
+                        if v["task"].is_string() {
+                            self.tasks[a].done = Some(v);
+                        } else {
+                            for x in self.workers[w].actors.clone() {
+                                if self.tasks[x].done.is_none() {
+                                    self.tasks[x].done = Some(v.clone());
+                                }
+                            }
+                            self.workers[w].done = Some(v);
+                        }
+                    }
+                    "pool" => {
+                        self.pool_probe = Some((w, v));
+                    }
+                    "driver-internal" => {
+                        let sql = short(v["sql"].as_str().unwrap_or_default());
+                        let name = &self.req.actors[a].name;
+                        self.driver_internal.push(format!("{name}: {sql}"));
+                    }
+                    _ => {}
                 }
-                "unsupported" => {
-                    let name = &self.req.actors[self.workers[w].actor].name;
-                    self.problems.push(format!(
-                        "{name}: {}",
-                        v["reason"].as_str().unwrap_or("unsupported query form")
-                    ));
-                    self.inconclusive = true;
-                }
-                "done" => self.workers[w].done = Some(v),
-                "driver-internal" => {
-                    let sql = short(v["sql"].as_str().unwrap_or_default());
-                    let name = &self.req.actors[self.workers[w].actor].name;
-                    self.driver_internal.push(format!("{name}: {sql}"));
-                }
-                _ => {}
-            },
+            }
         }
     }
 
@@ -1269,6 +1442,12 @@ impl Coordinator<'_> {
     /// killed).
     fn finished(&self, slot: usize) -> bool {
         self.workers[slot].done.is_some() || self.workers[slot].stream.is_none()
+    }
+
+    /// Whether the task of `actor` has ended: it reported its end, or its
+    /// process is gone.
+    fn task_finished(&self, actor: usize) -> bool {
+        self.tasks[actor].done.is_some() || self.finished(self.slot(actor))
     }
 
     /// The channel test double receives an effect: record it under the
@@ -1304,7 +1483,8 @@ impl Coordinator<'_> {
 
     fn release(&mut self, index: usize, role: &str, plan: Option<usize>) -> bool {
         let w = self.statements[index].slot;
-        self.workers[w].held.retain(|i| *i != index);
+        let a = self.statements[index].actor;
+        self.tasks[a].held.retain(|i| *i != index);
         self.released += 1;
         let effect = (self.statements[index].kind == Some(SqlKind::Effect))
             .then(|| self.perform_effect(index));
@@ -1315,10 +1495,11 @@ impl Coordinator<'_> {
         s.role = role.to_owned();
         s.plan = plan;
         s.released = Some(self.released);
-        self.workers[w].running = Some(index);
+        self.tasks[a].running = Some(index);
+        let seq = self.statements[index].seq;
         let message = match effect {
-            Some(receipt) => json!({"type": "go", "effect": receipt}),
-            None => json!({"type": "go"}),
+            Some(receipt) => json!({"type": "go", "seq": seq, "effect": receipt}),
+            None => json!({"type": "go", "seq": seq}),
         };
         match self.workers[w].stream.as_mut() {
             Some(stream) => send(stream, &message).is_ok(),
@@ -1330,12 +1511,12 @@ impl Coordinator<'_> {
     /// own work before the callback). Writes outside the model make the
     /// run inconclusive: the model does not account for them.
     fn release_outside(&mut self) {
-        for a in 0..self.current.len() {
+        for a in 0..self.tasks.len() {
             let w = self.slot(a);
-            if self.workers[w].running.is_some() || self.workers[w].killed {
+            if self.tasks[a].running.is_some() || self.workers[w].killed {
                 continue;
             }
-            let Some(&index) = self.workers[w].held.first() else {
+            let Some(&index) = self.tasks[a].held.first() else {
                 continue;
             };
             // A driver that sets the isolation level in a statement of its
@@ -1345,7 +1526,7 @@ impl Coordinator<'_> {
                 && let Some(previous) = self
                     .statements
                     .iter()
-                    .rposition(|s| s.slot == w && s.released.is_some())
+                    .rposition(|s| s.actor == a && s.slot == w && s.released.is_some())
                 && self.statements[previous].kind == Some(SqlKind::Begin)
                 && self.statements[previous].role == "planned"
             {
@@ -1369,13 +1550,13 @@ impl Coordinator<'_> {
 
     /// Wait until `index` completes, or PostgreSQL reports it waiting for a
     /// lock. Returns `Some(blocked)`, or `None` at the deadline.
-    fn settle(&mut self, w: usize, index: usize) -> Option<bool> {
+    fn settle(&mut self, _w: usize, index: usize) -> Option<bool> {
         let started = Instant::now();
         loop {
             if self.statements[index].completed {
                 return Some(false);
             }
-            if self.finished(w) {
+            if self.task_finished(self.statements[index].actor) {
                 return Some(false);
             }
             if Instant::now() >= self.deadline {
@@ -1419,7 +1600,7 @@ impl Coordinator<'_> {
         if let Some(pid) = s.backend_pid {
             return Some(format!("pid = {pid}"));
         }
-        let name = application_name(&self.req.actors[s.actor].name, s.attempt);
+        let name = self.app_name(s.actor, s.attempt);
         Some(format!(
             "application_name = {} AND state <> 'idle' AND backend_type = 'client backend'",
             sql_text(&name)
@@ -1473,14 +1654,13 @@ impl Coordinator<'_> {
     fn next_held(&mut self, k: usize, a: usize, what: &str) -> Option<usize> {
         loop {
             self.release_outside();
-            let w = self.slot(a);
-            if let Some(&i) = self.workers[w].held.first()
-                && self.workers[w].running.is_none()
+            if let Some(&i) = self.tasks[a].held.first()
+                && self.tasks[a].running.is_none()
                 && self.in_scope(a, &self.statements[i].frames) != Some(false)
             {
                 return Some(i);
             }
-            if self.finished(w) && self.workers[w].held.is_empty() {
+            if self.task_finished(a) && self.tasks[a].held.is_empty() {
                 self.problems.push(format!(
                     "plan step {k}: {} finished without sending the expected {what}",
                     self.req.actors[a].name
@@ -1546,7 +1726,7 @@ impl Coordinator<'_> {
 
     /// The sessions of one execution, by `application_name`.
     fn sessions(&self, actor: usize, attempt: u32) -> Result<Vec<i64>, String> {
-        let name = application_name(&self.req.actors[actor].name, attempt);
+        let name = self.app_name(actor, attempt);
         let sql = format!(
             "SELECT coalesce(json_agg(pid ORDER BY pid), '[]'::json) FROM pg_stat_activity WHERE application_name = {}",
             sql_text(&name)
@@ -1580,14 +1760,58 @@ impl Coordinator<'_> {
         tables
     }
 
-    /// A planned crash: wait for the checkpoint, SIGKILL the worker's
-    /// process group, then wait until PostgreSQL has ended its sessions
-    /// (which rolls back whatever they had not committed).
-    fn crash_step(&mut self, k: usize, c: &CrashStep) {
+    /// The pool's own counters, from the worker that owns it: (waiting,
+    /// idle, total). `None` when the worker does not answer in time.
+    fn probe_pool(&mut self, w: usize) -> Option<(i64, i64, i64)> {
+        self.pool_probe = None;
+        let stream = self.workers[w].stream.as_mut()?;
+        send(stream, &json!({"type": "pool?"})).ok()?;
+        let until = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < until {
+            if let Some((pw, v)) = &self.pool_probe
+                && *pw == w
+            {
+                return Some((
+                    v["waiting"].as_i64()?,
+                    v["idle"].as_i64()?,
+                    v["total"].as_i64()?,
+                ));
+            }
+            self.pump(Duration::from_millis(10));
+        }
+        None
+    }
+
+    /// Phase 8/9: the checkpoint of a planned crash (an announced and held
+    /// operation, a statement waiting for a lock, or a task waiting for a
+    /// connection of the pool), observed before anything is killed.
+    fn crash_prepare(&mut self, k: usize, c: &CrashStep) -> Option<Prepared> {
         let a = c.actor;
         let name = self.req.actors[a].name.clone();
         // 1. The checkpoint.
-        let (checkpoint, never_sent) = if c.waiting {
+        let (checkpoint, never_sent) = if c.pool_wait {
+            // The task has not sent anything: it waits for a connection. The
+            // pool's own counters say so, and nothing of the task is held.
+            let w = self.slot(a);
+            self.release_outside();
+            let silent = self.tasks[a].held.is_empty() && self.tasks[a].running.is_none();
+            match self.probe_pool(w) {
+                Some((waiting, idle, total)) if silent && waiting >= 1 && idle == 0 => (
+                    format!(
+                        "while waiting for a connection of the pool (the pool reports {waiting} waiting, {idle} idle of {total}); the task has sent nothing"
+                    ),
+                    None,
+                ),
+                other => {
+                    self.problems.push(format!(
+                        "plan step {k}: the model crashes {name} while it waits for a connection of the pool, but the pool reports {other:?} and the task is {}: the crash point is not reproducible",
+                        if silent { "silent" } else { "not silent" }
+                    ));
+                    self.inconclusive = true;
+                    return None;
+                }
+            }
+        } else if c.waiting {
             // The statement released for the model's waiting operation.
             let w = self.slot(a);
             let Some(i) = self
@@ -1599,7 +1823,7 @@ impl Coordinator<'_> {
                     "plan step {k}: the model crashes {name} while its statement waits for a lock, but no such wait was observed"
                 ));
                 self.diverged = true;
-                return;
+                return None;
             };
             let sql = short(&self.statements[i].sql);
             if c.may_have_run {
@@ -1634,7 +1858,7 @@ impl Coordinator<'_> {
                         "plan step {k}: the model crashes {name} while `{sql}` waits for a lock, but PostgreSQL no longer reports the wait: the crash point is not reproducible"
                     ));
                     self.inconclusive = true;
-                    return;
+                    return None;
                 }
                 (
                     format!(
@@ -1649,14 +1873,12 @@ impl Coordinator<'_> {
                     "plan step {k}: the crash boundary has no observable checkpoint"
                 ));
                 self.inconclusive = true;
-                return;
+                return None;
             };
-            let Some(index) = self.next_held(k, a, &next.label) else {
-                return;
-            };
+            let index = self.next_held(k, a, &next.label)?;
             if !self.matches(index, next) {
                 self.mismatch(k, index, next, "at the crash point, where");
-                return;
+                return None;
             }
             let s = &self.statements[index];
             (
@@ -1667,72 +1889,12 @@ impl Coordinator<'_> {
                 Some(short(&s.sql)),
             )
         };
-        // 2. Its PostgreSQL sessions, then SIGKILL.
-        let w = self.slot(a);
-        let attempt = self.workers[w].attempt;
-        let backends = match self.sessions(a, attempt) {
-            Ok(b) => b,
-            Err(e) => {
-                self.problems
-                    .push(format!("plan step {k}: cannot list {name}'s sessions: {e}"));
-                self.inconclusive = true;
-                return;
-            }
-        };
-        let pid = self.workers[w].pid;
-        kill_group(&mut self.workers[w].child);
-        let status = self.workers[w].child.wait().ok();
-        self.workers[w].reaped = status;
-        self.workers[w].killed = true;
-        self.workers[w].stream = None;
-        let held: Vec<usize> = std::mem::take(&mut self.workers[w].held);
-        for i in held {
-            self.statements[i].role = "never-sent".to_owned();
-        }
-        self.workers[w].running = None;
-        use std::os::unix::process::ExitStatusExt;
-        let signal = status.and_then(|s| s.signal());
-        let killed_by_signal = signal == Some(SIGKILL);
-        if !killed_by_signal {
-            self.problems.push(format!(
-                "plan step {k}: {name}'s worker was not terminated by SIGKILL ({status:?})"
-            ));
-            self.inconclusive = true;
-        }
-        // 3. PostgreSQL notices the lost connections and ends the sessions.
-        let started = Instant::now();
-        let until = (Instant::now() + Duration::from_secs(10)).min(self.deadline);
-        let sessions_ended = loop {
-            match self.sessions(a, attempt) {
-                Ok(left) if left.is_empty() => break true,
-                Ok(_) if Instant::now() < until => std::thread::sleep(Duration::from_millis(10)),
-                _ => break false,
-            }
-        };
-        let sessions_ended_ms = started.elapsed().as_millis() as u64;
-        if !sessions_ended {
-            self.problems.push(format!(
-                "plan step {k}: PostgreSQL still had sessions of the killed {name} (attempt {attempt}) after {sessions_ended_ms} ms: the transaction's fate is not established"
-            ));
-            self.inconclusive = true;
-        }
-        let tables = self.read_tables();
-        self.crashes.push(CrashEvidence {
-            in_flight: None,
-            actor: a,
-            attempt,
-            plan: k,
-            transition: c.transition,
-            pid,
+        Some(Prepared::Crash {
+            k,
+            c: c.clone(),
             checkpoint,
             never_sent,
-            killed_by_signal,
-            exit: status.map(|s| format!("{s}")),
-            backends,
-            sessions_ended,
-            sessions_ended_ms,
-            tables,
-        });
+        })
     }
 
     /// Kill a worker's process group and reap it. Returns the pid, the exit
@@ -1744,11 +1906,15 @@ impl Coordinator<'_> {
         self.workers[w].reaped = status;
         self.workers[w].killed = true;
         self.workers[w].stream = None;
-        let held: Vec<usize> = std::mem::take(&mut self.workers[w].held);
-        for i in held {
-            self.statements[i].role = "never-sent".to_owned();
+        // Every task of the process ends with it: what they had announced
+        // was never sent.
+        for a in self.workers[w].actors.clone() {
+            let held: Vec<usize> = std::mem::take(&mut self.tasks[a].held);
+            for i in held {
+                self.statements[i].role = "never-sent".to_owned();
+            }
+            self.tasks[a].running = None;
         }
-        self.workers[w].running = None;
         use std::os::unix::process::ExitStatusExt;
         let killed_by_signal = status.and_then(|s| s.signal()) == Some(SIGKILL);
         (pid, status, killed_by_signal)
@@ -1787,19 +1953,17 @@ impl Coordinator<'_> {
     /// coordinator waits for the proxy to report that it did (never a delay
     /// standing in for proof), reads PostgreSQL's view, then kills the worker
     /// group and observes what is durable.
-    fn in_flight_step(&mut self, k: usize, s: &InFlightStep) {
+    fn in_flight_prepare(&mut self, k: usize, s: &InFlightStep) -> Option<Prepared> {
         let a = s.actor;
         let name = self.req.actors[a].name.clone();
-        let Some(index) = self.next_held(k, a, &s.operation.label) else {
-            return;
-        };
+        let index = self.next_held(k, a, &s.operation.label)?;
         if !self.matches(index, &s.operation) {
             self.mismatch(k, index, &s.operation, "at the in-flight point, where");
-            return;
+            return None;
         }
         let w = self.slot(a);
         let attempt = self.workers[w].attempt;
-        let app = application_name(&name, attempt);
+        let app = self.app_name(a, attempt);
         let target = match s.operation.kind {
             SqlKind::Commit => proxy::Target::Commit,
             SqlKind::Insert | SqlKind::Update | SqlKind::Delete => proxy::Target::Statement,
@@ -1808,7 +1972,7 @@ impl Coordinator<'_> {
                     "plan step {k}: an in-flight {other:?} cannot be injected (only a COMMIT or an autocommit write)"
                 ));
                 self.inconclusive = true;
-                return;
+                return None;
             }
         };
         let fault = match s.fate {
@@ -1820,14 +1984,19 @@ impl Coordinator<'_> {
                 "plan step {k}: no fault proxy is running for this in-flight step"
             ));
             self.inconclusive = true;
-            return;
+            return None;
         };
-        px.arm(&app, fault, target);
+        // The connection of the statement when the driver reports it (tasks of
+        // one process share an `application_name`), else the execution's name.
+        match self.statements[index].backend_pid {
+            Some(pid) => px.arm_backend(pid, fault, target),
+            None => px.arm(&app, fault, target),
+        }
         let cursor = px.cursor();
         if !self.release(index, "planned", Some(k)) {
             self.problems.push(format!("{name}: the worker went away"));
             self.inconclusive = true;
-            return;
+            return None;
         }
         // The wire event that proves the fault took effect.
         let want = match fault {
@@ -1845,7 +2014,7 @@ impl Coordinator<'_> {
                 s.label
             ));
             self.inconclusive = true;
-            return;
+            return None;
         };
         let conn = event.conn;
         if let Some(why) = px.unsupported(conn) {
@@ -1853,7 +2022,7 @@ impl Coordinator<'_> {
                 "plan step {k}: the proxy cannot inject faults on this connection: {why}"
             ));
             self.inconclusive = true;
-            return;
+            return None;
         }
         let backend_pid = px.backend_pid(conn);
         let server_answer = if fault == proxy::Fault::DropResponse {
@@ -1879,89 +2048,200 @@ impl Coordinator<'_> {
             })
             .map(|e| format!("{:?}: {}", e.kind, e.detail))
             .collect();
-        // Kill the worker's process group.
+        Some(Prepared::InFlight {
+            k,
+            s: s.clone(),
+            fault,
+            conn,
+            backend_pid,
+            backend_state,
+            server_answer,
+            wire,
+        })
+    }
+
+    /// Kill one process with everything that is in flight or waiting in it
+    /// at once (Phase 9: a process crash ends every task of the process): the
+    /// checkpoints and faults of all the plan steps `ks` (consecutive crash
+    /// and in-flight steps of one process) are established first, then the
+    /// process group is killed once, then PostgreSQL's state is observed.
+    fn crash_group(&mut self, ks: &[usize]) {
+        let plan = self.req.plan;
+        let mut prepared = Vec::new();
+        for &k in ks {
+            let p = match &plan[k] {
+                PlanStep::Crash(c) => self.crash_prepare(k, c),
+                PlanStep::InFlight(s) => self.in_flight_prepare(k, s),
+                _ => None,
+            };
+            match p {
+                Some(p) => prepared.push(p),
+                None => return,
+            }
+        }
+        let first = prepared[0].actor();
+        let w = self.slot(first);
+        let attempt = self.workers[w].attempt;
+        let name = self.req.actors[first].name.clone();
+        let k0 = prepared[0].k();
+        let backends = match self.sessions(first, attempt) {
+            Ok(b) => b,
+            Err(e) => {
+                self.problems.push(format!(
+                    "plan step {k0}: cannot list {name}'s sessions: {e}"
+                ));
+                self.inconclusive = true;
+                return;
+            }
+        };
         let (pid, status, killed_by_signal) = self.kill_worker(w);
         if !killed_by_signal {
             self.problems.push(format!(
-                "plan step {k}: {name}'s worker was not terminated by SIGKILL ({status:?})"
+                "plan step {k0}: {name}'s worker was not terminated by SIGKILL ({status:?})"
             ));
             self.inconclusive = true;
         }
-        let (sessions_ended, sessions_ended_ms, session_open_after_kill) = match s.fate {
-            Fate::NotReached => {
-                self.proxy.as_ref().expect("checked").discard(conn);
-                let (ended, ms) = self.wait_sessions_ended(a, attempt);
-                (ended, ms, !ended)
-            }
-            Fate::AnsweredAndWithheld => {
-                let (ended, ms) = self.wait_sessions_ended(a, attempt);
-                (ended, ms, !ended)
-            }
-            Fate::HeldForLaterDelivery => {
-                // The proxy keeps the server connection for the delivery:
-                // the backend must still be there, holding its transaction.
-                std::thread::sleep(Duration::from_millis(100));
-                let open = backend_pid
-                    .map(|p| self.backend_state(p) == "idle in transaction")
-                    .unwrap_or(false);
-                if !open {
-                    self.problems.push(format!(
-                        "plan step {k}: the held operation's backend is no longer waiting in its transaction"
-                    ));
-                    self.inconclusive = true;
+        // The server connections the proxy keeps for a later delivery: the
+        // backends of those operations stay.
+        let mut kept: Vec<i64> = Vec::new();
+        for p in &prepared {
+            if let Prepared::InFlight {
+                s,
+                conn,
+                backend_pid,
+                ..
+            } = p
+            {
+                match s.fate {
+                    Fate::NotReached => {
+                        if let Some(px) = &self.proxy {
+                            px.discard(*conn);
+                        }
+                    }
+                    Fate::AnsweredAndWithheld => {}
+                    Fate::HeldForLaterDelivery => kept.extend(backend_pid.iter().copied()),
                 }
-                self.held_ops.insert((a, attempt), conn);
-                (false, 0, open)
+            }
+        }
+        // PostgreSQL notices the lost connections and ends the sessions.
+        let started = Instant::now();
+        let until = (Instant::now() + Duration::from_secs(10)).min(self.deadline);
+        let sessions_ended = loop {
+            match self.sessions(first, attempt) {
+                Ok(left) if left.iter().all(|p| kept.contains(p)) => break true,
+                Ok(_) if Instant::now() < until => std::thread::sleep(Duration::from_millis(10)),
+                _ => break false,
             }
         };
-        if !sessions_ended && s.fate != Fate::HeldForLaterDelivery {
+        let sessions_ended_ms = started.elapsed().as_millis() as u64;
+        if !sessions_ended {
             self.problems.push(format!(
-                "plan step {k}: PostgreSQL still had sessions of the killed {name} (attempt {attempt}) after {sessions_ended_ms} ms: the transaction's fate is not established"
+                "plan step {k0}: PostgreSQL still had sessions of the killed {name} (attempt {attempt}) after {sessions_ended_ms} ms: the transaction's fate is not established"
             ));
             self.inconclusive = true;
         }
         let tables = self.read_tables();
-        let evidence = InFlightEvidence {
-            operation: s.operation.label.clone(),
-            fate: match s.fate {
-                Fate::NotReached => "not-reached",
-                Fate::AnsweredAndWithheld => "answered-and-withheld",
-                Fate::HeldForLaterDelivery => "held-for-later-delivery",
+        for p in prepared {
+            match p {
+                Prepared::Crash {
+                    k,
+                    c,
+                    checkpoint,
+                    never_sent,
+                } => {
+                    self.crashes.push(CrashEvidence {
+                        in_flight: None,
+                        actor: c.actor,
+                        attempt,
+                        plan: k,
+                        transition: c.transition,
+                        pid,
+                        checkpoint,
+                        never_sent,
+                        killed_by_signal,
+                        exit: status.map(|st| format!("{st}")),
+                        backends: backends.clone(),
+                        sessions_ended,
+                        sessions_ended_ms,
+                        tables: tables.clone(),
+                    });
+                }
+                Prepared::InFlight {
+                    k,
+                    s,
+                    fault,
+                    conn,
+                    backend_pid,
+                    backend_state,
+                    server_answer,
+                    wire,
+                } => {
+                    let a = s.actor;
+                    let (ended, ms, open) = match s.fate {
+                        Fate::NotReached | Fate::AnsweredAndWithheld => {
+                            (sessions_ended, sessions_ended_ms, !sessions_ended)
+                        }
+                        Fate::HeldForLaterDelivery => {
+                            // The backend must still be there, holding its
+                            // transaction.
+                            std::thread::sleep(Duration::from_millis(100));
+                            let open = backend_pid
+                                .map(|p| self.backend_state(p) == "idle in transaction")
+                                .unwrap_or(false);
+                            if !open {
+                                self.problems.push(format!(
+                                    "plan step {k}: the held operation's backend is no longer waiting in its transaction"
+                                ));
+                                self.inconclusive = true;
+                            }
+                            self.held_ops.insert((a, attempt), conn);
+                            (false, 0, open)
+                        }
+                    };
+                    let evidence = InFlightEvidence {
+                        operation: s.operation.label.clone(),
+                        fate: match s.fate {
+                            Fate::NotReached => "not-reached",
+                            Fate::AnsweredAndWithheld => "answered-and-withheld",
+                            Fate::HeldForLaterDelivery => "held-for-later-delivery",
+                        }
+                        .to_owned(),
+                        mechanism: match s.fate {
+                            Fate::NotReached => "the proxy withheld the operation from the server, then closed the server connection".to_owned(),
+                            Fate::AnsweredAndWithheld => "the proxy forwarded the operation; the server answered; the proxy withheld the answer from the client".to_owned(),
+                            Fate::HeldForLaterDelivery => "the proxy withheld the operation from the server and kept the server connection open for a later delivery".to_owned(),
+                        },
+                        forwarded_to_server: fault == proxy::Fault::DropResponse,
+                        withheld_from_server: fault == proxy::Fault::HoldRequest,
+                        server_answer,
+                        client_acknowledged: false,
+                        backend_state_before_kill: backend_state,
+                        backend_pid,
+                        session_open_after_kill: open,
+                        proxy_events: wire,
+                    };
+                    self.crashes.push(CrashEvidence {
+                        in_flight: Some(evidence),
+                        actor: a,
+                        attempt,
+                        plan: k,
+                        transition: s.transition,
+                        pid,
+                        checkpoint: format!(
+                            "with {} in flight: sent by the application, never acknowledged to it",
+                            s.operation.label
+                        ),
+                        never_sent: None,
+                        killed_by_signal,
+                        exit: status.map(|st| format!("{st}")),
+                        backends: backend_pid.into_iter().collect(),
+                        sessions_ended: ended,
+                        sessions_ended_ms: ms,
+                        tables: tables.clone(),
+                    });
+                }
             }
-            .to_owned(),
-            mechanism: match s.fate {
-                Fate::NotReached => "the proxy withheld the operation from the server, then closed the server connection".to_owned(),
-                Fate::AnsweredAndWithheld => "the proxy forwarded the operation; the server answered; the proxy withheld the answer from the client".to_owned(),
-                Fate::HeldForLaterDelivery => "the proxy withheld the operation from the server and kept the server connection open for a later delivery".to_owned(),
-            },
-            forwarded_to_server: fault == proxy::Fault::DropResponse,
-            withheld_from_server: fault == proxy::Fault::HoldRequest,
-            server_answer,
-            client_acknowledged: false,
-            backend_state_before_kill: backend_state,
-            backend_pid,
-            session_open_after_kill,
-            proxy_events: wire,
-        };
-        self.crashes.push(CrashEvidence {
-            in_flight: Some(evidence),
-            actor: a,
-            attempt,
-            plan: k,
-            transition: s.transition,
-            pid,
-            checkpoint: format!(
-                "with {} in flight: sent by the application, never acknowledged to it",
-                s.operation.label
-            ),
-            never_sent: None,
-            killed_by_signal,
-            exit: status.map(|st| format!("{st}")),
-            backends: backend_pid.into_iter().collect(),
-            sessions_ended,
-            sessions_ended_ms,
-            tables,
-        });
+        }
     }
 
     /// Phase 9: deliver the operation the proxy held for a dead client; the
@@ -2013,6 +2293,126 @@ impl Coordinator<'_> {
         });
     }
 
+    /// The harness's pools have the capacity the model declares (Phase 9).
+    fn check_pools(&mut self) {
+        let until = (Instant::now() + Duration::from_secs(10)).min(self.deadline);
+        while self.workers.iter().any(|w| !w.hello) && Instant::now() < until {
+            self.pump(Duration::from_millis(10));
+        }
+        for w in 0..self.workers.len() {
+            for a in self.workers[w].actors.clone() {
+                let Some(cap) = self.req.actors[a].pool else {
+                    continue;
+                };
+                let max = self.pool_max.get(&w).copied().flatten();
+                if max != Some(i64::from(cap)) {
+                    self.problems.push(format!(
+                        "the scenario declares a connection pool of {cap} for {}, but the harness's pool reports max {max:?}: the model and the run would not be about the same system",
+                        self.req.actors[a].name
+                    ));
+                    self.inconclusive = true;
+                }
+            }
+        }
+    }
+
+    /// Phase 9: observe that nothing can proceed.
+    fn stuck_step(&mut self, k: usize, s: &StuckStep) {
+        let quiet = Duration::from_millis(800).max(self.req.settle * 4);
+        let started = Instant::now();
+        let announced = self.statements.len();
+        let completed = self.statements.iter().filter(|x| x.completed).count();
+        while started.elapsed() < quiet && Instant::now() < self.deadline {
+            self.release_outside();
+            self.pump(Duration::from_millis(10));
+        }
+        let quiet_ms = started.elapsed().as_millis() as u64;
+        let unfinished: Vec<String> = (0..self.tasks.len())
+            .filter(|a| !self.task_finished(*a))
+            .map(|a| self.req.actors[a].name.clone())
+            .collect();
+        let moved = self.statements.len() != announced
+            || self.statements.iter().filter(|x| x.completed).count() != completed;
+        let mut evidence = StuckEvidence {
+            kind: s.kind.clone(),
+            quiet_ms,
+            unfinished: unfinished.clone(),
+            ..StuckEvidence::default()
+        };
+        if unfinished.is_empty() || moved {
+            evidence.detail = if unfinished.is_empty() {
+                "every task ended: the system was not stuck".to_owned()
+            } else {
+                "a task announced or completed a statement while the run waited: it was not stuck"
+                    .to_owned()
+            };
+            self.problems
+                .push(format!("plan step {k}: {}", evidence.detail));
+            self.diverged = true;
+            self.stuck = Some(evidence);
+            return;
+        }
+        match s.kind.as_str() {
+            "pool-starvation" => {
+                let w = self.slot(
+                    self.tasks
+                        .iter()
+                        .position(|t| t.done.is_none())
+                        .unwrap_or(0),
+                );
+                let probe = self.probe_pool(w);
+                evidence.pool = probe;
+                evidence.confirmed =
+                    probe.is_some_and(|(waiting, idle, _)| waiting >= 1 && idle == 0);
+                evidence.detail = match probe {
+                    Some((waiting, idle, total)) => format!(
+                        "no statement was announced or completed for {quiet_ms} ms; the pool reports {waiting} waiting, {idle} idle of {total}; {} task(s) had not ended",
+                        unfinished.len()
+                    ),
+                    None => "the pool did not answer".to_owned(),
+                };
+            }
+            "application-wait-cycle" => {
+                // A backend waits for a lock whose holder is a backend of the
+                // same process.
+                let base = self.app_name(
+                    self.tasks
+                        .iter()
+                        .position(|t| t.done.is_none())
+                        .unwrap_or(0),
+                    1,
+                );
+                let base = base
+                    .rsplit_once('#')
+                    .map_or(base.clone(), |(b, _)| b.to_owned());
+                let sql = format!(
+                    "SELECT count(*) FROM pg_stat_activity w WHERE w.application_name LIKE {} AND w.wait_event_type = 'Lock' AND EXISTS (SELECT 1 FROM pg_stat_activity h WHERE h.pid = ANY(pg_blocking_pids(w.pid)) AND h.application_name = w.application_name)",
+                    sql_text(&format!("{base}#%"))
+                );
+                let n = match self.cluster.query_value("postgres", &sql) {
+                    Ok(Value::Number(n)) => n.as_u64().unwrap_or(0) as usize,
+                    _ => 0,
+                };
+                evidence.lock_waits = n;
+                evidence.confirmed = n >= 1;
+                evidence.detail = format!(
+                    "no statement was announced or completed for {quiet_ms} ms; {n} backend(s) wait for a lock held by a backend of the same process; PostgreSQL detects no deadlock (it sees no cycle)"
+                );
+            }
+            other => {
+                evidence.detail = format!("unknown stuck kind `{other}`");
+            }
+        }
+        if !evidence.confirmed {
+            self.problems.push(format!(
+                "plan step {k}: the stuck state was not confirmed: {}",
+                evidence.detail
+            ));
+            self.inconclusive = true;
+        }
+        self.stuck = Some(evidence);
+    }
+
     /// A declared recovery mechanism starts a new execution: a new process
     /// with fresh connections (nothing of the previous one is reused).
     fn restart_step(&mut self, k: usize, r: &RestartStep) {
@@ -2020,7 +2420,7 @@ impl Coordinator<'_> {
         let previous = self.slot(a);
         // The previous execution must have ended (the model retries only
         // after every task of the attempt ended).
-        while !self.finished(previous) {
+        while !self.task_finished(a) {
             if Instant::now() >= self.deadline {
                 self.problems.push(format!(
                     "plan step {k}: {} did not end before its retry",
@@ -2035,7 +2435,7 @@ impl Coordinator<'_> {
         let previous_outcome = if self.workers[previous].killed {
             "killed".to_owned()
         } else {
-            self.workers[previous]
+            self.tasks[a]
                 .done
                 .as_ref()
                 .and_then(|d| d["outcome"].as_str())
@@ -2051,7 +2451,15 @@ impl Coordinator<'_> {
             self.inconclusive = true;
             return;
         }
-        match self.spawn(a, r.attempt) {
+        if self.workers[previous].actors.len() > 1 {
+            self.problems.push(format!(
+                "plan step {k}: {} shares its process with other tasks: a restart starts a new process, not one task of the old one",
+                self.req.actors[a].name
+            ));
+            self.inconclusive = true;
+            return;
+        }
+        match self.spawn(&[a], r.attempt) {
             Ok(slot) => {
                 let previous_pid = self.workers[previous].pid;
                 self.restarts.push(RestartEvidence {
@@ -2075,6 +2483,7 @@ impl Coordinator<'_> {
 
     fn run_plan(&mut self) {
         let plan = self.req.plan;
+        let mut consumed: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
         for (k, step) in plan.iter().enumerate() {
             if self.diverged || self.inconclusive {
                 return;
@@ -2083,8 +2492,7 @@ impl Coordinator<'_> {
                 PlanStep::Release(e) => self.release_step(k, e),
                 PlanStep::Complete { actor, transition } => {
                     let a = *actor;
-                    let w = self.slot(a);
-                    let Some(index) = self.workers[w].running else {
+                    let Some(index) = self.tasks[a].running else {
                         self.problems.push(format!(
                             "plan step {k} (transition {transition}): {} has no waiting statement to resume",
                             self.req.actors[a].name
@@ -2093,7 +2501,7 @@ impl Coordinator<'_> {
                         return;
                     };
                     loop {
-                        if self.statements[index].completed || self.finished(w) {
+                        if self.statements[index].completed || self.task_finished(a) {
                             break;
                         }
                         if Instant::now() >= self.deadline {
@@ -2108,9 +2516,30 @@ impl Coordinator<'_> {
                         self.pump(Duration::from_millis(5));
                     }
                 }
-                PlanStep::Crash(c) => self.crash_step(k, c),
+                PlanStep::Crash(_) | PlanStep::InFlight(_) => {
+                    if consumed.contains(&k) {
+                        continue;
+                    }
+                    // Consecutive crash and in-flight steps of actors that
+                    // share a process are one kill.
+                    let actor = |step: &PlanStep| match step {
+                        PlanStep::Crash(c) => Some(c.actor),
+                        PlanStep::InFlight(i) => Some(i.actor),
+                        _ => None,
+                    };
+                    let w = self.slot(actor(step).expect("crash step"));
+                    let mut ks = vec![k];
+                    for (j, next) in plan.iter().enumerate().skip(k + 1) {
+                        match actor(next) {
+                            Some(x) if self.slot(x) == w => ks.push(j),
+                            _ => break,
+                        }
+                    }
+                    consumed.extend(ks.iter().copied());
+                    self.crash_group(&ks);
+                }
                 PlanStep::Restart(r) => self.restart_step(k, r),
-                PlanStep::InFlight(i) => self.in_flight_step(k, i),
+                PlanStep::Stuck(st) => self.stuck_step(k, st),
                 PlanStep::ServerComplete(c) => self.server_complete_step(k, c),
             }
         }
@@ -2120,15 +2549,20 @@ impl Coordinator<'_> {
     /// still sends (recorded as `beyond-plan`, which the comparison treats
     /// as unexpected if the model's actor had finished).
     fn drain(&mut self) {
+        if self.stuck.is_some() {
+            // Nothing can finish: end the run.
+            self.kill_all();
+            return;
+        }
         loop {
             self.release_outside();
             let mut progressed = false;
-            for a in 0..self.current.len() {
+            for a in 0..self.tasks.len() {
                 let w = self.slot(a);
-                if self.workers[w].running.is_some() || self.workers[w].killed {
+                if self.tasks[a].running.is_some() || self.workers[w].killed {
                     continue;
                 }
-                if let Some(&index) = self.workers[w].held.first() {
+                if let Some(&index) = self.tasks[a].held.first() {
                     let role = if self.diverged || self.inconclusive {
                         "after-divergence"
                     } else {
@@ -2366,13 +2800,18 @@ pub fn run(req: &RunRequest<'_>) -> SourceRun {
             limits: manifest.limits,
         },
         workers: Vec::new(),
-        current: Vec::new(),
+        tasks: (0..req.actors.len())
+            .map(|_| TaskState::default())
+            .collect(),
+        pool_max: BTreeMap::new(),
+        pool_probe: None,
         rx,
         statements: Vec::new(),
         effects: Vec::new(),
         crashes: Vec::new(),
         restarts: Vec::new(),
         completions: Vec::new(),
+        stuck: None,
         proxy,
         held_ops: BTreeMap::new(),
         released: 0,
@@ -2382,17 +2821,27 @@ pub fn run(req: &RunRequest<'_>) -> SourceRun {
         inconclusive: false,
         deadline: Instant::now() + Duration::from_millis(manifest.timeout_ms),
     };
+    let mut launched = vec![false; req.actors.len()];
     for i in 0..req.actors.len() {
-        if let Err(e) = co.spawn(i, 1) {
+        if launched[i] {
+            continue;
+        }
+        let group = co.group_of(i);
+        for g in &group {
+            launched[*g] = true;
+        }
+        if let Err(e) = co.spawn(&group, 1) {
             co.kill_all();
             return blocked(e);
         }
     }
+    co.check_pools();
     co.run_plan();
     // After the plan (or a divergence): let the workers finish.
     co.drain();
     // Reap.
-    let mut attempts = Vec::new();
+    let mut attempts: Vec<ActorResult> = Vec::new();
+    let mut last: Vec<usize> = vec![usize::MAX; req.actors.len()];
     for w in &mut co.workers {
         if w.reaped.is_none() {
             // Let the leader exit by itself (it reported `done`), without
@@ -2412,25 +2861,29 @@ pub fn run(req: &RunRequest<'_>) -> SourceRun {
             .chars()
             .take(4000)
             .collect();
-        let (outcome, value, error) = match (&w.done, w.killed) {
-            (_, true) => ("killed".to_owned(), Value::Null, None),
-            (Some(d), false) => (
-                d["outcome"].as_str().unwrap_or("unknown").to_owned(),
-                d["value"].clone(),
-                d["error"].as_str().map(str::to_owned),
-            ),
-            (None, false) => ("killed".to_owned(), Value::Null, None),
-        };
-        attempts.push(ActorResult {
-            name: req.actors[w.actor].name.clone(),
-            entry: req.actors[w.actor].entry.clone(),
-            outcome,
-            value,
-            error,
-            stderr,
-            attempt: w.attempt,
-            pid: w.pid,
-        });
+        for &a in &w.actors {
+            let done = co.tasks[a].done.as_ref().or(w.done.as_ref());
+            let (outcome, value, error) = match (done, w.killed) {
+                (_, true) => ("killed".to_owned(), Value::Null, None),
+                (Some(d), false) => (
+                    d["outcome"].as_str().unwrap_or("unknown").to_owned(),
+                    d["value"].clone(),
+                    d["error"].as_str().map(str::to_owned),
+                ),
+                (None, false) => ("killed".to_owned(), Value::Null, None),
+            };
+            last[a] = attempts.len();
+            attempts.push(ActorResult {
+                name: req.actors[a].name.clone(),
+                entry: req.actors[a].entry.clone(),
+                outcome,
+                value,
+                error,
+                stderr: stderr.clone(),
+                attempt: w.attempt,
+                pid: w.pid,
+            });
+        }
     }
     // Survivors: processes of this run that left their worker's process
     // group. Killed, then checked again.
@@ -2453,11 +2906,7 @@ pub fn run(req: &RunRequest<'_>) -> SourceRun {
         }
     }
     survivors.sort_unstable();
-    let actors: Vec<ActorResult> = co
-        .current
-        .iter()
-        .map(|&slot| attempts[slot].clone())
-        .collect();
+    let actors: Vec<ActorResult> = last.iter().map(|&i| attempts[i].clone()).collect();
     let _ = cluster.wait_for_idle(DATABASE, Duration::from_secs(5));
     let tables = co.read_tables();
     // Name result columns by their table (PostgreSQL's catalog).
@@ -2519,6 +2968,7 @@ pub fn run(req: &RunRequest<'_>) -> SourceRun {
         crashes: std::mem::take(&mut co.crashes),
         restarts: std::mem::take(&mut co.restarts),
         completions: std::mem::take(&mut co.completions),
+        stuck: co.stuck.take(),
         proxy_log: co
             .proxy
             .as_ref()

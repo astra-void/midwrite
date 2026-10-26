@@ -58,6 +58,8 @@ table.lanes td{border-left:1px solid #e3e7ec;min-width:120px}table.lanes td.t{bo
 .lane-op{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
 .lane-crash{background:#2b2b2b;color:#fff;font-weight:700}.lane-retry{background:#e8f1ff;color:#0b3d91;font-weight:700}
 .lane-db{background:#fbf7ff}.lane-effect{background:#eefaff}.lane-dup{background:#fff4d6}
+.lane-proxy{background:#fff7e0}.lane-inferred{background:#f4f4f4;border:1px dashed #888;color:#444}.lane-stuck{background:#ffe9e0;font-weight:700}
+.tag-observed{background:#dcf5e3;color:#185c2d;border-radius:3px;padding:0 4px;font-size:11px}.tag-inferred{background:#eee;color:#555;border:1px dashed #999;border-radius:3px;padding:0 4px;font-size:11px}
 .o-extracted-from-source{background:#dcf5e3;color:#185c2d}.o-declared-by-scenario{background:#eef0ff;color:#3b3f8f}
 .o-scenario-override{background:#fff4d6;color:#7a5200}.o-not-modeled{background:#f1f1f1;color:#555}
 .o-unknown{background:#ffe2e0;color:#8c1d18}.o-confirmed-by-runtime-catalog{background:#dcf5e3;color:#185c2d}
@@ -135,7 +137,9 @@ pub fn model_check_html(r: &ModelCheckReport) -> String {
         r.actors.len(),
         r.exploration.metrics.states,
         r.exploration.metrics.transitions,
-        if r.bounds.partial_order_reduction {
+        if r.bounds.reduction.as_deref() == Some("dpor") {
+            " · dynamic partial-order reduction"
+        } else if r.bounds.partial_order_reduction {
             " · sleep-set reduction"
         } else {
             ""
@@ -377,6 +381,52 @@ pub fn model_check_html(r: &ModelCheckReport) -> String {
         }
         b.push_str("</ul></div>");
     }
+    if let Some(e) = &r.epistemic {
+        b.push_str("<div class=\"card\"><div class=\"label\">Application knowledge at each lost acknowledgment</div><p class=\"muted\">Physical state (what PostgreSQL did) and knowledge (what the application can conclude) are kept apart. The other world is the same schedule with the server doing the other thing, replayed on the same model.</p>");
+        for t in &e.twins {
+            let _ = write!(
+                b,
+                "<p><b>transition {}</b> — {} of {}: PostgreSQL {} in the reported schedule <span class=\"tag-inferred\">inferred: {}</span><br>other world ({}): {}{}</p>",
+                t.transition,
+                escape(&t.operation),
+                escape(&t.actor),
+                escape(t.actual.label()),
+                escape(&t.knowledge),
+                escape(t.other.label()),
+                escape(&t.twin),
+                if t.detail.is_empty() {
+                    String::new()
+                } else {
+                    format!(" — {}", escape(&t.detail))
+                }
+            );
+            b.push_str(
+                "<table><tr><th>Invariant</th><th>Reported world</th><th>Other world</th></tr>",
+            );
+            for (a, o) in t.actual_verdicts.iter().zip(&t.twin_verdicts) {
+                let _ = write!(
+                    b,
+                    "<tr><td>{}</td><td class=\"{}\">{}</td><td class=\"{}\">{}</td></tr>",
+                    escape(&a.invariant),
+                    if a.holds { "ok" } else { "bad" },
+                    if a.holds { "holds" } else { "VIOLATED" },
+                    if o.holds { "ok" } else { "bad" },
+                    if o.holds { "holds" } else { "VIOLATED" }
+                );
+            }
+            b.push_str("</table>");
+            if let Some((here, other)) = &t.first_difference {
+                let _ = write!(
+                    b,
+                    "<p>first observation that differs: <code>{}</code> / <code>{}</code></p>",
+                    escape(here),
+                    escape(other)
+                );
+            }
+            let _ = write!(b, "<p>{}</p>", escape(&t.reading));
+        }
+        b.push_str("</div>");
+    }
     if let Some(sv) = &r.source_verification {
         let _ = write!(
             b,
@@ -436,6 +486,18 @@ pub fn model_check_html(r: &ModelCheckReport) -> String {
         }
         if let Some(rec) = &sv.recovery {
             recovery_timeline(&mut b, sv, rec);
+        } else if let Some(st) = &sv.stuck {
+            let _ = write!(
+                b,
+                "<p><b>Stuck state</b> ({}) — <span class=\"tag-observed\">observed</span> {}; model and run {}.</p>",
+                escape(&st.model_kind),
+                escape(&st.observed.detail),
+                if st.status == "agree" {
+                    "agree"
+                } else {
+                    "DIFFER"
+                }
+            );
         }
         if let Some(f) = &sv.schema_fidelity {
             let _ = write!(
@@ -628,10 +690,12 @@ fn recovery_timeline(
         add(format!("{}#{}", c.actor, c.attempt));
     }
     lanes.sort();
+    let has_proxy = rec.crashes.iter().any(|c| c.in_flight.is_some());
     let columns: Vec<String> = lanes
         .iter()
         .cloned()
         .chain(std::iter::once("PostgreSQL".to_owned()))
+        .chain(has_proxy.then(|| "Protocol proxy (wire)".to_owned()))
         .chain(channels.iter().map(|c| format!("{c} (test double)")))
         .collect();
     let _ = write!(
@@ -647,6 +711,7 @@ fn recovery_timeline(
     transitions.extend(sv.statements.iter().map(|c| c.transition));
     transitions.extend(rec.crashes.iter().map(|c| c.transition));
     transitions.extend(rec.restarts.iter().map(|r| r.transition));
+    transitions.extend(rec.completions.iter().map(|c| c.transition));
     let row = |b: &mut String, t: usize, cells: Vec<(usize, String, &str)>| {
         let _ = write!(b, "<tr><td class=\"t\">{t}</td>");
         for (i, _) in columns.iter().enumerate() {
@@ -691,6 +756,75 @@ fn recovery_timeline(
         }
         for c in rec.crashes.iter().filter(|c| c.transition == t) {
             let lane = lane_of(&format!("{}#{}", c.actor, c.attempt));
+            if let Some(f) = &c.in_flight {
+                // What was on the wire (observed by the proxy), what the
+                // application can conclude (inferred), what PostgreSQL
+                // holds (read from PostgreSQL).
+                let proxy = lane_of("Protocol proxy (wire)");
+                let wire = f
+                    .wire_events
+                    .iter()
+                    .map(|e| escape(e))
+                    .collect::<Vec<_>>()
+                    .join("<br>");
+                row(
+                    b,
+                    t,
+                    vec![
+                        (
+                            lane,
+                            format!(
+                                "{} sent <span class=\"tag-observed\">observed</span><br>✕ CRASH — SIGKILL pid {}{}<br><span class=\"tag-inferred\">inferred</span> the application cannot tell whether PostgreSQL executed it: {}",
+                                escape(&f.operation),
+                                c.pid,
+                                if c.killed_by_signal {
+                                    ""
+                                } else {
+                                    " (NOT confirmed)"
+                                },
+                                escape(&f.physical_outcome)
+                            ),
+                            "lane-crash",
+                        ),
+                        (
+                            proxy,
+                            format!(
+                                "<span class=\"tag-observed\">observed</span> {}<br><span class=\"muted\">{}</span>{}",
+                                escape(&f.mechanism),
+                                wire,
+                                if f.server_answer.is_empty() {
+                                    String::new()
+                                } else {
+                                    format!(
+                                        "<br>server answer: <code>{}</code>",
+                                        escape(&f.server_answer)
+                                    )
+                                }
+                            ),
+                            "lane-proxy",
+                        ),
+                        (
+                            db,
+                            format!(
+                                "<span class=\"tag-observed\">observed by PostgreSQL</span> backend <code>{}</code> before the kill; session {} after it; committed rows {} the model",
+                                escape(&f.backend_state_before_kill),
+                                if f.session_open_after_kill {
+                                    "still open"
+                                } else {
+                                    "ended"
+                                },
+                                if c.status == "agree" {
+                                    "agree with"
+                                } else {
+                                    "DIFFER from"
+                                }
+                            ),
+                            "lane-db",
+                        ),
+                    ],
+                );
+                continue;
+            }
             row(
                 b,
                 t,
@@ -726,6 +860,30 @@ fn recovery_timeline(
                 ],
             );
         }
+        for c in rec.completions.iter().filter(|c| c.transition == t) {
+            let mut cells = vec![(
+                db,
+                format!(
+                    "<span class=\"tag-observed\">observed by PostgreSQL</span> the server completes the held COMMIT: {}; committed rows {} the model; session {}",
+                    escape(&c.server_answer),
+                    if c.status == "agree" {
+                        "agree with"
+                    } else {
+                        "DIFFER from"
+                    },
+                    if c.session_ended { "ended" } else { "open" }
+                ),
+                "lane-db",
+            )];
+            if has_proxy {
+                cells.push((
+                    lane_of("Protocol proxy (wire)"),
+                    "<span class=\"tag-observed\">observed</span> held COMMIT delivered to the server".to_owned(),
+                    "lane-proxy",
+                ));
+            }
+            row(b, t, cells);
+        }
         for r in rec.restarts.iter().filter(|r| r.transition == t) {
             let lane = lane_of(&format!("{}#{}", r.actor, r.attempt));
             row(
@@ -745,7 +903,24 @@ fn recovery_timeline(
             );
         }
     }
+    if let Some(st) = &sv.stuck {
+        let _ = write!(
+            b,
+            "<tr><td class=\"t\">end</td><td class=\"lane-stuck\" colspan=\"{}\">⏸ STUCK ({}): <span class=\"tag-observed\">observed</span> {} — model and run {}</td></tr>",
+            columns.len(),
+            escape(&st.model_kind),
+            escape(&st.observed.detail),
+            if st.status == "agree" {
+                "agree"
+            } else {
+                "DIFFER"
+            }
+        );
+    }
     b.push_str("</table>");
+    for p in &sv.shared_processes {
+        let _ = write!(b, "<p class=\"muted\">shared process — {}</p>", escape(p));
+    }
     let _ = write!(
         b,
         "<p>Effects — model: <code>{}</code>; channel double: <code>{}</code> ({}).</p><p>Executions (model / observed): {}.</p><p class=\"muted\">{}</p>",
