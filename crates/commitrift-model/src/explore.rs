@@ -44,9 +44,26 @@ impl Verdict {
     }
 }
 
+/// Where the memory of the visited-state structures goes (Phase 9).
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageProfile {
+    pub stored_states: u64,
+    /// Distinct interned fragments, and fragment references held by the keys.
+    pub fragments: u64,
+    pub fragment_references: u64,
+    pub key_arena_bytes: u64,
+    pub table_bytes: u64,
+    pub interner_bytes: u64,
+    pub edge_bytes: u64,
+    pub node_bytes: u64,
+    pub bytes_per_state: f64,
+}
+
 #[derive(Clone, Debug, Default, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Metrics {
+    pub storage: Option<StorageProfile>,
     pub states: u64,
     pub transitions: u64,
     pub terminal_states: u64,
@@ -279,6 +296,8 @@ struct Ctx<'a> {
     table: crate::keytable::KeyTable,
     interner: crate::state::Interner,
     key_buf: Vec<u32>,
+    /// Fragment references held by the stored keys.
+    key_refs: u64,
     nodes: Vec<Node>,
     children: Edges,
     terminal: Vec<bool>,
@@ -322,6 +341,7 @@ impl Ctx<'_> {
         if !new {
             return (id, false);
         }
+        self.key_refs += self.key_buf.len() as u64;
         if let Some(r) = &mut self.reached {
             r.insert(state.canonical(model));
         }
@@ -428,6 +448,22 @@ impl Ctx<'_> {
     fn finish(mut self, strategy_ran: bool) -> ExploreResult {
         let _ = strategy_ran;
         self.metrics.wall_ms = self.started.elapsed().as_millis() as u64;
+        if !self.table.is_empty() {
+            let n = self.table.len() as u64;
+            let nodes = (self.nodes.capacity() * std::mem::size_of::<Node>()
+                + self.terminal.capacity()) as u64;
+            self.metrics.storage = Some(StorageProfile {
+                stored_states: n,
+                fragments: self.interner.len() as u64,
+                fragment_references: self.key_refs,
+                key_arena_bytes: self.table.arena_len() as u64,
+                table_bytes: self.table.memory_bytes(),
+                interner_bytes: self.interner.memory_bytes(),
+                edge_bytes: self.children.memory_bytes(),
+                node_bytes: nodes,
+                bytes_per_state: self.metrics.visited_bytes as f64 / n as f64,
+            });
+        }
         self.metrics.schedules_in_explored_graph = count_schedules(&self.children, &self.terminal);
         let verdict = if self.counterexample.is_some() {
             Verdict::CounterexampleFound
@@ -499,6 +535,7 @@ pub fn explore_with(model: &Model, opts: &ExploreOptions) -> ExploreResult {
         table: crate::keytable::KeyTable::new(),
         interner: crate::state::Interner::default(),
         key_buf: Vec::new(),
+        key_refs: 0,
         nodes: Vec::new(),
         children: Edges::default(),
         terminal: Vec::new(),
@@ -955,6 +992,7 @@ pub fn explore_dpor(model: &Model, opts: &ExploreOptions) -> ExploreResult {
         table: crate::keytable::KeyTable::new(),
         interner: crate::state::Interner::default(),
         key_buf: Vec::new(),
+        key_refs: 0,
         nodes: Vec::new(),
         children: Edges::default(),
         terminal: Vec::new(),

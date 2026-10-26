@@ -75,6 +75,16 @@ declared["maxInFlight"] = nonneg
 declared["crashPolicy"] = {"enum": ["any", "in-flight-only"]}
 P["bounds"]["properties"]["reduction"] = {"enum": ["dpor"]}
 P["exploration"]["properties"]["stuck"] = string_array
+P["exploration"]["properties"]["storage"] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["storedStates", "fragments", "fragmentReferences", "keyArenaBytes", "tableBytes", "internerBytes", "edgeBytes", "nodeBytes", "bytesPerState"],
+    "properties": {
+        "storedStates": nonneg, "fragments": nonneg, "fragmentReferences": nonneg, "keyArenaBytes": nonneg,
+        "tableBytes": nonneg, "internerBytes": nonneg, "edgeBytes": nonneg, "nodeBytes": nonneg,
+        "bytesPerState": {"type": "number", "minimum": 0},
+    },
+}
 P["evidence"]["properties"]["level"]["enum"].append("original-code-in-flight-failure-reproduced")
 step_kind = P["counterexample"]["properties"]["steps"]["items"]["properties"]["kind"]["enum"]
 step_kind += ["ack-lost-committed", "ack-lost-not-committed", "crash-in-flight", "server-complete"]

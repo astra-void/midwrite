@@ -563,6 +563,59 @@
           "items": {
             "type": "string"
           }
+        },
+        "storage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "storedStates",
+            "fragments",
+            "fragmentReferences",
+            "keyArenaBytes",
+            "tableBytes",
+            "internerBytes",
+            "edgeBytes",
+            "nodeBytes",
+            "bytesPerState"
+          ],
+          "properties": {
+            "storedStates": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "fragments": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "fragmentReferences": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "keyArenaBytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tableBytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "internerBytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "edgeBytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "nodeBytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "bytesPerState": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
         }
       },
       "additionalProperties": false,

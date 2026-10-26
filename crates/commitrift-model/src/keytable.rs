@@ -2,21 +2,24 @@
 //!
 //! A state is identified by its *key*: the sequence of interned fragment
 //! integers of its canonical encoding (see [`crate::state::Interner`]). Keys
-//! live back to back in one arena; the table holds 4-byte references into
-//! it. Lookups compare the keys themselves, never just their hashes, so a
-//! hash collision cannot make a reachable state disappear. Per stored state
-//! the table needs the key (4 bytes per fragment), 4 bytes of offset and
+//! live back to back in one arena as LEB128 varints (one byte per fragment
+//! while there are fewer than 128 distinct fragments, two below 16384, ...);
+//! the table holds 4-byte references into it. Lookups compare the encoded
+//! keys byte for byte, never just their hashes, so a hash collision cannot
+//! make a reachable state disappear, and the varint encoding is injective on
+//! sequences. Per stored state the table needs the key, 4 bytes of offset and
 //! between 4 and 8 bytes of slot.
 
 use crate::fasthash::SEED;
 
 pub struct KeyTable {
-    arena: Vec<u32>,
+    arena: Vec<u8>,
     /// `starts[id]..starts[id + 1]` is the key of state `id`.
     starts: Vec<u32>,
     /// `id + 1` of the state in this slot, `0` when empty.
     slots: Vec<u32>,
     mask: usize,
+    scratch: Vec<u8>,
 }
 
 impl Default for KeyTable {
@@ -25,12 +28,29 @@ impl Default for KeyTable {
     }
 }
 
-fn hash(key: &[u32]) -> u64 {
+fn hash(key: &[u8]) -> u64 {
     let mut h: u64 = 0;
     for x in key {
         h = (h.rotate_left(5) ^ u64::from(*x)).wrapping_mul(SEED);
     }
     h ^ (h >> 29)
+}
+
+/// LEB128: 7 bits per byte, the high bit says that more follow.
+fn encode(key: &[u32], out: &mut Vec<u8>) {
+    out.clear();
+    for &x in key {
+        let mut v = x;
+        loop {
+            let byte = (v & 0x7f) as u8;
+            v >>= 7;
+            if v == 0 {
+                out.push(byte);
+                break;
+            }
+            out.push(byte | 0x80);
+        }
+    }
 }
 
 impl KeyTable {
@@ -40,6 +60,7 @@ impl KeyTable {
             starts: vec![0],
             slots: vec![0; 1024],
             mask: 1023,
+            scratch: Vec::new(),
         }
     }
 
@@ -52,13 +73,21 @@ impl KeyTable {
         self.len() == 0
     }
 
-    fn key(&self, id: usize) -> &[u32] {
+    fn key(&self, id: usize) -> &[u8] {
         &self.arena[self.starts[id] as usize..self.starts[id + 1] as usize]
     }
 
     /// The id of `key`, and whether it was new. Ids are dense and assigned
     /// in order of first insertion.
     pub fn intern(&mut self, key: &[u32]) -> (u32, bool) {
+        let mut bytes = std::mem::take(&mut self.scratch);
+        encode(key, &mut bytes);
+        let r = self.intern_bytes(&bytes);
+        self.scratch = bytes;
+        r
+    }
+
+    fn intern_bytes(&mut self, key: &[u8]) -> (u32, bool) {
         let h = hash(key);
         let mut i = (h as usize) & self.mask;
         loop {
@@ -98,9 +127,14 @@ impl KeyTable {
         }
     }
 
+    /// Bytes of the encoded keys.
+    pub fn arena_len(&self) -> usize {
+        self.arena.len()
+    }
+
     /// Memory held by the table, in bytes.
     pub fn memory_bytes(&self) -> u64 {
-        ((self.arena.capacity() + self.starts.capacity() + self.slots.len()) * 4) as u64
+        (self.arena.capacity() + (self.starts.capacity() + self.slots.len()) * 4) as u64
     }
 }
 

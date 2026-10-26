@@ -75,6 +75,10 @@ pub struct ModelCheckArgs {
     /// Override bounds.maxWallMs.
     #[arg(long)]
     pub max_wall_ms: Option<u64>,
+    /// Report where the memory of the visited-state structures goes
+    /// (stored states, interned fragments, bytes per state).
+    #[arg(long)]
+    pub profile_storage: bool,
     /// Override bounds.maxInFlight (operations whose acknowledgment is lost
     /// in flight, Phase 9).
     #[arg(long)]
@@ -285,6 +289,7 @@ pub fn model_check(args: &ModelCheckArgs) -> Result<u8, String> {
         tool_version: env!("CARGO_PKG_VERSION").to_owned(),
         load,
         source,
+        profile_storage: args.profile_storage,
     };
     let report = check(&model, &options);
     let output = match args.format {

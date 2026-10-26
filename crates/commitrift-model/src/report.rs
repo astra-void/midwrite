@@ -131,6 +131,10 @@ pub struct ExplorationInfo {
     /// Phase 9: what the stuck states are (absent when there are none).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stuck: Vec<String>,
+    /// Phase 9 (`--profile-storage`): where the memory of the visited-state
+    /// structures goes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub storage: Option<crate::explore::StorageProfile>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -298,6 +302,8 @@ pub struct CheckOptions {
     pub load: crate::scenario::LoadReport,
     /// Run the counterexample against the original code (Phase 7).
     pub source: Option<SourceOptions>,
+    /// Report where the memory of the visited-state structures goes.
+    pub profile_storage: bool,
 }
 
 /// `--verify-source`: the harness and the explicit authorization.
@@ -661,7 +667,7 @@ fn database_info(model: &Model) -> DatabaseInfo {
     }
 }
 
-fn exploration_info(model: &Model, r: &ExploreResult) -> ExplorationInfo {
+fn exploration_info(model: &Model, r: &ExploreResult, profile: bool) -> ExplorationInfo {
     let unsupported = r
         .unsupported
         .iter()
@@ -687,6 +693,11 @@ fn exploration_info(model: &Model, r: &ExploreResult) -> ExplorationInfo {
             visited_bytes: r.metrics.visited_bytes,
         },
         unsupported,
+        storage: if profile {
+            r.metrics.storage.clone()
+        } else {
+            None
+        },
         stuck_states: r.stuck.len(),
         stuck: {
             let mut kinds: Vec<String> = r
@@ -1053,6 +1064,7 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
             || model.bounds.crash_policy != crate::model::CrashPolicy::Any
             || model.has_pools()
             || use_dpor
+            || opts.profile_storage
             || !result.stuck.is_empty()
             || source_verification
                 .as_ref()
@@ -1099,7 +1111,7 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
             }
             .to_owned(),
         },
-        exploration: exploration_info(model, &result),
+        exploration: exploration_info(model, &result, opts.profile_storage),
         invariants,
         counterexample: witness,
         evidence: Evidence { level, summary },
