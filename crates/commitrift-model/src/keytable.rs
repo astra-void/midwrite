@@ -88,7 +88,11 @@ impl KeyTable {
     }
 
     fn intern_bytes(&mut self, key: &[u8]) -> (u32, bool) {
-        let h = hash(key);
+        self.intern_hashed(key, hash(key))
+    }
+
+    /// `intern_bytes` with the hash given: tests force equal hashes with it.
+    fn intern_hashed(&mut self, key: &[u8], h: u64) -> (u32, bool) {
         let mut i = (h as usize) & self.mask;
         loop {
             let slot = self.slots[i];
@@ -168,8 +172,32 @@ mod tests {
 
     #[test]
     fn colliding_hashes_do_not_merge_states() {
-        // Force every key into the same probe sequence by using a tiny
-        // table: keys with equal hashes would be distinguished by comparison.
+        // Every key gets the same full 64-bit hash, so all of them share one
+        // probe sequence: only the byte comparison tells them apart. (600
+        // keys stay below the growth threshold, which rehashes with `hash`.)
+        let mut t = KeyTable::new();
+        let keys: Vec<Vec<u8>> = (0..600u32)
+            .map(|i| {
+                let mut b = Vec::new();
+                encode(&[i % 7, i, i ^ 0x55], &mut b);
+                b
+            })
+            .collect();
+        for (i, k) in keys.iter().enumerate() {
+            assert_eq!(t.intern_hashed(k, 0xC0FFEE), (i as u32, true), "key {i}");
+        }
+        for (i, k) in keys.iter().enumerate() {
+            assert_eq!(t.intern_hashed(k, 0xC0FFEE), (i as u32, false), "key {i}");
+        }
+        // A key that is a prefix of a colliding key is still a different key.
+        let (p, new) = t.intern_hashed(&keys[1][..1], 0xC0FFEE);
+        assert!(new && p == 600);
+    }
+
+    #[test]
+    fn slot_collisions_do_not_merge_states() {
+        // Many keys share probe sequences in the default table and through
+        // its growth: each is still found as itself.
         let mut t = KeyTable::new();
         for i in 0..5000u32 {
             let (id, new) = t.intern(&[i, i.rotate_left(13)]);

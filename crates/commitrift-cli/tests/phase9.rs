@@ -680,3 +680,92 @@ fn a_stuck_state_is_shown_as_observed() {
     assert!(html.contains("tag-observed"));
     assert!(html.contains("the pool reports 1 waiting, 0 idle of 1"));
 }
+
+/// Every string a Phase 9 report carries, and every map key (table and
+/// column names), is escaped in the HTML page: scenario and actor names,
+/// source paths, SQL, task labels, wire events, problems, invariant names,
+/// the application's knowledge. The reports come from fresh runs (no
+/// committed report is read). Each string that the report type accepts with
+/// any text is replaced by its own numbered payload; the page must contain
+/// none of them raw.
+#[test]
+fn every_string_of_a_fresh_phase9_report_is_escaped() {
+    require_source_run!();
+    use commitrift_model::report::ModelCheckReport;
+    fn strings(v: &Value, at: String, out: &mut Vec<(String, Option<String>)>) {
+        match v {
+            Value::String(_) => out.push((at, None)),
+            Value::Array(items) => {
+                for (i, x) in items.iter().enumerate() {
+                    strings(x, format!("{at}/{i}"), out);
+                }
+            }
+            Value::Object(map) => {
+                for (k, x) in map {
+                    out.push((at.clone(), Some(k.clone())));
+                    strings(
+                        x,
+                        format!("{at}/{}", k.replace('~', "~0").replace('/', "~1")),
+                        out,
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+    let payload = |i: usize| format!("<script>p{i}</script><img src=x onerror=q{i}>");
+    for name in [
+        "ledger-blind-commit-in-flight.json",
+        "ledger-reconciled-commit-in-flight.json",
+        "ledger-shared-process-crash.json",
+        "ledger-pool-starvation.json",
+    ] {
+        let file = temp_scenario(name, |_| {});
+        let (_, fresh) = model_check_json(&file, &["--verify-source", "--allow-execution"]);
+        remove_temp(&file);
+        let mut found = Vec::new();
+        strings(&fresh, String::new(), &mut found);
+        // A renamed key invalidates the pointers below it: every value
+        // first, then the keys innermost first.
+        let (keys, mut paths): (Vec<_>, Vec<_>) = found.into_iter().partition(|(_, k)| k.is_some());
+        paths.extend(keys.into_iter().rev());
+        let mut doc = fresh.clone();
+        let mut poisoned = 0;
+        for (at, key) in paths {
+            let mut next = doc.clone();
+            let evil = payload(poisoned);
+            match &key {
+                None => *next.pointer_mut(&at).unwrap() = Value::String(evil.clone()),
+                Some(k) => {
+                    let Some(Value::Object(map)) = next.pointer_mut(&at) else {
+                        continue;
+                    };
+                    let Some(x) = map.remove(k) else { continue };
+                    map.insert(evil.clone(), x);
+                }
+            }
+            // Kept only if the report type accepts it and keeps it (a renamed
+            // struct field would be dropped, not shown).
+            let Ok(parsed) = serde_json::from_value::<ModelCheckReport>(next.clone()) else {
+                continue;
+            };
+            if serde_json::to_string(&parsed).unwrap().contains(&evil) {
+                doc = next;
+                poisoned += 1;
+            }
+        }
+        let report: ModelCheckReport = serde_json::from_value(doc).unwrap();
+        let html = commitrift_model::html::model_check_html(&report);
+        assert!(!html.contains("<script"), "{name}: raw script element");
+        assert!(!html.contains("<img"), "{name}: raw img element");
+        assert!(html.contains("script-src 'none'"), "{name}: no CSP");
+        let shown = (0..poisoned)
+            .filter(|i| html.contains(&format!("&lt;script&gt;p{i}&lt;/script&gt;")))
+            .count();
+        eprintln!("{name}: {poisoned} strings poisoned, {shown} shown escaped");
+        assert!(
+            poisoned > 100 && shown > 50,
+            "{name}: only {poisoned} poisoned / {shown} shown"
+        );
+    }
+}
