@@ -14,6 +14,7 @@ pub mod footprint;
 pub mod html;
 pub mod invariant;
 pub mod ir;
+pub mod keytable;
 pub mod model;
 #[cfg(feature = "postgres")]
 pub mod oracle;

@@ -50,6 +50,12 @@ pub struct ModelCheckArgs {
     /// Disable partial-order reduction (explore every interleaving).
     #[arg(long)]
     pub no_por: bool,
+    /// Use dynamic partial-order reduction (Phase 9) instead of sleep
+    /// sets: stateless (memory is the stack, not a table of states),
+    /// preserves final invariants, deadlocks and stuck states; refused with
+    /// an `always` invariant.
+    #[arg(long, conflicts_with = "no_por")]
+    pub dpor: bool,
     /// Search strategy when reduction is off (reduction implies depth-first).
     #[arg(long, value_enum)]
     pub strategy: Option<StrategyArg>,
@@ -200,6 +206,9 @@ pub fn model_check(args: &ModelCheckArgs) -> Result<u8, String> {
         .map_err(|e| format!("invalid scenario: {e}"))?;
     if args.no_por {
         model.options.por = false;
+    }
+    if args.dpor {
+        model.options.dpor = true;
     }
     if let Some(s) = args.strategy {
         model.options.strategy = match s {

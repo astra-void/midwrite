@@ -80,8 +80,32 @@ pub enum TStatus {
     DoneFailed,
 }
 
+/// Phase 9: a task's claim on a connection of its process's bounded pool for
+/// its next operation (a BEGIN or a statement outside a transaction).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Lease {
+    /// Not at an operation that needs a connection, or the pool is unbounded.
+    #[default]
+    None,
+    /// Queued behind other requests: the pool has no idle connection.
+    Waiting,
+    /// A connection is checked out for the operation.
+    Held,
+}
+
+/// Phase 9: the state of one process's bounded connection pool.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PoolState {
+    /// Connections checked out (by tasks about to use them, open
+    /// transactions, running statements).
+    pub leased: u16,
+    /// Waiting requests (actor, task), first come first served.
+    pub queue: Vec<(u16, u16)>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Thread {
+    pub lease: Lease,
     pub code: u16,
     pub pc: u32,
     pub status: TStatus,
@@ -148,6 +172,8 @@ pub struct ActorState {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Txn {
+    /// Phase 9: the transaction holds a connection of a bounded pool.
+    pub leased: bool,
     pub actor: u16,
     pub iso: Isolation,
     pub snapshot: Option<u64>,
@@ -206,6 +232,8 @@ pub struct State {
     pub in_flight: u32,
     /// Phase 9: operations received by the server and not completed yet.
     pub orphans: Vec<Orphan>,
+    /// Phase 9: one pool per process when any pool is bounded, else empty.
+    pub pools: Vec<PoolState>,
     /// Serialization dependency edges between transactions (SERIALIZABLE).
     pub deps: BTreeSet<(TxnId, TxnId)>,
     /// Next value of each sequence-backed column (`Model::sequences` order).
@@ -315,6 +343,35 @@ impl State {
     /// Canonical encoding; see the module documentation.
     pub fn canonical(&self, model: &Model) -> Vec<u8> {
         let mut e = Enc::default();
+        self.encode(model, &mut e);
+        e.finish()
+    }
+
+    /// The canonical encoding as a sequence of interned fragments (Phase 9):
+    /// the same bytes as [`Self::canonical`], cut into units (one per row
+    /// chain, lock, transaction, task, ...) that [`Interner`] replaces by
+    /// integers. Two states have the same key exactly when they have the same
+    /// canonical encoding: the encoding is self-delimiting, so equal bytes cut
+    /// at the same places, and the interner maps equal fragments to equal
+    /// integers and different fragments to different ones (it stores them).
+    pub fn canonical_key(&self, model: &Model, interner: &mut Interner, key: &mut Vec<u32>) {
+        let mut e = Enc {
+            cuts: Some(Vec::new()),
+            ..Enc::default()
+        };
+        self.encode(model, &mut e);
+        key.clear();
+        let mut start = 0;
+        let cuts = e.cuts.take().unwrap_or_default();
+        for end in cuts.into_iter().chain(std::iter::once(e.buf.len())) {
+            if end > start {
+                key.push(interner.id(&e.buf[start..end]));
+                start = end;
+            }
+        }
+    }
+
+    fn encode(&self, model: &Model, e: &mut Enc) {
         // Snapshot holders: transactions with a snapshot, and pending
         // statements (which hold the snapshot they started on).
         let mut holders: Vec<((u32, u16), u64)> = Vec::new();
@@ -339,7 +396,9 @@ impl State {
             e.u32(k.0);
             e.u16(k.1);
         }
+        e.cut();
         e.u32(self.store.rows.len() as u32);
+        e.cut();
         for (id, chain) in &self.store.rows {
             e.row_id(*id);
             e.u32(chain.len() as u32);
@@ -367,11 +426,14 @@ impl State {
                     None => e.u8(0),
                 }
             }
+            e.cut();
         }
         e.u32(self.store.locks.len() as u32);
+        e.cut();
         for (r, t) in &self.store.locks {
             e.row_id(*r);
             e.u32(t.0);
+            e.cut();
         }
         // Transactions: committed ones matter only for SERIALIZABLE history.
         let txns: Vec<_> = self
@@ -380,12 +442,16 @@ impl State {
             .filter(|(_, t)| t.committed.is_none() || ser)
             .collect();
         e.u32(txns.len() as u32);
+        e.cut();
         for (id, t) in txns {
             e.u32(id.0);
             e.u16(t.actor);
             e.u8(t.iso as u8);
             e.u8(u8::from(t.snapshot.is_some()));
             e.u8(u8::from(t.implicit));
+            if model.pools.iter().any(Option::is_some) {
+                e.u8(u8::from(t.leased));
+            }
             e.u8(u8::from(t.committed.is_some()));
             e.u32(t.writes.len() as u32);
             for w in &t.writes {
@@ -396,17 +462,26 @@ impl State {
                 e.u16(*tab);
                 e.str(&format!("{p:?}"));
             }
+            e.cut();
         }
         e.u32(self.deps.len() as u32);
         for (a, b) in &self.deps {
             e.u32(a.0);
             e.u32(b.0);
         }
+        e.cut();
+        let pooled = model.pools.iter().any(Option::is_some);
         e.u32(self.actors.len() as u32);
+        e.cut();
         for a in &self.actors {
             e.locals(&a.locals);
+            e.cut();
             e.u32(a.threads.len() as u32);
+            e.cut();
             for t in &a.threads {
+                if pooled {
+                    e.u8(t.lease as u8);
+                }
                 e.u16(t.code);
                 e.u32(t.pc);
                 e.u8(t.status as u8);
@@ -444,6 +519,7 @@ impl State {
                         e.u32(p.blocked_on.map_or(u32::MAX, |t| t.0));
                     }
                 }
+                e.cut();
             }
             e.u32(a.txn.map_or(u32::MAX, |t| t.0));
             match &a.begin {
@@ -471,12 +547,16 @@ impl State {
             e.u32(a.txn_seq);
             e.u32(a.insert_seq);
             e.u8(u8::from(a.touched));
+            e.cut();
         }
         e.u32(self.apps.len() as u32);
+        e.cut();
         for app in &self.apps {
             e.locals(app);
+            e.cut();
         }
         e.u32(self.externals.len() as u32);
+        e.cut();
         for x in &self.externals {
             e.str(&x.channel);
             match &x.key {
@@ -491,6 +571,7 @@ impl State {
             e.u32(x.attempt);
             e.u8(u8::from(x.in_txn));
             e.u8(u8::from(x.deduplicated));
+            e.cut();
         }
         e.u32(self.crashes);
         e.u32(self.retries);
@@ -505,6 +586,19 @@ impl State {
             e.u16(a);
             e.u16(t);
             e.u32(self.switches);
+        }
+        // Phase 9: connection pools.
+        if pooled {
+            e.u8(0xB0);
+            for p in &self.pools {
+                e.u16(p.leased);
+                e.u32(p.queue.len() as u32);
+                for (a, t) in &p.queue {
+                    e.u16(*a);
+                    e.u16(*t);
+                }
+            }
+            e.cut();
         }
         // Phase 9: unresolved outcomes are part of the state. Written only
         // when present, so encodings of models without in-flight faults are
@@ -551,16 +645,57 @@ impl State {
                 }
             }
         }
-        e.finish()
+    }
+}
+
+/// Maps canonical-encoding fragments to small integers (Phase 9). Equal
+/// fragments get equal integers and different fragments different ones: the
+/// fragments themselves are stored, so no equality rests on a hash.
+#[derive(Default)]
+pub struct Interner {
+    ids: crate::fasthash::FxHashMap<Box<[u8]>, u32>,
+    bytes: usize,
+}
+
+impl Interner {
+    pub fn id(&mut self, fragment: &[u8]) -> u32 {
+        if let Some(id) = self.ids.get(fragment) {
+            return *id;
+        }
+        let id = self.ids.len() as u32;
+        self.bytes += fragment.len();
+        self.ids.insert(fragment.into(), id);
+        id
+    }
+
+    /// Number of distinct fragments.
+    pub fn len(&self) -> usize {
+        self.ids.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.ids.is_empty()
+    }
+
+    /// Approximate memory held: the fragments, the table around them.
+    pub fn memory_bytes(&self) -> u64 {
+        (self.bytes + self.ids.len() * 48) as u64
     }
 }
 
 #[derive(Default)]
 struct Enc {
     buf: Vec<u8>,
+    /// Fragment boundaries, when a fragmented key is being built.
+    cuts: Option<Vec<usize>>,
 }
 
 impl Enc {
+    fn cut(&mut self) {
+        if let Some(c) = &mut self.cuts {
+            c.push(self.buf.len());
+        }
+    }
     fn u8(&mut self, v: u8) {
         self.buf.push(v);
     }

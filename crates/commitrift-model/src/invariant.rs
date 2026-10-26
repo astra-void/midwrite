@@ -131,6 +131,10 @@ pub enum TermOp {
     Externals(ExternalsRef),
     /// A shared in-process variable (of the first process).
     App(String),
+    /// Phase 9: running tasks of a state in which nothing can proceed (zero
+    /// unless the system is stuck: every task waits for a pool connection,
+    /// or for a lock only the application's own waiting could release).
+    Stuck(()),
     Add(Box<Term>, Box<Term>),
     Sub(Box<Term>, Box<Term>),
 }
@@ -169,9 +173,11 @@ impl Invariant {
                         }
                         _ => Ok(()),
                     },
-                    TermOp::Externals(_) | TermOp::App(_) | TermOp::Add(..) | TermOp::Sub(..) => {
-                        Ok(())
-                    }
+                    TermOp::Externals(_)
+                    | TermOp::App(_)
+                    | TermOp::Stuck(())
+                    | TermOp::Add(..)
+                    | TermOp::Sub(..) => Ok(()),
                 };
                 if let Err(m) = r {
                     result = Err(err(m));
@@ -237,7 +243,7 @@ impl Formula {
     pub fn reads_only_database_and_externals(&self) -> bool {
         let mut only = true;
         self.walk_terms(&mut |t| {
-            if let Term::Op(TermOp::Actors(_) | TermOp::App(_)) = t {
+            if let Term::Op(TermOp::Actors(_) | TermOp::App(_) | TermOp::Stuck(())) = t {
                 only = false;
             }
         });
@@ -353,6 +359,7 @@ impl Term {
                     }
                 ),
                 TermOp::App(v) => format!("app.{v}"),
+                TermOp::Stuck(()) => "stuck tasks".to_owned(),
                 TermOp::Add(a, b) => format!("({} + {})", a.render(), b.render()),
                 TermOp::Sub(a, b) => format!("({} - {})", a.render(), b.render()),
             },
@@ -464,6 +471,20 @@ fn eval_op(op: &TermOp, model: &Model, s: &State) -> Value {
                 Value::Int(keys.len() as i64)
             } else {
                 Value::Int(performed.count() as i64)
+            }
+        }
+        TermOp::Stuck(()) => {
+            let en = crate::engine::enabled(model, s);
+            if crate::engine::is_quiescent(model, &en) && !s.is_finished() {
+                Value::Int(
+                    s.actors
+                        .iter()
+                        .flat_map(|a| a.threads.iter())
+                        .filter(|t| t.status == crate::state::TStatus::Running)
+                        .count() as i64,
+                )
+            } else {
+                Value::Int(0)
             }
         }
         TermOp::App(v) => s

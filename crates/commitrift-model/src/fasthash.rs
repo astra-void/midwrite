@@ -12,7 +12,7 @@ pub struct FxHasher {
     hash: u64,
 }
 
-const SEED: u64 = 0x51_7c_c1_b7_27_22_0a_95;
+pub const SEED: u64 = 0x51_7c_c1_b7_27_22_0a_95;
 
 impl FxHasher {
     #[inline]

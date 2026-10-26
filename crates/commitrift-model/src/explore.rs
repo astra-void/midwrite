@@ -100,9 +100,61 @@ pub struct Counterexample {
     pub schedule: Vec<Transition>,
 }
 
+/// Why nothing can proceed in a stuck state (Phase 9).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum StuckKind {
+    /// Tasks wait for a connection of a bounded pool that no running task
+    /// will return.
+    PoolStarvation,
+    /// A statement waits for a lock held by a transaction whose owner waits
+    /// for that very statement (an application-level wait cycle; PostgreSQL
+    /// sees one waiter and detects no deadlock).
+    ApplicationWaitCycle,
+    /// Another reason (not classified).
+    Unexplained,
+}
+
+impl StuckKind {
+    pub fn describe(self) -> &'static str {
+        match self {
+            Self::PoolStarvation => {
+                "pool starvation: tasks wait for a connection no running task will return"
+            }
+            Self::ApplicationWaitCycle => {
+                "application-level wait cycle: a statement waits for a lock whose holder waits for it (PostgreSQL detects no deadlock)"
+            }
+            Self::Unexplained => "stuck for a reason the model does not classify",
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct StuckState {
     pub schedule: Vec<Transition>,
+    pub kind: StuckKind,
+}
+
+/// Classify a stuck state.
+pub fn classify_stuck(model: &Model, s: &State) -> StuckKind {
+    let _ = model;
+    let waiting_for_connection = s
+        .actors
+        .iter()
+        .flat_map(|a| a.threads.iter())
+        .any(|t| t.lease == crate::state::Lease::Waiting);
+    if waiting_for_connection {
+        return StuckKind::PoolStarvation;
+    }
+    let lock_wait = s.actors.iter().flat_map(|a| a.threads.iter()).any(|t| {
+        t.pending
+            .as_ref()
+            .is_some_and(|p| p.blocked_on.is_some_and(|b| s.txn_active(b)))
+    });
+    if lock_wait {
+        return StuckKind::ApplicationWaitCycle;
+    }
+    StuckKind::Unexplained
 }
 
 pub struct ExploreResult {
@@ -167,6 +219,55 @@ struct Node {
     depth: u32,
 }
 
+/// The explored graph's edges: per state a linked list of distinct children
+/// (8 bytes per edge, 4 per state).
+#[derive(Default)]
+struct Edges {
+    head: Vec<u32>,
+    /// (child, next edge of the same parent), `u32::MAX` ends a list.
+    edges: Vec<(u32, u32)>,
+}
+
+impl Edges {
+    fn push_node(&mut self) {
+        self.head.push(u32::MAX);
+    }
+
+    /// Add `parent → child` unless it is there.
+    fn add(&mut self, parent: u32, child: u32) {
+        let mut e = self.head[parent as usize];
+        while e != u32::MAX {
+            if self.edges[e as usize].0 == child {
+                return;
+            }
+            e = self.edges[e as usize].1;
+        }
+        let at = self.edges.len() as u32;
+        self.edges.push((child, self.head[parent as usize]));
+        self.head[parent as usize] = at;
+    }
+
+    fn children(&self, parent: u32) -> impl Iterator<Item = u32> + '_ {
+        let mut e = self.head[parent as usize];
+        std::iter::from_fn(move || {
+            if e == u32::MAX {
+                return None;
+            }
+            let (child, next) = self.edges[e as usize];
+            e = next;
+            Some(child)
+        })
+    }
+
+    fn len(&self) -> usize {
+        self.head.len()
+    }
+
+    fn memory_bytes(&self) -> u64 {
+        (self.head.capacity() * 4 + self.edges.capacity() * 8) as u64
+    }
+}
+
 struct Ctx<'a> {
     model: &'a Model,
     started: Instant,
@@ -174,9 +275,12 @@ struct Ctx<'a> {
     truncation: Truncation,
     unsupported: Vec<Unsupported>,
     stuck: Vec<StuckState>,
-    visited: crate::fasthash::FxHashMap<Vec<u8>, u32>,
+    /// Visited states: compact keys of interned fragments (Phase 9).
+    table: crate::keytable::KeyTable,
+    interner: crate::state::Interner,
+    key_buf: Vec<u32>,
     nodes: Vec<Node>,
-    children: Vec<Vec<u32>>,
+    children: Edges,
     terminal: Vec<bool>,
     reached: Option<BTreeSet<Vec<u8>>>,
     terminals: Option<BTreeSet<Vec<u8>>>,
@@ -211,20 +315,25 @@ impl Ctx<'_> {
             || self.truncation.max_memory
     }
 
-    fn intern(&mut self, key: Vec<u8>) -> (u32, bool) {
-        if let Some(id) = self.visited.get(&key) {
-            return (*id, false);
+    fn intern(&mut self, state: &State) -> (u32, bool) {
+        let model = self.model;
+        state.canonical_key(model, &mut self.interner, &mut self.key_buf);
+        let (id, new) = self.table.intern(&self.key_buf);
+        if !new {
+            return (id, false);
         }
-        let id = self.nodes.len() as u32;
-        self.metrics.visited_bytes += key.len() as u64 + 96;
         if let Some(r) = &mut self.reached {
-            r.insert(key.clone());
+            r.insert(state.canonical(model));
         }
-        self.visited.insert(key, id);
         self.nodes.push(Node::default());
-        self.children.push(Vec::new());
+        self.children.push_node();
         self.terminal.push(false);
         self.metrics.states += 1;
+        self.metrics.visited_bytes = self.table.memory_bytes()
+            + self.interner.memory_bytes()
+            + self.children.memory_bytes()
+            + (self.nodes.capacity() * std::mem::size_of::<Node>() + self.terminal.capacity())
+                as u64;
         (id, true)
     }
 
@@ -235,6 +344,26 @@ impl Ctx<'_> {
                 When::Final => terminal,
             };
             if applicable && !inv.holds(self.model, s) {
+                self.violating += 1;
+                if self.counterexample.is_none() {
+                    self.metrics.first_violation_ms =
+                        Some(self.started.elapsed().as_millis() as u64);
+                    self.counterexample = Some(Counterexample {
+                        invariant: inv.name.clone(),
+                        when: inv.when,
+                        schedule: path(),
+                    });
+                }
+                return;
+            }
+        }
+    }
+
+    /// A quiescent state in which tasks still run: the implicit
+    /// `termination` invariant (when the model has one) is checked.
+    fn check_stuck(&mut self, s: &State, path: &dyn Fn() -> Vec<Transition>) {
+        for inv in &self.model.invariants {
+            if inv.name == crate::model::TERMINATION && !inv.holds(self.model, s) {
                 self.violating += 1;
                 if self.counterexample.is_none() {
                     self.metrics.first_violation_ms =
@@ -323,8 +452,8 @@ impl Ctx<'_> {
     }
 }
 
-fn count_schedules(children: &[Vec<u32>], terminal: &[bool]) -> u64 {
-    if children.is_empty() {
+fn count_schedules(children: &Edges, terminal: &[bool]) -> u64 {
+    if children.len() == 0 {
         return 0;
     }
     let n = children.len();
@@ -332,7 +461,7 @@ fn count_schedules(children: &[Vec<u32>], terminal: &[bool]) -> u64 {
     // Iterative post-order from node 0.
     let mut stack: Vec<(u32, usize)> = vec![(0, 0)];
     while let Some(&(node, idx)) = stack.last() {
-        let kids = &children[node as usize];
+        let kids: Vec<u32> = children.children(node).collect();
         if idx < kids.len() {
             stack.last_mut().expect("non-empty").1 += 1;
             let k = kids[idx];
@@ -344,7 +473,7 @@ fn count_schedules(children: &[Vec<u32>], terminal: &[bool]) -> u64 {
             if terminal[node as usize] || kids.is_empty() {
                 total = 1;
             } else {
-                for k in kids {
+                for k in &kids {
                     total = total.saturating_add(memo[*k as usize].unwrap_or(0));
                 }
             }
@@ -367,9 +496,11 @@ pub fn explore_with(model: &Model, opts: &ExploreOptions) -> ExploreResult {
         truncation: Truncation::default(),
         unsupported: Vec::new(),
         stuck: Vec::new(),
-        visited: crate::fasthash::FxHashMap::default(),
+        table: crate::keytable::KeyTable::new(),
+        interner: crate::state::Interner::default(),
+        key_buf: Vec::new(),
         nodes: Vec::new(),
-        children: Vec::new(),
+        children: Edges::default(),
         terminal: Vec::new(),
         reached: opts.collect_states.then(BTreeSet::new),
         terminals: opts.collect_states.then(BTreeSet::new),
@@ -390,7 +521,7 @@ pub fn explore_with(model: &Model, opts: &ExploreOptions) -> ExploreResult {
 fn dfs(ctx: &mut Ctx<'_>, opts: &ExploreOptions, por: bool) {
     let model = ctx.model;
     let init = initial_state(model);
-    let (root, _) = ctx.intern(init.canonical(model));
+    let (root, _) = ctx.intern(&init);
     ctx.check_invariants(&init, false, &Vec::new);
     let mut stack: Vec<Frame> = Vec::new();
     if let Some(f) = open_frame(ctx, root, init, Vec::new(), 0, &Vec::new) {
@@ -456,10 +587,8 @@ fn dfs(ctx: &mut Ctx<'_>, opts: &ExploreOptions, por: bool) {
         };
         ctx.metrics.transitions += 1;
         ctx.metrics.max_depth = ctx.metrics.max_depth.max(depth);
-        let (id, is_new) = ctx.intern(child.canonical(model));
-        if !ctx.children[parent as usize].contains(&id) {
-            ctx.children[parent as usize].push(id);
-        }
+        let (id, is_new) = ctx.intern(&child);
+        ctx.children.add(parent, id);
         if is_new {
             ctx.check_invariants(&child, false, &|| path_of(&stack));
         } else {
@@ -499,7 +628,11 @@ fn open_frame(
             if state.is_finished() {
                 ctx.check_invariants(&state, true, path);
             } else {
-                ctx.stuck.push(StuckState { schedule: path() });
+                ctx.check_stuck(&state, path);
+                ctx.stuck.push(StuckState {
+                    schedule: path(),
+                    kind: classify_stuck(model, &state),
+                });
             }
         }
         if en.is_empty() {
@@ -544,7 +677,7 @@ fn open_frame(
 fn bfs(ctx: &mut Ctx<'_>, opts: &ExploreOptions) {
     let model = ctx.model;
     let init = initial_state(model);
-    let (root, _) = ctx.intern(init.canonical(model));
+    let (root, _) = ctx.intern(&init);
     ctx.check_invariants(&init, false, &Vec::new);
     // parents[node] = (parent node, transition) of the first discovery.
     let mut parents: Vec<Option<(u32, Transition)>> = vec![None];
@@ -577,8 +710,10 @@ fn bfs(ctx: &mut Ctx<'_>, opts: &ExploreOptions) {
                     return;
                 }
             } else {
+                ctx.check_stuck(&state, &|| path_to(&parents, node));
                 ctx.stuck.push(StuckState {
                     schedule: path_to(&parents, node),
+                    kind: classify_stuck(model, &state),
                 });
             }
             if en.is_empty() {
@@ -596,10 +731,8 @@ fn bfs(ctx: &mut Ctx<'_>, opts: &ExploreOptions) {
             };
             ctx.metrics.transitions += 1;
             ctx.metrics.max_depth = ctx.metrics.max_depth.max(depth + 1);
-            let (id, is_new) = ctx.intern(child.canonical(model));
-            if !ctx.children[node as usize].contains(&id) {
-                ctx.children[node as usize].push(id);
-            }
+            let (id, is_new) = ctx.intern(&child);
+            ctx.children.add(node, id);
             if is_new {
                 parents.push(Some((node, s.t)));
                 ctx.check_invariants(&child, false, &|| path_to(&parents, id));
@@ -754,10 +887,7 @@ fn program_actor(t: &Transition) -> Option<(u16, u16)> {
         | TKind::Deadlock
         | TKind::LostCommitted
         | TKind::LostNotCommitted => Some((t.actor, t.thread)),
-        TKind::Crash
-        | TKind::Retry
-        | TKind::CrashInFlight
-        | TKind::ServerComplete => None,
+        TKind::Crash | TKind::Retry | TKind::CrashInFlight | TKind::ServerComplete => None,
     }
 }
 
@@ -822,9 +952,11 @@ pub fn explore_dpor(model: &Model, opts: &ExploreOptions) -> ExploreResult {
         truncation: Truncation::default(),
         unsupported: Vec::new(),
         stuck: Vec::new(),
-        visited: crate::fasthash::FxHashMap::default(),
+        table: crate::keytable::KeyTable::new(),
+        interner: crate::state::Interner::default(),
+        key_buf: Vec::new(),
         nodes: Vec::new(),
-        children: Vec::new(),
+        children: Edges::default(),
         terminal: Vec::new(),
         reached: None,
         terminals: opts.collect_states.then(BTreeSet::new),
@@ -857,8 +989,7 @@ pub fn explore_dpor(model: &Model, opts: &ExploreOptions) -> ExploreResult {
         }
         let f = &mut stack[depth];
         // Alternatives of one choice are explored together.
-        let classes: Vec<(u8, u16, u16)> =
-            f.backtrack.iter().filter_map(choice_class).collect();
+        let classes: Vec<(u8, u16, u16)> = f.backtrack.iter().filter_map(choice_class).collect();
         for s in &f.succ {
             if choice_class(&s.t).is_some_and(|c| classes.contains(&c))
                 && !f.done.contains(&s.t)
@@ -947,8 +1078,10 @@ fn dpor_open(
         if state.is_finished() {
             ctx.check_invariants(state, true, &|| path.to_vec());
         } else {
+            ctx.check_stuck(state, &|| path.to_vec());
             ctx.stuck.push(StuckState {
                 schedule: path.to_vec(),
+                kind: classify_stuck(model, state),
             });
         }
         if en.is_empty() {

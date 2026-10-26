@@ -110,6 +110,42 @@ pub fn complete(model: &Model, state: &State) -> Option<Vec<Transition>> {
     }
 }
 
+/// [`complete`] for the `termination` invariant: the run may end in a state
+/// that is quiescent but not finished (stuck).
+fn complete_stuck(model: &Model, state: &State) -> Option<Vec<Transition>> {
+    let mut s = state.clone();
+    let mut out = Vec::new();
+    loop {
+        let en = enabled(model, &s);
+        if is_quiescent(model, &en) {
+            return Some(out);
+        }
+        let t = en
+            .iter()
+            .copied()
+            .find(|t| {
+                matches!(
+                    t.kind,
+                    TKind::Step | TKind::Resume | TKind::Deadlock | TKind::ServerComplete
+                )
+            })
+            .or_else(|| {
+                en.iter().copied().find(|t| {
+                    t.kind == TKind::Retry
+                        && model.actors[t.actor as usize]
+                            .retry
+                            .as_ref()
+                            .is_some_and(|r| r.guaranteed)
+                })
+            })?;
+        s = apply(model, &s, t, &mut Recorder::off()).ok()?.state;
+        out.push(t);
+        if out.len() > 10_000 {
+            return None;
+        }
+    }
+}
+
 fn find_invariant<'a>(model: &'a Model, name: &str) -> Option<&'a Invariant> {
     model.invariants.iter().find(|i| i.name == name)
 }
@@ -140,7 +176,11 @@ pub fn check_schedule(
         }
         When::Final => {
             let mut full = schedule.to_vec();
-            full.extend(complete(model, &r.state)?);
+            if inv.name == crate::model::TERMINATION {
+                full.extend(complete_stuck(model, &r.state)?);
+            } else {
+                full.extend(complete(model, &r.state)?);
+            }
             let end = replay(model, &full, false).ok()?;
             (!inv.holds(model, &end.state)).then_some(full)
         }

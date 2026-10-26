@@ -1,0 +1,149 @@
+//! The visited-state table of the explicit-state search (Phase 9).
+//!
+//! A state is identified by its *key*: the sequence of interned fragment
+//! integers of its canonical encoding (see [`crate::state::Interner`]). Keys
+//! live back to back in one arena; the table holds 4-byte references into
+//! it. Lookups compare the keys themselves, never just their hashes, so a
+//! hash collision cannot make a reachable state disappear. Per stored state
+//! the table needs the key (4 bytes per fragment), 4 bytes of offset and
+//! between 4 and 8 bytes of slot.
+
+use crate::fasthash::SEED;
+
+pub struct KeyTable {
+    arena: Vec<u32>,
+    /// `starts[id]..starts[id + 1]` is the key of state `id`.
+    starts: Vec<u32>,
+    /// `id + 1` of the state in this slot, `0` when empty.
+    slots: Vec<u32>,
+    mask: usize,
+}
+
+impl Default for KeyTable {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+fn hash(key: &[u32]) -> u64 {
+    let mut h: u64 = 0;
+    for x in key {
+        h = (h.rotate_left(5) ^ u64::from(*x)).wrapping_mul(SEED);
+    }
+    h ^ (h >> 29)
+}
+
+impl KeyTable {
+    pub fn new() -> Self {
+        Self {
+            arena: Vec::new(),
+            starts: vec![0],
+            slots: vec![0; 1024],
+            mask: 1023,
+        }
+    }
+
+    /// Number of stored keys.
+    pub fn len(&self) -> usize {
+        self.starts.len() - 1
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    fn key(&self, id: usize) -> &[u32] {
+        &self.arena[self.starts[id] as usize..self.starts[id + 1] as usize]
+    }
+
+    /// The id of `key`, and whether it was new. Ids are dense and assigned
+    /// in order of first insertion.
+    pub fn intern(&mut self, key: &[u32]) -> (u32, bool) {
+        let h = hash(key);
+        let mut i = (h as usize) & self.mask;
+        loop {
+            let slot = self.slots[i];
+            if slot == 0 {
+                break;
+            }
+            if self.key(slot as usize - 1) == key {
+                return (slot - 1, false);
+            }
+            i = (i + 1) & self.mask;
+        }
+        let id = self.len() as u32;
+        assert!(
+            self.arena.len() + key.len() < u32::MAX as usize,
+            "the visited-state arena is full"
+        );
+        self.arena.extend_from_slice(key);
+        self.starts.push(self.arena.len() as u32);
+        self.slots[i] = id + 1;
+        if self.len() * 10 > self.slots.len() * 7 {
+            self.grow();
+        }
+        (id, true)
+    }
+
+    fn grow(&mut self) {
+        let size = self.slots.len() * 2;
+        self.slots = vec![0; size];
+        self.mask = size - 1;
+        for id in 0..self.len() {
+            let mut i = (hash(self.key(id)) as usize) & self.mask;
+            while self.slots[i] != 0 {
+                i = (i + 1) & self.mask;
+            }
+            self.slots[i] = id as u32 + 1;
+        }
+    }
+
+    /// Memory held by the table, in bytes.
+    pub fn memory_bytes(&self) -> u64 {
+        ((self.arena.capacity() + self.starts.capacity() + self.slots.len()) * 4) as u64
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn equal_keys_get_one_id_and_different_keys_never_share_one() {
+        let mut t = KeyTable::new();
+        let mut ids = std::collections::BTreeMap::new();
+        for round in 0..3 {
+            for a in 0..300u32 {
+                for len in 0..4usize {
+                    let key: Vec<u32> = (0..len as u32).map(|j| a.wrapping_mul(7) ^ j).collect();
+                    let (id, new) = t.intern(&key);
+                    match ids.insert(key.clone(), id) {
+                        None => assert!(new && round == 0),
+                        Some(previous) => assert!(!new && previous == id),
+                    }
+                }
+            }
+        }
+        assert_eq!(t.len(), ids.len());
+        // Prefixes and extensions are different keys.
+        let (a, _) = t.intern(&[1, 2]);
+        let (b, _) = t.intern(&[1, 2, 3]);
+        let (c, _) = t.intern(&[1]);
+        assert!(a != b && b != c && a != c);
+    }
+
+    #[test]
+    fn colliding_hashes_do_not_merge_states() {
+        // Force every key into the same probe sequence by using a tiny
+        // table: keys with equal hashes would be distinguished by comparison.
+        let mut t = KeyTable::new();
+        for i in 0..5000u32 {
+            let (id, new) = t.intern(&[i, i.rotate_left(13)]);
+            assert!(new);
+            assert_eq!(id, i);
+        }
+        for i in 0..5000u32 {
+            assert_eq!(t.intern(&[i, i.rotate_left(13)]), (i, false));
+        }
+    }
+}

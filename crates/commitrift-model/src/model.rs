@@ -85,6 +85,9 @@ impl Default for Bounds {
     }
 }
 
+/// The implicit invariant that no task waits forever (Phase 9).
+pub const TERMINATION: &str = "termination";
+
 /// Where a process crash may happen (Phase 9).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -112,6 +115,17 @@ pub enum Strategy {
 pub struct Options {
     /// Sleep-set partial-order reduction (forces depth-first search).
     pub por: bool,
+    /// Phase 9: dynamic partial-order reduction (stateless; refused with an
+    /// `always` invariant or a context-switch bound, then the sleep-set
+    /// search runs and the report says why).
+    #[serde(default)]
+    pub dpor: bool,
+    /// Phase 9: report states in which tasks wait forever (a pool without
+    /// idle connections, a lock the application itself holds) as violations
+    /// of the implicit invariant `termination`. Always on with a bounded
+    /// pool.
+    #[serde(default)]
+    pub termination: bool,
     pub strategy: Strategy,
     /// Minimize the counterexample after the search.
     pub minimize: bool,
@@ -121,6 +135,8 @@ impl Default for Options {
     fn default() -> Self {
         Self {
             por: true,
+            dpor: false,
+            termination: false,
             strategy: Strategy::Dfs,
             minimize: true,
         }
@@ -140,6 +156,9 @@ pub struct Model {
     /// in-process application state and crash together).
     pub process_of: Vec<usize>,
     pub process_names: Vec<String>,
+    /// Phase 9: connection pool capacity per process (`None`: unbounded, the
+    /// Phase 8 semantics: every operation has a connection).
+    pub pools: Vec<Option<u16>>,
     pub channels: Channels,
     pub app_initial: BTreeMap<String, Value>,
     pub invariants: Vec<Invariant>,
@@ -163,6 +182,15 @@ impl Model {
                     )
                 })
             })
+    }
+
+    /// Whether any process has a bounded connection pool.
+    pub fn has_pools(&self) -> bool {
+        self.pools.iter().any(Option::is_some)
+    }
+
+    pub fn pool_of(&self, actor: usize) -> Option<u16> {
+        self.pools.get(self.process_of[actor]).copied().flatten()
     }
 
     pub fn actor_index(&self, name: &str) -> Option<usize> {

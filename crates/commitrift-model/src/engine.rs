@@ -19,8 +19,8 @@ use crate::ir::{
 };
 use crate::model::Model;
 use crate::state::{
-    ActorState, BeginInfo, ClosedStmt, ExternalEvent, Outcome, Pending, State, TKind, TStatus,
-    Thread, Transition, Txn,
+    ActorState, BeginInfo, ClosedStmt, ExternalEvent, Lease, Outcome, Pending, PoolState, State,
+    TKind, TStatus, Thread, Transition, Txn,
 };
 use crate::value::{Expr, Locals, Mode, Row, Value};
 
@@ -247,6 +247,11 @@ pub fn initial_state(model: &Model) -> State {
         retries: 0,
         in_flight: 0,
         orphans: Vec::new(),
+        pools: if model.has_pools() {
+            vec![PoolState::default(); model.process_names.len()]
+        } else {
+            Vec::new()
+        },
         deps: Default::default(),
         seqs: model.sequences().into_iter().map(|(_, _, n)| n).collect(),
         steps: 0,
@@ -263,6 +268,7 @@ pub fn initial_state(model: &Model) -> State {
 
 fn main_thread() -> Thread {
     Thread {
+        lease: Lease::None,
         handlers: Vec::new(),
         code: 0,
         pc: 0,
@@ -284,6 +290,86 @@ fn tx_busy(actor: &ActorState) -> bool {
         .threads
         .iter()
         .any(|t| t.pending.as_ref().is_some_and(|p| p.conn == Conn::Tx))
+}
+
+/// Whether the operation checks a connection out of the pool when it starts:
+/// a BEGIN, or a statement outside a transaction.
+fn needs_conn(op: &Op) -> bool {
+    match op {
+        Op::Begin { .. } => true,
+        Op::Db { stmt } => stmt.conn == Conn::Pool,
+        _ => false,
+    }
+}
+
+/// A task reaches an operation that needs a connection of a bounded pool: it
+/// takes an idle one, or queues (first come first served).
+fn arrive(model: &Model, s: &mut State, a: usize, th: usize, foot: &mut Footprint) {
+    let Some(cap) = model.pool_of(a) else {
+        return;
+    };
+    if s.actors[a].threads[th].lease != Lease::None {
+        return;
+    }
+    let p = model.process_of[a];
+    foot.push(Access::Pool(p));
+    if s.pools[p].leased < cap {
+        s.pools[p].leased += 1;
+        s.actors[a].threads[th].lease = Lease::Held;
+    } else {
+        s.pools[p].queue.push((a as u16, th as u16));
+        s.actors[a].threads[th].lease = Lease::Waiting;
+    }
+}
+
+/// A connection comes back: it goes to the first waiting request, or becomes
+/// idle.
+fn release_lease(model: &Model, s: &mut State, p: usize, foot: &mut Footprint) {
+    if model.pools.get(p).copied().flatten().is_none() {
+        return;
+    }
+    foot.push(Access::Pool(p));
+    while !s.pools[p].queue.is_empty() {
+        let (a, th) = s.pools[p].queue.remove(0);
+        if let Some(t) = s.actors[a as usize].threads.get_mut(th as usize)
+            && t.lease == Lease::Waiting
+            && t.status == TStatus::Running
+        {
+            t.lease = Lease::Held;
+            return;
+        }
+    }
+    s.pools[p].leased = s.pools[p].leased.saturating_sub(1);
+}
+
+/// A task ends (or is abandoned) while holding or awaiting a connection it
+/// has not used.
+fn drop_thread_lease(model: &Model, s: &mut State, a: usize, th: usize, foot: &mut Footprint) {
+    let Some(t) = s.actors[a].threads.get_mut(th) else {
+        return;
+    };
+    let lease = std::mem::take(&mut t.lease);
+    let p = model.process_of[a];
+    match lease {
+        Lease::None => {}
+        Lease::Held => release_lease(model, s, p, foot),
+        Lease::Waiting => {
+            s.pools[p]
+                .queue
+                .retain(|(x, y)| (*x as usize, *y as usize) != (a, th));
+        }
+    }
+}
+
+/// The task's connection is used by the operation it starts now.
+fn claim_lease(model: &Model, s: &mut State, a: usize, th: usize) -> bool {
+    if model.pool_of(a).is_none() {
+        return false;
+    }
+    let t = &mut s.actors[a].threads[th];
+    let held = t.lease == Lease::Held;
+    t.lease = Lease::None;
+    held
 }
 
 fn uses_tx(op: &Op) -> bool {
@@ -330,6 +416,9 @@ pub fn enabled(model: &Model, s: &State) -> Vec<Transition> {
             }
             if uses_tx(&step.op) && tx_busy(actor) {
                 continue;
+            }
+            if model.pool_of(a).is_some() && needs_conn(&step.op) && t.lease != Lease::Held {
+                continue; // waiting for a connection of the pool
             }
             out.push(Transition {
                 kind: TKind::Step,
@@ -652,6 +741,10 @@ fn step_thread(
             }
             let iso = isolation.unwrap_or(model.isolation);
             let id = new_txn(s, a, iso, false);
+            let leased = claim_lease(model, s, a, th);
+            if let Some(t) = s.txns.get_mut(&id) {
+                t.leased = leased;
+            }
             let locals = s.actors[a].locals.clone();
             let thread = &s.actors[a].threads[th];
             s.actors[a].begin = Some(BeginInfo {
@@ -886,6 +979,7 @@ fn new_txn(s: &mut State, a: usize, iso: Isolation, implicit: bool) -> TxnId {
     s.txns.insert(
         id,
         Txn {
+            leased: false,
             actor: a as u16,
             iso,
             snapshot: None,
@@ -1083,7 +1177,14 @@ fn db_step(
                 return;
             }
         },
-        Conn::Pool => new_txn(s, a, model.isolation, true),
+        Conn::Pool => {
+            let id = new_txn(s, a, model.isolation, true);
+            let leased = claim_lease(model, s, a, th);
+            if let Some(t) = s.txns.get_mut(&id) {
+                t.leased = leased;
+            }
+            id
+        }
     };
     let snapshot = open_snapshot(s, txn, foot);
     let mut p = Pending {
@@ -1340,11 +1441,11 @@ fn db_failure(
         s.retries += 1;
         s.actors[a].locals = begin.locals.clone();
         // Abandon children of the failed attempt.
-        for (i, t) in s.actors[a].threads.iter_mut().enumerate() {
-            if i != 0 {
-                t.status = TStatus::Done;
-                t.pending = None;
-            }
+        for i in 1..s.actors[a].threads.len() {
+            let t = &mut s.actors[a].threads[i];
+            t.status = TStatus::Done;
+            t.pending = None;
+            drop_thread_lease(model, s, a, i, foot);
         }
         let t = &mut s.actors[a].threads[0];
         t.code = begin.code;
@@ -1493,6 +1594,12 @@ pub fn commit_txn(
     } else {
         s.txns.remove(&id);
     }
+    if txn.leased {
+        if let Some(t) = s.txns.get_mut(&id) {
+            t.leased = false;
+        }
+        release_lease(model, s, model.process_of[txn.actor as usize], foot);
+    }
     Ok(())
 }
 
@@ -1510,13 +1617,16 @@ fn release_locks(s: &mut State, id: TxnId, foot: &mut Footprint) {
     }
 }
 
-pub fn abort_txn(_model: &Model, s: &mut State, id: TxnId, foot: &mut Footprint) {
+pub fn abort_txn(model: &Model, s: &mut State, id: TxnId, foot: &mut Footprint) {
     let Some(txn) = s.txns.remove(&id) else {
         return;
     };
     if txn.committed.is_some() {
         s.txns.insert(id, txn);
         return;
+    }
+    if txn.leased {
+        release_lease(model, s, model.process_of[txn.actor as usize], foot);
     }
     for row in &txn.writes {
         if let Some(chain) = s.store.rows.get_mut(row) {
@@ -1729,6 +1839,7 @@ fn settle_thread(
                 );
                 for code in children {
                     s.actors[a].threads.push(Thread {
+                        lease: Lease::None,
                         code: *code as u16,
                         pc: 0,
                         status: TStatus::Running,
@@ -1742,7 +1853,13 @@ fn settle_thread(
                 s.actors[a].threads[th].pc += 1;
                 // Children are settled by the actor loop.
             }
-            _ => return,
+            op => {
+                // A visible operation: the task reaches it.
+                if needs_conn(op) {
+                    arrive(model, s, a, th, foot);
+                }
+                return;
+            }
         }
     }
 }
@@ -1756,6 +1873,7 @@ fn finish_ok(
     rec: &mut Recorder,
 ) {
     s.actors[a].threads[th].status = TStatus::Done;
+    drop_thread_lease(model, s, a, th, foot);
     if th == 0 {
         if let Some(id) = s.actors[a].txn.take() {
             // The task ended with its transaction still open: the
@@ -1837,6 +1955,7 @@ fn fail_thread(
     t.status = TStatus::DoneFailed;
     t.failure = Some(reason.clone());
     t.pending = None;
+    drop_thread_lease(model, s, a, th, foot);
     rec.add(
         a,
         th,
@@ -1897,14 +2016,19 @@ fn candidate(model: &Model, s: &State, a: usize, th: usize) -> Option<InFlightOp
     let step = op_at(model, s, a, th);
     match &step.op {
         Op::Commit => (actor.txn.is_some() && !tx_busy(actor)).then_some(InFlightOp::Commit),
-        Op::Db { stmt } if stmt.conn == Conn::Pool => match &stmt.kind {
-            StmtKind::Insert { table, .. }
-            | StmtKind::Update { table, .. }
-            | StmtKind::Delete { table, .. } => {
-                model.schema.index(table).map(InFlightOp::Autocommit)
+        Op::Db { stmt }
+            if stmt.conn == Conn::Pool
+                && (model.pool_of(a).is_none() || t.lease == Lease::Held) =>
+        {
+            match &stmt.kind {
+                StmtKind::Insert { table, .. }
+                | StmtKind::Update { table, .. }
+                | StmtKind::Delete { table, .. } => {
+                    model.schema.index(table).map(InFlightOp::Autocommit)
+                }
+                _ => None,
             }
-            _ => None,
-        },
+        }
         _ => None,
     }
 }
@@ -1946,6 +2070,13 @@ fn in_flight_effect(
             let id = s.actors[a].txn.ok_or("COMMIT outside a transaction")?;
             s.actors[a].txn = None;
             if reaches {
+                // The connection broke: the pool drops it.
+                if s.txns.get(&id).is_some_and(|t| t.leased) {
+                    if let Some(t) = s.txns.get_mut(&id) {
+                        t.leased = false;
+                    }
+                    release_lease(model, s, model.process_of[a], foot);
+                }
                 let seq = id.0 & 0xFFF;
                 let attempt = s.actors[a].attempt;
                 s.orphans.push(crate::state::Orphan {
@@ -2335,6 +2466,30 @@ fn crash_process(
         s.crashes += 1;
     }
     foot.push(Access::Global);
+    if model.pools.get(process).copied().flatten().is_some() {
+        // The process takes its pool with it: every connection is closed
+        // (the server then ends the sessions), every waiting request dies.
+        s.pools[process] = PoolState::default();
+        for a in 0..s.actors.len() {
+            if model.process_of[a] != process {
+                continue;
+            }
+            for t in &mut s.actors[a].threads {
+                t.lease = Lease::None;
+            }
+            let ids: Vec<TxnId> = s
+                .txns
+                .iter()
+                .filter(|(_, t)| t.actor as usize == a)
+                .map(|(id, _)| *id)
+                .collect();
+            for id in ids {
+                if let Some(t) = s.txns.get_mut(&id) {
+                    t.leased = false;
+                }
+            }
+        }
+    }
     for a in 0..s.actors.len() {
         if model.process_of[a] != process {
             continue;

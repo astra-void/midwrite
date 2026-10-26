@@ -53,6 +53,9 @@ struct RawScenario {
     channels: Channels,
     #[serde(default)]
     app: BTreeMap<String, Value>,
+    /// Phase 9: bounded connection pools, process name → capacity.
+    #[serde(default)]
+    pools: BTreeMap<String, u16>,
     actors: Vec<RawActor>,
     #[serde(default)]
     bounds: Bounds,
@@ -135,6 +138,10 @@ struct RawOptions {
     por: Option<bool>,
     strategy: Option<Strategy>,
     minimize: Option<bool>,
+    /// Phase 9: dynamic partial-order reduction instead of sleep sets.
+    dpor: Option<bool>,
+    /// Phase 9: report states in which tasks wait forever.
+    termination: Option<bool>,
 }
 
 #[derive(Deserialize, Default, Clone)]
@@ -398,9 +405,16 @@ fn build(
     if let Some(s) = raw.options.strategy {
         options.strategy = s;
     }
+    if let Some(d) = raw.options.dpor {
+        options.dpor = d;
+    }
+    if let Some(t) = raw.options.termination {
+        options.termination = t;
+    }
     if let Some(m) = raw.options.minimize {
         options.minimize = m;
     }
+    let raw_pools = raw.pools.clone();
     let mut model = Model {
         name: raw.name,
         description: raw.description,
@@ -409,6 +423,7 @@ fn build(
         isolation,
         actors,
         process_of,
+        pools: Vec::new(),
         process_names,
         channels: raw.channels,
         app_initial: raw.app,
@@ -417,6 +432,40 @@ fn build(
         options,
         assumptions: Vec::new(),
     };
+    for (name, cap) in &raw_pools {
+        let Some(i) = model.process_names.iter().position(|p| p == name) else {
+            return bad(
+                "pools",
+                format!("`{name}` is not the name of an actor or a process"),
+            );
+        };
+        if *cap == 0 {
+            return bad(
+                "pools",
+                format!("the pool of `{name}` needs a capacity of 1 or more"),
+            );
+        }
+        if model.pools.is_empty() {
+            model.pools = vec![None; model.process_names.len()];
+        }
+        model.pools[i] = Some(*cap);
+    }
+    if (model.options.termination || model.has_pools())
+        && !model
+            .invariants
+            .iter()
+            .any(|i| i.name == crate::model::TERMINATION)
+    {
+        model.invariants.push(Invariant {
+            name: crate::model::TERMINATION.to_owned(),
+            when: crate::invariant::When::Final,
+            description: "no task waits forever: not for a connection of a bounded pool, and not for a lock that only the application's own waiting could release".to_owned(),
+            formula: crate::invariant::Formula::Eq([
+                crate::invariant::Term::Op(crate::invariant::TermOp::Stuck(())),
+                crate::invariant::Term::Int(0),
+            ]),
+        });
+    }
     validate(&model)?;
     model.assumptions = standard_assumptions(&model, &report);
     Ok((model, report))

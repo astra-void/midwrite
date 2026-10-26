@@ -90,6 +90,10 @@ pub struct BoundsInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub partial_order_reduction_disabled_because: Option<String>,
     pub strategy: String,
+    /// Phase 9: `dpor` when dynamic partial-order reduction ran (the sleep
+    /// sets did not); absent otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reduction: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -124,6 +128,9 @@ pub struct ExplorationInfo {
     pub metrics: MetricsInfo,
     pub unsupported: Vec<UnsupportedInfo>,
     pub stuck_states: usize,
+    /// Phase 9: what the stuck states are (absent when there are none).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stuck: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -681,6 +688,17 @@ fn exploration_info(model: &Model, r: &ExploreResult) -> ExplorationInfo {
         },
         unsupported,
         stuck_states: r.stuck.len(),
+        stuck: {
+            let mut kinds: Vec<String> = r
+                .stuck
+                .iter()
+                .filter(|x| x.kind != crate::explore::StuckKind::Unexplained)
+                .map(|x| x.kind.describe().to_owned())
+                .collect();
+            kinds.sort();
+            kinds.dedup();
+            kinds
+        },
     }
 }
 
@@ -797,7 +815,17 @@ fn validate_on_postgres(_: &Model, _: &Witness) -> (RuntimeVerification, Evidenc
 /// Explore the model and assemble the report.
 pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
     let explore_opts = ExploreOptions::from_model(model);
-    let result = explore_with(model, &explore_opts);
+    let dpor_refusal = if model.options.dpor {
+        crate::explore::dpor_inapplicable(model)
+    } else {
+        None
+    };
+    let use_dpor = model.options.dpor && dpor_refusal.is_none();
+    let result = if use_dpor {
+        crate::explore::explore_dpor(model, &explore_opts)
+    } else {
+        explore_with(model, &explore_opts)
+    };
     let witness = result
         .counterexample
         .as_ref()
@@ -1004,7 +1032,11 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
         .map(|w| crate::twin::analyze(model, &w.schedule))
         .filter(|r| !r.twins.is_empty());
 
-    let disabled_because = if explore_opts.por && model.bounds.max_context_switches.is_some() {
+    let disabled_because = if let Some(why) = &dpor_refusal {
+        Some(format!(
+            "dynamic partial-order reduction was requested but is not applicable ({why}); sleep sets ran instead"
+        ))
+    } else if explore_opts.por && model.bounds.max_context_switches.is_some() {
         Some(
             "maxContextSwitches is set (a commuted ordering can need more context switches)"
                 .to_owned(),
@@ -1048,12 +1080,13 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
         database: database_info(model),
         actors: actor_infos(model),
         bounds: BoundsInfo {
+            reduction: use_dpor.then(|| "dpor".to_owned()),
             declared: model.bounds.clone(),
-            partial_order_reduction: explore_opts.por
-                && model.bounds.max_context_switches.is_none(),
+            partial_order_reduction: use_dpor
+                || (explore_opts.por && model.bounds.max_context_switches.is_none()),
             partial_order_reduction_disabled_because: disabled_because,
             strategy: match (
-                explore_opts.por && model.bounds.max_context_switches.is_none(),
+                use_dpor || (explore_opts.por && model.bounds.max_context_switches.is_none()),
                 explore_opts.strategy,
             ) {
                 (true, _) | (_, Strategy::Dfs) => "dfs",
@@ -1089,7 +1122,9 @@ pub fn render_text(model: &Model, r: &ModelCheckReport, verbose: bool) -> String
         r.actors.len(),
         r.exploration.metrics.states,
         r.exploration.metrics.transitions,
-        if r.bounds.partial_order_reduction {
+        if r.bounds.reduction.as_deref() == Some("dpor") {
+            " (dynamic partial-order reduction on)"
+        } else if r.bounds.partial_order_reduction {
             " (sleep-set reduction on)"
         } else {
             ""

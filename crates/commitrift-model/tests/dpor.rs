@@ -169,9 +169,9 @@ fn dpor_model(seed: u64) -> (Value, Model) {
         .cloned()
         .collect();
     doc["invariants"] = Value::Array(invariants);
-    if seed % 3 == 0 {
+    if seed.is_multiple_of(3) {
         doc["bounds"]["maxInFlight"] = 1.into();
-        if doc["bounds"]["maxRetries"] == 0 && seed % 2 == 0 {
+        if doc["bounds"]["maxRetries"] == 0 && seed.is_multiple_of(2) {
             doc["bounds"]["maxRetries"] = 1.into();
         }
     }
