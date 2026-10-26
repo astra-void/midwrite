@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "name": "ambiguous-commit-blind-retry",
+  "description": "COMMIT submitted, acknowledgment lost, the client cannot tell whether PostgreSQL committed, and retries blindly (a fresh row per attempt). Phase 8 could only model a crash before or after the COMMIT; here the server's outcome is a separate physical fact the client does not know.",
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "payments",
+        "columns": [
+          {
+            "name": "id",
+            "type": "int",
+            "notNull": true,
+            "default": {
+              "sequence": {}
+            }
+          },
+          {
+            "name": "req",
+            "type": "text"
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ]
+      }
+    ],
+    "initialState": {
+      "payments": []
+    }
+  },
+  "actors": [
+    {
+      "name": "Client",
+      "function": "pay",
+      "program": "begin\ninsert payments set @req = rid\ncommit\n",
+      "arguments": {
+        "rid": "r1"
+      },
+      "retry": {
+        "trigger": "onFailureOrCrash"
+      },
+      "description": "a client that submits the same payment again when it gets no answer"
+    }
+  ],
+  "bounds": {
+    "maxSteps": 40,
+    "maxInFlight": 1,
+    "maxRetries": 1
+  },
+  "invariants": [
+    {
+      "name": "charged-once",
+      "when": "final",
+      "description": "one logical payment is recorded at most once",
+      "assert": {
+        "le": [
+          {
+            "count": {
+              "table": "payments",
+              "where": {}
+            }
+          },
+          1
+        ]
+      }
+    }
+  ]
+}

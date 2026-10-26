@@ -29,6 +29,12 @@ pub struct Bounds {
     /// one schedule.
     #[serde(default)]
     pub max_retries: u32,
+    /// Phase 9: maximum operations on one schedule whose acknowledgment is
+    /// lost in flight (a COMMIT or an autocommit write that reached the
+    /// server, or did not, while the application learns nothing). `0`
+    /// (default): no in-flight faults, exactly the Phase 8 transition system.
+    #[serde(default)]
+    pub max_in_flight: u32,
     /// Maximum context switches on one schedule. Reduction is disabled when
     /// this is set (see `docs/phase6/PARTIAL-ORDER-REDUCTION.md`).
     #[serde(default)]
@@ -62,6 +68,7 @@ impl Default for Bounds {
             max_states: d_states(),
             max_crashes: 0,
             max_retries: 0,
+            max_in_flight: 0,
             max_context_switches: None,
             max_transitions: None,
             max_wall_ms: None,

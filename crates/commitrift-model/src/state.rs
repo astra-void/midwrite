@@ -13,6 +13,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::db::{RowId, Snapshot, Store, TxnId};
+use crate::epistemic::Ambiguity;
 use crate::ir::{Conn, Isolation, JoinKind, LockMode, OnConflict, ProjItem};
 use crate::model::Model;
 use crate::value::{Expr, Locals, Row, Value};
@@ -139,6 +140,10 @@ pub struct ActorState {
     pub insert_seq: u32,
     /// Whether the current attempt has performed a visible operation.
     pub touched: bool,
+    /// Phase 9: operations of this actor whose acknowledgment was lost
+    /// (physical outcome and what the application can exclude). Empty unless
+    /// `Bounds::max_in_flight` is set; part of the canonical encoding.
+    pub ambiguous: Vec<Ambiguity>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -167,6 +172,25 @@ pub struct ExternalEvent {
     pub deduplicated: bool,
 }
 
+/// Phase 9: an operation the server received from a client that is gone (or
+/// no longer listening) and has not completed yet: a COMMIT whose
+/// transaction is still open on the server, or an autocommit write that has
+/// not run. Its completion is the separate [`TKind::ServerComplete`]
+/// transition, so it can happen before or after anything else the
+/// application does in between.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Orphan {
+    pub actor: u16,
+    /// Identity within the actor.
+    pub seq: u32,
+    pub op: crate::epistemic::InFlightOp,
+    /// The transaction whose COMMIT the server holds.
+    pub txn: Option<TxnId>,
+    /// The statement the server received (autocommit writes).
+    pub stmt: Option<ClosedStmt>,
+    pub attempt: u32,
+}
+
 #[derive(Clone, Debug)]
 pub struct State {
     pub store: Store,
@@ -178,6 +202,10 @@ pub struct State {
     pub externals: Vec<ExternalEvent>,
     pub crashes: u32,
     pub retries: u32,
+    /// Phase 9: acknowledgments lost so far on this schedule.
+    pub in_flight: u32,
+    /// Phase 9: operations received by the server and not completed yet.
+    pub orphans: Vec<Orphan>,
     /// Serialization dependency edges between transactions (SERIALIZABLE).
     pub deps: BTreeSet<(TxnId, TxnId)>,
     /// Next value of each sequence-backed column (`Model::sequences` order).
@@ -204,6 +232,24 @@ pub enum TKind {
     /// PostgreSQL's deadlock detector aborts one waiting transaction of a
     /// wait-for cycle (which one depends on timer order: any member).
     Deadlock,
+    /// Phase 9: the operation a task submitted (COMMIT, or an autocommit
+    /// write) reached the server, which will complete it (see
+    /// [`TKind::ServerComplete`]), but its acknowledgment is lost: the
+    /// application gets a connection error and cannot tell this from
+    /// [`TKind::LostNotCommitted`].
+    LostCommitted,
+    /// Phase 9: the same observation for the application, but the server
+    /// never executed the operation (or rolled it back).
+    LostNotCommitted,
+    /// Phase 9: a process crashes with operations in flight. `actor` holds
+    /// the bit mask of which in-flight operations committed (bit *i* is the
+    /// *i*-th operation of [`crate::engine::in_flight_ops`]); `thread` is the
+    /// process index.
+    CrashInFlight,
+    /// Phase 9: the server completes an operation it received earlier from a
+    /// client that is gone (`actor` the submitting actor, `thread` the
+    /// operation's sequence number).
+    ServerComplete,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -216,7 +262,10 @@ pub struct Transition {
 
 impl Transition {
     pub fn is_crash_or_retry(&self) -> bool {
-        matches!(self.kind, TKind::Crash | TKind::Retry)
+        matches!(
+            self.kind,
+            TKind::Crash | TKind::Retry | TKind::CrashInFlight
+        )
     }
 }
 
@@ -456,6 +505,51 @@ impl State {
             e.u16(a);
             e.u16(t);
             e.u32(self.switches);
+        }
+        // Phase 9: unresolved outcomes are part of the state. Written only
+        // when present, so encodings of models without in-flight faults are
+        // unchanged.
+        if self.actors.iter().any(|a| !a.ambiguous.is_empty()) || !self.orphans.is_empty() {
+            e.u8(0xA9);
+            e.u32(self.in_flight);
+            e.u32(self.orphans.len() as u32);
+            for o in &self.orphans {
+                e.u16(o.actor);
+                e.u32(o.seq);
+                e.u32(o.txn.map_or(u32::MAX, |t| t.0));
+                match &o.stmt {
+                    Some(st) => {
+                        e.u8(1);
+                        e.str(&format!("{st:?}"));
+                    }
+                    None => e.u8(0),
+                }
+                e.u32(o.attempt);
+            }
+            for a in &self.actors {
+                e.u32(a.ambiguous.len() as u32);
+                for g in &a.ambiguous {
+                    e.u32(g.seq);
+                    e.u8(match g.op {
+                        crate::epistemic::InFlightOp::Commit => 0,
+                        crate::epistemic::InFlightOp::Autocommit(_) => 1,
+                    });
+                    e.u16(match g.op {
+                        crate::epistemic::InFlightOp::Autocommit(t) => t,
+                        crate::epistemic::InFlightOp::Commit => 0,
+                    });
+                    e.u8(match g.world {
+                        crate::epistemic::World::Committed => 1,
+                        crate::epistemic::World::NotCommitted => 2,
+                    });
+                    e.u8(g.possible.bits());
+                    e.u32(g.attempt);
+                    e.u8(match g.via {
+                        crate::epistemic::Via::ConnectionLost => 0,
+                        crate::epistemic::Via::ProcessCrash => 1,
+                    });
+                }
+            }
         }
         e.finish()
     }

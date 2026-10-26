@@ -833,6 +833,9 @@ pub struct OracleRun {
 enum Key {
     Tx(u16),
     Pool(u16, u16),
+    /// Phase 9: a connection whose COMMIT the server holds for a client
+    /// that is gone (actor, operation).
+    Orphan(u16, u32),
 }
 
 struct Run<'a> {
@@ -871,7 +874,7 @@ impl Run<'_> {
         if !self.sessions.contains_key(&key) {
             let iso = match key {
                 Key::Pool(..) => Some(self.model.isolation.sql().to_ascii_lowercase()),
-                Key::Tx(_) => None,
+                Key::Tx(_) | Key::Orphan(..) => None,
             };
             let s = self.env.open(&self.db.name, iso.as_deref(), Some(actor))?;
             self.sessions.insert(key, s);
@@ -1112,6 +1115,52 @@ impl Run<'_> {
                 self.simple(Key::Tx(*actor), *actor, "ROLLBACK;")?;
                 Ok(true)
             }
+            Action::Orphan { actor, seq } => {
+                // The client is gone but its COMMIT is on the server: the
+                // connection stays open (idle in transaction) until the
+                // model's server completes it.
+                if let Some(s) = self.sessions.remove(&Key::Tx(*actor)) {
+                    self.sessions.insert(Key::Orphan(*actor, *seq), s);
+                }
+                self.record(
+                    i,
+                    *actor,
+                    "(COMMIT held by the server)",
+                    "transaction stays open".into(),
+                    "connection kept open".into(),
+                    true,
+                );
+                Ok(true)
+            }
+            Action::OrphanCommit { actor, seq, expect } => {
+                let key = Key::Orphan(*actor, *seq);
+                if !self.sessions.contains_key(&key) {
+                    return Ok(false);
+                }
+                let lines = self.simple(key, *actor, "COMMIT;")?;
+                let code = error_code(&lines);
+                if let Some(c) = &code {
+                    self.sqlstates.push(c.clone());
+                }
+                let (observed, agree) = match (expect, &code) {
+                    (Expect::Ok, None) => ("ok".to_owned(), true),
+                    (Expect::Error(want), Some(got)) => (format!("error {got}"), want == got),
+                    (_, Some(got)) => (format!("error {got}"), false),
+                    (_, None) => ("ok".to_owned(), false),
+                };
+                self.record(
+                    i,
+                    *actor,
+                    "COMMIT; (completed by the server)",
+                    describe_expect(expect, self.model),
+                    observed,
+                    agree,
+                );
+                if let Some(s) = self.sessions.remove(&key) {
+                    drop(s);
+                }
+                Ok(agree)
+            }
             Action::Abort { actor, conn } => {
                 if *conn == Conn::Tx && self.sessions.contains_key(&Key::Tx(*actor)) {
                     self.simple(Key::Tx(*actor), *actor, "ROLLBACK;")?;
@@ -1162,7 +1211,7 @@ impl Run<'_> {
                 let keys: Vec<Key> = self
                     .sessions
                     .iter()
-                    .filter(|(_, s)| s.actor == Some(*actor))
+                    .filter(|(k, s)| s.actor == Some(*actor) && !matches!(k, Key::Orphan(..)))
                     .map(|(k, _)| *k)
                     .collect();
                 for k in keys {

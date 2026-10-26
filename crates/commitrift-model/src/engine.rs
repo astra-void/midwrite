@@ -11,6 +11,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::db::{DbError, RowId, TxnId};
+use crate::epistemic::{Ambiguity, InFlightOp, OutcomeSet, Via, World};
 use crate::exec::{StmtResult, StmtStep, run_stmt, ser_would_fail};
 use crate::footprint::{Access, Footprint};
 use crate::ir::{
@@ -42,6 +43,12 @@ pub enum EventKind {
     Abort,
     Spawn,
     Deadlock,
+    /// Phase 9: a submitted operation's acknowledgment was lost (physical
+    /// outcome stated in the text; the application learns nothing).
+    AckLost,
+    /// Phase 9: the server completes an operation it received from a client
+    /// that is gone.
+    ServerCompletion,
 }
 
 /// One observable fact produced by a transition.
@@ -111,6 +118,20 @@ pub enum Action {
     },
     Crash {
         actor: u16,
+    },
+    /// Phase 9: the actor's COMMIT reached the server, which holds it
+    /// (the connection is detached from the actor; the server completes the
+    /// COMMIT later, as [`Action::OrphanCommit`]).
+    Orphan {
+        actor: u16,
+        seq: u32,
+    },
+    /// Phase 9: the server completes a COMMIT it received from a client that
+    /// is gone.
+    OrphanCommit {
+        actor: u16,
+        seq: u32,
+        expect: Expect,
     },
     /// An external effect (Phase 8: planned against the original code's
     /// channel test double).
@@ -212,6 +233,7 @@ pub fn initial_state(model: &Model) -> State {
             txn_seq: 0,
             insert_seq: 0,
             touched: false,
+            ambiguous: Vec::new(),
         })
         .collect();
     let mut s = State {
@@ -223,6 +245,8 @@ pub fn initial_state(model: &Model) -> State {
         externals: Vec::new(),
         crashes: 0,
         retries: 0,
+        in_flight: 0,
+        orphans: Vec::new(),
         deps: Default::default(),
         seqs: model.sequences().into_iter().map(|(_, _, n)| n).collect(),
         steps: 0,
@@ -314,6 +338,27 @@ pub fn enabled(model: &Model, s: &State) -> Vec<Transition> {
             });
         }
     }
+    let in_flight_mode = model.bounds.max_in_flight > 0 && s.in_flight < model.bounds.max_in_flight;
+    if in_flight_mode {
+        // Lost acknowledgments with the process alive (Phase 9).
+        for (a, actor) in s.actors.iter().enumerate() {
+            for th in 0..actor.threads.len() {
+                if let Some(op) = candidate(model, s, a, th) {
+                    out.push(Transition {
+                        kind: TKind::LostNotCommitted,
+                        actor: a as u16,
+                        thread: th as u16,
+                    });
+                    let _ = op;
+                    out.push(Transition {
+                        kind: TKind::LostCommitted,
+                        actor: a as u16,
+                        thread: th as u16,
+                    });
+                }
+            }
+        }
+    }
     if s.crashes < model.bounds.max_crashes {
         for (p, _) in model.process_names.iter().enumerate() {
             let alive = model.actors.iter().enumerate().any(|(a, _)| {
@@ -324,14 +369,56 @@ pub fn enabled(model: &Model, s: &State) -> Vec<Transition> {
                         .any(|t| t.status == TStatus::Running)
                     && (s.actors[a].touched || s.actors[a].txn.is_some())
             });
-            if alive {
-                let first = model.process_of.iter().position(|q| *q == p).unwrap_or(0);
-                out.push(Transition {
-                    kind: TKind::Crash,
-                    actor: first as u16,
-                    thread: p as u16,
-                });
+            let ops = if in_flight_mode {
+                in_flight_ops(model, s, p)
+            } else {
+                Vec::new()
+            };
+            if ops.is_empty() {
+                if alive {
+                    let first = model.process_of.iter().position(|q| *q == p).unwrap_or(0);
+                    out.push(Transition {
+                        kind: TKind::Crash,
+                        actor: first as u16,
+                        thread: p as u16,
+                    });
+                }
+                continue;
             }
+            // Operations are in flight: the crash is one transition per
+            // combination of server outcomes; the plain crash (nothing was
+            // submitted) is the all-"not committed" combination.
+            for mask in 0u16..(1u16 << ops.len()) {
+                if mask == 0 && !alive {
+                    continue;
+                }
+                let mut trial = s.clone();
+                if crash_in_flight(
+                    model,
+                    &mut trial,
+                    p,
+                    mask,
+                    &mut Footprint::default(),
+                    &mut Recorder::off(),
+                )
+                .is_ok()
+                {
+                    out.push(Transition {
+                        kind: TKind::CrashInFlight,
+                        actor: mask,
+                        thread: p as u16,
+                    });
+                }
+            }
+        }
+    }
+    for o in &s.orphans {
+        if orphan_ready(model, s, o) {
+            out.push(Transition {
+                kind: TKind::ServerComplete,
+                actor: o.actor,
+                thread: o.seq as u16,
+            });
         }
     }
     if s.retries < model.bounds.max_retries {
@@ -363,12 +450,14 @@ pub fn enabled(model: &Model, s: &State) -> Vec<Transition> {
 /// states.
 pub fn is_quiescent(model: &Model, enabled: &[Transition]) -> bool {
     !enabled.iter().any(|t| match t.kind {
-        TKind::Step | TKind::Resume | TKind::Deadlock => true,
+        TKind::Step | TKind::Resume | TKind::Deadlock | TKind::ServerComplete => true,
         TKind::Retry => model.actors[t.actor as usize]
             .retry
             .as_ref()
             .is_some_and(|r| r.guaranteed),
-        TKind::Crash => false,
+        TKind::Crash | TKind::LostCommitted | TKind::LostNotCommitted | TKind::CrashInFlight => {
+            false
+        }
     })
 }
 
@@ -470,6 +559,45 @@ pub fn apply(
         TKind::Crash => {
             foot.push(Access::Global);
             crash_process(model, &mut s, t.thread as usize, true, &mut foot, rec);
+        }
+        TKind::LostCommitted | TKind::LostNotCommitted => {
+            foot.push(Access::Actor(t.actor));
+            foot.push(Access::Budget);
+            lose_acknowledgment(
+                model,
+                &mut s,
+                t.actor as usize,
+                t.thread as usize,
+                t.kind == TKind::LostCommitted,
+                &mut foot,
+                rec,
+            )?;
+        }
+        TKind::ServerComplete => {
+            foot.push(Access::Actor(t.actor));
+            server_complete(
+                model,
+                &mut s,
+                t.actor as usize,
+                t.thread as u32,
+                &mut foot,
+                rec,
+            )
+            .map_err(|detail| Unsupported {
+                actor: t.actor as usize,
+                detail,
+                src: SourceRef::declared(0, ""),
+            })?;
+        }
+        TKind::CrashInFlight => {
+            foot.push(Access::Global);
+            crash_in_flight(model, &mut s, t.thread as usize, t.actor, &mut foot, rec).map_err(
+                |detail| Unsupported {
+                    actor: t.actor as usize,
+                    detail,
+                    src: SourceRef::declared(0, ""),
+                },
+            )?;
         }
         TKind::Retry => {
             foot.push(Access::Global);
@@ -957,18 +1085,7 @@ fn db_step(
         },
         Conn::Pool => new_txn(s, a, model.isolation, true),
     };
-    let iso = s.txns[&txn].iso;
-    let snapshot = if iso == Isolation::ReadCommitted {
-        s.commit_seq
-    } else {
-        let commit_seq = s.commit_seq;
-        let t = s.txns.get_mut(&txn).expect("transaction exists");
-        if t.snapshot.is_none() {
-            t.snapshot = Some(commit_seq);
-            foot.push(Access::Snapshot);
-        }
-        t.snapshot.unwrap_or(commit_seq)
-    };
+    let snapshot = open_snapshot(s, txn, foot);
     let mut p = Pending {
         stmt: closed,
         conn: stmt.conn,
@@ -981,6 +1098,23 @@ fn db_step(
         started: false,
     };
     run_pending(model, s, a, th, &mut p, false, src, foot, rec);
+}
+
+/// The snapshot a statement of `txn` runs on (taken now, for the isolation
+/// levels that keep one).
+fn open_snapshot(s: &mut State, txn: TxnId, foot: &mut Footprint) -> u64 {
+    let iso = s.txns[&txn].iso;
+    if iso == Isolation::ReadCommitted {
+        s.commit_seq
+    } else {
+        let commit_seq = s.commit_seq;
+        let t = s.txns.get_mut(&txn).expect("transaction exists");
+        if t.snapshot.is_none() {
+            t.snapshot = Some(commit_seq);
+            foot.push(Access::Snapshot);
+        }
+        t.snapshot.unwrap_or(commit_seq)
+    }
 }
 
 fn resume_thread(
@@ -1746,6 +1880,439 @@ fn fail_thread(
         );
         crash_process(model, s, p, false, foot, rec);
     }
+}
+
+// ---------------------------------------------------------------------
+// In-flight operations (Phase 9)
+// ---------------------------------------------------------------------
+
+/// The operation `th` of actor `a` could have in flight at its next step: an
+/// explicit COMMIT, or a write outside a transaction.
+fn candidate(model: &Model, s: &State, a: usize, th: usize) -> Option<InFlightOp> {
+    let actor = &s.actors[a];
+    let t = &actor.threads[th];
+    if t.status != TStatus::Running || t.pending.is_some() {
+        return None;
+    }
+    let step = op_at(model, s, a, th);
+    match &step.op {
+        Op::Commit => (actor.txn.is_some() && !tx_busy(actor)).then_some(InFlightOp::Commit),
+        Op::Db { stmt } if stmt.conn == Conn::Pool => match &stmt.kind {
+            StmtKind::Insert { table, .. }
+            | StmtKind::Update { table, .. }
+            | StmtKind::Delete { table, .. } => {
+                model.schema.index(table).map(InFlightOp::Autocommit)
+            }
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// The operations a process has in flight, in `(actor, task)` order, at most
+/// eight (the combinations of their outcomes are enumerated).
+pub fn in_flight_ops(model: &Model, s: &State, process: usize) -> Vec<(usize, usize, InFlightOp)> {
+    let mut out = Vec::new();
+    for a in 0..s.actors.len() {
+        if model.process_of[a] != process {
+            continue;
+        }
+        for th in 0..s.actors[a].threads.len() {
+            if let Some(op) = candidate(model, s, a, th) {
+                out.push((a, th, op));
+            }
+        }
+    }
+    out.truncate(8);
+    out
+}
+
+/// What the server does with an in-flight operation: it never gets to it
+/// (`reaches == false`), or it receives it and will complete it later (the
+/// operation becomes an [`Orphan`]; `Err` when it cannot be formed).
+#[allow(clippy::too_many_arguments)]
+fn in_flight_effect(
+    model: &Model,
+    s: &mut State,
+    a: usize,
+    th: usize,
+    op: InFlightOp,
+    reaches: bool,
+    foot: &mut Footprint,
+    rec: &mut Recorder,
+) -> Result<Option<u32>, String> {
+    match op {
+        InFlightOp::Commit => {
+            let id = s.actors[a].txn.ok_or("COMMIT outside a transaction")?;
+            s.actors[a].txn = None;
+            if reaches {
+                let seq = id.0 & 0xFFF;
+                let attempt = s.actors[a].attempt;
+                s.orphans.push(crate::state::Orphan {
+                    actor: a as u16,
+                    seq,
+                    op,
+                    txn: Some(id),
+                    stmt: None,
+                    attempt,
+                });
+                rec.act(|| Action::Orphan {
+                    actor: a as u16,
+                    seq,
+                });
+                Ok(Some(seq))
+            } else {
+                cancel_pendings(s, id, a, th);
+                abort_txn(model, s, id, foot);
+                rec.act(|| Action::Abort {
+                    actor: a as u16,
+                    conn: Conn::Tx,
+                });
+                Ok(None)
+            }
+        }
+        InFlightOp::Autocommit(_) => {
+            if !reaches {
+                // Never executed: nothing to undo (sequence values the
+                // statement would have consumed are not modeled for this
+                // world).
+                return Ok(None);
+            }
+            let step = op_at(model, s, a, th);
+            let Op::Db { stmt } = &step.op else {
+                return Err("not a statement".into());
+            };
+            let closed = close_stmt(model, &s.actors[a].locals, stmt)?;
+            let seq = s.actors[a].txn_seq;
+            s.actors[a].txn_seq += 1;
+            let attempt = s.actors[a].attempt;
+            s.orphans.push(crate::state::Orphan {
+                actor: a as u16,
+                seq,
+                op,
+                txn: None,
+                stmt: Some(closed),
+                attempt,
+            });
+            Ok(Some(seq))
+        }
+    }
+}
+
+/// Whether the server can complete the orphan now (an autocommit write that
+/// would have to wait for a lock waits until its blocker finished).
+fn orphan_ready(model: &Model, s: &State, o: &crate::state::Orphan) -> bool {
+    let Some(stmt) = &o.stmt else {
+        return true;
+    };
+    let mut trial = s.clone();
+    let txn = new_txn(&mut trial, o.actor as usize, model.isolation, true);
+    let mut foot = Footprint::default();
+    let snapshot = open_snapshot(&mut trial, txn, &mut foot);
+    let mut p = Pending {
+        stmt: stmt.clone(),
+        conn: Conn::Pool,
+        txn,
+        snapshot,
+        todo: Vec::new(),
+        affected: 0,
+        found: None,
+        blocked_on: None,
+        started: false,
+    };
+    !matches!(
+        run_stmt(model, &mut trial, &mut p, &mut foot),
+        StmtStep::Blocked(_)
+    )
+}
+
+/// The server completes a held operation: the COMMIT, or the autocommit
+/// write, takes effect, or is rejected (then the physical outcome is "not
+/// committed").
+fn server_complete(
+    model: &Model,
+    s: &mut State,
+    actor: usize,
+    seq: u32,
+    foot: &mut Footprint,
+    rec: &mut Recorder,
+) -> Result<(), String> {
+    let at = s
+        .orphans
+        .iter()
+        .position(|o| o.actor as usize == actor && o.seq == seq)
+        .ok_or("the server holds no such operation")?;
+    let o = s.orphans.remove(at);
+    let mut committed = true;
+    let text;
+    match (&o.txn, &o.stmt) {
+        (Some(id), _) => match commit_txn(model, s, *id, foot) {
+            Ok(()) => {
+                rec.act(|| Action::OrphanCommit {
+                    actor: actor as u16,
+                    seq,
+                    expect: Expect::Ok,
+                });
+                text = "the server completes the COMMIT it received: committed".to_owned();
+            }
+            Err(e) => {
+                abort_txn(model, s, *id, foot);
+                rec.act(|| Action::OrphanCommit {
+                    actor: actor as u16,
+                    seq,
+                    expect: Expect::Error(e.sqlstate.clone()),
+                });
+                committed = false;
+                text = format!("the server completes the COMMIT it received: rejected ({e})");
+            }
+        },
+        (None, Some(stmt)) => {
+            let txn = new_txn(s, actor, model.isolation, true);
+            let snapshot = open_snapshot(s, txn, foot);
+            let mut p = Pending {
+                stmt: stmt.clone(),
+                conn: Conn::Pool,
+                txn,
+                snapshot,
+                todo: Vec::new(),
+                affected: 0,
+                found: None,
+                blocked_on: None,
+                started: false,
+            };
+            let label = describe(model, stmt);
+            let thread = 0x4000 + seq as u16;
+            match run_stmt(model, s, &mut p, foot) {
+                StmtStep::Done(result) => match commit_txn(model, s, txn, foot) {
+                    Ok(()) => {
+                        rec.act(|| Action::Stmt {
+                            actor: actor as u16,
+                            thread,
+                            conn: Conn::Pool,
+                            stmt: stmt.clone(),
+                            resumed: false,
+                            expect: Expect::Done(result.clone()),
+                        });
+                        text = format!(
+                            "the server executes the statement it received: {label} (committed)"
+                        );
+                    }
+                    Err(e) => {
+                        abort_txn(model, s, txn, foot);
+                        rec.act(|| Action::Stmt {
+                            actor: actor as u16,
+                            thread,
+                            conn: Conn::Pool,
+                            stmt: stmt.clone(),
+                            resumed: false,
+                            expect: Expect::Error(e.sqlstate.clone()),
+                        });
+                        committed = false;
+                        text =
+                            format!("the server rejects the statement it received: {label} ({e})");
+                    }
+                },
+                StmtStep::Failed(e) => {
+                    abort_txn(model, s, txn, foot);
+                    rec.act(|| Action::Stmt {
+                        actor: actor as u16,
+                        thread,
+                        conn: Conn::Pool,
+                        stmt: stmt.clone(),
+                        resumed: false,
+                        expect: Expect::Error(e.sqlstate.clone()),
+                    });
+                    committed = false;
+                    text = format!("the server rejects the statement it received: {label} ({e})");
+                }
+                StmtStep::Blocked(_) => {
+                    return Err("the server cannot complete a statement that waits".into());
+                }
+            }
+        }
+        (None, None) => return Err("an orphan without an operation".into()),
+    }
+    if !committed && let Some(g) = s.actors[actor].ambiguous.iter_mut().find(|g| g.seq == seq) {
+        g.world = World::NotCommitted;
+    }
+    rec.add(
+        actor,
+        0,
+        EventKind::ServerCompletion,
+        None,
+        || text,
+        None,
+        None,
+    );
+    Ok(())
+}
+
+fn possible_worlds(
+    _model: &Model,
+    _s: &State,
+    _a: usize,
+    _th: usize,
+    _op: InFlightOp,
+) -> OutcomeSet {
+    // Whether the server reached the operation is exactly what the
+    // application cannot know: both are possible.
+    OutcomeSet::BOTH
+}
+
+fn op_text(model: &Model, s: &State, a: usize, th: usize, op: InFlightOp) -> String {
+    match op {
+        InFlightOp::Commit => "COMMIT".to_owned(),
+        InFlightOp::Autocommit(_) => {
+            let step = op_at(model, s, a, th);
+            match &step.op {
+                Op::Db { stmt } => close_stmt(model, &s.actors[a].locals, stmt)
+                    .map(|c| describe(model, &c))
+                    .unwrap_or_else(|_| "statement".to_owned()),
+                _ => "statement".to_owned(),
+            }
+        }
+    }
+}
+
+fn lost_text(text: &str, reaches: bool, via: Via) -> String {
+    let what = if reaches {
+        "it reaches PostgreSQL, which will complete it"
+    } else {
+        "PostgreSQL never receives it (or rolls it back)"
+    };
+    match via {
+        Via::ConnectionLost => format!(
+            "{text} submitted; {what}; the acknowledgment never reaches the application (connection lost)"
+        ),
+        Via::ProcessCrash => {
+            format!("{text} submitted; {what}; the process dies before an acknowledgment arrives")
+        }
+    }
+}
+
+/// The acknowledgment of the next operation of task `th` is lost while the
+/// process lives: the server committed it or not, and the application gets a
+/// connection error that is the same in both cases.
+#[allow(clippy::result_large_err)]
+fn lose_acknowledgment(
+    model: &Model,
+    s: &mut State,
+    a: usize,
+    th: usize,
+    committed: bool,
+    foot: &mut Footprint,
+    rec: &mut Recorder,
+) -> Result<(), Unsupported> {
+    let step = op_at(model, s, a, th);
+    let src = step.src.clone();
+    let unsupported = |detail: String| Unsupported {
+        actor: a,
+        detail,
+        src: src.clone(),
+    };
+    let Some(op) = candidate(model, s, a, th) else {
+        return Err(unsupported(
+            "an acknowledgment loss was planned where no operation is in flight".into(),
+        ));
+    };
+    let possible = possible_worlds(model, s, a, th, op);
+    let text = if rec.on {
+        op_text(model, s, a, th, op)
+    } else {
+        String::new()
+    };
+    s.actors[a].touched = true;
+    s.in_flight += 1;
+    let orphan =
+        in_flight_effect(model, s, a, th, op, committed, foot, rec).map_err(unsupported)?;
+    let world = if committed {
+        World::Committed
+    } else {
+        World::NotCommitted
+    };
+    let attempt = s.actors[a].attempt;
+    s.actors[a].ambiguous.push(Ambiguity {
+        seq: orphan.unwrap_or(u32::MAX),
+        op,
+        world,
+        possible,
+        attempt,
+        via: Via::ConnectionLost,
+    });
+    rec.add(
+        a,
+        th,
+        EventKind::AckLost,
+        Some(&src),
+        || lost_text(&text, committed, Via::ConnectionLost),
+        None,
+        None,
+    );
+    let reason = format!(
+        "connection terminated unexpectedly: the outcome of {} is unknown",
+        match op {
+            InFlightOp::Commit => "COMMIT",
+            InFlightOp::Autocommit(_) => "the statement",
+        }
+    );
+    fail_thread(model, s, a, th, reason, foot, rec);
+    Ok(())
+}
+
+/// A process crashes with `in_flight_ops` of it in flight; bit *i* of `mask`
+/// says that the *i*-th operation committed on the server.
+fn crash_in_flight(
+    model: &Model,
+    s: &mut State,
+    process: usize,
+    mask: u16,
+    foot: &mut Footprint,
+    rec: &mut Recorder,
+) -> Result<(), String> {
+    let ops = in_flight_ops(model, s, process);
+    if ops.is_empty() && mask != 0 {
+        return Err("a crash with operations in flight was planned where none is".into());
+    }
+    let possible: Vec<OutcomeSet> = ops
+        .iter()
+        .map(|(a, th, op)| possible_worlds(model, s, *a, *th, *op))
+        .collect();
+    for (i, (a, th, op)) in ops.iter().enumerate() {
+        let committed = (mask >> i) & 1 == 1;
+        let src = op_at(model, s, *a, *th).src.clone();
+        let text = if rec.on {
+            op_text(model, s, *a, *th, *op)
+        } else {
+            String::new()
+        };
+        s.actors[*a].touched = true;
+        let orphan = in_flight_effect(model, s, *a, *th, *op, committed, foot, rec)?;
+        let attempt = s.actors[*a].attempt;
+        s.actors[*a].ambiguous.push(Ambiguity {
+            seq: orphan.unwrap_or(u32::MAX),
+            op: *op,
+            world: if committed {
+                World::Committed
+            } else {
+                World::NotCommitted
+            },
+            possible: possible[i],
+            attempt,
+            via: Via::ProcessCrash,
+        });
+        rec.add(
+            *a,
+            *th,
+            EventKind::AckLost,
+            Some(&src),
+            || lost_text(&text, committed, Via::ProcessCrash),
+            None,
+            None,
+        );
+    }
+    s.in_flight += 1;
+    crash_process(model, s, process, true, foot, rec);
+    Ok(())
 }
 
 // ---------------------------------------------------------------------

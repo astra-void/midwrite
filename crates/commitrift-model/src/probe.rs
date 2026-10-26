@@ -23,6 +23,8 @@ fn events(model: &Model, t: Transition, actions: &[Action]) -> Vec<String> {
     match t.kind {
         TKind::Retry => out.push(format!("retry:{}", name(t.actor))),
         TKind::Deadlock => out.push("error:40P01".to_owned()),
+        TKind::LostCommitted => out.push(format!("lost-committed:{}", name(t.actor))),
+        TKind::LostNotCommitted => out.push(format!("lost-not-committed:{}", name(t.actor))),
         _ => {}
     }
     for a in actions {
@@ -153,6 +155,10 @@ pub fn render(model: &Model, schedule: &[Transition]) -> Vec<String> {
         .map(|t| match t.kind {
             TKind::Crash => format!("crash process {}", model.process_names[t.thread as usize]),
             TKind::Retry => format!("retry {}", model.actors[t.actor as usize].name),
+            TKind::CrashInFlight => format!(
+                "crash process {} with operations in flight (committed mask {:#b})",
+                model.process_names[t.thread as usize], t.actor
+            ),
             k => format!(
                 "{} {}/{}",
                 format!("{k:?}").to_lowercase(),

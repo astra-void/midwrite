@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "name": "ambiguous-commit-idempotency-key",
+  "description": "Same ambiguity, but the payment is protected by UNIQUE(req) and the insert is ON CONFLICT DO NOTHING: safe under every physical outcome of the lost COMMIT.",
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "payments",
+        "columns": [
+          {
+            "name": "id",
+            "type": "int",
+            "notNull": true,
+            "default": {
+              "sequence": {}
+            }
+          },
+          {
+            "name": "req",
+            "type": "text"
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "unique": [
+          [
+            "req"
+          ]
+        ]
+      }
+    ],
+    "initialState": {
+      "payments": []
+    }
+  },
+  "actors": [
+    {
+      "name": "Client",
+      "function": "pay",
+      "program": "begin\ninsert payments set @req = rid on conflict do nothing\ncommit\n",
+      "arguments": {
+        "rid": "r1"
+      },
+      "retry": {
+        "trigger": "onFailureOrCrash"
+      },
+      "description": "a client that submits the same payment again when it gets no answer"
+    }
+  ],
+  "bounds": {
+    "maxSteps": 40,
+    "maxInFlight": 1,
+    "maxRetries": 1
+  },
+  "invariants": [
+    {
+      "name": "charged-once",
+      "when": "final",
+      "description": "one logical payment is recorded at most once",
+      "assert": {
+        "le": [
+          {
+            "count": {
+              "table": "payments",
+              "where": {}
+            }
+          },
+          1
+        ]
+      }
+    }
+  ]
+}

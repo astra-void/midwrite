@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "name": "ambiguous-commit-lookup-unique",
+  "description": "Reconciliation made safe by the database: the lookup is an optimization, UNIQUE(req) with ON CONFLICT DO NOTHING is what keeps the invariant with a concurrent second delivery.",
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "payments",
+        "columns": [
+          {
+            "name": "id",
+            "type": "int",
+            "notNull": true,
+            "default": {
+              "sequence": {}
+            }
+          },
+          {
+            "name": "req",
+            "type": "text"
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "unique": [
+          [
+            "req"
+          ]
+        ]
+      }
+    ],
+    "initialState": {
+      "payments": []
+    }
+  },
+  "actors": [
+    {
+      "name": "Client",
+      "function": "pay",
+      "program": "let p = select payments where @req == rid\nif p == null {\n  begin\n  insert payments set @req = rid on conflict do nothing\n  commit\n}\n",
+      "arguments": {
+        "rid": "r1"
+      },
+      "retry": {
+        "trigger": "onFailureOrCrash"
+      },
+      "description": "a client that submits the same payment again when it gets no answer"
+    },
+    {
+      "name": "Resend",
+      "function": "pay",
+      "program": "let p = select payments where @req == rid\nif p == null {\n  begin\n  insert payments set @req = rid on conflict do nothing\n  commit\n}\n",
+      "arguments": {
+        "rid": "r1"
+      },
+      "retry": {
+        "trigger": "onFailure"
+      },
+      "description": "a client that submits the same payment again when it gets no answer"
+    }
+  ],
+  "bounds": {
+    "maxSteps": 50,
+    "maxInFlight": 1,
+    "maxRetries": 1
+  },
+  "invariants": [
+    {
+      "name": "charged-once",
+      "when": "final",
+      "description": "one logical payment is recorded at most once",
+      "assert": {
+        "le": [
+          {
+            "count": {
+              "table": "payments",
+              "where": {}
+            }
+          },
+          1
+        ]
+      }
+    }
+  ]
+}

@@ -302,6 +302,12 @@ fn plan(model: &Model, schedule: &[Transition]) -> Result<Plan, String> {
             .map(|s| s.src.clone());
         match t.kind {
             TKind::Deadlock => return Err("the counterexample picks a deadlock victim: victim steering is not done against original code".to_owned()),
+            TKind::LostCommitted
+            | TKind::LostNotCommitted
+            | TKind::CrashInFlight
+            | TKind::ServerComplete => {
+                return Err("in-flight faults are not planned against original code yet".to_owned());
+            }
             TKind::Crash => {
                 let process = t.thread as usize;
                 for a in 0..model.actors.len() {
@@ -521,6 +527,11 @@ fn plan(model: &Model, schedule: &[Transition]) -> Result<Plan, String> {
                 }
                 // Planned above, from the transition.
                 Action::Crash { .. } => {}
+                Action::Orphan { .. } | Action::OrphanCommit { .. } => {
+                    return Err(
+                        "in-flight faults are not planned against original code yet".to_owned()
+                    );
+                }
             }
         }
     }

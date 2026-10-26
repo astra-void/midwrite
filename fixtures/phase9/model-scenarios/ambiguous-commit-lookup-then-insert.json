@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "name": "ambiguous-commit-lookup-then-insert",
+  "description": "Recovery by reconciliation: after the lost COMMIT the client reads durable state (is there a payment for this request?) and only inserts when there is none. Safe for one client.",
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "payments",
+        "columns": [
+          {
+            "name": "id",
+            "type": "int",
+            "notNull": true,
+            "default": {
+              "sequence": {}
+            }
+          },
+          {
+            "name": "req",
+            "type": "text"
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ]
+      }
+    ],
+    "initialState": {
+      "payments": []
+    }
+  },
+  "actors": [
+    {
+      "name": "Client",
+      "function": "pay",
+      "program": "let p = select payments where @req == rid\nif p == null {\n  begin\n  insert payments set @req = rid\n  commit\n}\n",
+      "arguments": {
+        "rid": "r1"
+      },
+      "retry": {
+        "trigger": "onFailureOrCrash"
+      },
+      "description": "a client that submits the same payment again when it gets no answer"
+    }
+  ],
+  "bounds": {
+    "maxSteps": 40,
+    "maxInFlight": 1,
+    "maxRetries": 1
+  },
+  "invariants": [
+    {
+      "name": "charged-once",
+      "when": "final",
+      "description": "one logical payment is recorded at most once",
+      "assert": {
+        "le": [
+          {
+            "count": {
+              "table": "payments",
+              "where": {}
+            }
+          },
+          1
+        ]
+      }
+    }
+  ]
+}

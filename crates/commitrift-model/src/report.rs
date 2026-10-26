@@ -254,6 +254,11 @@ pub struct ModelCheckReport {
     /// the application's Drizzle schema, each with its origin.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub schema_facts: Vec<crate::schema_facts::TableFacts>,
+    /// Phase 9 (report schema 4): what the application could and could not
+    /// know at each lost acknowledgment of the counterexample, with the
+    /// other physical world replayed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub epistemic: Option<crate::twin::EpistemicReport>,
 }
 
 impl ModelCheckReport {
@@ -975,6 +980,10 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
         });
     }
     let extraction = extraction_reports(model, &opts.load);
+    let epistemic = witness
+        .as_ref()
+        .map(|w| crate::twin::analyze(model, &w.schedule))
+        .filter(|r| !r.twins.is_empty());
 
     let disabled_because = if explore_opts.por && model.bounds.max_context_switches.is_some() {
         Some(
@@ -988,7 +997,9 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
     };
     ModelCheckReport {
         kind: REPORT_KIND.into(),
-        schema_version: if !opts.load.schema.is_empty()
+        schema_version: if epistemic.is_some() {
+            4
+        } else if !opts.load.schema.is_empty()
             || source_verification
                 .as_ref()
                 .is_some_and(crate::source_types::SourceVerification::has_phase8_fields)
@@ -1041,6 +1052,7 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
         extraction,
         source_verification,
         schema_facts: opts.load.schema.clone(),
+        epistemic,
     }
 }
 
@@ -1063,6 +1075,43 @@ pub fn render_text(model: &Model, r: &ModelCheckReport, verbose: bool) -> String
     if let Some(w) = &r.counterexample {
         out.push('\n');
         out.push_str(&crate::witness::render_text(model, w));
+    }
+    if let Some(e) = &r.epistemic {
+        out.push_str("\nApplication knowledge at each lost acknowledgment:\n");
+        for t in &e.twins {
+            out.push_str(&format!(
+                "  transition {} — {} of {}: PostgreSQL {} (reported schedule); application knowledge: {}\n",
+                t.transition,
+                t.operation,
+                t.actor,
+                t.actual.label(),
+                t.knowledge
+            ));
+            out.push_str(&format!(
+                "    other world ({}): {}{}\n",
+                t.other.label(),
+                t.twin,
+                if t.detail.is_empty() {
+                    String::new()
+                } else {
+                    format!(" — {}", t.detail)
+                }
+            ));
+            for (a, b) in t.actual_verdicts.iter().zip(&t.twin_verdicts) {
+                out.push_str(&format!(
+                    "    invariant `{}`: {} here, {} in the other world\n",
+                    a.invariant,
+                    if a.holds { "holds" } else { "VIOLATED" },
+                    if b.holds { "holds" } else { "VIOLATED" }
+                ));
+            }
+            if let Some((here, other)) = &t.first_difference {
+                out.push_str(&format!(
+                    "    first observation that differs: here `{here}` / other world `{other}`\n"
+                ));
+            }
+            out.push_str(&format!("    {}\n", t.reading));
+        }
     }
     out.push_str(&format!(
         "\nEvidence: {:?} — {}\n",

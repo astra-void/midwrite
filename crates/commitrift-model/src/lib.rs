@@ -6,6 +6,7 @@
 pub mod db;
 pub mod dsl;
 pub mod engine;
+pub mod epistemic;
 pub mod exec;
 pub mod explore;
 pub mod fasthash;
@@ -27,5 +28,6 @@ pub mod source_types;
 #[cfg(feature = "postgres")]
 pub mod source_verify;
 pub mod state;
+pub mod twin;
 pub mod value;
 pub mod witness;

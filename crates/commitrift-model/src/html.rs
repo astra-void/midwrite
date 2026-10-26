@@ -45,7 +45,7 @@ td.cell{background:#fff}
 .k-begin{border-left:4px solid #2f6feb}.k-commit{background:#e6f6ea;border-left:4px solid #1a7f37}
 .k-rollback,.k-abort,.k-fail{background:#fdecea;border-left:4px solid #b42318}
 .k-blocked{background:#fff4d6;border-left:4px solid #d29922}.k-resumed{color:#7a5200}
-.k-crash{background:#2b2b2b;color:#fff}.k-retry{background:#e8f1ff;border-left:4px solid #1f6feb}
+.k-crash{background:#2b2b2b;color:#fff}.k-lost{background:#fff1e0;border-left:4px solid #c25e00}.k-retry{background:#e8f1ff;border-left:4px solid #1f6feb}
 .k-deadlock{background:#f3e8ff;border-left:4px solid #8250df}
 .k-external{background:#eefaff;border-left:4px solid #0969da}
 .k-read{border-left:4px solid #8a94a3}.k-write{border-left:4px solid #9a6700}.k-local{color:#5b6573}
@@ -73,6 +73,7 @@ fn kind_class(k: EventKind) -> &'static str {
         EventKind::Blocked => "k-blocked",
         EventKind::Resumed => "k-resumed",
         EventKind::Crash => "k-crash",
+        EventKind::AckLost | EventKind::ServerCompletion => "k-lost",
         EventKind::Retry => "k-retry",
         EventKind::Deadlock => "k-deadlock",
         EventKind::External => "k-external",

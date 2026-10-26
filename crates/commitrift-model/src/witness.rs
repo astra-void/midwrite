@@ -338,7 +338,9 @@ pub fn build_witness(model: &Model, ce: &Counterexample, minimize_it: bool) -> O
         .map(|(i, (t, events))| WitnessStep {
             index: i + 1,
             actor: match t.kind {
-                TKind::Crash => format!("process {}", model.process_names[t.thread as usize]),
+                TKind::Crash | TKind::CrashInFlight => {
+                    format!("process {}", model.process_names[t.thread as usize])
+                }
                 _ => model.actors[t.actor as usize].name.clone(),
             },
             kind: match t.kind {
@@ -347,6 +349,10 @@ pub fn build_witness(model: &Model, ce: &Counterexample, minimize_it: bool) -> O
                 TKind::Crash => "crash",
                 TKind::Retry => "retry",
                 TKind::Deadlock => "deadlock",
+                TKind::LostCommitted => "ack-lost-committed",
+                TKind::LostNotCommitted => "ack-lost-not-committed",
+                TKind::CrashInFlight => "crash-in-flight",
+                TKind::ServerComplete => "server-complete",
             }
             .to_owned(),
             events: events.clone(),

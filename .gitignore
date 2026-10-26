@@ -21,3 +21,7 @@ node_modules/
 /fixtures/replay/drizzle-node/.gen-*
 /digest.txt
 .DS_Store
+
+# Phase 9: the saved Phase 8 release binary used for comparisons.
+/reports/phase9/baseline/commitrift-phase8
+/fixtures/phase9/**/dist/

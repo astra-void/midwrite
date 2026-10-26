@@ -49,6 +49,9 @@ pub enum Access {
     /// Allocation from a sequence (index into `Model::sequences`): the value
     /// an insert gets depends on the order of allocations (Phase 7).
     Seq(u16),
+    /// The shared budget of in-flight faults (Phase 9): taking one can
+    /// disable another.
+    Budget,
     /// Conflicts with everything.
     Global,
 }
@@ -97,7 +100,7 @@ fn conflict(model: &Model, x: &Access, y: &Access) -> bool {
     match (x, y) {
         (Global, _) | (_, Global) => true,
         (Actor(a), Actor(b)) => a == b,
-        (Ser, Ser) | (Wait, Wait) => true,
+        (Ser, Ser) | (Wait, Wait) | (Budget, Budget) => true,
         (Snapshot, CommitWrite) | (CommitWrite, Snapshot) => true,
         (Ext(a), Ext(b)) => a == b,
         (App(p, v), App(q, w)) => p == q && v == w,
