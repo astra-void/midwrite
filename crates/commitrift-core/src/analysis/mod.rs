@@ -117,6 +117,8 @@ static DIFFERENTIAL_LOG: std::sync::Mutex<(usize, CompactStats, Vec<String>)> =
             built: 0,
             reused: 0,
             shared_facts: 0,
+            instantiated: 0,
+            shape_rejected: 0,
         },
         Vec::new(),
     ));
@@ -139,28 +141,34 @@ pub fn take_path_differential() -> (usize, CompactStats, Vec<String>) {
 /// Phase 7 differential check: enumerate `function`'s paths in both
 /// [`PathMode`]s and compare them event by event (by IR identity), plus the
 /// truncation flag and the pruned/merged counters. Returns the compact
-/// summary counters, or the first difference.
+/// summary counters, or the first difference. Phase 8: the shared mode is
+/// compared with the legacy walk the same way (its counters are returned).
 pub fn compare_path_modes(
     function: &FunctionIr,
     options: &AnalysisOptions,
     include_reads: bool,
 ) -> Result<CompactStats, String> {
+    compare_path_modes_in(function, options, include_reads, PathMode::Compact)?;
+    compare_path_modes_in(function, options, include_reads, PathMode::Shared)
+}
+
+fn compare_path_modes_in(
+    function: &FunctionIr,
+    options: &AnalysisOptions,
+    include_reads: bool,
+    mode: PathMode,
+) -> Result<CompactStats, String> {
     let function = resolve_parameters(function);
     let function = function.as_ref();
     let (legacy, _) =
         paths::enumerate_in(function, options.max_paths, include_reads, PathMode::Legacy);
-    let (compact, stats) = paths::enumerate_in(
-        function,
-        options.max_paths,
-        include_reads,
-        PathMode::Compact,
-    );
+    let (compact, stats) = paths::enumerate_in(function, options.max_paths, include_reads, mode);
     if legacy.truncated != compact.truncated
         || legacy.pruned != compact.pruned
         || legacy.merged != compact.merged
     {
         return Err(format!(
-            "`{}`: truncated/pruned/merged legacy {}/{}/{} compact {}/{}/{}",
+            "`{}`: truncated/pruned/merged legacy {}/{}/{} {mode:?} {}/{}/{}",
             function.name,
             legacy.truncated,
             legacy.pruned,
@@ -172,7 +180,7 @@ pub fn compare_path_modes(
     }
     if legacy.traces.len() != compact.traces.len() {
         return Err(format!(
-            "`{}`: {} legacy traces, {} compact",
+            "`{}`: {} legacy traces, {} {mode:?}",
             function.name,
             legacy.traces.len(),
             compact.traces.len()
@@ -180,7 +188,7 @@ pub fn compare_path_modes(
     }
     for (i, (a, b)) in legacy.traces.iter().zip(&compact.traces).enumerate() {
         if !paths::same_trace(a, b) {
-            return Err(format!("`{}`: trace {i} differs", function.name));
+            return Err(format!("`{}`: trace {i} differs ({mode:?})", function.name));
         }
     }
     Ok(stats)
@@ -203,6 +211,8 @@ fn run(
                 log.1.built += stats.built;
                 log.1.reused += stats.reused;
                 log.1.shared_facts += stats.shared_facts;
+                log.1.instantiated += stats.instantiated;
+                log.1.shape_rejected += stats.shape_rejected;
             }
             Err(difference) => log.2.push(difference),
         }

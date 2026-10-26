@@ -21,6 +21,7 @@ pub mod absint;
 pub mod analysis;
 pub mod config;
 pub mod diagnostic;
+pub mod fasthash;
 pub mod ir;
 pub mod location;
 pub mod recovery;

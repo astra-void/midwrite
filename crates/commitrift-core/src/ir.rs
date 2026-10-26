@@ -296,8 +296,9 @@ pub enum Node {
 pub struct Effect {
     pub id: EffectId,
     pub kind: EffectKind,
-    /// Short source-derived label such as `db.update(orders)`.
-    pub label: String,
+    /// Short source-derived label such as `db.update(orders)`. Shared: an
+    /// inlined operation is copied into every caller (Phase 8).
+    pub label: std::sync::Arc<str>,
     pub location: Location,
     pub execution: Execution,
     /// Why the frontend believes this is the effect it claims to be.
@@ -352,10 +353,11 @@ impl SummaryOrigin {
 #[serde(rename_all = "camelCase")]
 pub struct CallSite {
     pub call: CallId,
-    /// Name of the called function.
-    pub callee: String,
+    /// Name of the called function. Shared (`Arc`): every operation inlined
+    /// through a call carries the whole chain of its call sites (Phase 8).
+    pub callee: std::sync::Arc<str>,
     /// The call as written, such as `notify(id)`.
-    pub label: String,
+    pub label: std::sync::Arc<str>,
     /// Location of the call expression.
     pub location: Location,
     /// Location of the callee's declaration.
@@ -363,7 +365,7 @@ pub struct CallSite {
     /// How the call target was determined, when not by a plain function
     /// name or import (method dispatch, callback, immediate invocation).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub resolution: Option<Box<CallResolution>>,
+    pub resolution: Option<std::sync::Arc<CallResolution>>,
 }
 
 /// How a call target was determined beyond a plain function name or import.
@@ -728,9 +730,9 @@ pub struct TransactionScope {
 pub struct CallScope {
     pub call: CallId,
     /// Name of the called function.
-    pub callee: String,
+    pub callee: std::sync::Arc<str>,
     /// The call as written, such as `notify(id)`.
-    pub label: String,
+    pub label: std::sync::Arc<str>,
     /// Location of the call expression.
     pub location: Location,
     /// Location of the callee's declaration.

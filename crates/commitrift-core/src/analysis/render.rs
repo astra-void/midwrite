@@ -160,7 +160,7 @@ fn value_relation(
     let labels: std::collections::HashMap<u32, String> = function
         .effects()
         .iter()
-        .map(|effect| (effect.id.0, effect.label.clone()))
+        .map(|effect| (effect.id.0, effect.label.to_string()))
         .collect();
     let readable = |text: &str| -> String {
         let Some(rest) = text.strip_prefix("effect#") else {
@@ -291,7 +291,7 @@ impl Renderer<'_> {
                     effect.label
                 ));
                 recovery.push(RecoveryNote {
-                    effect: effect.label.clone(),
+                    effect: effect.label.to_string(),
                     declaration: Recovery::BestEffort.into(),
                     source: "configuration",
                     verified: false,
@@ -307,7 +307,7 @@ impl Renderer<'_> {
                     effect.label
                 ));
                 recovery.push(RecoveryNote {
-                    effect: effect.label.clone(),
+                    effect: effect.label.to_string(),
                     declaration: declaration.into(),
                     source: "configuration",
                     verified: false,
@@ -325,7 +325,7 @@ impl Renderer<'_> {
                 effect.label
             ));
             recovery.push(RecoveryNote {
-                effect: effect.label.clone(),
+                effect: effect.label.to_string(),
                 declaration: Recovery::IdempotentConsumer.into(),
                 source: "configuration",
                 verified: false,

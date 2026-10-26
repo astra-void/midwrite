@@ -284,7 +284,7 @@ impl Renderer<'_> {
         };
         match *event {
             Event::Effect { effect, .. } => {
-                step.label = effect.label.clone();
+                step.label = effect.label.to_string();
                 step.description = effect.kind.describe();
                 step.location = Some(self.src.resolve(effect.location));
                 step.call_chain = self.chain(effect.summary.as_ref());
@@ -403,8 +403,8 @@ impl Renderer<'_> {
                     .calls
                     .iter()
                     .map(|site| CallFrame {
-                        callee: site.callee.clone(),
-                        label: site.label.clone(),
+                        callee: site.callee.to_string(),
+                        label: site.label.to_string(),
                         location: self.src.resolve(site.location),
                     })
                     .collect()
@@ -540,7 +540,7 @@ fn external_hint(occurrence: &Occurrence<'_>, position: &str) -> (String, Option
     };
     (
         format!("{position}-{what}"),
-        Some(occurrence.effect.label.clone()),
+        Some(occurrence.effect.label.to_string()),
     )
 }
 

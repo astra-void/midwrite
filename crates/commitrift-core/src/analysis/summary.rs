@@ -170,6 +170,11 @@ pub struct InlineStats {
     pub expansions: usize,
     /// Callee expansions reused from the memo table.
     pub reused: usize,
+    /// Phase 8: reuses found through the depth-canonical key (an expansion
+    /// that never reached the depth bound is the same at every depth from
+    /// the one it needs), which the exact `(callee, depth, callbacks)` key
+    /// misses. Included in `reused`.
+    pub canonical_reuses: usize,
     /// Calls resolved as inert.
     pub inert: usize,
     /// Calls in concurrent position that were summarized.
@@ -232,8 +237,11 @@ pub fn inline_calls_with(
         solved,
         options,
         memo: HashMap::new(),
+        canonical: HashMap::new(),
         contexts: HashMap::new(),
         stats: InlineStats::default(),
+        direct: Vec::new(),
+        requests: Vec::new(),
     };
     for (index, function) in functions.iter_mut().enumerate() {
         if calls.get(index).is_some_and(|sites| !sites.is_empty()) {
@@ -359,6 +367,12 @@ impl Context {
 /// (callee, remaining depth, callback context).
 type MemoKey = (usize, usize, Vec<(u32, usize)>);
 
+/// (callee, callback context): the depth-canonical key (Phase 8).
+type CanonicalKey = (usize, Vec<(u32, usize)>);
+
+/// A memo request of a call site: (callee, callback context used).
+type Request = (usize, Vec<(u32, usize)>);
+
 struct Inliner<'a> {
     /// The functions as lowered, before any inlining.
     originals: &'a [FunctionIr],
@@ -369,9 +383,17 @@ struct Inliner<'a> {
     /// Expansions that do not depend on the call chain, by (callee, depth,
     /// callback context).
     memo: HashMap<MemoKey, Rc<Summary>>,
+    /// Phase 8: expansions that made no depth-bound decision, by (callee,
+    /// callback context). Each is the expansion at every remaining depth
+    /// from its `needed` depth on.
+    canonical: HashMap<CanonicalKey, Rc<Summary>>,
     /// Distinct non-empty callback contexts expanded per callee.
     contexts: HashMap<usize, HashSet<Vec<(u32, usize)>>>,
     stats: InlineStats,
+    /// Per expansion in progress (innermost last): call sites it
+    /// summarized itself, and the memo requests of its call sites.
+    direct: Vec<usize>,
+    requests: Vec<Vec<Request>>,
 }
 
 /// A callee expanded for inlining, with the operations it performs on every
@@ -379,6 +401,17 @@ struct Inliner<'a> {
 struct Summary {
     expanded: Expanded,
     certain: Certainty,
+    /// Phase 8 bookkeeping for [`InlineStats::summarized`]: the call sites
+    /// this expansion itself summarized, and the memo requests its call
+    /// sites made (callee, callback context used), so that a depth-canonical
+    /// reuse accounts exactly as the exact-key memo did.
+    direct: usize,
+    requests: Vec<Request>,
+    /// Phase 8: per expansion, not per instantiation: the position of each
+    /// effect id in visit order (instantiated ids are `base + position`),
+    /// and the number of call scopes in the body.
+    positions: HashMap<u32, u32>,
+    calls: u32,
 }
 
 /// Identifier allocation for the function being expanded.
@@ -391,6 +424,13 @@ struct Ids {
     /// A call was left unsummarized because it is recursive: the expansion
     /// depends on the chain of calls being expanded.
     recursive: bool,
+    /// Phase 8: the smallest remaining depth at which the same expansion
+    /// results (every call site's decision is the same).
+    needed: usize,
+    /// Phase 8: a decision was made because the remaining depth was 0 (a
+    /// cut call, or an inert callee resolved without expanding it): the
+    /// expansion is only known for this exact depth.
+    exact: bool,
     /// Instantiated return values of summarized calls, by the caller's
     /// `CallResult` site.
     call_results: HashMap<u64, AbsValue>,
@@ -404,6 +444,9 @@ struct Expanded {
     cut: bool,
     /// Some call it makes was cut as recursive.
     recursive: bool,
+    /// See [`Ids::needed`] and [`Ids::exact`].
+    needed: usize,
+    exact: bool,
 }
 
 /// What became of one call site.
@@ -450,6 +493,8 @@ impl<'a> Inliner<'a> {
                 function: original.clone(),
                 cut: false,
                 recursive: false,
+                needed: 0,
+                exact: false,
             };
         }
         // Argument placeholder effect → (owning call effect, parameter).
@@ -475,6 +520,8 @@ impl<'a> Inliner<'a> {
             transactions: original.transactions.clone(),
             cut: false,
             recursive: false,
+            needed: 0,
+            exact: false,
             call_results: HashMap::new(),
         };
         let body = self.rewrite(
@@ -502,6 +549,8 @@ impl<'a> Inliner<'a> {
             function,
             cut: ids.cut,
             recursive: ids.recursive,
+            needed: ids.needed,
+            exact: ids.exact,
         }
     }
 
@@ -519,6 +568,15 @@ impl<'a> Inliner<'a> {
             self.stats.reused += 1;
             return Some(Rc::clone(summary));
         }
+        if let Some(summary) = self.canonical.get(&(index, key.2.clone()))
+            && summary.expanded.needed <= depth
+        {
+            self.stats.reused += 1;
+            self.stats.canonical_reuses += 1;
+            let summary = Rc::clone(summary);
+            self.replay(key, &summary);
+            return Some(summary);
+        }
         if !context.callbacks.is_empty() {
             let seen = self.contexts.entry(index).or_default();
             if !seen.contains(&key.2) {
@@ -532,14 +590,70 @@ impl<'a> Inliner<'a> {
         }
         self.stats.expansions += 1;
         stack.push(index);
+        self.direct.push(0);
+        self.requests.push(Vec::new());
         let expanded = self.expand(index, stack, depth, context);
+        let direct = self.direct.pop().unwrap_or(0);
+        let requests = self.requests.pop().unwrap_or_default();
         stack.pop();
         let certain = certainty(&expanded.function, self.options.max_paths);
-        let summary = Rc::new(Summary { expanded, certain });
+        let positions = expanded
+            .function
+            .effects()
+            .iter()
+            .enumerate()
+            .map(|(offset, effect)| (effect.id.0, u32::try_from(offset).unwrap_or(u32::MAX)))
+            .collect();
+        let calls = count_calls(&expanded.function.body);
+        let summary = Rc::new(Summary {
+            expanded,
+            certain,
+            direct,
+            requests,
+            positions,
+            calls,
+        });
         if !summary.expanded.recursive {
+            if !summary.expanded.exact {
+                self.canonical
+                    .entry((index, key.2.clone()))
+                    .or_insert_with(|| Rc::clone(&summary));
+            }
             self.memo.insert(key, Rc::clone(&summary));
         }
         Some(summary)
+    }
+
+    /// A depth-canonical reuse for the exact `key`: the exact-key memo
+    /// would have expanded `key` afresh (and, in turn, every nested key not
+    /// yet in it). Record those keys and count their summarized call sites,
+    /// so that the memo and [`InlineStats::summarized`] are exactly what the
+    /// exact-key memo produces. The expansion is the same (`Summary` is
+    /// depth-independent from `needed` on).
+    fn replay(&mut self, key: MemoKey, summary: &Rc<Summary>) {
+        if self.memo.contains_key(&key) {
+            return;
+        }
+        self.stats.summarized += summary.direct;
+        let depth = key.1;
+        self.memo.insert(key, Rc::clone(summary));
+        for (callee, context) in &summary.requests {
+            let nested = (*callee, depth.saturating_sub(1), context.clone());
+            if self.memo.contains_key(&nested) {
+                continue;
+            }
+            // Non-exact expansions only request non-exact expansions.
+            if let Some(found) = self.canonical.get(&(*callee, context.clone())).cloned() {
+                self.replay(nested, &found);
+            }
+        }
+    }
+
+    fn count_summarized(&mut self) {
+        self.stats.summarized += 1;
+        if let Some(top) = self.direct.last_mut() {
+            *top += 1;
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -747,6 +861,9 @@ impl<'a> Inliner<'a> {
             ids.recursive = true;
             format!("{declared}, but the call is recursive; recursive calls are not summarized")
         } else if depth == 0 {
+            // A decision of the depth bound: this expansion holds for this
+            // exact depth only.
+            ids.exact = true;
             if inert {
                 return self.inert_call(caller, index, effect, site, awaited, ids);
             }
@@ -759,13 +876,20 @@ impl<'a> Inliner<'a> {
             // Past the specialization limit, the callee is expanded without
             // callbacks: the calls of its parameters stay unknown (the
             // Phase 4 behavior), its other operations are kept.
-            let summary = match self.summary(index, stack, depth - 1, &callee_context) {
-                Some(summary) => summary,
-                None => self
-                    .summary(index, stack, depth - 1, &Context::default())
-                    .expect("the context-free expansion is never limited"),
+            let (summary, used) = match self.summary(index, stack, depth - 1, &callee_context) {
+                Some(summary) => (summary, callee_context.key()),
+                None => (
+                    self.summary(index, stack, depth - 1, &Context::default())
+                        .expect("the context-free expansion is never limited"),
+                    Vec::new(),
+                ),
             };
+            if let Some(top) = self.requests.last_mut() {
+                top.push((index, used));
+            }
             let expanded = &summary.expanded;
+            ids.needed = ids.needed.max(expanded.needed + 1);
+            ids.exact |= expanded.exact;
             if inert && !expanded.function.has_recognized_effects() {
                 return self.inert_call(caller, index, effect, site, awaited, ids);
             }
@@ -790,7 +914,7 @@ impl<'a> Inliner<'a> {
                 let saved = (ids.next_effect, ids.next_call, ids.transactions.len());
                 let call = self.instantiate(caller, index, &summary, effect, site, ids);
                 if has_recognized_nodes(&call.body) {
-                    self.stats.summarized += 1;
+                    self.count_summarized();
                     if effect.execution == Execution::Concurrent {
                         self.stats.concurrent += 1;
                     }
@@ -821,7 +945,7 @@ impl<'a> Inliner<'a> {
         awaited: Vec<u32>,
         ids: &mut Ids,
     ) -> Outcome {
-        self.stats.summarized += 1;
+        self.count_summarized();
         self.stats.inert += 1;
         let callee = &self.originals[index];
         let call = CallId(ids.next_call);
@@ -852,7 +976,7 @@ impl<'a> Inliner<'a> {
         Outcome {
             node: Some(Node::Call(CallScope {
                 call,
-                callee: callee.name.clone(),
+                callee: callee.name.as_str().into(),
                 label: effect.label.clone(),
                 location: effect.location,
                 callee_location,
@@ -886,7 +1010,7 @@ impl<'a> Inliner<'a> {
         let resolution = site_info.resolution.clone().map(Box::new);
         let site = CallSite {
             call,
-            callee: callee.name.clone(),
+            callee: callee.name.as_str().into(),
             label: call_effect.label.clone(),
             location: call_effect.location,
             callee_location: match file {
@@ -896,21 +1020,14 @@ impl<'a> Inliner<'a> {
                 },
                 _ => callee.location,
             },
-            resolution: resolution.clone(),
+            resolution: site_info.resolution.clone().map(std::sync::Arc::new),
         };
         // Effect ids are assigned in the order `Remap::node` visits them,
         // which is the order of `FunctionIr::effects`.
-        let effect_ids: HashMap<u32, u32> = callee
-            .effects()
-            .iter()
-            .enumerate()
-            .map(|(offset, effect)| {
-                (
-                    effect.id.0,
-                    ids.next_effect + u32::try_from(offset).unwrap_or(u32::MAX),
-                )
-            })
-            .collect();
+        let effect_ids = EffectIds {
+            base: ids.next_effect,
+            positions: &summary.positions,
+        };
         let remap = Remap {
             site: &site,
             certain,
@@ -927,7 +1044,7 @@ impl<'a> Inliner<'a> {
             receiver: site_info.receiver.as_ref(),
             effect_ids,
         };
-        ids.next_call += 1 + count_calls(&callee.body);
+        ids.next_call += 1 + summary.calls;
         for info in &callee.transactions {
             let (parent, parent_parameter) = match (info.parent, info.parent_parameter) {
                 (Some(parent), _) => (Some(remap.transaction(parent)), None),
@@ -963,7 +1080,7 @@ impl<'a> Inliner<'a> {
         }
         CallScope {
             call,
-            callee: callee.name.clone(),
+            callee: callee.name.as_str().into(),
             label: call_effect.label.clone(),
             location: call_effect.location,
             callee_location: remap.loc(callee.location),
@@ -984,7 +1101,7 @@ fn frame_atom(
     frame: u64,
     values: &[AbsValue],
     receiver: Option<&AbsValue>,
-    effect_ids: Option<&HashMap<u32, u32>>,
+    effect_ids: Option<&EffectIds<'_>>,
 ) -> Option<AbsValue> {
     match atom {
         Atom::Param { index } => Some(
@@ -994,8 +1111,8 @@ fn frame_atom(
                 .unwrap_or_else(AbsValue::top),
         ),
         Atom::This => Some(receiver.cloned().unwrap_or_else(AbsValue::top)),
-        Atom::EffectResult { effect } => Some(match effect_ids.and_then(|m| m.get(effect)) {
-            Some(new) => AbsValue::atom(Atom::EffectResult { effect: *new }),
+        Atom::EffectResult { effect } => Some(match effect_ids.and_then(|m| m.get(*effect)) {
+            Some(new) => AbsValue::atom(Atom::EffectResult { effect: new }),
             None => AbsValue::top(),
         }),
         Atom::CallResult { site } => Some(AbsValue::atom(Atom::CallResult {
@@ -1005,6 +1122,19 @@ fn frame_atom(
             id: mix(frame, *id),
         })),
         _ => None,
+    }
+}
+
+/// Callee effect id → id in the caller: `base` plus the effect's position
+/// in visit order.
+struct EffectIds<'a> {
+    base: u32,
+    positions: &'a HashMap<u32, u32>,
+}
+
+impl EffectIds<'_> {
+    fn get(&self, id: u32) -> Option<u32> {
+        self.positions.get(&id).map(|p| self.base + p)
     }
 }
 
@@ -1083,7 +1213,7 @@ struct Remap<'a> {
     values: &'a [AbsValue],
     receiver: Option<&'a AbsValue>,
     /// Callee effect id → id in the caller.
-    effect_ids: HashMap<u32, u32>,
+    effect_ids: EffectIds<'a>,
 }
 
 impl Remap<'_> {

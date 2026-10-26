@@ -13,8 +13,8 @@
 //! is discarded. Conditions without facts are treated as unknown: they never
 //! discard a trace.
 
+use crate::fasthash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::borrow::Cow;
-use std::collections::{HashMap, HashSet};
 
 use crate::ir::{
     Branch, CallScope, Effect, EffectKind, Exit, ExitKind, Fact, FunctionIr, Loop, Node, Switch,
@@ -88,9 +88,16 @@ pub enum PathMode {
     /// legacy traces, in the same order, with the same statistics
     /// (`docs/phase7/COMPACT-SUMMARIES.md`).
     Compact,
+    /// Phase 8: [`Self::Compact`], and a call whose body corresponds
+    /// node for node to an already summarized call (same callee, same
+    /// structure, fact variables renamed bijectively — two instantiations
+    /// of one callee expansion) reuses that summary through the
+    /// correspondence instead of being walked
+    /// (`docs/phase8/PARAMETERIZED-SUMMARIES.md`).
+    Shared,
 }
 
-static PATH_MODE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(1);
+static PATH_MODE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(2);
 
 /// Select how inlined calls are walked for this process (the CLI reads
 /// `COMMITRIFT_PATHS=legacy|compact`).
@@ -99,12 +106,13 @@ pub fn set_path_mode(mode: PathMode) {
         match mode {
             PathMode::Legacy => 0,
             PathMode::Compact => 1,
+            PathMode::Shared => 2,
         },
         std::sync::atomic::Ordering::Relaxed,
     );
 }
 
-/// Apply `COMMITRIFT_PATHS` (`legacy` or `compact`) if set.
+/// Apply `COMMITRIFT_PATHS` (`legacy`, `compact` or `shared`) if set.
 pub fn path_mode_from_env() -> Result<(), String> {
     match std::env::var("COMMITRIFT_PATHS").as_deref() {
         Err(_) => Ok(()),
@@ -116,8 +124,12 @@ pub fn path_mode_from_env() -> Result<(), String> {
             set_path_mode(PathMode::Compact);
             Ok(())
         }
+        Ok("shared") => {
+            set_path_mode(PathMode::Shared);
+            Ok(())
+        }
         Ok(other) => Err(format!(
-            "COMMITRIFT_PATHS=`{other}`: expected `legacy` or `compact`"
+            "COMMITRIFT_PATHS=`{other}`: expected `legacy`, `compact` or `shared`"
         )),
     }
 }
@@ -125,7 +137,8 @@ pub fn path_mode_from_env() -> Result<(), String> {
 pub fn path_mode() -> PathMode {
     match PATH_MODE.load(std::sync::atomic::Ordering::Relaxed) {
         0 => PathMode::Legacy,
-        _ => PathMode::Compact,
+        1 => PathMode::Compact,
+        _ => PathMode::Shared,
     }
 }
 
@@ -138,10 +151,20 @@ pub struct CompactStats {
     pub reused: usize,
     /// Calls walked the legacy way because their facts are shared.
     pub shared_facts: usize,
+    /// Phase 8: call scopes whose summary was instantiated from another
+    /// instance through a verified correspondence (not walked).
+    pub instantiated: usize,
+    /// Phase 8: candidates with an equal shape whose correspondence failed.
+    pub shape_rejected: usize,
 }
+
+/// A summarized call (Phase 8): the call, the context key and the effect
+/// context its summary was built in.
+type ShapeEntry<'ir> = (&'ir CallScope, [usize; 3], EffectContext<'ir>);
 
 /// The traces a call scope produces from an empty trace, grouped like the
 /// legacy walk groups them after leaving the call.
+#[derive(Clone)]
 struct Compact<'ir> {
     normal: Vec<Trace<'ir>>,
     returned: Vec<Trace<'ir>>,
@@ -196,13 +219,26 @@ pub(crate) fn enumerate_in(
         pruned: 0,
         merged: 0,
         ctx: EffectContext::default(),
-        fact_uses: HashMap::new(),
-        live: HashMap::new(),
-        compact: mode == PathMode::Compact,
-        summaries: HashMap::new(),
+        fact_uses: HashMap::default(),
+        live: HashMap::default(),
+        compact: mode != PathMode::Legacy,
+        summaries: HashMap::default(),
         stats: CompactStats::default(),
+        shared: mode == PathMode::Shared,
+        shapes: HashMap::default(),
+        repeated: HashSet::default(),
+        shape_cache: HashMap::default(),
     };
     count_fact_variables(&function.body, &mut walker.fact_uses);
+    if walker.shared {
+        let mut seen: HashMap<&str, usize> = HashMap::default();
+        count_callees(&function.body, &mut seen);
+        walker.repeated = seen
+            .into_iter()
+            .filter(|(_, n)| *n > 1)
+            .map(|(callee, _)| callee)
+            .collect();
+    }
     let flow = walker.block(&function.body, vec![Vec::new()]);
     let mut traces = flow.normal;
     traces.extend(flow.returned);
@@ -278,6 +314,15 @@ struct Walker<'ir> {
     /// Compact summaries by (call address, effect context).
     summaries: HashMap<(usize, [usize; 3]), Compact<'ir>>,
     stats: CompactStats,
+    /// Phase 8 ([`PathMode::Shared`]): summarized calls by shape, with the
+    /// context key and effect context their summary was built in.
+    shared: bool,
+    shapes: HashMap<u64, Vec<ShapeEntry<'ir>>>,
+    /// Callees with at least two call scopes in the function: only their
+    /// calls can share a summary, so only they are hashed.
+    repeated: HashSet<&'ir str>,
+    /// Shape of each hashed call scope (by address).
+    shape_cache: HashMap<usize, u64>,
 }
 
 impl<'ir> Walker<'ir> {
@@ -424,7 +469,7 @@ impl<'ir> Walker<'ir> {
     fn call(&mut self, call: &'ir CallScope, input: Vec<Trace<'ir>>) -> Flow<'ir> {
         let address = std::ptr::from_ref(call) as usize;
         if !self.live.contains_key(&address) {
-            let mut inside = HashMap::new();
+            let mut inside = HashMap::default();
             count_fact_variables(&call.body, &mut inside);
             let live: HashSet<String> = inside
                 .into_iter()
@@ -497,7 +542,44 @@ impl<'ir> Walker<'ir> {
                 .map_or(0, |t| std::ptr::from_ref(t) as usize),
         ];
         let key = (address, ctx);
+        let shape = (self.shared
+            && self.repeated.contains(&*call.callee)
+            && !self.summaries.contains_key(&key))
+        .then(|| call_shape(call, &mut self.shape_cache));
+        if let Some(shape) = shape {
+            for &(other, other_key, other_ctx) in self.shapes.get(&shape).into_iter().flatten() {
+                if other.callee != call.callee {
+                    continue;
+                }
+                let Some(summary) = self
+                    .summaries
+                    .get(&(std::ptr::from_ref(other) as usize, other_key))
+                else {
+                    continue;
+                };
+                let mut corr = Corr::default();
+                let instance = if corr.nodes(&other.body, &call.body) {
+                    corr.compact(summary, &other_ctx, &self.ctx)
+                } else {
+                    None
+                };
+                match instance {
+                    Some(instance) => {
+                        self.summaries.insert(key, instance);
+                        self.stats.instantiated += 1;
+                        break;
+                    }
+                    None => self.stats.shape_rejected += 1,
+                }
+            }
+        }
         if !self.summaries.contains_key(&key) {
+            if let Some(shape) = shape {
+                self.shapes
+                    .entry(shape)
+                    .or_default()
+                    .push((call, ctx, self.ctx));
+            }
             let (pruned, merged, truncated) = (self.pruned, self.merged, self.truncated);
             self.truncated = false;
             let inner = self.block(&call.body, vec![Vec::new()]);
@@ -581,7 +663,7 @@ impl<'ir> Walker<'ir> {
         let live = self.live.get(&call).cloned().unwrap_or_default();
         // Kept traces by event key: (index, decisions between events).
         type Kept = Vec<(usize, Vec<usize>)>;
-        let mut groups: HashMap<Vec<[usize; 5]>, Kept> = HashMap::new();
+        let mut groups: HashMap<Vec<[usize; 5]>, Kept> = HashMap::default();
         let mut keep = vec![true; traces.len()];
         for (index, trace) in traces.iter().enumerate() {
             let mut key = Vec::new();
@@ -1011,4 +1093,429 @@ fn fact_key(facts: &[String]) -> usize {
         hash = hash.wrapping_mul(0x0100_0000_01b3);
     }
     hash as usize
+}
+
+// ---------------------------------------------------------------------------
+// Phase 8: summaries shared between call instances
+// ---------------------------------------------------------------------------
+
+/// A canonical hash of everything the walker reads from a call body: node
+/// kinds and nesting, whether effects are reads, facts (variables numbered
+/// by first occurrence, so instantiation prefixes do not matter), exit
+/// kinds, loop and `try` shapes, transaction nesting. Equal shapes are only
+/// candidates: [`Corr::nodes`] decides. Cached by call address.
+fn call_shape(call: &CallScope, cache: &mut HashMap<usize, u64>) -> u64 {
+    struct H<'ir, 'c> {
+        hash: u64,
+        vars: HashMap<&'ir str, u64>,
+        cache: &'c mut HashMap<usize, u64>,
+    }
+    impl<'ir> H<'ir, '_> {
+        fn word(&mut self, w: u64) {
+            for byte in w.to_le_bytes() {
+                self.hash ^= u64::from(byte);
+                self.hash = self.hash.wrapping_mul(0x0100_0000_01b3);
+            }
+        }
+        fn text(&mut self, t: &str) {
+            for byte in t.bytes() {
+                self.hash ^= u64::from(byte);
+                self.hash = self.hash.wrapping_mul(0x0100_0000_01b3);
+            }
+            self.word(0xff);
+        }
+        fn literal(&mut self, literal: &crate::ir::Literal) {
+            use crate::ir::Literal;
+            match literal {
+                Literal::Boolean(b) => self.word(100 + u64::from(*b)),
+                Literal::String(v) => {
+                    self.word(102);
+                    self.text(v);
+                }
+                Literal::Number(v) => {
+                    self.word(103);
+                    self.text(v);
+                }
+                Literal::Null => self.word(104),
+                Literal::Undefined => self.word(105),
+            }
+        }
+        fn facts(&mut self, facts: &'ir [Fact]) {
+            self.word(facts.len() as u64);
+            for fact in facts {
+                let (tag, variable) = match fact {
+                    Fact::Never => (1, None),
+                    Fact::Truthy { variable, value } => (2 + u64::from(*value), Some(variable)),
+                    Fact::Equals { variable, literal } => {
+                        self.literal(literal);
+                        (4, Some(variable))
+                    }
+                    Fact::NotEquals { variable, literal } => {
+                        self.literal(literal);
+                        (5, Some(variable))
+                    }
+                    Fact::Object { variable } => (6, Some(variable)),
+                };
+                self.word(tag);
+                if let Some(v) = variable {
+                    let next = self.vars.len() as u64;
+                    let n = *self.vars.entry(v.as_str()).or_insert(next);
+                    self.word(n);
+                }
+            }
+        }
+        fn nodes(&mut self, nodes: &'ir [Node]) {
+            self.word(nodes.len() as u64);
+            for node in nodes {
+                match node {
+                    Node::Effect(e) => self.word(10 + u64::from(is_read(e))),
+                    Node::Transaction(t) => {
+                        self.word(12);
+                        self.nodes(&t.body);
+                    }
+                    Node::Branch(b) => {
+                        self.word(13);
+                        self.word(b.arms.len() as u64);
+                        for arm in &b.arms {
+                            self.facts(&arm.facts);
+                            self.nodes(&arm.body);
+                        }
+                    }
+                    Node::Switch(sw) => {
+                        self.word(14 + u64::from(sw.has_default));
+                        self.word(sw.cases.len() as u64);
+                        for case in &sw.cases {
+                            self.facts(&case.facts);
+                            self.nodes(&case.body);
+                        }
+                    }
+                    Node::Loop(lp) => {
+                        self.word(16 + u64::from(lp.runs_at_least_once));
+                        self.nodes(&lp.body);
+                    }
+                    Node::Try(t) => {
+                        self.word(18);
+                        self.nodes(&t.block);
+                        match &t.handler {
+                            Some(h) => {
+                                self.word(1);
+                                self.nodes(&h.body);
+                            }
+                            None => self.word(0),
+                        }
+                        match &t.finalizer {
+                            Some(f) => {
+                                self.word(1);
+                                self.nodes(f);
+                            }
+                            None => self.word(0),
+                        }
+                    }
+                    Node::Exit(x) => {
+                        self.word(20 + x.kind as u64);
+                        self.facts(&x.facts);
+                    }
+                    // A nested call is hashed on its own (variables numbered
+                    // within it), once: the hash stays invariant under a
+                    // bijective renaming, and nested bodies are not hashed
+                    // again for every enclosing call.
+                    Node::Call(c) => {
+                        self.word(40);
+                        let nested = call_shape(c, self.cache);
+                        self.word(nested);
+                    }
+                }
+            }
+        }
+    }
+    let address = std::ptr::from_ref(call) as usize;
+    if let Some(hash) = cache.get(&address) {
+        return *hash;
+    }
+    let mut h = H {
+        hash: 0xcbf2_9ce4_8422_2325,
+        vars: HashMap::default(),
+        cache,
+    };
+    h.text(&call.callee);
+    h.nodes(&call.body);
+    let hash = h.hash;
+    cache.insert(address, hash);
+    hash
+}
+
+/// Count the call scopes of each callee in `nodes`.
+fn count_callees<'ir>(nodes: &'ir [Node], out: &mut HashMap<&'ir str, usize>) {
+    for node in nodes {
+        match node {
+            Node::Call(call) => {
+                *out.entry(&*call.callee).or_default() += 1;
+                count_callees(&call.body, out);
+            }
+            Node::Transaction(t) => count_callees(&t.body, out),
+            Node::Branch(b) => b.arms.iter().for_each(|a| count_callees(&a.body, out)),
+            Node::Switch(sw) => sw.cases.iter().for_each(|c| count_callees(&c.body, out)),
+            Node::Loop(lp) => count_callees(&lp.body, out),
+            Node::Try(t) => {
+                count_callees(&t.block, out);
+                if let Some(h) = &t.handler {
+                    count_callees(&h.body, out);
+                }
+                if let Some(f) = &t.finalizer {
+                    count_callees(f, out);
+                }
+            }
+            Node::Effect(_) | Node::Exit(_) => {}
+        }
+    }
+}
+
+/// A structure-preserving correspondence from one call body (`a`) to
+/// another (`b`): every node the walker can put into a trace, transaction
+/// ids, and a BIJECTIVE renaming of fact variables. When it exists, walking
+/// `b` makes exactly the decisions walking `a` makes (feasibility depends
+/// only on facts, which correspond; merging only on event identities, which
+/// map one to one), so `a`'s summary mapped through it is `b`'s summary.
+#[derive(Default)]
+struct Corr<'ir> {
+    effects: HashMap<usize, &'ir Effect>,
+    branches: HashMap<usize, &'ir Branch>,
+    switches: HashMap<usize, &'ir Switch>,
+    loops: HashMap<usize, &'ir Loop>,
+    tries: HashMap<usize, &'ir Try>,
+    exits: HashMap<usize, &'ir Exit>,
+    transactions: HashMap<TransactionId, TransactionId>,
+    transactions_back: HashMap<TransactionId, TransactionId>,
+    vars: HashMap<String, String>,
+    vars_back: HashMap<String, String>,
+}
+
+fn addr<T>(value: &T) -> usize {
+    std::ptr::from_ref(value) as usize
+}
+
+impl<'ir> Corr<'ir> {
+    fn var(&mut self, a: &str, b: &str) -> bool {
+        match (self.vars.get(a), self.vars_back.get(b)) {
+            (None, None) => {
+                self.vars.insert(a.to_owned(), b.to_owned());
+                self.vars_back.insert(b.to_owned(), a.to_owned());
+                true
+            }
+            (Some(x), Some(y)) => x == b && y == a,
+            _ => false,
+        }
+    }
+
+    fn transaction(&mut self, a: TransactionId, b: TransactionId) -> bool {
+        match (self.transactions.get(&a), self.transactions_back.get(&b)) {
+            (None, None) => {
+                self.transactions.insert(a, b);
+                self.transactions_back.insert(b, a);
+                true
+            }
+            (Some(x), Some(y)) => *x == b && *y == a,
+            _ => false,
+        }
+    }
+
+    fn facts(&mut self, a: &[Fact], b: &[Fact]) -> bool {
+        a.len() == b.len()
+            && a.iter().zip(b).all(|pair| match pair {
+                (Fact::Never, Fact::Never) => true,
+                (
+                    Fact::Truthy {
+                        variable: x,
+                        value: p,
+                    },
+                    Fact::Truthy {
+                        variable: y,
+                        value: q,
+                    },
+                ) => p == q && self.var(x, y),
+                (
+                    Fact::Equals {
+                        variable: x,
+                        literal: p,
+                    },
+                    Fact::Equals {
+                        variable: y,
+                        literal: q,
+                    },
+                )
+                | (
+                    Fact::NotEquals {
+                        variable: x,
+                        literal: p,
+                    },
+                    Fact::NotEquals {
+                        variable: y,
+                        literal: q,
+                    },
+                ) => p == q && self.var(x, y),
+                (Fact::Object { variable: x }, Fact::Object { variable: y }) => self.var(x, y),
+                _ => false,
+            })
+    }
+
+    fn nodes(&mut self, a: &'ir [Node], b: &'ir [Node]) -> bool {
+        a.len() == b.len() && a.iter().zip(b).all(|(x, y)| self.node(x, y))
+    }
+
+    fn node(&mut self, a: &'ir Node, b: &'ir Node) -> bool {
+        match (a, b) {
+            (Node::Effect(x), Node::Effect(y)) => {
+                self.effects.insert(addr(x), y);
+                is_read(x) == is_read(y)
+            }
+            (Node::Transaction(x), Node::Transaction(y)) => {
+                self.transaction(x.transaction, y.transaction) && self.nodes(&x.body, &y.body)
+            }
+            (Node::Branch(x), Node::Branch(y)) => {
+                self.branches.insert(addr(x), y);
+                x.arms.len() == y.arms.len()
+                    && x.arms.iter().zip(&y.arms).all(|(p, q)| {
+                        self.facts(&p.facts, &q.facts) && self.nodes(&p.body, &q.body)
+                    })
+            }
+            (Node::Switch(x), Node::Switch(y)) => {
+                self.switches.insert(addr(x), y);
+                x.has_default == y.has_default
+                    && x.cases.len() == y.cases.len()
+                    && x.cases.iter().zip(&y.cases).all(|(p, q)| {
+                        self.facts(&p.facts, &q.facts) && self.nodes(&p.body, &q.body)
+                    })
+            }
+            (Node::Loop(x), Node::Loop(y)) => {
+                self.loops.insert(addr(x), y);
+                x.runs_at_least_once == y.runs_at_least_once && self.nodes(&x.body, &y.body)
+            }
+            (Node::Try(x), Node::Try(y)) => {
+                self.tries.insert(addr(x), y);
+                self.nodes(&x.block, &y.block)
+                    && match (&x.handler, &y.handler) {
+                        (Some(p), Some(q)) => self.nodes(&p.body, &q.body),
+                        (None, None) => true,
+                        _ => false,
+                    }
+                    && match (&x.finalizer, &y.finalizer) {
+                        (Some(p), Some(q)) => self.nodes(p, q),
+                        (None, None) => true,
+                        _ => false,
+                    }
+            }
+            (Node::Exit(x), Node::Exit(y)) => {
+                self.exits.insert(addr(x), y);
+                x.kind == y.kind && self.facts(&x.facts, &y.facts)
+            }
+            (Node::Call(x), Node::Call(y)) => self.nodes(&x.body, &y.body),
+            _ => false,
+        }
+    }
+
+    /// One effect-context slot: a node inside the call maps through the
+    /// correspondence; the context the summary was built in maps to the
+    /// current one.
+    fn slot<T>(
+        map: &HashMap<usize, &'ir T>,
+        value: Option<&'ir T>,
+        built: Option<&'ir T>,
+        now: Option<&'ir T>,
+    ) -> Option<Option<&'ir T>> {
+        match value {
+            None if built.is_none() => Some(now),
+            None => None,
+            Some(v) => match map.get(&addr(v)) {
+                Some(mapped) => Some(Some(*mapped)),
+                None if built.is_some_and(|b| addr(b) == addr(v)) => Some(now),
+                None => None,
+            },
+        }
+    }
+
+    fn event(
+        &self,
+        event: &Event<'ir>,
+        built: &EffectContext<'ir>,
+        now: &EffectContext<'ir>,
+    ) -> Option<Event<'ir>> {
+        Some(match *event {
+            Event::Effect { effect, ctx } => Event::Effect {
+                effect: self.effects.get(&addr(effect))?,
+                ctx: EffectContext {
+                    in_loop: Self::slot(&self.loops, ctx.in_loop, built.in_loop, now.in_loop)?,
+                    guarded_by: Self::slot(
+                        &self.tries,
+                        ctx.guarded_by,
+                        built.guarded_by,
+                        now.guarded_by,
+                    )?,
+                    in_handler: Self::slot(
+                        &self.tries,
+                        ctx.in_handler,
+                        built.in_handler,
+                        now.in_handler,
+                    )?,
+                },
+            },
+            Event::TxBegin(id) => Event::TxBegin(*self.transactions.get(&id)?),
+            Event::TxEnd {
+                transaction,
+                committed,
+            } => Event::TxEnd {
+                transaction: *self.transactions.get(&transaction)?,
+                committed,
+            },
+            Event::Returned(exit) => Event::Returned(self.exits.get(&addr(exit))?),
+            Event::Incomplete(exit) => Event::Incomplete(self.exits.get(&addr(exit))?),
+            Event::Decision(decision) => Event::Decision(match decision {
+                Decision::Arm { branch, arm } => Decision::Arm {
+                    branch: self.branches.get(&addr(branch))?,
+                    arm,
+                },
+                Decision::Case { switch, case } => Decision::Case {
+                    switch: self.switches.get(&addr(switch))?,
+                    case,
+                },
+                Decision::NoCase { switch } => Decision::NoCase {
+                    switch: self.switches.get(&addr(switch))?,
+                },
+                Decision::LoopEntered(lp) => Decision::LoopEntered(self.loops.get(&addr(lp))?),
+                Decision::LoopSkipped(lp) => Decision::LoopSkipped(self.loops.get(&addr(lp))?),
+                Decision::CatchImplicit(t) => Decision::CatchImplicit(self.tries.get(&addr(t))?),
+                Decision::CatchExplicit(t) => Decision::CatchExplicit(self.tries.get(&addr(t))?),
+            }),
+        })
+    }
+
+    fn traces(
+        &self,
+        traces: &[Trace<'ir>],
+        built: &EffectContext<'ir>,
+        now: &EffectContext<'ir>,
+    ) -> Option<Vec<Trace<'ir>>> {
+        traces
+            .iter()
+            .map(|t| t.iter().map(|e| self.event(e, built, now)).collect())
+            .collect()
+    }
+
+    /// `summary` (built in context `built`) as the summary of the
+    /// corresponding call in context `now`; `None` if some event does not
+    /// map (the call is then walked).
+    fn compact(
+        &self,
+        summary: &Compact<'ir>,
+        built: &EffectContext<'ir>,
+        now: &EffectContext<'ir>,
+    ) -> Option<Compact<'ir>> {
+        Some(Compact {
+            normal: self.traces(&summary.normal, built, now)?,
+            returned: self.traces(&summary.returned, built, now)?,
+            thrown: self.traces(&summary.thrown, built, now)?,
+            pruned: summary.pruned,
+            merged: summary.merged,
+            truncated: summary.truncated,
+        })
+    }
 }

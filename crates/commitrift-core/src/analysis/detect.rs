@@ -519,7 +519,7 @@ fn point_site(function: &FunctionIr, point: &Point<'_>) -> (Location, String) {
 fn site_of(effect: &Effect) -> (Location, String) {
     (
         effect.call().map_or(effect.location, |site| site.location),
-        effect.label.clone(),
+        effect.label.to_string(),
     )
 }
 

@@ -52,7 +52,7 @@ impl Builder {
         Node::Effect(Effect {
             id,
             kind,
-            label: label.to_owned(),
+            label: label.into(),
             location: loc(line),
             execution,
             recognition: recognition.map(Box::new),

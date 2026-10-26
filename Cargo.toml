@@ -21,7 +21,7 @@ oxc_parser = "0.155.0"
 oxc_semantic = "0.155.0"
 oxc_span = "0.155.0"
 oxc_syntax = "0.155.0"
-serde = { version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
 thiserror = "2"
 walkdir = "2"

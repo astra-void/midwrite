@@ -374,7 +374,7 @@ fn traces(manifests: &[PathBuf], unknowns_out: Option<&Path>) -> Result<bool, St
                             if let EffectKind::Unknown { reason, detail } = &effect.kind {
                                 let at = effect.location.resolve(&file.ir.path, &file.ir.sources);
                                 details.insert(
-                                    (at.file, at.line, at.column, effect.label.clone()),
+                                    (at.file, at.line, at.column, effect.label.to_string()),
                                     (reason.to_string(), detail.clone()),
                                 );
                             }
@@ -861,6 +861,10 @@ struct Timings {
     /// Of `resolve_ms`: the effect-summary fixpoint (Phase 5).
     #[serde(default)]
     solve_ms: f64,
+    /// Phase 8: of `summary_reuses`, those found through the depth-canonical
+    /// memo key.
+    #[serde(default)]
+    summary_canonical_reuses: usize,
 }
 
 /// Phase 5 analysis counters (deterministic).
@@ -997,9 +1001,11 @@ fn main() -> ExitCode {
     if differential {
         let (functions, stats, differences) = commitrift_core::analysis::take_path_differential();
         eprintln!(
-            "path differential: {functions} function analyses compared (legacy vs compact), {} difference(s); compact summaries built {}, incoming traces spliced {}, calls with shared facts {}",
+            "path differential: {functions} function analyses compared (legacy vs compact, legacy vs shared), {} difference(s); shared mode: summaries built {}, instantiated from another call instance {} (shape candidates rejected {}), incoming traces spliced {}, calls with shared facts {}",
             differences.len(),
             stats.built,
+            stats.instantiated,
+            stats.shape_rejected,
             stats.reused,
             stats.shared_facts
         );
@@ -1083,6 +1089,7 @@ fn run(
                 summary_expansions: phase.inline.expansions,
                 summary_reuses: phase.inline.reused,
                 solve_ms: phase.solve.as_secs_f64() * 1000.0,
+                summary_canonical_reuses: phase.inline.canonical_reuses,
             });
             let values = ValueCounters {
                 abstract_states: phase.values.states,
