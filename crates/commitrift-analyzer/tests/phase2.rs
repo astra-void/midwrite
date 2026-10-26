@@ -238,7 +238,7 @@ fn a_helper_receiving_the_transaction_handle_joins_the_transaction() {
     let write = checkout
         .effects()
         .into_iter()
-        .find(|e| e.label == "db.update(orders)")
+        .find(|e| &*e.label == "db.update(orders)")
         .unwrap();
     assert!(matches!(
         write.kind,

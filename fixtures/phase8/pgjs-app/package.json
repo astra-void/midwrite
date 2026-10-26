@@ -1,0 +1,20 @@
+{
+  "name": "commitrift-fixture-pgjs-app",
+  "private": true,
+  "version": "0.0.0",
+  "description": "CommitRift Phase 8 first-party application on postgres-js (the driver saas-starter uses), structured like saas-starter: the client is created at module load from POSTGRES_URL.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@commitrift/replay": "file:../../../runtime/node",
+    "drizzle-orm": "0.45.4",
+    "postgres": "3.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "5.9.3"
+  }
+}

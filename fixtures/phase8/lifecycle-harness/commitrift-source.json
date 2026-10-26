@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "kind": "commitrift.source-harness",
+  "harness": "lifecycle",
+  "description": "Process-lifecycle checks of the source coordinator (no application).",
+  "command": ["node", "harness.mjs"],
+  "schema": [],
+  "network": "deny",
+  "timeoutMs": 8000,
+  "limits": { "cpuSeconds": 2 },
+  "entries": {
+    "detach": { "selector": "harness.mjs#detach" },
+    "twoEffects": { "selector": "harness.mjs#twoEffects" },
+    "failRetry": { "selector": "harness.mjs#failRetry" },
+    "hang": { "selector": "harness.mjs#hang" },
+    "spin": { "selector": "harness.mjs#spin" }
+  }
+}

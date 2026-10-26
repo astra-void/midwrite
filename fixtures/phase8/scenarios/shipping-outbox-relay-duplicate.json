@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "name": "shipping-outbox-relay-duplicate",
+  "description": "FIRST-PARTY APPLICATION: the transactional outbox with a relay that crashes after publishing and before marking the row published; its supervisor restarts it (declared). Delivery is at-least-once: the event is published twice.",
+  "extraction": {
+    "root": "../shop-app",
+    "externals": [
+      {
+        "callee": "publishEvent",
+        "channel": "order-events",
+        "keyArgument": 1
+      },
+      {
+        "callee": "sendReceiptEmail",
+        "channel": "receipt-email"
+      }
+    ],
+    "schema": "src/lib/db/schema.ts"
+  },
+  "channels": {
+    "order-events": {
+      "dedup": "none"
+    },
+    "receipt-email": {
+      "dedup": "none"
+    }
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "from": "orders",
+        "columns": [
+          "id",
+          "customerEmail",
+          "amount",
+          "status"
+        ]
+      },
+      {
+        "from": "outbox",
+        "columns": [
+          "id",
+          "topic",
+          "orderId",
+          "published"
+        ]
+      }
+    ],
+    "initialState": {
+      "orders": [
+        {
+          "id": 1,
+          "customerEmail": "c@example.com",
+          "amount": 500,
+          "status": "paid"
+        }
+      ],
+      "outbox": []
+    }
+  },
+  "actors": [
+    {
+      "name": "Shipper",
+      "entry": {
+        "selector": "src/app/shipping.ts#shipOrderWithOutbox",
+        "invocation": "awaited"
+      },
+      "arguments": [
+        {
+          "orderId": 1
+        }
+      ],
+      "description": "the shipping request"
+    },
+    {
+      "name": "Relay",
+      "entry": {
+        "selector": "src/app/shipping.ts#relayOutbox",
+        "invocation": "awaited"
+      },
+      "arguments": [],
+      "retry": {
+        "trigger": "onCrash",
+        "guaranteed": true
+      },
+      "description": "the outbox relay; its supervisor restarts it after a crash (declared)"
+    }
+  ],
+  "bounds": {
+    "maxSteps": 40,
+    "maxCrashes": 1,
+    "maxRetries": 1
+  },
+  "invariants": [
+    {
+      "name": "event-delivered-once",
+      "when": "final",
+      "description": "consumers receive the shipped event at most once (exactly-once delivery)",
+      "assert": {
+        "le": [
+          {
+            "externals": {
+              "channel": "order-events"
+            }
+          },
+          1
+        ]
+      }
+    }
+  ],
+  "sourceVerification": {
+    "harness": "../shop-app/commitrift-source.json",
+    "actors": {
+      "Shipper": {
+        "entry": "shipOrderWithOutbox",
+        "input": {
+          "orderId": 1
+        }
+      },
+      "Relay": {
+        "entry": "relayOutbox",
+        "input": null
+      }
+    }
+  }
+}

@@ -77,7 +77,7 @@ fn unknown_labels(function: &FunctionIr) -> Vec<String> {
         .effects()
         .iter()
         .filter(|e| matches!(e.kind, EffectKind::Unknown { .. }))
-        .map(|e| e.label.clone())
+        .map(|e| e.label.to_string())
         .collect()
 }
 
@@ -118,7 +118,7 @@ fn this_dispatch_is_resolved_without_overrides_and_recorded() {
     let ir = lower(SERVICE);
     let complete = function(&ir, "OrderService.complete");
     let call = calls(&complete.body)[0];
-    assert_eq!(call.callee, "OrderService.publish");
+    assert_eq!(&*call.callee, "OrderService.publish");
     assert_eq!(
         call.resolution.as_deref(),
         Some(&CallResolution::Method {
@@ -157,7 +157,7 @@ fn an_override_in_a_subclass_keeps_this_dispatch_unknown() {
     // A receiver created by `new OrderService()` is exactly that class: the
     // override does not matter.
     let direct = function(&ir, "direct");
-    assert_eq!(calls(&direct.body)[0].callee, "OrderService.publish");
+    assert_eq!(&*calls(&direct.body)[0].callee, "OrderService.publish");
 }
 
 #[test]
@@ -193,7 +193,7 @@ fn instance_fields_holding_functions_shadow_prototype_methods() {
     let call = calls(&run.body)[0];
     // The base class's field initializer installs an own property that wins
     // over the subclass's prototype method.
-    assert_eq!(call.callee, "Base.notify");
+    assert_eq!(&*call.callee, "Base.notify");
 }
 
 // --- Inert summaries (Milestones 3, 9) -----------------------------------------
@@ -216,8 +216,8 @@ fn inert_callees_are_resolved_even_recursive_or_deep() {
     let ir = lower(source);
     let run = function(&ir, "run");
     let scopes = calls(&run.body);
-    assert!(scopes.iter().any(|c| c.callee == "l1" && c.inert));
-    assert!(scopes.iter().any(|c| c.callee == "loop" && c.inert));
+    assert!(scopes.iter().any(|c| &*c.callee == "l1" && c.inert));
+    assert!(scopes.iter().any(|c| &*c.callee == "loop" && c.inert));
     assert!(unknown_labels(run).is_empty(), "{}", run.to_text());
     assert!(analyze(source).is_empty());
 }
@@ -282,7 +282,7 @@ fn callbacks_are_linked_per_call_site_context() {
                 Some(CallResolution::Callback { .. })
             )
         })
-        .map(|c| c.callee.as_str())
+        .map(|c| &*c.callee)
         .collect();
     assert_eq!(callbacks, ["publishA", "mailB"]);
     // The third call passes a parameter: which function runs is decided by
@@ -340,7 +340,7 @@ fn a_wrapper_that_awaits_its_argument_moves_the_uncertainty_to_the_argument() {
         .effects()
         .iter()
         .filter(|e| matches!(e.kind, EffectKind::Unknown { .. }))
-        .map(|e| (e.label.clone(), e.execution))
+        .map(|e| (e.label.to_string(), e.execution))
         .collect();
     assert_eq!(
         unknown,
@@ -571,7 +571,7 @@ fn loop_carried_values_are_joined_not_guessed() {
     // After the loop `action` is first or second: two targets, unresolved.
     assert_eq!(unknown_labels(function(&ir, "run")), ["action()"]);
     // Unchanged by the loop: still `first`.
-    assert_eq!(calls(&function(&ir, "stable").body)[0].callee, "first");
+    assert_eq!(&*calls(&function(&ir, "stable").body)[0].callee, "first");
 }
 
 // --- Determinism (Milestone 10.4) -----------------------------------------------

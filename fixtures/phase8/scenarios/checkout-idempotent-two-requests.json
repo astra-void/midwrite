@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "name": "checkout-idempotent-two-requests",
+  "description": "FIRST-PARTY APPLICATION: the idempotent checkout, but the customer submits TWO requests with different request ids for the same order (a second tab, a client that generates a new id per click). The idempotency key protects one request, not the order: both requests are charged. No crash needed.",
+  "extraction": {
+    "root": "../shop-app",
+    "externals": [
+      {
+        "callee": "chargeCard",
+        "channel": "card-charge",
+        "keyArgument": 1
+      }
+    ],
+    "schema": "src/lib/db/schema.ts"
+  },
+  "channels": {
+    "card-charge": {
+      "dedup": "byKey"
+    }
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "from": "orders",
+        "columns": [
+          "id",
+          "customerEmail",
+          "amount",
+          "status"
+        ]
+      },
+      {
+        "from": "paymentAttempts",
+        "columns": [
+          "id",
+          "orderId",
+          "amount"
+        ]
+      },
+      {
+        "from": "idempotencyKeys",
+        "columns": [
+          "key",
+          "orderId",
+          "status"
+        ]
+      }
+    ],
+    "initialState": {
+      "orders": [
+        {
+          "id": 1,
+          "customerEmail": "c@example.com",
+          "amount": 500,
+          "status": "unpaid"
+        }
+      ],
+      "payment_attempts": [],
+      "idempotency_keys": []
+    }
+  },
+  "actors": [
+    {
+      "name": "Tab1",
+      "entry": {
+        "selector": "src/app/checkout.ts#payOrderIdempotent",
+        "invocation": "awaited"
+      },
+      "arguments": [
+        {
+          "requestId": "req-1",
+          "orderId": 1
+        }
+      ],
+      "description": "a client that submits the same request again when the server does not answer"
+    },
+    {
+      "name": "Tab2",
+      "entry": {
+        "selector": "src/app/checkout.ts#payOrderIdempotent",
+        "invocation": "awaited"
+      },
+      "arguments": [
+        {
+          "requestId": "req-2",
+          "orderId": 1
+        }
+      ],
+      "description": "a client that submits the same request again when the server does not answer"
+    }
+  ],
+  "bounds": {
+    "maxSteps": 40
+  },
+  "invariants": [
+    {
+      "name": "charged-at-most-once",
+      "when": "final",
+      "description": "one checkout request causes at most one effective card charge",
+      "assert": {
+        "le": [
+          {
+            "externals": {
+              "channel": "card-charge"
+            }
+          },
+          1
+        ]
+      }
+    }
+  ],
+  "sourceVerification": {
+    "harness": "../shop-app/commitrift-source.json",
+    "actors": {
+      "Tab1": {
+        "entry": "payOrderIdempotent",
+        "input": {
+          "requestId": "req-1",
+          "orderId": 1
+        }
+      },
+      "Tab2": {
+        "entry": "payOrderIdempotent",
+        "input": {
+          "requestId": "req-2",
+          "orderId": 1
+        }
+      }
+    }
+  }
+}

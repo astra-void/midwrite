@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "name": "shipping-dual-write-crash",
+  "description": "FIRST-PARTY APPLICATION: the shipped status commits, then the process crashes before the event is published. No recovery mechanism exists (none is declared, none is invented): the event is lost.",
+  "extraction": {
+    "root": "../shop-app",
+    "externals": [
+      {
+        "callee": "publishEvent",
+        "channel": "order-events",
+        "keyArgument": 1
+      },
+      {
+        "callee": "sendReceiptEmail",
+        "channel": "receipt-email"
+      }
+    ],
+    "schema": "src/lib/db/schema.ts"
+  },
+  "channels": {
+    "order-events": {
+      "dedup": "none"
+    },
+    "receipt-email": {
+      "dedup": "none"
+    }
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "from": "orders",
+        "columns": [
+          "id",
+          "customerEmail",
+          "amount",
+          "status"
+        ]
+      },
+      {
+        "from": "outbox",
+        "columns": [
+          "id",
+          "topic",
+          "orderId",
+          "published"
+        ]
+      }
+    ],
+    "initialState": {
+      "orders": [
+        {
+          "id": 1,
+          "customerEmail": "c@example.com",
+          "amount": 500,
+          "status": "paid"
+        }
+      ],
+      "outbox": []
+    }
+  },
+  "actors": [
+    {
+      "name": "Shipper",
+      "entry": {
+        "selector": "src/app/shipping.ts#shipOrderDualWrite",
+        "invocation": "awaited"
+      },
+      "arguments": [
+        {
+          "orderId": 1
+        }
+      ],
+      "description": "the shipping request"
+    }
+  ],
+  "bounds": {
+    "maxSteps": 30,
+    "maxCrashes": 1
+  },
+  "invariants": [
+    {
+      "name": "shipped-event-not-lost",
+      "when": "final",
+      "description": "every shipped order's event was published (or is pending in the outbox, which this code does not use)",
+      "assert": {
+        "le": [
+          {
+            "count": {
+              "table": "orders",
+              "where": {
+                "status": "shipped"
+              }
+            }
+          },
+          {
+            "add": [
+              {
+                "externals": {
+                  "channel": "order-events"
+                }
+              },
+              {
+                "count": {
+                  "table": "outbox",
+                  "where": {
+                    "published": false
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "sourceVerification": {
+    "harness": "../shop-app/commitrift-source.json",
+    "actors": {
+      "Shipper": {
+        "entry": "shipOrderDualWrite",
+        "input": {
+          "orderId": 1
+        }
+      }
+    }
+  }
+}

@@ -207,6 +207,8 @@ fn a_lock_wait_in_an_original_transaction_matches_the_model() {
         entries: &load.entries,
         allow_execution: true,
         repeat: 1,
+        probe: false,
+        extracted_schema: None,
     });
     assert_eq!(sv.status, "reproduced", "{sv:#?}");
     let waited: Vec<_> = sv

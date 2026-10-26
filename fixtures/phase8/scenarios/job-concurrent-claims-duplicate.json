@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "name": "job-concurrent-claims-duplicate",
+  "description": "FIRST-PARTY APPLICATION: the queue delivers the same job to two consumers concurrently (a redelivery while the first is still working). The status check does not exclude the second: two receipts.",
+  "extraction": {
+    "root": "../shop-app",
+    "externals": [
+      {
+        "callee": "publishEvent",
+        "channel": "order-events",
+        "keyArgument": 1
+      },
+      {
+        "callee": "sendReceiptEmail",
+        "channel": "receipt-email"
+      }
+    ],
+    "schema": "src/lib/db/schema.ts"
+  },
+  "channels": {
+    "order-events": {
+      "dedup": "none"
+    },
+    "receipt-email": {
+      "dedup": "none"
+    }
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "from": "jobs",
+        "columns": [
+          "id",
+          "kind",
+          "orderId",
+          "status"
+        ]
+      },
+      {
+        "from": "jobEffects",
+        "columns": [
+          "id",
+          "jobId",
+          "effect"
+        ]
+      }
+    ],
+    "initialState": {
+      "jobs": [
+        {
+          "id": 7,
+          "kind": "receipt",
+          "orderId": 1,
+          "status": "queued"
+        }
+      ],
+      "job_effects": []
+    }
+  },
+  "actors": [
+    {
+      "name": "WorkerA",
+      "entry": {
+        "selector": "src/app/jobs.ts#sendReceipt",
+        "invocation": "awaited"
+      },
+      "arguments": [
+        {
+          "jobId": 7
+        }
+      ],
+      "description": "a second consumer that received the same job"
+    },
+    {
+      "name": "WorkerB",
+      "entry": {
+        "selector": "src/app/jobs.ts#sendReceipt",
+        "invocation": "awaited"
+      },
+      "arguments": [
+        {
+          "jobId": 7
+        }
+      ],
+      "description": "a second consumer that received the same job"
+    }
+  ],
+  "bounds": {
+    "maxSteps": 30
+  },
+  "invariants": [
+    {
+      "name": "receipt-sent-at-most-once",
+      "when": "final",
+      "description": "a job's receipt e-mail is sent at most once",
+      "assert": {
+        "le": [
+          {
+            "externals": {
+              "channel": "receipt-email"
+            }
+          },
+          1
+        ]
+      }
+    }
+  ],
+  "sourceVerification": {
+    "harness": "../shop-app/commitrift-source.json",
+    "actors": {
+      "WorkerA": {
+        "entry": "sendReceipt",
+        "input": {
+          "jobId": 7
+        }
+      },
+      "WorkerB": {
+        "entry": "sendReceipt",
+        "input": {
+          "jobId": 7
+        }
+      }
+    }
+  }
+}

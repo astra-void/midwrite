@@ -1,0 +1,9 @@
+{
+  "databaseReceivers": ["db", "tx"],
+  "externalEffects": [
+    { "function": "chargeCard", "category": "payment" },
+    { "function": "publishEvent", "category": "message-publish" },
+    { "function": "sendReceiptEmail", "category": "email" },
+    { "function": "notifyWarehouse", "category": "http-request" }
+  ]
+}

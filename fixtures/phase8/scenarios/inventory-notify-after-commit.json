@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "name": "inventory-notify-after-commit",
+  "description": "FIRST-PARTY APPLICATION: the same retried reservations, notifying the warehouse after commit: one notice per committed reservation, including after a real 40001 and retry.",
+  "extraction": {
+    "root": "../shop-app",
+    "externals": [
+      {
+        "callee": "notifyWarehouse",
+        "channel": "warehouse"
+      }
+    ],
+    "transactionRetries": [
+      {
+        "callee": "withTransactionRetry",
+        "callbackArgument": 0,
+        "optionsArgument": 1
+      }
+    ],
+    "schema": "src/lib/db/schema.ts"
+  },
+  "channels": {
+    "warehouse": {
+      "dedup": "none"
+    }
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "from": "products",
+        "columns": [
+          "id",
+          "sku",
+          "stock"
+        ]
+      },
+      {
+        "from": "reservations",
+        "columns": [
+          "id",
+          "productId",
+          "quantity"
+        ]
+      }
+    ],
+    "initialState": {
+      "products": [
+        {
+          "id": 1,
+          "sku": "SKU-1",
+          "stock": 10
+        }
+      ],
+      "reservations": []
+    }
+  },
+  "actors": [
+    {
+      "name": "R1",
+      "entry": {
+        "selector": "src/app/inventory.ts#reserveStockNotifyAfterCommit",
+        "invocation": "awaited"
+      },
+      "arguments": [
+        {
+          "productId": 1,
+          "quantity": 2
+        }
+      ],
+      "description": "a reservation request"
+    },
+    {
+      "name": "R2",
+      "entry": {
+        "selector": "src/app/inventory.ts#reserveStockNotifyAfterCommit",
+        "invocation": "awaited"
+      },
+      "arguments": [
+        {
+          "productId": 1,
+          "quantity": 2
+        }
+      ],
+      "description": "a reservation request"
+    }
+  ],
+  "bounds": {
+    "maxSteps": 60,
+    "maxRetries": 2
+  },
+  "invariants": [
+    {
+      "name": "one-notice-per-reservation",
+      "when": "final",
+      "description": "the warehouse is notified once per committed reservation",
+      "assert": {
+        "le": [
+          {
+            "externals": {
+              "channel": "warehouse"
+            }
+          },
+          {
+            "count": {
+              "table": "reservations"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "sourceVerification": {
+    "harness": "../shop-app/commitrift-source.json",
+    "actors": {
+      "R1": {
+        "entry": "reserveStockNotifyAfterCommit",
+        "input": {
+          "productId": 1,
+          "quantity": 2
+        }
+      },
+      "R2": {
+        "entry": "reserveStockNotifyAfterCommit",
+        "input": {
+          "productId": 1,
+          "quantity": 2
+        }
+      }
+    },
+    "recoveryProbe": {
+      "require": [
+        "error:40001",
+        "commit:R2"
+      ]
+    }
+  }
+}

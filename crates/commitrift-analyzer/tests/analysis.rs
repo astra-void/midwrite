@@ -272,7 +272,7 @@ fn evaluation_order_puts_awaited_arguments_first() {
     let labels: Vec<&str> = ir.functions[0]
         .effects()
         .iter()
-        .map(|e| e.label.as_str())
+        .map(|e| &*e.label)
         .collect();
     assert_eq!(labels[0], "db.insert(log)");
     assert!(labels[1].starts_with("queue.publish"));
@@ -740,11 +740,11 @@ fn awaited_local_helpers_are_inlined_from_their_summary() {
     let Some(Node::Call(scope)) = caller.body.get(1) else {
         panic!("expected an inlined call: {}", caller.to_text());
     };
-    assert_eq!(scope.callee, "notify");
+    assert_eq!(&*scope.callee, "notify");
     let inlined = caller.effects();
     let summary = inlined[1].summary.as_ref().expect("summarized effect");
     assert!(summary.on_every_path);
-    assert_eq!(summary.calls[0].callee, "notify");
+    assert_eq!(&*summary.calls[0].callee, "notify");
     assert!(caller.to_text().contains("inlines `notify`"));
 }
 
