@@ -159,7 +159,10 @@ impl Snapshot {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Store {
-    pub rows: BTreeMap<RowId, Vec<Version>>,
+    /// Version chains, shared between states until written (Phase 8: a
+    /// transition writes few rows; cloning a state does not copy the
+    /// others).
+    pub rows: BTreeMap<RowId, std::sync::Arc<Vec<Version>>>,
     /// Row locks held by active transactions (`UPDATE`, `DELETE`,
     /// `SELECT ... FOR UPDATE`), released when the holder ends.
     pub locks: BTreeMap<RowId, TxnId>,

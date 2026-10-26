@@ -112,6 +112,16 @@ pub enum Action {
     Crash {
         actor: u16,
     },
+    /// An external effect (Phase 8: planned against the original code's
+    /// channel test double).
+    External {
+        actor: u16,
+        thread: u16,
+        channel: String,
+        key: Option<Value>,
+        payload: Row,
+        deduplicated: bool,
+    },
 }
 
 #[derive(Default)]
@@ -180,18 +190,18 @@ pub fn initial_state(model: &Model) -> State {
     for (id, row) in model.initial_row_ids() {
         store.rows.insert(
             id,
-            vec![crate::db::Version {
+            std::sync::Arc::new(vec![crate::db::Version {
                 values: Some(row),
                 creator: crate::db::INITIAL_TXN,
                 commit: Some(0),
-            }],
+            }]),
         );
     }
     let actors = model
         .actors
         .iter()
         .map(|spec| ActorState {
-            locals: spec.arguments.iter().cloned().collect(),
+            locals: std::sync::Arc::new(spec.arguments.iter().cloned().collect()),
             threads: vec![main_thread()],
             txn: None,
             begin: None,
@@ -500,7 +510,7 @@ fn step_thread(
     foot: &mut Footprint,
     rec: &mut Recorder,
 ) -> Result<(), Unsupported> {
-    let step = op_at(model, s, a, th).clone();
+    let step = op_at(model, s, a, th);
     s.actors[a].touched = true;
     let src = Some(&step.src);
     match &step.op {
@@ -509,7 +519,7 @@ fn step_thread(
                 return Err(Unsupported {
                     actor: a,
                     detail: "nested transactions and savepoints are not modeled".into(),
-                    src: step.src,
+                    src: step.src.clone(),
                 });
             }
             let iso = isolation.unwrap_or(model.isolation);
@@ -671,6 +681,14 @@ fn step_thread(
                         None,
                         None,
                     );
+                    rec.act(|| Action::External {
+                        actor: a as u16,
+                        thread: th as u16,
+                        channel: channel.clone(),
+                        key: key.clone(),
+                        payload: payload.clone(),
+                        deduplicated: duplicate,
+                    });
                     s.externals.push(ExternalEvent {
                         channel: channel.clone(),
                         key,
@@ -688,7 +706,7 @@ fn step_thread(
             let p = model.process_of[a];
             foot.push(Access::App(p, var.clone()));
             let v = s.apps[p].get(var).cloned().unwrap_or(Value::Null);
-            s.actors[a].locals.insert(into.clone(), v.clone());
+            std::sync::Arc::make_mut(&mut s.actors[a].locals).insert(into.clone(), v.clone());
             rec.add(
                 a,
                 th,
@@ -724,7 +742,7 @@ fn step_thread(
             return Err(Unsupported {
                 actor: a,
                 detail: detail.clone(),
-                src: step.src,
+                src: step.src.clone(),
             });
         }
         other => unreachable!("local operation {other:?} reached as a visible step"),
@@ -979,7 +997,7 @@ fn resume_thread(
         .expect("resume of a thread without a pending statement");
     p.blocked_on = None;
     foot.push(Access::Wait);
-    let step = op_at(model, s, a, th).clone();
+    let step = op_at(model, s, a, th);
     rec.add(
         a,
         th,
@@ -1120,10 +1138,11 @@ fn deliver(
             ..
         } => {
             // `INSERT ... RETURNING *`: the row (or null) and the count.
-            s.actors[a].locals.insert(row.clone(), value.clone());
+            std::sync::Arc::make_mut(&mut s.actors[a].locals).insert(row.clone(), value.clone());
             if let Some(count) = affected {
                 let n = i64::from(!value.is_null());
-                s.actors[a].locals.insert(count.clone(), Value::Int(n));
+                std::sync::Arc::make_mut(&mut s.actors[a].locals)
+                    .insert(count.clone(), Value::Int(n));
             }
             None
         }
@@ -1132,7 +1151,7 @@ fn deliver(
         | StmtKind::Delete { affected, .. } => affected.clone(),
     };
     if let Some(name) = target {
-        s.actors[a].locals.insert(name, value.clone());
+        std::sync::Arc::make_mut(&mut s.actors[a].locals).insert(name, value.clone());
     }
     rec.add(
         a,
@@ -1310,7 +1329,8 @@ pub fn commit_txn(
     }
     let seq = s.commit_seq;
     for row in &txn.writes {
-        let chain = s.store.rows.get_mut(row).expect("written row exists");
+        let chain =
+            std::sync::Arc::make_mut(s.store.rows.get_mut(row).expect("written row exists"));
         let n = chain.len();
         let prev = if n >= 2 {
             chain[n - 2].values.clone()
@@ -1366,6 +1386,7 @@ pub fn abort_txn(_model: &Model, s: &mut State, id: TxnId, foot: &mut Footprint)
     }
     for row in &txn.writes {
         if let Some(chain) = s.store.rows.get_mut(row) {
+            let chain = std::sync::Arc::make_mut(chain);
             if let Some(removed) = chain.pop_if(|v| v.creator == id && v.commit.is_none()) {
                 let previous = chain.last().and_then(|v| v.values.clone());
                 foot.push(Access::RowWrite {
@@ -1447,7 +1468,7 @@ fn settle_thread(
                 return;
             }
         }
-        let step = op_at(model, s, a, th).clone();
+        let step = op_at(model, s, a, th);
         let src = Some(&step.src);
         match &step.op {
             Op::Let { local, expr } => match expr.eval(&s.actors[a].locals, None, Mode::Js) {
@@ -1461,7 +1482,7 @@ fn settle_thread(
                         Some(v.clone()),
                         None,
                     );
-                    s.actors[a].locals.insert(local.clone(), v);
+                    std::sync::Arc::make_mut(&mut s.actors[a].locals).insert(local.clone(), v);
                     s.actors[a].threads[th].pc += 1;
                 }
                 Err(e) => {
@@ -1658,7 +1679,8 @@ fn fail_thread(
             });
         }
         if let Some(local) = error {
-            s.actors[a].locals.insert(local, Value::Str(reason.clone()));
+            std::sync::Arc::make_mut(&mut s.actors[a].locals)
+                .insert(local, Value::Str(reason.clone()));
         }
         let t = &mut s.actors[a].threads[th];
         t.pending = None;
@@ -1790,7 +1812,7 @@ fn retry_actor(model: &Model, s: &mut State, a: usize, foot: &mut Footprint, rec
     s.retries += 1;
     let spec = &model.actors[a];
     let st = &mut s.actors[a];
-    st.locals = spec.arguments.iter().cloned().collect();
+    st.locals = std::sync::Arc::new(spec.arguments.iter().cloned().collect());
     st.threads = vec![main_thread()];
     st.txn = None;
     st.begin = None;

@@ -1155,6 +1155,9 @@ impl Run<'_> {
                 );
                 Ok(agree)
             }
+            // Effects are not database operations: the model SQL replay
+            // has nothing to run for them.
+            Action::External { .. } => Ok(true),
             Action::Crash { actor } => {
                 let keys: Vec<Key> = self
                     .sessions

@@ -116,13 +116,17 @@ impl Outcome {
 pub struct BeginInfo {
     pub code: u16,
     pub pc: u32,
-    pub locals: Locals,
+    /// Shared until written (Phase 8: a transition writes the locals of at
+    /// most one actor; the others are not copied).
+    pub locals: std::sync::Arc<Locals>,
     pub retry: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ActorState {
-    pub locals: Locals,
+    /// Shared until written (Phase 8: a transition writes the locals of at
+    /// most one actor; the others are not copied).
+    pub locals: std::sync::Arc<Locals>,
     pub threads: Vec<Thread>,
     pub txn: Option<TxnId>,
     pub begin: Option<BeginInfo>,
@@ -290,7 +294,7 @@ impl State {
         for (id, chain) in &self.store.rows {
             e.row_id(*id);
             e.u32(chain.len() as u32);
-            for v in chain {
+            for v in chain.iter() {
                 match v.commit {
                     Some(c) => {
                         e.u8(1);

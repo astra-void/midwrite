@@ -158,6 +158,22 @@ pub enum EvidenceLevel {
     /// outcome matched the model, and the invariant is violated on the rows
     /// the run left (`sourceVerification`).
     OriginalCodeReproduced,
+    /// Phase 8: as `OriginalCodeReproduced`, for a counterexample that
+    /// crashes a process and/or retries an operation: the worker was really
+    /// killed (SIGKILL) at the planned checkpoint, PostgreSQL ended its
+    /// sessions, and the retry ran as a new process.
+    OriginalCodeCrashReproduced,
+    /// Phase 8: there is NO counterexample within the bounds; the model's
+    /// recovery schedule (`sourceVerification.recoveryProbe`) ran against the
+    /// original code with a real crash and retry, matched the model, and
+    /// the invariant HOLDS on the observed state. Bounded evidence about
+    /// one schedule, not a proof.
+    OriginalCodeRecoveryReproduced,
+    /// Phase 8: no counterexample within the bounds; a model schedule
+    /// WITHOUT crash or retry (`recoveryProbe`, for example two concurrent
+    /// consumers) ran against the original code, matched the model, and the
+    /// invariant holds on the observed state. Bounded evidence, not a proof.
+    OriginalCodeInvariantHeld,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -234,6 +250,10 @@ pub struct ModelCheckReport {
     /// Phase 7 (report schema 2): the original-code verification.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_verification: Option<crate::source_types::SourceVerification>,
+    /// Phase 8 (report schema 3): the facts behind every table read from
+    /// the application's Drizzle schema, each with its origin.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub schema_facts: Vec<crate::schema_facts::TableFacts>,
 }
 
 impl ModelCheckReport {
@@ -375,6 +395,7 @@ fn verify_source(
         postgres_version: None,
         isolation: String::new(),
         note: String::new(),
+        ..Default::default()
     };
     let harness = match commitrift_replay::source::load_manifest(&so.harness) {
         Ok(h) => h,
@@ -401,7 +422,100 @@ fn verify_source(
         entries: &load.entries,
         allow_execution: so.allow_execution,
         repeat: so.repeat,
+        probe: false,
+        extracted_schema: load.extracted_schema.as_ref(),
     })
+}
+
+/// Phase 8: no counterexample; run the model's recovery schedule against
+/// the original code instead (`sourceVerification.recoveryProbe`).
+#[cfg(feature = "postgres")]
+fn verify_probe(
+    model: &Model,
+    load: &crate::scenario::LoadReport,
+    so: &SourceOptions,
+    probe: &crate::source_types::RecoveryProbe,
+) -> crate::source_types::SourceVerification {
+    use crate::source_types::SourceVerification;
+    let refused = |status: &str, harness: &str, why: String| SourceVerification {
+        performed: false,
+        status: status.to_owned(),
+        harness: harness.to_owned(),
+        problems: vec![why],
+        evidence: if status == "blocked" {
+            "INCONCLUSIVE"
+        } else {
+            "UNSUPPORTED"
+        }
+        .to_owned(),
+        ..Default::default()
+    };
+    let harness = match commitrift_replay::source::load_manifest(&so.harness) {
+        Ok(h) => h,
+        Err(e) => return refused("blocked", &so.harness.display().to_string(), e),
+    };
+    let name = &harness.manifest.harness;
+    let finals: Vec<&crate::invariant::Invariant> = model
+        .invariants
+        .iter()
+        .filter(|i| match &probe.invariant {
+            Some(n) => &i.name == n,
+            None => i.when == crate::invariant::When::Final,
+        })
+        .collect();
+    let [invariant] = finals.as_slice() else {
+        return refused(
+            "unsupported",
+            name,
+            "the recovery probe must name exactly one invariant (`invariant`) when the scenario has several".to_owned(),
+        );
+    };
+    let schedule = match crate::probe::find(model, &probe.require) {
+        Ok(s) => s,
+        Err(e) => return refused("unsupported", name, e),
+    };
+    let final_state = match crate::witness::replay(model, &schedule, false) {
+        Ok(r) => r.state,
+        Err(e) => return refused("unsupported", name, e.reason),
+    };
+    if !invariant.holds(model, &final_state) {
+        return refused(
+            "unsupported",
+            name,
+            "the probe's final state violates the invariant in the model: it is a counterexample, not a recovery".to_owned(),
+        );
+    }
+    let mut out = crate::source_verify::verify(&crate::source_verify::VerifyRequest {
+        model,
+        schedule: &schedule,
+        final_state: &final_state,
+        invariant,
+        harness: &harness,
+        spec: &so.spec,
+        entries: &load.entries,
+        allow_execution: so.allow_execution,
+        repeat: so.repeat,
+        probe: true,
+        extracted_schema: load.extracted_schema.as_ref(),
+    });
+    out.probe_schedule = crate::probe::render(model, &schedule);
+    out
+}
+
+#[cfg(not(feature = "postgres"))]
+fn verify_probe(
+    _: &Model,
+    _: &crate::scenario::LoadReport,
+    so: &SourceOptions,
+    _: &crate::source_types::RecoveryProbe,
+) -> crate::source_types::SourceVerification {
+    crate::source_types::SourceVerification {
+        performed: false,
+        status: "blocked".to_owned(),
+        harness: so.harness.display().to_string(),
+        problems: vec!["this build does not include source verification".to_owned()],
+        ..Default::default()
+    }
 }
 
 #[cfg(not(feature = "postgres"))]
@@ -427,6 +541,7 @@ fn verify_source(
         postgres_version: None,
         isolation: String::new(),
         note: String::new(),
+        ..Default::default()
     }
 }
 
@@ -722,6 +837,12 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
     // Phase 7: the original code under the counterexample's schedule.
     let source_verification = opts.source.as_ref().map(|so| match &witness {
         Some(w) => verify_source(model, w, &opts.load, so),
+        None if result.verdict == Verdict::NoCounterexampleWithinBounds
+            && so.spec.recovery_probe.is_some() =>
+        {
+            let probe = so.spec.recovery_probe.as_ref().expect("checked");
+            verify_probe(model, &opts.load, so, probe)
+        }
         None => crate::source_types::SourceVerification {
             performed: false,
             status: "not-run".to_owned(),
@@ -738,9 +859,44 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
             postgres_version: None,
             isolation: String::new(),
             note: String::new(),
+            ..Default::default()
         },
     });
     let (level, summary) = match &source_verification {
+        Some(sv)
+            if sv.status == "reproduced" && sv.evidence == "ORIGINAL_CODE_CRASH_REPRODUCED" =>
+        {
+            (
+                EvidenceLevel::OriginalCodeCrashReproduced,
+                format!(
+                    "the actors' original application code ran under this crash/retry schedule against PostgreSQL in {} of {} run(s): workers were killed with SIGKILL at the planned checkpoints, PostgreSQL ended their sessions, retries ran as new processes, every statement, effect, result and outcome matched the model, and the invariant is violated on the observed state",
+                    sv.runs.iter().filter(|r| r.reproduced).count(),
+                    sv.runs.len()
+                ),
+            )
+        }
+        Some(sv) if sv.status == "recovery-reproduced" => (
+            EvidenceLevel::OriginalCodeRecoveryReproduced,
+            format!(
+                "no counterexample within the bounds; the model's recovery schedule ran against the original code in {} of {} run(s) (real SIGKILL, new-process retry), matched the model, and the invariant holds on the observed state — bounded evidence about this schedule, not a proof",
+                sv.runs
+                    .iter()
+                    .filter(|r| r.recovery_reproduced == Some(true))
+                    .count(),
+                sv.runs.len()
+            ),
+        ),
+        Some(sv) if sv.status == "invariant-held" => (
+            EvidenceLevel::OriginalCodeInvariantHeld,
+            format!(
+                "no counterexample within the bounds; the model's probe schedule ran against the original code in {} of {} run(s), matched the model, and the invariant holds on the observed state — bounded evidence about this schedule, not a proof",
+                sv.runs
+                    .iter()
+                    .filter(|r| r.recovery_reproduced == Some(true))
+                    .count(),
+                sv.runs.len()
+            ),
+        ),
         Some(sv) if sv.status == "reproduced" => (
             EvidenceLevel::OriginalCodeReproduced,
             format!(
@@ -832,7 +988,13 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
     };
     ModelCheckReport {
         kind: REPORT_KIND.into(),
-        schema_version: if extraction.is_empty() && source_verification.is_none() {
+        schema_version: if !opts.load.schema.is_empty()
+            || source_verification
+                .as_ref()
+                .is_some_and(crate::source_types::SourceVerification::has_phase8_fields)
+        {
+            3
+        } else if extraction.is_empty() && source_verification.is_none() {
             REPORT_SCHEMA_VERSION
         } else {
             2
@@ -878,6 +1040,7 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
         }),
         extraction,
         source_verification,
+        schema_facts: opts.load.schema.clone(),
     }
 }
 

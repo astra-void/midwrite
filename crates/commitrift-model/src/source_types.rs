@@ -28,6 +28,28 @@ pub struct SourceSpec {
     #[serde(default)]
     pub harness: Option<String>,
     pub actors: BTreeMap<String, SourceActor>,
+    /// Phase 8: when the model finds NO counterexample (a safe or
+    /// idempotent alternative), run this bounded recovery schedule against
+    /// the original code instead and check that it keeps the invariant.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recovery_probe: Option<RecoveryProbe>,
+}
+
+/// Phase 8: which recovery schedule to run when there is no counterexample.
+/// The model checker picks the SHORTEST complete schedule within the
+/// declared bounds that contains the required events in order; the
+/// schedule is the model's, never written by hand.
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RecoveryProbe {
+    /// Events in order: `external:<channel>`, `crash:<actor>`,
+    /// `retry:<actor>`, `commit:<actor>`, `error:<SQLSTATE>`,
+    /// `statement:<actor>` (any statement of the actor), `blocked:<actor>`
+    /// (a statement of the actor starts waiting for a lock).
+    pub require: Vec<String>,
+    /// The invariant that must hold (default: every final invariant).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub invariant: Option<String>,
 }
 
 /// One model statement and what the original code did for it.
@@ -68,9 +90,102 @@ pub struct RunSummary {
     pub invariant: String,
     pub reproduced: bool,
     pub elapsed_ms: u64,
+    /// Phase 8: crash checkpoints, restarts, effects and attempts agree
+    /// with the model (absent when the schedule has none of them).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recovery_agrees: Option<bool>,
+    /// Phase 8, recovery probes only: the run followed the model's
+    /// recovery schedule, everything agreed, and the invariant HOLDS on the
+    /// observed state.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recovery_reproduced: Option<bool>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+/// Phase 8: one planned crash, as the model describes it and as it
+/// happened.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CrashCheck {
+    pub transition: usize,
+    pub actor: String,
+    pub attempt: u32,
+    /// The model's crash boundary.
+    pub boundary: String,
+    /// What the worker was doing when it was killed (observed).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub checkpoint: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub never_sent: Option<String>,
+    #[serde(default)]
+    pub pid: u32,
+    pub killed_by_signal: bool,
+    /// PostgreSQL ended the worker's sessions (rolled back what they had
+    /// not committed).
+    pub sessions_ended: bool,
+    #[serde(default)]
+    pub sessions_ended_ms: u64,
+    /// Committed rows right after the crash: the model's and PostgreSQL's.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub model_tables: BTreeMap<String, Vec<Row>>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub runtime_tables: BTreeMap<String, Vec<Row>>,
+    /// `agree`, `differ`, `not-observed`.
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub differences: Vec<String>,
+}
+
+/// Phase 8: one new execution of an actor.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestartCheck {
+    pub transition: usize,
+    pub actor: String,
+    pub attempt: u32,
+    /// The declared mechanism that starts it.
+    pub mechanism: String,
+    #[serde(default)]
+    pub pid: u32,
+    #[serde(default)]
+    pub previous_pid: u32,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub previous_outcome: String,
+    /// `agree` (a new process started at the planned point), `not-observed`.
+    pub status: String,
+}
+
+/// Phase 8: the external effects the model predicts and the channel test
+/// double received (`channel key=… actor#attempt [deduplicated]`).
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EffectComparison {
+    pub model: Vec<String>,
+    pub runtime: Vec<String>,
+    pub agree: bool,
+}
+
+/// Phase 8: crash and recovery evidence of the first run.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecoveryVerification {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub crashes: Vec<CrashCheck>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub restarts: Vec<RestartCheck>,
+    pub effects: EffectComparison,
+    /// (actor, executions in the model, executions observed).
+    pub attempts: Vec<(String, u32, u32)>,
+    /// Declared contracts the run relies on (channel test doubles, retry
+    /// mechanisms): assumptions, not proofs about real providers.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub contracts: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub server_settings: Vec<String>,
+    /// What the final state means: which retries remain possible.
+    pub quiescence: String,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceVerification {
     pub performed: bool,
@@ -104,6 +219,32 @@ pub struct SourceVerification {
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub isolation: String,
     pub note: String,
+    /// Phase 8 evidence classification (absent for Phase 7 runs, whose
+    /// `status` keeps its meaning): `ORIGINAL_CODE_CRASH_REPRODUCED`,
+    /// `ORIGINAL_CODE_RECOVERY_REPRODUCED` (a probe with a crash or retry),
+    /// `ORIGINAL_CODE_INVARIANT_HELD` (a probe without one), `INCONCLUSIVE`,
+    /// `UNSUPPORTED`, `DIVERGED`, `NOT_REPRODUCED`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub evidence: String,
+    /// Phase 8: the schedule that was run, when it is a recovery probe
+    /// rather than a counterexample (`kind actor[/thread]`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub probe_schedule: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recovery: Option<RecoveryVerification>,
+    /// Phase 8: the extracted schema facts compared with the catalog of the
+    /// database the original code ran on (after its migrations).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schema_fidelity: Option<crate::schema_fidelity::SchemaFidelity>,
+    /// Phase 8: statements the database driver issued for itself (catalog
+    /// reads after connecting): not part of the application, not held.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub driver_internal: Vec<String>,
+    /// Phase 8: transaction configuration a driver sent in a statement of
+    /// its own right after a planned BEGIN (postgres-js: `set transaction
+    /// isolation level ...`), released as part of that BEGIN.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub transaction_config: Vec<String>,
 }
 
 /// Semantic operation coverage of one extracted actor (Phase 7). Counts
@@ -137,4 +278,20 @@ pub struct ExtractionReport {
     /// Facts the scenario supplied (not proven from source).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub scenario_assumptions: Vec<String>,
+}
+
+impl SourceVerification {
+    /// Whether any Phase 8 field is present (the report is then schema 3).
+    pub fn has_phase8_fields(&self) -> bool {
+        !self.evidence.is_empty()
+            || !self.probe_schedule.is_empty()
+            || self.recovery.is_some()
+            || self.schema_fidelity.is_some()
+            || !self.driver_internal.is_empty()
+            || !self.transaction_config.is_empty()
+            || self
+                .runs
+                .iter()
+                .any(|r| r.recovery_agrees.is_some() || r.recovery_reproduced.is_some())
+    }
 }

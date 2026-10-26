@@ -54,6 +54,13 @@ td.cell{background:#fff}
 .muted{color:#5b6573}.label{font-size:11px;font-weight:700;letter-spacing:.06em;color:#5b6573;text-transform:uppercase}
 details{margin:6px 0}summary{cursor:pointer;color:#2f4b6e}pre{background:#f3f4f6;padding:8px;overflow:auto;font-size:12px}
 .pg{background:#f7f0ff}.model{background:#eef4ff}
+table.lanes td{border-left:1px solid #e3e7ec;min-width:120px}table.lanes td.t{border-left:0}
+.lane-op{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+.lane-crash{background:#2b2b2b;color:#fff;font-weight:700}.lane-retry{background:#e8f1ff;color:#0b3d91;font-weight:700}
+.lane-db{background:#fbf7ff}.lane-effect{background:#eefaff}.lane-dup{background:#fff4d6}
+.o-extracted-from-source{background:#dcf5e3;color:#185c2d}.o-declared-by-scenario{background:#eef0ff;color:#3b3f8f}
+.o-scenario-override{background:#fff4d6;color:#7a5200}.o-not-modeled{background:#f1f1f1;color:#555}
+.o-unknown{background:#ffe2e0;color:#8c1d18}.o-confirmed-by-runtime-catalog{background:#dcf5e3;color:#185c2d}
 "#;
 
 fn kind_class(k: EventKind) -> &'static str {
@@ -78,7 +85,11 @@ fn kind_class(k: EventKind) -> &'static str {
 fn evidence_class(l: EvidenceLevel) -> &'static str {
     match l {
         EvidenceLevel::ModelCounterexample => "ev-model",
-        EvidenceLevel::PostgresConfirmedSchedule | EvidenceLevel::OriginalCodeReproduced => "ev-pg",
+        EvidenceLevel::PostgresConfirmedSchedule
+        | EvidenceLevel::OriginalCodeReproduced
+        | EvidenceLevel::OriginalCodeCrashReproduced
+        | EvidenceLevel::OriginalCodeRecoveryReproduced
+        | EvidenceLevel::OriginalCodeInvariantHeld => "ev-pg",
         _ => "ev-none",
     }
 }
@@ -92,6 +103,15 @@ fn evidence_label(l: EvidenceLevel) -> &'static str {
         EvidenceLevel::RuntimeInconclusive => "RUNTIME VALIDATION INCONCLUSIVE",
         EvidenceLevel::OriginalCodeReproduced => {
             "ORIGINAL CODE REPRODUCED (application ran on PostgreSQL)"
+        }
+        EvidenceLevel::OriginalCodeCrashReproduced => {
+            "ORIGINAL CODE CRASH REPRODUCED (workers killed and retried on PostgreSQL)"
+        }
+        EvidenceLevel::OriginalCodeRecoveryReproduced => {
+            "ORIGINAL CODE RECOVERY REPRODUCED (invariant held under a real crash and retry; bounded)"
+        }
+        EvidenceLevel::OriginalCodeInvariantHeld => {
+            "ORIGINAL CODE INVARIANT HELD (one model schedule ran on PostgreSQL; bounded)"
         }
     }
 }
@@ -409,6 +429,44 @@ pub fn model_check_html(r: &ModelCheckReport) -> String {
             }
             b.push_str("</table>");
         }
+        if let Some(rec) = &sv.recovery {
+            recovery_timeline(&mut b, sv, rec);
+        }
+        if let Some(f) = &sv.schema_fidelity {
+            let _ = write!(
+                b,
+                "<p><b>Schema fidelity</b> (extracted Drizzle schema vs the run database's catalog, {}): <span class=\"{}\">{}</span></p>",
+                escape(&f.postgres_version),
+                if f.status == "agree" { "ok" } else { "bad" },
+                escape(&f.status)
+            );
+            for t in &f.tables {
+                for i in t.items.iter().filter(|i| i.status != "agree") {
+                    let _ = write!(
+                        b,
+                        "<p class=\"bad\">{} {}: {} {}</p>",
+                        escape(&t.table),
+                        escape(&i.fact),
+                        escape(&i.status),
+                        escape(&i.detail)
+                    );
+                }
+            }
+        }
+        for c in &sv.transaction_config {
+            let _ = write!(
+                b,
+                "<p class=\"muted\">transaction configuration released with its BEGIN: <code>{}</code></p>",
+                escape(c)
+            );
+        }
+        for d in &sv.driver_internal {
+            let _ = write!(
+                b,
+                "<p class=\"muted\">driver-internal (not held): <code>{}</code></p>",
+                escape(d)
+            );
+        }
         for o in &sv.outside_model {
             let _ = write!(
                 b,
@@ -427,6 +485,42 @@ pub fn model_check_html(r: &ModelCheckReport) -> String {
             let _ = write!(b, "<p class=\"bad\">problem: {}</p>", escape(p));
         }
         b.push_str("</div>");
+    }
+
+    if !r.schema_facts.is_empty() {
+        b.push_str(
+            "<details class=\"card\"><summary>Schema facts behind the model's tables</summary>",
+        );
+        for t in &r.schema_facts {
+            let _ = write!(
+                b,
+                "<p><b>{}</b>{}</p><table><tr><th>Origin</th><th>Fact</th><th>Source</th></tr>",
+                escape(&t.table),
+                t.binding
+                    .as_ref()
+                    .map(|x| format!(
+                        " <span class=\"muted\">(Drizzle binding <code>{}</code>)</span>",
+                        escape(x)
+                    ))
+                    .unwrap_or_default()
+            );
+            for f in &t.facts {
+                let origin = serde_json::to_value(f.origin)
+                    .ok()
+                    .and_then(|v| v.as_str().map(str::to_owned))
+                    .unwrap_or_default();
+                let _ = write!(
+                    b,
+                    "<tr><td><span class=\"badge o-{}\">{}</span></td><td>{}</td><td class=\"mono\">{}</td></tr>",
+                    escape(&origin),
+                    escape(&origin),
+                    escape(&f.fact),
+                    escape(&f.source)
+                );
+            }
+            b.push_str("</table>");
+        }
+        b.push_str("</details>");
     }
 
     // Invariants and bounds
@@ -490,4 +584,186 @@ pub fn model_check_html(r: &ModelCheckReport) -> String {
         escape(&r.model_version),
         r.schema_version
     )
+}
+
+/// Phase 8: the run as lanes — one per actor execution (`Client#1`,
+/// `Client#2` after a restart), PostgreSQL, and each channel test double —
+/// with the planned crashes (SIGKILL) and restarts where they happened.
+fn recovery_timeline(
+    b: &mut String,
+    sv: &crate::source_types::SourceVerification,
+    rec: &crate::source_types::RecoveryVerification,
+) {
+    use std::collections::BTreeSet;
+    // Which execution a transition of an actor belongs to.
+    let attempt = |actor: &str, transition: usize| -> u32 {
+        1 + rec
+            .restarts
+            .iter()
+            .filter(|r| r.actor == actor && r.transition <= transition)
+            .count() as u32
+    };
+    let mut lanes: Vec<String> = Vec::new();
+    let mut add = |lane: String| {
+        if !lanes.contains(&lane) {
+            lanes.push(lane);
+        }
+    };
+    let mut channels: BTreeSet<String> = BTreeSet::new();
+    for c in &sv.statements {
+        add(format!("{}#{}", c.actor, attempt(&c.actor, c.transition)));
+        if let Some(ch) = c.sql.strip_prefix("EFFECT ") {
+            channels.insert(ch.to_owned());
+        }
+    }
+    for r in &rec.restarts {
+        add(format!("{}#{}", r.actor, r.attempt));
+    }
+    for c in &rec.crashes {
+        add(format!("{}#{}", c.actor, c.attempt));
+    }
+    lanes.sort();
+    let columns: Vec<String> = lanes
+        .iter()
+        .cloned()
+        .chain(std::iter::once("PostgreSQL".to_owned()))
+        .chain(channels.iter().map(|c| format!("{c} (test double)")))
+        .collect();
+    let _ = write!(
+        b,
+        "<p><b>Crash and recovery timeline</b> — one lane per execution; ✕ is a real SIGKILL of the worker's process group, ↻ a new process started by the declared mechanism.</p><table class=\"lanes\"><tr><th>#</th>{}</tr>",
+        columns
+            .iter()
+            .map(|c| format!("<th>{}</th>", escape(c)))
+            .collect::<String>()
+    );
+    // Events by transition: statements/effects, crashes, restarts.
+    let mut transitions: BTreeSet<usize> = BTreeSet::new();
+    transitions.extend(sv.statements.iter().map(|c| c.transition));
+    transitions.extend(rec.crashes.iter().map(|c| c.transition));
+    transitions.extend(rec.restarts.iter().map(|r| r.transition));
+    let row = |b: &mut String, t: usize, cells: Vec<(usize, String, &str)>| {
+        let _ = write!(b, "<tr><td class=\"t\">{t}</td>");
+        for (i, _) in columns.iter().enumerate() {
+            match cells.iter().find(|(c, _, _)| *c == i) {
+                Some((_, html, class)) => {
+                    let _ = write!(b, "<td class=\"{class}\">{html}</td>");
+                }
+                None => b.push_str("<td></td>"),
+            }
+        }
+        b.push_str("</tr>");
+    };
+    let lane_of = |name: &str| columns.iter().position(|c| c == name).unwrap_or(0);
+    let db = lanes.len();
+    for t in transitions {
+        for c in sv.statements.iter().filter(|c| c.transition == t) {
+            let lane = lane_of(&format!("{}#{}", c.actor, attempt(&c.actor, c.transition)));
+            let ok = c.status == "agree";
+            let mut cells = vec![(
+                lane,
+                format!(
+                    "{} {}<br><span class=\"muted\">{}</span>",
+                    if ok { "●" } else { "≠" },
+                    escape(&c.model),
+                    escape(&c.runtime_source)
+                ),
+                "lane-op",
+            )];
+            match c.sql.strip_prefix("EFFECT ") {
+                Some(ch) => {
+                    let target = lane_of(&format!("{ch} (test double)"));
+                    let dup = c.observed.contains("deduplicated");
+                    cells.push((
+                        target,
+                        format!("◀ {}", escape(&c.observed)),
+                        if dup { "lane-dup" } else { "lane-effect" },
+                    ));
+                }
+                None => cells.push((db, format!("◀ {}", escape(&c.observed)), "lane-db")),
+            }
+            row(b, t, cells);
+        }
+        for c in rec.crashes.iter().filter(|c| c.transition == t) {
+            let lane = lane_of(&format!("{}#{}", c.actor, c.attempt));
+            row(
+                b,
+                t,
+                vec![
+                    (
+                        lane,
+                        format!(
+                            "✕ CRASH — SIGKILL pid {}{}<br><span class=\"muted\">{}</span>",
+                            c.pid,
+                            if c.killed_by_signal {
+                                ""
+                            } else {
+                                " (NOT confirmed)"
+                            },
+                            escape(&c.checkpoint)
+                        ),
+                        "lane-crash",
+                    ),
+                    (
+                        db,
+                        format!(
+                            "sessions ended: {} ({} ms); committed rows {} the model",
+                            c.sessions_ended,
+                            c.sessions_ended_ms,
+                            if c.status == "agree" {
+                                "agree with"
+                            } else {
+                                "DIFFER from"
+                            }
+                        ),
+                        "lane-db",
+                    ),
+                ],
+            );
+        }
+        for r in rec.restarts.iter().filter(|r| r.transition == t) {
+            let lane = lane_of(&format!("{}#{}", r.actor, r.attempt));
+            row(
+                b,
+                t,
+                vec![(
+                    lane,
+                    format!(
+                        "↻ RETRY — new process pid {} (previous pid {}, {})<br><span class=\"muted\">{}</span>",
+                        r.pid,
+                        r.previous_pid,
+                        escape(&r.previous_outcome),
+                        escape(&r.mechanism)
+                    ),
+                    "lane-retry",
+                )],
+            );
+        }
+    }
+    b.push_str("</table>");
+    let _ = write!(
+        b,
+        "<p>Effects — model: <code>{}</code>; channel double: <code>{}</code> ({}).</p><p>Executions (model / observed): {}.</p><p class=\"muted\">{}</p>",
+        escape(&rec.effects.model.join(" · ")),
+        escape(&rec.effects.runtime.join(" · ")),
+        if rec.effects.agree { "agree" } else { "DIFFER" },
+        escape(
+            &rec.attempts
+                .iter()
+                .map(|(a, m, o)| format!("{a} {m}/{o}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        escape(&rec.quiescence)
+    );
+    for c in &rec.contracts {
+        let _ = write!(b, "<p class=\"muted\">declared contract: {}</p>", escape(c));
+    }
+    for s in &rec.server_settings {
+        let _ = write!(
+            b,
+            "<p class=\"muted\">server setting for this run: <code>{}</code></p>",
+            escape(s)
+        );
+    }
 }

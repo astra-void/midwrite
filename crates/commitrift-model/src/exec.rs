@@ -257,7 +257,7 @@ fn unique_check(
 }
 
 fn write_version(s: &mut State, txn: TxnId, row: RowId, new: Option<Row>) {
-    let chain = s.store.rows.entry(row).or_default();
+    let chain = std::sync::Arc::make_mut(s.store.rows.entry(row).or_default());
     match chain.last_mut() {
         Some(v) if v.creator == txn && v.commit.is_none() => v.values = new,
         _ => chain.push(Version {

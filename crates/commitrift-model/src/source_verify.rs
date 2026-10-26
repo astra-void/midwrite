@@ -28,22 +28,23 @@ use std::time::Duration;
 use serde_json::Value as Json;
 
 use commitrift_replay::source::{
-    self, ActorLaunch, Expected, LoadedSource, Observed, PlanStep, Region, RunRequest, SourceRun,
-    SqlKind,
+    self, ActorLaunch, CrashStep, Expected, LoadedSource, Observed, PlanStep, Region, RestartStep,
+    RunRequest, SourceRun, SqlKind,
 };
 
 use crate::db::{ColumnDefault, INITIAL_TXN, RowId, TableSchema, Version};
 use crate::engine::{Action, Expect, Recorder, apply, initial_state};
 use crate::exec::StmtResult;
 use crate::invariant::Invariant;
-use crate::ir::{Conn, Origin, ProjItem, SourceRef};
+use crate::ir::{Conn, Op, Origin, ProjItem, SourceRef, StmtKind};
 use crate::model::Model;
 use crate::provider::EntryInfo;
 pub use crate::source_types::{
-    RunSummary, SourceActor, SourceSpec, SourceVerification, StatementComparison,
+    CrashCheck, EffectComparison, RecoveryVerification, RestartCheck, RunSummary, SourceActor,
+    SourceSpec, SourceVerification, StatementComparison,
 };
-use crate::state::{ClosedStmt, State, TKind, Transition};
-use crate::value::{Row, Value};
+use crate::state::{ClosedStmt, ExternalEvent, State, TKind, TStatus, Transition};
+use crate::value::{Mode, Row, Value};
 
 impl SourceVerification {
     fn refused(status: &str, harness: &str, problem: String) -> Self {
@@ -63,6 +64,7 @@ impl SourceVerification {
             postgres_version: None,
             isolation: String::new(),
             note: String::new(),
+            ..Self::default()
         }
     }
 }
@@ -73,7 +75,7 @@ const NOTE: &str = "Each actor's ORIGINAL application code ran in its own worker
 // Plan
 // ---------------------------------------------------------------------------
 
-/// What the model predicts for one released statement.
+/// What the model predicts for one released statement or effect.
 #[derive(Clone, Debug)]
 struct Prediction {
     transition: usize,
@@ -82,6 +84,37 @@ struct Prediction {
     expect: Expect,
     src: Option<SourceRef>,
     label: String,
+    /// Phase 8: an external effect (payload, deduplicated by the channel).
+    effect: Option<(Row, bool)>,
+}
+
+/// Phase 8: what the model predicts at a planned crash.
+#[derive(Clone, Debug)]
+struct CrashPrediction {
+    transition: usize,
+    actor: usize,
+    /// 1-based execution number (runtime numbering).
+    attempt: u32,
+    boundary: String,
+    /// Committed rows right after the crash.
+    tables: BTreeMap<String, Vec<Row>>,
+}
+
+/// Phase 8: a new execution of an actor.
+#[derive(Clone, Debug)]
+struct RestartPrediction {
+    transition: usize,
+    actor: usize,
+    attempt: u32,
+    mechanism: String,
+}
+
+#[derive(Default)]
+struct Plan {
+    steps: Vec<PlanStep>,
+    predictions: Vec<Prediction>,
+    crashes: Vec<CrashPrediction>,
+    restarts: Vec<RestartPrediction>,
 }
 
 fn region(src: &SourceRef) -> Option<Region> {
@@ -115,15 +148,145 @@ fn table_of(stmt: &ClosedStmt) -> u16 {
     }
 }
 
-/// The plan for `schedule`, and what the model predicts for each released
-/// statement.
-fn plan(
+/// A model value as the JSON the runtime reports.
+fn value_json(v: &Value) -> Json {
+    match v {
+        Value::Null => Json::Null,
+        Value::Bool(b) => Json::Bool(*b),
+        Value::Int(n) => Json::from(*n),
+        Value::Str(s) => Json::String(s.clone()),
+        Value::Row(r) => Json::Object(r.iter().map(|(k, v)| (k.clone(), value_json(v))).collect()),
+    }
+}
+
+fn effect_label(channel: &str, key: Option<&Value>) -> String {
+    format!(
+        "EXTERNAL {channel}{}",
+        key.map(|k| format!(" key={}", k.render()))
+            .unwrap_or_default()
+    )
+}
+
+/// The operation an actor performs next, as the coordinator must observe it
+/// when the model crashes the actor's process before it: announced (and
+/// held), or — `waiting` — a released statement waiting for a lock.
+fn checkpoint(
     model: &Model,
-    schedule: &[Transition],
-) -> Result<(Vec<PlanStep>, Vec<Prediction>), String> {
+    s: &State,
+    a: usize,
+    transition: usize,
+) -> Result<(Option<Expected>, bool, String), String> {
+    let name = &model.actors[a].name;
+    let running: Vec<_> = s.actors[a]
+        .threads
+        .iter()
+        .filter(|t| t.status == TStatus::Running)
+        .collect();
+    let [thread] = running.as_slice() else {
+        return Err(format!(
+            "the model crashes {name} while {} of its tasks run: a crash checkpoint is only observable with one running task",
+            running.len()
+        ));
+    };
+    if let Some(p) = &thread.pending {
+        let blocker_active = p.blocked_on.is_some_and(|b| s.txn_active(b));
+        if blocker_active {
+            return Ok((
+                None,
+                true,
+                "while its statement waits for a lock (in flight, not executed)".to_owned(),
+            ));
+        }
+        // The blocker has finished: PostgreSQL lets the statement proceed at
+        // once, while the model resumes it only at a later transition. At
+        // the crash the statement may already have executed. Inside a
+        // transaction that never commits, the outcome is the same; an
+        // autocommit statement may have committed by itself.
+        if p.conn == Conn::Pool {
+            return Err(format!(
+                "the model crashes {name} after the lock its autocommit statement waited for was released: PostgreSQL may already have executed and committed the statement, which the model rolls back; the crash point is not reproducible"
+            ));
+        }
+        return Ok((
+            None,
+            true,
+            "after the lock its statement waited for was released (in flight: the statement may have executed in its transaction, which never commits)".to_owned(),
+        ));
+    }
+    let step = &model.actors[a].codes[thread.code as usize][thread.pc as usize];
+    let (kind, table, key, label) = match &step.op {
+        Op::Db { stmt } => {
+            let kind = match &stmt.kind {
+                StmtKind::Select { .. } | StmtKind::SelectCount { .. } => SqlKind::Select,
+                StmtKind::Update { .. } => SqlKind::Update,
+                StmtKind::Insert { .. } => SqlKind::Insert,
+                StmtKind::Delete { .. } => SqlKind::Delete,
+            };
+            let table = stmt.kind.table().to_owned();
+            let label = format!("{kind:?} {table}").to_uppercase();
+            (kind, Some(table), None, label)
+        }
+        Op::Begin { .. } => (SqlKind::Begin, None, None, "BEGIN".to_owned()),
+        Op::Commit => (SqlKind::Commit, None, None, "COMMIT".to_owned()),
+        Op::Rollback => (SqlKind::Rollback, None, None, "ROLLBACK".to_owned()),
+        Op::External { channel, key, .. } => {
+            let key = match key {
+                Some(e) => e
+                    .eval(&s.actors[a].locals, None, Mode::Js)
+                    .map_err(|e| format!("the idempotency key at the crash point: {e}"))?,
+                None => Value::Null,
+            };
+            let label = effect_label(channel, (key != Value::Null).then_some(&key));
+            (
+                SqlKind::Effect,
+                Some(channel.clone()),
+                Some(value_json(&key)),
+                label,
+            )
+        }
+        other => {
+            return Err(format!(
+                "the model crashes {name} before an operation that is not observable at runtime ({other:?})"
+            ));
+        }
+    };
+    let boundary = format!("before {label} (announced, never sent)");
+    Ok((
+        Some(Expected {
+            actor: a,
+            kind,
+            table,
+            region: region(&step.src),
+            expect_block: false,
+            transition,
+            label,
+            key,
+        }),
+        false,
+        boundary,
+    ))
+}
+
+fn mechanism(model: &Model, a: usize) -> String {
+    match &model.actors[a].retry {
+        Some(r) => format!(
+            "declared retry `{:?}`{}: a new execution of the harness entry with the original input, in a new process",
+            r.trigger,
+            if r.guaranteed {
+                " (guaranteed)"
+            } else {
+                " (optional)"
+            }
+        ),
+        None => "undeclared".to_owned(),
+    }
+}
+
+/// The plan for `schedule`, and what the model predicts for each released
+/// statement, crash and restart.
+fn plan(model: &Model, schedule: &[Transition]) -> Result<Plan, String> {
     let mut state = initial_state(model);
-    let mut steps = Vec::new();
-    let mut predictions = Vec::new();
+    let mut out = Plan::default();
     for (i, t) in schedule.iter().enumerate() {
         // The visible operation this transition executes (before it runs).
         let src = state
@@ -138,11 +301,76 @@ fn plan(
             })
             .map(|s| s.src.clone());
         match t.kind {
-            TKind::Crash => return Err("the counterexample crashes a process: crashes are not executed against original code (yet)".to_owned()),
-            TKind::Retry => return Err("the counterexample retries an operation: retries are not executed against original code (yet)".to_owned()),
             TKind::Deadlock => return Err("the counterexample picks a deadlock victim: victim steering is not done against original code".to_owned()),
+            TKind::Crash => {
+                let process = t.thread as usize;
+                for a in 0..model.actors.len() {
+                    if model.process_of[a] != process
+                        || !state.actors[a]
+                            .threads
+                            .iter()
+                            .any(|th| th.status == TStatus::Running)
+                    {
+                        continue;
+                    }
+                    let (next, waiting, boundary) = checkpoint(model, &state, a, i + 1)?;
+                    out.steps.push(PlanStep::Crash(CrashStep {
+                        actor: a,
+                        transition: i + 1,
+                        next,
+                        waiting,
+                        may_have_run: waiting && boundary.starts_with("after the lock"),
+                        label: boundary.clone(),
+                    }));
+                    out.crashes.push(CrashPrediction {
+                        transition: i + 1,
+                        actor: a,
+                        attempt: state.actors[a].attempt + 1,
+                        boundary,
+                        tables: BTreeMap::new(),
+                    });
+                }
+                let applied = apply(model, &state, *t, &mut Recorder::off())
+                    .map_err(|u| format!("the schedule reaches unsupported behavior: {}", u.detail))?;
+                state = applied.state;
+                let tables = committed(model, &state);
+                for c in out.crashes.iter_mut().filter(|c| c.transition == i + 1) {
+                    c.tables.clone_from(&tables);
+                }
+                continue;
+            }
+            TKind::Retry => {
+                let a = t.actor as usize;
+                let attempt = state.actors[a].attempt + 2;
+                out.steps.push(PlanStep::Restart(RestartStep {
+                    actor: a,
+                    transition: i + 1,
+                    attempt,
+                    mechanism: mechanism(model, a),
+                }));
+                out.restarts.push(RestartPrediction {
+                    transition: i + 1,
+                    actor: a,
+                    attempt,
+                    mechanism: mechanism(model, a),
+                });
+                // A retry's own actions (if any) are of the new execution.
+            }
             TKind::Step | TKind::Resume => {}
         }
+        // The source of each actor's open transaction (its BEGIN): where
+        // Drizzle issues the ROLLBACK after a failure.
+        let tx_src: Vec<Option<SourceRef>> = (0..model.actors.len())
+            .map(|a| {
+                state.actors[a].begin.as_ref().and_then(|b| {
+                    model.actors[a]
+                        .codes
+                        .get(b.code as usize)
+                        .and_then(|c| c.get(b.pc as usize))
+                        .map(|s| s.src.clone())
+                })
+            })
+            .collect();
         let mut rec = Recorder::on();
         let applied = apply(model, &state, *t, &mut rec)
             .map_err(|u| format!("the schedule reaches unsupported behavior: {}", u.detail))?;
@@ -153,9 +381,19 @@ fn plan(
                             actor: u16,
                             stmt: Option<ClosedStmt>,
                             expect: Expect,
-                            label: String| {
+                            label: String,
+                            key: Option<Json>,
+                            effect: Option<(Row, bool)>| {
                 let a = actor as usize;
-                steps.push(PlanStep::Release(Expected {
+                // A rollback after a failure is issued by the transaction
+                // call (Drizzle's `transaction`), not by the failing
+                // statement; another actor's transition may cause it.
+                let src = if kind == SqlKind::Rollback && label.contains("after a failure") {
+                    tx_src[a].clone().or_else(|| src.clone())
+                } else {
+                    src.clone()
+                };
+                out.steps.push(PlanStep::Release(Expected {
                     actor: a,
                     kind,
                     table,
@@ -163,14 +401,16 @@ fn plan(
                     expect_block: matches!(expect, Expect::Blocked(_)),
                     transition: i + 1,
                     label: label.clone(),
+                    key,
                 }));
-                predictions.push(Prediction {
+                out.predictions.push(Prediction {
                     transition: i + 1,
                     actor: a,
                     stmt,
                     expect,
                     src: src.clone(),
                     label,
+                    effect,
                 });
             };
             match action {
@@ -182,6 +422,8 @@ fn plan(
                         None,
                         Expect::Ok,
                         "BEGIN".to_owned(),
+                        None,
+                        None,
                     );
                 }
                 Action::Stmt {
@@ -193,13 +435,22 @@ fn plan(
                 } => {
                     let label = crate::engine::describe(model, &stmt);
                     let table = Some(sql_table(model, table_of(&stmt)));
-                    push(kind_of(&stmt), table, actor, Some(stmt), expect, label);
+                    push(
+                        kind_of(&stmt),
+                        table,
+                        actor,
+                        Some(stmt),
+                        expect,
+                        label,
+                        None,
+                        None,
+                    );
                 }
                 Action::Stmt {
                     actor,
                     resumed: true,
                     ..
-                } => steps.push(PlanStep::Complete {
+                } => out.steps.push(PlanStep::Complete {
                     actor: actor as usize,
                     transition: i + 1,
                 }),
@@ -211,6 +462,8 @@ fn plan(
                         None,
                         expect,
                         "COMMIT".to_owned(),
+                        None,
+                        None,
                     );
                 }
                 Action::Rollback { actor } => {
@@ -221,6 +474,8 @@ fn plan(
                         None,
                         Expect::Ok,
                         "ROLLBACK".to_owned(),
+                        None,
+                        None,
                     );
                 }
                 Action::Abort { actor, conn } => {
@@ -233,19 +488,60 @@ fn plan(
                             None,
                             Expect::Ok,
                             "ROLLBACK (after a failure)".to_owned(),
+                            None,
+                            None,
                         );
                     }
                 }
-                Action::Victim { .. } | Action::Crash { .. } => {
-                    return Err(
-                        "deadlock victims and crashes are not executed against original code"
-                            .to_owned(),
+                Action::External {
+                    actor,
+                    channel,
+                    key,
+                    payload,
+                    deduplicated,
+                    ..
+                } => {
+                    let label = effect_label(&channel, key.as_ref());
+                    let key = Some(key.as_ref().map_or(Json::Null, value_json));
+                    push(
+                        SqlKind::Effect,
+                        Some(channel),
+                        actor,
+                        None,
+                        Expect::Ok,
+                        label,
+                        key,
+                        Some((payload, deduplicated)),
                     );
                 }
+                Action::Victim { .. } => {
+                    return Err(
+                        "deadlock victims are not executed against original code".to_owned()
+                    );
+                }
+                // Planned above, from the transition.
+                Action::Crash { .. } => {}
             }
         }
     }
-    Ok((steps, predictions))
+    Ok(out)
+}
+
+/// The coordinator plan of `schedule` (Phase 8: with crash and restart
+/// steps), or why the schedule cannot be run against original code. Nothing
+/// is executed.
+pub fn plan_steps(model: &Model, schedule: &[Transition]) -> Result<Vec<PlanStep>, String> {
+    plan(model, schedule).map(|p| p.steps)
+}
+
+fn committed(model: &Model, s: &State) -> BTreeMap<String, Vec<Row>> {
+    model
+        .schema
+        .tables
+        .iter()
+        .enumerate()
+        .map(|(i, t)| (t.name.clone(), s.committed_rows(model, i as u16)))
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -455,8 +751,64 @@ fn compare_statement(model: &Model, p: &Prediction, o: Option<&Observed>) -> Sta
         status: "not-observed".to_owned(),
         differences: Vec::new(),
     };
+    if let Some((_, deduplicated)) = &p.effect {
+        c.predicted = if *deduplicated {
+            "deduplicated by the channel (declared contract)".to_owned()
+        } else {
+            "performed".to_owned()
+        };
+    }
     let Some(o) = o else { return c };
     c.sql = o.sql.split_whitespace().collect::<Vec<_>>().join(" ");
+    if let Some((payload, deduplicated)) = &p.effect {
+        c.runtime_source = o
+            .frames
+            .iter()
+            .find(|f| {
+                p.src
+                    .as_ref()
+                    .and_then(region)
+                    .is_some_and(|r| r.contains(f))
+            })
+            .or(o.frames.first())
+            .map(|f| format!("{}:{}:{}", f.file, f.line, f.column))
+            .unwrap_or_else(|| "(no application frame)".to_owned());
+        let receipt = &o.params["receipt"];
+        let observed_dedup = receipt["deduplicated"].as_bool();
+        c.observed = match (o.completed, observed_dedup) {
+            (false, _) => "not acknowledged".to_owned(),
+            (true, Some(true)) => "deduplicated by the channel (declared contract)".to_owned(),
+            (true, _) => "performed".to_owned(),
+        };
+        if !o.completed {
+            c.differences
+                .push("the effect was not acknowledged".to_owned());
+        }
+        if observed_dedup != Some(*deduplicated) {
+            c.differences.push(format!(
+                "deduplicated: model {deduplicated}, channel double {observed_dedup:?}"
+            ));
+        }
+        let runtime_payload = &o.params["payload"];
+        for (k, v) in payload {
+            match runtime_payload.get(k) {
+                Some(r) if json_to_value(r) == *v => {}
+                Some(r) => c
+                    .differences
+                    .push(format!("payload.{k}: model {}, runtime {r}", v.render())),
+                None => c.differences.push(format!(
+                    "payload.{k}: not in the effect the application sent"
+                )),
+            }
+        }
+        c.status = if c.differences.is_empty() {
+            "agree"
+        } else {
+            "differ"
+        }
+        .to_owned();
+        return c;
+    }
     c.runtime_source = o
         .frames
         .first()
@@ -466,6 +818,10 @@ fn compare_statement(model: &Model, p: &Prediction, o: Option<&Observed>) -> Sta
         c.differences.push(
             "no application stack frame: the statement is linked by kind and table only".to_owned(),
         );
+    }
+    if o.reconstructed {
+        c.runtime_source
+            .push_str(" (call chain restored across an un-awaited return)");
     }
     c.observed = match (&o.sqlstate, o.blocked, o.completed) {
         (Some(code), _, _) => format!("SQLSTATE {code}"),
@@ -572,9 +928,13 @@ fn compare_statement(model: &Model, p: &Prediction, o: Option<&Observed>) -> Sta
     c
 }
 
-/// A state whose committed rows are `tables` (for evaluating an invariant
-/// on the observed database).
-fn state_with(model: &Model, tables: &BTreeMap<String, Vec<Row>>) -> State {
+/// A state whose committed rows are `tables` and whose external effect log
+/// is `externals` (for evaluating an invariant on the observed run).
+fn state_with(
+    model: &Model,
+    tables: &BTreeMap<String, Vec<Row>>,
+    externals: Vec<ExternalEvent>,
+) -> State {
     let mut s = initial_state(model);
     s.store.rows.clear();
     s.store.locks.clear();
@@ -586,15 +946,53 @@ fn state_with(model: &Model, tables: &BTreeMap<String, Vec<Row>>) -> State {
                     actor: RowId::INITIAL,
                     n: n as u32,
                 },
-                vec![Version {
+                std::sync::Arc::new(vec![Version {
                     values: Some(row.clone()),
                     creator: INITIAL_TXN,
                     commit: Some(0),
-                }],
+                }]),
             );
         }
     }
+    s.externals = externals;
     s
+}
+
+fn rows_of(tables: &BTreeMap<String, Vec<Json>>) -> BTreeMap<String, Vec<Row>> {
+    tables
+        .iter()
+        .map(|(t, rows)| {
+            (
+                t.clone(),
+                rows.iter()
+                    .filter_map(|r| match json_to_value(r) {
+                        Value::Row(r) => Some(r),
+                        _ => None,
+                    })
+                    .collect(),
+            )
+        })
+        .collect()
+}
+
+fn describe_effect(
+    names: &[String],
+    channel: &str,
+    key: Option<&Value>,
+    actor: usize,
+    attempt: u32,
+    deduplicated: bool,
+) -> String {
+    format!(
+        "{} by {}#{attempt}{}",
+        effect_label(channel, key),
+        names.get(actor).map_or("?", String::as_str),
+        if deduplicated {
+            " (deduplicated by the channel)"
+        } else {
+            ""
+        }
+    )
 }
 
 /// Everything the caller supplies.
@@ -608,16 +1006,55 @@ pub struct VerifyRequest<'a> {
     pub entries: &'a [(String, EntryInfo)],
     pub allow_execution: bool,
     pub repeat: u32,
+    /// Phase 8: the schedule is a recovery probe of a model WITHOUT a
+    /// counterexample: the invariant is expected to hold.
+    pub probe: bool,
+    /// Phase 8: the schema facts extracted from source, compared with the
+    /// run database's catalog.
+    pub extracted_schema: Option<&'a crate::schema_facts::ExtractedSchema>,
 }
 
-/// Verify a counterexample against the original code.
-pub fn verify(req: &VerifyRequest<'_>) -> SourceVerification {
+/// What the model says about the final state of a schedule with retries.
+fn quiescence(model: &Model, s: &State) -> String {
+    let en = crate::engine::enabled(model, s);
+    let optional: Vec<String> = en
+        .iter()
+        .filter(|t| t.kind == TKind::Retry)
+        .map(|t| model.actors[t.actor as usize].name.clone())
+        .collect();
+    let budget = s.retries >= model.bounds.max_retries;
+    match (optional.is_empty(), budget) {
+        (true, _) if model.actors.iter().all(|a| a.retry.is_none()) => {
+            "every execution ended; no recovery mechanism is declared".to_owned()
+        }
+        (true, true) => format!(
+            "every execution ended; the retry budget (maxRetries {}) is exhausted: further retries are outside the bounds, not excluded",
+            model.bounds.max_retries
+        ),
+        (true, false) => {
+            "every execution ended; no declared retry is enabled in this state".to_owned()
+        }
+        (false, _) => format!(
+            "every execution ended; a further optional retry of {} remains possible within the bounds (not guaranteed: no eventual-recovery claim is made)",
+            optional.join(", ")
+        ),
+    }
+}
+
+fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
     let model = req.model;
     let harness_name = req.harness.manifest.harness.clone();
     // Eligibility: every actor extracted from source, selected by the same
     // function the harness runs.
     let mut launches = Vec::new();
     let mut assumptions = Vec::new();
+    if model.process_names.len() != model.actors.len() {
+        return SourceVerification::refused(
+            "unsupported",
+            &harness_name,
+            "actors declared in the same process share memory and crash together; source verification runs one process per actor".to_owned(),
+        );
+    }
     for actor in &model.actors {
         let Some(spec) = req.spec.actors.get(&actor.name) else {
             return SourceVerification::refused(
@@ -700,7 +1137,7 @@ pub fn verify(req: &VerifyRequest<'_>) -> SourceVerification {
             scope,
         });
     }
-    let (steps, predictions) = match plan(model, req.schedule) {
+    let plan = match plan(model, req.schedule) {
         Ok(p) => p,
         Err(e) => return SourceVerification::refused("unsupported", &harness_name, e),
     };
@@ -709,13 +1146,7 @@ pub fn verify(req: &VerifyRequest<'_>) -> SourceVerification {
         Err(e) => return SourceVerification::refused("unsupported", &harness_name, e),
     };
     let queries = final_queries(model);
-    let mut model_tables = BTreeMap::new();
-    for (i, t) in model.schema.tables.iter().enumerate() {
-        model_tables.insert(
-            t.name.clone(),
-            req.final_state.committed_rows(model, i as u16),
-        );
-    }
+    let model_tables = committed(model, req.final_state);
     for t in &model.schema.tables {
         for c in &t.columns {
             if matches!(c.default, Some(ColumnDefault::Sequence(_))) {
@@ -727,6 +1158,39 @@ pub fn verify(req: &VerifyRequest<'_>) -> SourceVerification {
         }
     }
     assumptions.push("Only the columns the scenario models are compared; other columns of the application's tables keep their database defaults.".to_owned());
+    let names: Vec<String> = model.actors.iter().map(|a| a.name.clone()).collect();
+    let has_recovery = !plan.crashes.is_empty()
+        || !plan.restarts.is_empty()
+        || plan.predictions.iter().any(|p| p.effect.is_some());
+    let mut contracts = Vec::new();
+    let mut channels = BTreeMap::new();
+    for (name, spec) in &model.channels {
+        let dedup = match spec.dedup {
+            crate::ir::Dedup::None => "none",
+            crate::ir::Dedup::ByKey => "byKey",
+        };
+        channels.insert(name.clone(), dedup.to_owned());
+    }
+    let used_channels: std::collections::BTreeSet<&str> = plan
+        .steps
+        .iter()
+        .filter_map(|s| match s {
+            PlanStep::Release(e) if e.kind == SqlKind::Effect => e.table.as_deref(),
+            _ => None,
+        })
+        .collect();
+    for c in &used_channels {
+        contracts.push(format!(
+            "channel `{c}`: a TEST DOUBLE hosted by the coordinator receives the effects; it applies the declared deduplication `{}` — an assumption about the real provider, not evidence about it",
+            channels.get(*c).map_or("none", String::as_str)
+        ));
+    }
+    for r in &plan.restarts {
+        let line = format!("{}: {}", names[r.actor], r.mechanism);
+        if !contracts.contains(&line) {
+            contracts.push(line);
+        }
+    }
 
     let mut out = SourceVerification::refused("inconclusive", &harness_name, String::new());
     out.problems.clear();
@@ -741,10 +1205,12 @@ pub fn verify(req: &VerifyRequest<'_>) -> SourceVerification {
             allow_execution: req.allow_execution,
             keep_artifacts: false,
             actors: &launches,
-            plan: &steps,
+            plan: &plan.steps,
             seed_sql: &seed,
             final_queries: &queries,
             settle: Duration::from_millis(150),
+            channels: &channels,
+            read_catalog: run_index == 1 && req.extracted_schema.is_some(),
         });
         if run.status == "blocked" {
             let mut refused =
@@ -752,16 +1218,17 @@ pub fn verify(req: &VerifyRequest<'_>) -> SourceVerification {
             refused.performed = false;
             return refused;
         }
-        // Statement comparison.
+        // Statement (and effect) comparison.
+        let releases: Vec<usize> = plan
+            .steps
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| matches!(s, PlanStep::Release(_)))
+            .map(|(i, _)| i)
+            .collect();
         let mut statements = Vec::new();
-        for (k, p) in predictions.iter().enumerate() {
-            // Plan step index of the k-th release.
-            let step_index = steps
-                .iter()
-                .enumerate()
-                .filter(|(_, s)| matches!(s, PlanStep::Release(_)))
-                .nth(k)
-                .map(|(i, _)| i);
+        for (k, p) in plan.predictions.iter().enumerate() {
+            let step_index = releases.get(k).copied();
             let observed = run
                 .statements
                 .iter()
@@ -778,35 +1245,27 @@ pub fn verify(req: &VerifyRequest<'_>) -> SourceVerification {
                 .map(|f| format!(" at {}:{}:{}", f.file, f.line, f.column))
                 .unwrap_or_default();
             let flat = o.sql.split_whitespace().collect::<Vec<_>>().join(" ");
+            let who = format!(
+                "{}{}",
+                launches[o.actor].name,
+                if o.attempt > 1 {
+                    format!("#{}", o.attempt)
+                } else {
+                    String::new()
+                }
+            );
             match o.role.as_str() {
-                "outside-model" => outside.push(format!("{}: {flat}{at}", launches[o.actor].name)),
+                "outside-model" => outside.push(format!("{who}: {flat}{at}")),
                 "beyond-plan" | "unexpected" | "after-divergence" => {
-                    unexpected.push(format!(
-                        "{} ({}): {flat}{at}",
-                        launches[o.actor].name, o.role
-                    ));
+                    unexpected.push(format!("{who} ({}): {flat}{at}", o.role));
                 }
                 _ => {}
             }
         }
         // Final rows.
-        let runtime_tables: BTreeMap<String, Vec<Row>> = run
-            .tables
-            .iter()
-            .map(|(t, rows)| {
-                (
-                    t.clone(),
-                    rows.iter()
-                        .filter_map(|r| match json_to_value(r) {
-                            Value::Row(r) => Some(r),
-                            _ => None,
-                        })
-                        .collect(),
-                )
-            })
-            .collect();
+        let runtime_tables = rows_of(&run.tables);
         let tables_agree = runtime_tables == model_tables;
-        // Outcomes.
+        // Outcomes (of each actor's last execution).
         let final_outcomes: Vec<(String, String, String)> = model
             .actors
             .iter()
@@ -825,34 +1284,201 @@ pub fn verify(req: &VerifyRequest<'_>) -> SourceVerification {
             })
             .collect();
         let outcomes_agree = final_outcomes.iter().all(|(_, m, r)| {
-            (m == "ok" && r == "returned") || (m.starts_with("failed") && r.starts_with("threw"))
+            (m == "ok" && r == "returned")
+                || (m.starts_with("failed") && r.starts_with("threw"))
+                || (m == "crashed" && r == "killed")
         });
-        // The invariant on the observed rows.
-        let invariant = if !req.invariant.formula.reads_only_database() {
+        // Phase 8: crashes, restarts, effects, attempts.
+        let crash_checks: Vec<CrashCheck> = plan
+            .crashes
+            .iter()
+            .map(|c| {
+                let mut check = CrashCheck {
+                    transition: c.transition,
+                    actor: names[c.actor].clone(),
+                    attempt: c.attempt,
+                    boundary: c.boundary.clone(),
+                    model_tables: c.tables.clone(),
+                    status: "not-observed".to_owned(),
+                    ..CrashCheck::default()
+                };
+                let Some(e) = run
+                    .crashes
+                    .iter()
+                    .find(|e| e.transition == c.transition && e.actor == c.actor)
+                else {
+                    return check;
+                };
+                check.checkpoint.clone_from(&e.checkpoint);
+                check.never_sent.clone_from(&e.never_sent);
+                check.pid = e.pid;
+                check.killed_by_signal = e.killed_by_signal;
+                check.sessions_ended = e.sessions_ended;
+                check.sessions_ended_ms = e.sessions_ended_ms;
+                check.runtime_tables = rows_of(&e.tables);
+                if e.attempt != c.attempt {
+                    check.differences.push(format!(
+                        "execution: model #{}, killed worker #{}",
+                        c.attempt, e.attempt
+                    ));
+                }
+                if !e.killed_by_signal {
+                    check
+                        .differences
+                        .push("the worker was not terminated by SIGKILL".to_owned());
+                }
+                if !e.sessions_ended {
+                    check.differences.push(
+                        "PostgreSQL did not end the worker's sessions: whether its transaction committed is not established".to_owned(),
+                    );
+                }
+                if check.runtime_tables != check.model_tables {
+                    check.differences.push(
+                        "the committed rows after the crash differ from the model's".to_owned(),
+                    );
+                }
+                check.status = if check.differences.is_empty() {
+                    "agree"
+                } else {
+                    "differ"
+                }
+                .to_owned();
+                check
+            })
+            .collect();
+        let restart_checks: Vec<RestartCheck> = plan
+            .restarts
+            .iter()
+            .map(|r| {
+                let mut check = RestartCheck {
+                    transition: r.transition,
+                    actor: names[r.actor].clone(),
+                    attempt: r.attempt,
+                    mechanism: r.mechanism.clone(),
+                    status: "not-observed".to_owned(),
+                    ..RestartCheck::default()
+                };
+                if let Some(e) = run
+                    .restarts
+                    .iter()
+                    .find(|e| e.transition == r.transition && e.actor == r.actor)
+                {
+                    check.pid = e.pid;
+                    check.previous_pid = e.previous_pid;
+                    check.previous_outcome.clone_from(&e.previous_outcome);
+                    check.status = if e.attempt == r.attempt && e.pid != e.previous_pid {
+                        "agree"
+                    } else {
+                        "differ"
+                    }
+                    .to_owned();
+                }
+                check
+            })
+            .collect();
+        let model_effects: Vec<String> = req
+            .final_state
+            .externals
+            .iter()
+            .map(|x| {
+                describe_effect(
+                    &names,
+                    &x.channel,
+                    x.key.as_ref(),
+                    x.actor as usize,
+                    x.attempt + 1,
+                    x.deduplicated,
+                )
+            })
+            .collect();
+        let runtime_externals: Vec<ExternalEvent> = run
+            .effects
+            .iter()
+            .map(|e| ExternalEvent {
+                channel: e.channel.clone(),
+                key: match json_to_value(&e.key) {
+                    Value::Null => None,
+                    v => Some(v),
+                },
+                payload: match json_to_value(&e.payload) {
+                    Value::Row(r) => r,
+                    _ => Row::new(),
+                },
+                actor: e.actor as u16,
+                attempt: e.attempt.saturating_sub(1),
+                // Not observable at runtime; no invariant reads it.
+                in_txn: false,
+                deduplicated: e.deduplicated,
+            })
+            .collect();
+        let runtime_effects: Vec<String> = runtime_externals
+            .iter()
+            .map(|x| {
+                describe_effect(
+                    &names,
+                    &x.channel,
+                    x.key.as_ref(),
+                    x.actor as usize,
+                    x.attempt + 1,
+                    x.deduplicated,
+                )
+            })
+            .collect();
+        let effects_agree = model_effects == runtime_effects;
+        let attempts: Vec<(String, u32, u32)> = model
+            .actors
+            .iter()
+            .enumerate()
+            .map(|(i, a)| {
+                let runtime = if run.attempts.is_empty() {
+                    u32::from(run.actors.get(i).is_some())
+                } else {
+                    run.attempts.iter().filter(|r| r.name == a.name).count() as u32
+                };
+                (
+                    a.name.clone(),
+                    req.final_state.actors[i].attempt + 1,
+                    runtime,
+                )
+            })
+            .collect();
+        let attempts_agree = attempts.iter().all(|(_, m, r)| m == r);
+        let recovery_agrees = has_recovery.then(|| {
+            crash_checks.iter().all(|c| c.status == "agree")
+                && restart_checks.iter().all(|r| r.status == "agree")
+                && effects_agree
+                && attempts_agree
+        });
+        // The invariant on the observed rows (and effect log).
+        let formula = &req.invariant.formula;
+        let invariant = if !formula.reads_only_database_and_externals() {
             "not-evaluated".to_owned()
-        } else if req
-            .invariant
-            .holds(model, &state_with(model, &runtime_tables))
-        {
+        } else if req.invariant.holds(
+            model,
+            &state_with(model, &runtime_tables, runtime_externals),
+        ) {
             "holds".to_owned()
         } else {
             "violated".to_owned()
         };
-        let reproduced = run.status == "followed"
+        let agreed = run.status == "followed"
             && statements_agree
             && tables_agree
             && outcomes_agree
             && unexpected.is_empty()
-            && invariant == "violated";
+            && recovery_agrees != Some(false);
+        let reproduced = !req.probe && agreed && invariant == "violated";
         out.runs.push(RunSummary {
             run: run_index,
             coordination: run.status.clone(),
             statements_agree,
             tables_agree,
             outcomes_agree,
-            invariant,
+            invariant: invariant.clone(),
             reproduced,
             elapsed_ms: run.elapsed_ms,
+            recovery_agrees,
+            recovery_reproduced: req.probe.then_some(agreed && invariant == "holds"),
         });
         if run_index == 1 {
             out.statements = statements;
@@ -863,19 +1489,102 @@ pub fn verify(req: &VerifyRequest<'_>) -> SourceVerification {
             out.problems.clone_from(&run.problems);
             out.postgres_version = Some(run.postgres_version.clone());
             out.isolation.clone_from(&run.isolation);
+            out.driver_internal.clone_from(&run.driver_internal);
+            out.transaction_config = run
+                .statements
+                .iter()
+                .filter(|o| o.role == "begin-config")
+                .map(|o| {
+                    format!(
+                        "{}: {}",
+                        launches[o.actor].name,
+                        o.sql.split_whitespace().collect::<Vec<_>>().join(" ")
+                    )
+                })
+                .collect();
+            if let (Some(schema), Some(catalog)) = (req.extracted_schema, &run.catalog) {
+                let tables: Vec<String> =
+                    model.schema.tables.iter().map(|t| t.name.clone()).collect();
+                let mut fidelity = crate::schema_fidelity::compare(schema, catalog, &tables);
+                fidelity.postgres_version.clone_from(&run.postgres_version);
+                out.schema_fidelity = Some(fidelity);
+            }
+            if has_recovery {
+                out.recovery = Some(RecoveryVerification {
+                    crashes: crash_checks,
+                    restarts: restart_checks,
+                    effects: EffectComparison {
+                        model: model_effects,
+                        runtime: runtime_effects,
+                        agree: effects_agree,
+                    },
+                    attempts,
+                    contracts: contracts.clone(),
+                    server_settings: run.server_settings.clone(),
+                    quiescence: quiescence(model, req.final_state),
+                });
+            }
         }
     }
-    out.status = if out.runs.iter().all(|r| r.reproduced) {
+    let all = |f: &dyn Fn(&RunSummary) -> bool| out.runs.iter().all(f);
+    let any = |f: &dyn Fn(&RunSummary) -> bool| out.runs.iter().any(f);
+    let crash_or_retry = !plan.crashes.is_empty() || !plan.restarts.is_empty();
+    out.status = if req.probe {
+        if all(&|r| r.recovery_reproduced == Some(true)) {
+            if crash_or_retry {
+                "recovery-reproduced"
+            } else {
+                "invariant-held"
+            }
+        } else if any(&|r| r.coordination == "diverged") {
+            "diverged"
+        } else if any(&|r| r.coordination == "inconclusive") {
+            "inconclusive"
+        } else if any(&|r| r.recovery_reproduced == Some(true)) {
+            "unstable"
+        } else {
+            "not-reproduced"
+        }
+    } else if all(&|r| r.reproduced) {
         "reproduced"
-    } else if out.runs.iter().any(|r| r.coordination == "diverged") {
+    } else if any(&|r| r.coordination == "diverged") {
         "diverged"
-    } else if out.runs.iter().any(|r| r.coordination == "inconclusive") {
+    } else if any(&|r| r.coordination == "inconclusive") {
         "inconclusive"
-    } else if out.runs.iter().any(|r| r.reproduced) {
+    } else if any(&|r| r.reproduced) {
         "unstable"
     } else {
         "not-reproduced"
     }
     .to_owned();
+    // Phase 8 classification, only for schedules with a crash or a retry
+    // (or a recovery probe): Phase 7 runs keep their meaning unchanged.
+    if crash_or_retry || req.probe {
+        out.evidence = evidence_label(&out.status).to_owned();
+    }
+    out
+}
+
+fn evidence_label(status: &str) -> &'static str {
+    match status {
+        "reproduced" => "ORIGINAL_CODE_CRASH_REPRODUCED",
+        "recovery-reproduced" => "ORIGINAL_CODE_RECOVERY_REPRODUCED",
+        "invariant-held" => "ORIGINAL_CODE_INVARIANT_HELD",
+        "diverged" => "DIVERGED",
+        "unsupported" => "UNSUPPORTED",
+        "not-reproduced" => "NOT_REPRODUCED",
+        _ => "INCONCLUSIVE",
+    }
+}
+
+/// Verify a counterexample (or a recovery probe) against the original
+/// code. A refusal of a schedule with a crash or a retry is classified too.
+pub fn verify(req: &VerifyRequest<'_>) -> SourceVerification {
+    let mut out = verify_schedule(req);
+    if out.evidence.is_empty()
+        && (req.probe || req.schedule.iter().any(Transition::is_crash_or_retry))
+    {
+        out.evidence = evidence_label(&out.status).to_owned();
+    }
     out
 }

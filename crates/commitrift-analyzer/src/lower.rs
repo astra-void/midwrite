@@ -2339,7 +2339,7 @@ impl<'a> Lowerer<'_> {
         self.out.push(Node::Effect(Effect {
             id,
             kind,
-            label,
+            label: label.into(),
             location,
             execution,
             recognition: recognition.map(Box::new),

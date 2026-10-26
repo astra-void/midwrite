@@ -232,6 +232,18 @@ impl Formula {
         only
     }
 
+    /// Whether the formula reads only committed rows and the external
+    /// effect log (Phase 8: both are observable after an original-code run).
+    pub fn reads_only_database_and_externals(&self) -> bool {
+        let mut only = true;
+        self.walk_terms(&mut |t| {
+            if let Term::Op(TermOp::Actors(_) | TermOp::App(_)) = t {
+                only = false;
+            }
+        });
+        only
+    }
+
     /// Visit the non-literal comparison operands (for reports).
     pub fn visit_terms(&self, f: &mut dyn FnMut(&Term)) {
         match self {

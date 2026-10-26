@@ -99,6 +99,14 @@ pub struct ModelCheckArgs {
 struct ScenarioProvider;
 
 impl ActorProvider for ScenarioProvider {
+    fn extract_schema(
+        &self,
+        root: &std::path::Path,
+        file: &str,
+    ) -> Result<commitrift_model::schema_facts::ExtractedSchema, String> {
+        commitrift_analyzer::schema::extract_schema(root, file)
+    }
+
     fn extract(&self, request: &ExtractRequest) -> Result<Extracted, String> {
         let mut extracted = TsActorProvider::new(request.root.clone()).extract(request)?;
         if let Err(why) = link_effects(&request.root, &mut extracted) {

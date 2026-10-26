@@ -9,6 +9,7 @@ mod model_check;
 mod render;
 #[cfg(feature = "replay")]
 mod replay;
+mod schema;
 
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -78,6 +79,10 @@ enum Command {
     /// report a counterexample to a declared invariant, and optionally replay
     /// it on a real PostgreSQL. Opt-in; `commitrift check` never does this.
     ModelCheck(model_check::ModelCheckArgs),
+    /// Print the PostgreSQL schema facts read statically from a Drizzle
+    /// schema module; with --migrations and --allow-execution, compare them
+    /// with the catalog of a disposable database (schema drift).
+    Schema(schema::SchemaArgs),
     /// Run an explicitly authorized replay harness: inject a failure at a
     /// named checkpoint of an instrumented test application, against a
     /// disposable PostgreSQL database, and report the observed state.
@@ -344,6 +349,7 @@ pub fn run(invocation: Invocation) -> ExitCode {
         Command::Trace(args) => trace(&args),
         Command::Report(args) => report(&args),
         Command::ModelCheck(args) => model_check::model_check(&args),
+        Command::Schema(args) => schema::schema(&args),
         #[cfg(feature = "replay")]
         Command::Replay(args) => replay::replay(&args),
         #[cfg(feature = "replay")]

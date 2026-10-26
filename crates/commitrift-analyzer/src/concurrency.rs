@@ -19,11 +19,13 @@ use oxc_allocator::Allocator;
 use oxc_ast::ast::{
     Argument, ArrayExpressionElement, ArrowFunctionBody, BindingPattern, ChainElement, Declaration,
     ExportDefaultDeclarationKind, Expression, FormalParameters, Function, FunctionBody,
-    ImportDeclarationSpecifier, ModuleExportName, ObjectPropertyKind, Program, PropertyKey,
-    Statement, VariableDeclarator,
+    ImportDeclarationSpecifier, ModuleExportName, ObjectPropertyKind, Program, Statement,
+    VariableDeclarator,
 };
 use oxc_parser::Parser;
 use oxc_span::{GetSpan, SourceType, Span};
+
+use crate::semantic::{Root, member_path as callee_text, property_key as static_key, unwind};
 use oxc_syntax::operator::{AssignmentOperator, BinaryOperator, LogicalOperator, UnaryOperator};
 
 use commitrift_core::config::Config;
@@ -34,7 +36,7 @@ use commitrift_model::ir::{
 };
 use commitrift_model::provider::{
     ActorProvider, EntryInfo, ExternalBinding, ExtractRequest, Extracted, InvocationContract,
-    TableBinding, WrapperFacts,
+    TableBinding, TransactionRetryBinding, WrapperFacts,
 };
 use commitrift_model::value::{BinOp, Expr, Value};
 
@@ -84,6 +86,19 @@ impl TsActorProvider {
 }
 
 impl ActorProvider for TsActorProvider {
+    fn extract_schema(
+        &self,
+        root: &Path,
+        file: &str,
+    ) -> Result<commitrift_model::schema_facts::ExtractedSchema, String> {
+        let root = if root.as_os_str().is_empty() {
+            self.root.as_path()
+        } else {
+            root
+        };
+        crate::schema::extract_schema(root, file)
+    }
+
     fn extract(&self, request: &ExtractRequest) -> Result<Extracted, String> {
         let root = if request.root.as_os_str().is_empty() {
             self.root.clone()
@@ -666,11 +681,6 @@ struct Lowerer<'r> {
     /// Column references are qualified (`table.column`): set while lowering
     /// a joined query.
     qualify: bool,
-}
-
-enum Seg<'a, 'b> {
-    Member(String),
-    Call(&'b [Argument<'a>]),
 }
 
 struct ChainStep<'a, 'b> {
@@ -2383,6 +2393,28 @@ impl<'r> Lowerer<'r> {
         {
             return self.external(m, call, &binding, awaited);
         }
+        if let Some(text) = &text
+            && let Some(binding) = self
+                .request
+                .transaction_retries
+                .iter()
+                .find(|b| &b.callee == text)
+                .cloned()
+        {
+            if !awaited {
+                return self.unknown_op(
+                    m,
+                    call.span,
+                    format!("`{text}(...)` is not awaited: the transaction is not supported"),
+                );
+            }
+            let step = ChainStep {
+                path: Vec::new(),
+                method: "transaction".to_owned(),
+                args: &call.arguments,
+            };
+            return self.transaction(m, call.span, &Binding::Db, &step, want, Some(&binding));
+        }
         match self.resolve_callee(m, &call.callee) {
             Callee::Local(info) => self.inline(m, &info, m, call, awaited, want),
             Callee::Imported {
@@ -2860,7 +2892,7 @@ impl<'r> Lowerer<'r> {
                     "a transaction that is not awaited is not supported",
                 );
             }
-            return self.transaction(m, span, &handle, first, want);
+            return self.transaction(m, span, &handle, first, want, None);
         }
         if !awaited {
             return self.unknown_op(
@@ -2912,6 +2944,7 @@ impl<'r> Lowerer<'r> {
         handle: &Binding,
         step: &ChainStep<'_, '_>,
         want: Want,
+        helper: Option<&TransactionRetryBinding>,
     ) -> Res {
         if !matches!(handle, Binding::Db) {
             return self.unknown_op(
@@ -2930,7 +2963,13 @@ impl<'r> Lowerer<'r> {
         if want == Want::Single {
             return self.unknown_op(m, span, "array destructuring of a transaction result");
         }
-        let Some(callback) = step.args.first().and_then(Argument::as_expression) else {
+        let callback_index = helper.map_or(0, |h| h.callback_argument);
+        let options_index = helper.map_or(Some(1), |h| h.options_argument);
+        let Some(callback) = step
+            .args
+            .get(callback_index)
+            .and_then(Argument::as_expression)
+        else {
             return self.unknown_op(m, span, "transaction without a callback");
         };
         let Some(info) = info_of_expression("<transaction>", callback) else {
@@ -2944,7 +2983,11 @@ impl<'r> Lowerer<'r> {
             return self.unknown_op(m, span, "unsupported transaction callback parameters");
         }
         let mut isolation = None;
-        if let Some(options) = step.args.get(1).and_then(Argument::as_expression) {
+        let mut attempts = helper.map_or(1, |h| h.attempts);
+        if let Some(options) = options_index
+            .and_then(|i| step.args.get(i))
+            .and_then(Argument::as_expression)
+        {
             let Expression::ObjectExpression(object) = options.get_inner_expression() else {
                 return self.unknown_op(m, span, "transaction options are not an object literal");
             };
@@ -2965,6 +3008,18 @@ impl<'r> Lowerer<'r> {
                             }
                         }
                     }
+                    (Some("attempts"), Some(Expr::Lit(Value::Int(n)))) if helper.is_some() => {
+                        match u32::try_from(n) {
+                            Ok(n) if (1..=10).contains(&n) => attempts = n,
+                            _ => {
+                                return self.unknown_op(
+                                    m,
+                                    span,
+                                    format!("{n} attempts is outside the supported 1..=10"),
+                                );
+                            }
+                        }
+                    }
                     (Some(key), _) => {
                         return self.unknown_op(
                             m,
@@ -2978,12 +3033,18 @@ impl<'r> Lowerer<'r> {
                 }
             }
         }
+        if let Some(h) = helper {
+            self.assume(format!(
+                "declared contract: `{}` runs its callback in a new transaction and re-runs it from BEGIN after SQLSTATE 40001/40P01, at most {attempts} time(s) in total, then rethrows; the helper's own code is not analyzed (source verification runs it)",
+                h.callee
+            ));
+        }
         self.emit(
             m,
             span,
             Op::Begin {
                 isolation,
-                retry: 0,
+                retry: attempts - 1,
             },
         );
         self.tx_open += 1;
@@ -3813,14 +3874,6 @@ enum Callee<'a> {
 // Syntax helpers
 // ---------------------------------------------------------------------------
 
-fn static_key(key: &PropertyKey<'_>) -> Option<String> {
-    match key {
-        PropertyKey::StaticIdentifier(id) => Some(id.name.as_str().to_owned()),
-        PropertyKey::StringLiteral(s) => Some(s.value.as_str().unwrap_or_default().to_owned()),
-        _ => None,
-    }
-}
-
 /// Whether a statement can jump out of its block (`return`, `break`,
 /// `continue`; a `throw` is caught by the enclosing handler).
 fn has_jump(statement: &Statement<'_>) -> bool {
@@ -3869,18 +3922,6 @@ fn throw_message(argument: &Expression<'_>) -> String {
     }
 }
 
-/// `a`, `a.b.c` for identifier/static-member chains.
-fn callee_text(e: &Expression<'_>) -> Option<String> {
-    match e.get_inner_expression() {
-        Expression::Identifier(id) => Some(id.name.as_str().to_owned()),
-        Expression::StaticMemberExpression(member) => {
-            let base = callee_text(&member.object)?;
-            Some(format!("{base}.{}", member.property.name))
-        }
-        _ => None,
-    }
-}
-
 fn expression_kind(e: &Expression<'_>) -> &'static str {
     match e {
         Expression::TemplateLiteral(_) => "template literal",
@@ -3901,44 +3942,31 @@ fn expression_kind(e: &Expression<'_>) -> &'static str {
 }
 
 /// Flatten `root.a.b(...).c(...)` into the root identifier and the method
-/// calls, each with the member path before it.
+/// calls, each with the member path before it. Built on the shared chain
+/// facts ([`crate::semantic`]); this extractor does not model optional
+/// chaining, `this` receivers or a directly called root, and refuses them
+/// (as before Phase 8).
 fn flatten<'a, 'b>(e: &'b Expression<'a>) -> Option<(String, Vec<ChainStep<'a, 'b>>)> {
-    let mut segments: Vec<Seg<'a, 'b>> = Vec::new();
-    let mut current = e.get_inner_expression();
-    let root = loop {
-        match current {
-            Expression::CallExpression(call) => {
-                segments.push(Seg::Call(&call.arguments));
-                current = call.callee.get_inner_expression();
-            }
-            Expression::StaticMemberExpression(member) => {
-                segments.push(Seg::Member(member.property.name.as_str().to_owned()));
-                current = member.object.get_inner_expression();
-            }
-            Expression::Identifier(id) => break id.name.as_str().to_owned(),
-            _ => return None,
-        }
-    };
-    segments.reverse();
-    let mut steps = Vec::new();
-    let mut pending: Vec<String> = Vec::new();
-    for segment in segments {
-        match segment {
-            Seg::Member(name) => pending.push(name),
-            Seg::Call(args) => {
-                let method = pending.pop()?;
-                steps.push(ChainStep {
-                    path: std::mem::take(&mut pending),
-                    method,
-                    args,
-                });
-            }
-        }
-    }
-    if !pending.is_empty() || steps.is_empty() {
+    let chain = unwind(e);
+    if chain.optional || chain.root_call().is_some() {
         return None;
     }
-    Some((root, steps))
+    let Some(Root::Identifier(root)) = chain.root else {
+        return None;
+    };
+    let steps: Vec<ChainStep<'a, 'b>> = chain
+        .method_calls()?
+        .into_iter()
+        .map(|call| ChainStep {
+            path: call.path.iter().map(|p| (*p).to_owned()).collect(),
+            method: call.method.to_owned(),
+            args: call.arguments,
+        })
+        .collect();
+    if steps.is_empty() {
+        return None;
+    }
+    Some((root.name.as_str().to_owned(), steps))
 }
 
 // ---------------------------------------------------------------------------

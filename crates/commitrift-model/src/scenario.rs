@@ -20,7 +20,9 @@ use crate::ir::{
     ActorSpec, Channels, FunctionRef, Isolation, Op, OperationRetry, Origin, Step, StmtKind,
 };
 use crate::model::{Bounds, Model, Options, Strategy};
-use crate::provider::{ActorProvider, ExternalBinding, ExtractRequest, TableBinding};
+use crate::provider::{
+    ActorProvider, ExternalBinding, ExtractRequest, TableBinding, TransactionRetryBinding,
+};
 use crate::value::{Expr, Row, Value};
 
 pub const SCHEMA_VERSION: u32 = 1;
@@ -80,10 +82,15 @@ fn default_iso() -> String {
     "read-committed".into()
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RawTable {
+    /// Required unless `from` names the table in the extracted schema.
+    #[serde(default)]
     name: String,
+    /// With `from`: the columns to model (names, or full declarations that
+    /// must agree with the source); empty: every modelable column.
+    #[serde(default)]
     columns: Vec<RawColumn>,
     #[serde(default)]
     primary_key: Vec<String>,
@@ -92,9 +99,30 @@ struct RawTable {
     /// CHECK constraints as expressions over `@column`.
     #[serde(default)]
     checks: Vec<String>,
+    /// Phase 8: the Drizzle table binding (or SQL name) in
+    /// `extraction.schema` this table is read from.
+    #[serde(default)]
+    from: Option<String>,
+    /// Phase 8: declared facts that intentionally differ from the source.
+    #[serde(default)]
+    overrides: Option<RawOverrides>,
 }
 
-#[derive(Deserialize)]
+/// Facts a scenario states against its source, with the reason (Phase 8).
+/// Every override is listed in the report as `scenario-override`.
+#[derive(Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RawOverrides {
+    reason: String,
+    #[serde(default)]
+    unique: Option<Vec<Vec<String>>>,
+    #[serde(default)]
+    primary_key: Option<Vec<String>>,
+    #[serde(default)]
+    not_null: BTreeMap<String, bool>,
+}
+
+#[derive(Deserialize, Clone)]
 #[serde(untagged)]
 enum RawColumn {
     Name(String),
@@ -109,7 +137,7 @@ struct RawOptions {
     minimize: Option<bool>,
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize, Default, Clone)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RawExtraction {
     /// Project root, relative to the scenario file.
@@ -119,10 +147,32 @@ struct RawExtraction {
     tables: BTreeMap<String, String>,
     #[serde(default)]
     externals: Vec<RawExternal>,
+    /// Phase 8: the Drizzle schema module (relative to `root`) that tables
+    /// with `from` are read from.
+    schema: Option<String>,
+    /// Phase 8: helpers that re-run a transaction after 40001/40P01.
+    #[serde(default)]
+    transaction_retries: Vec<RawTransactionRetry>,
     max_inline_depth: Option<usize>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RawTransactionRetry {
+    callee: String,
+    #[serde(default)]
+    callback_argument: usize,
+    options_argument: Option<usize>,
+    /// Total attempts when the call's options do not give `attempts`.
+    #[serde(default = "one_attempt")]
+    attempts: u32,
+}
+
+fn one_attempt() -> u32 {
+    1
+}
+
+#[derive(Deserialize, Clone)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RawExternal {
     callee: String,
@@ -190,6 +240,10 @@ pub struct LoadReport {
     pub entries: Vec<(String, crate::provider::EntryInfo)>,
     /// The scenario's `sourceVerification` section (Phase 7).
     pub source: Option<crate::source_types::SourceSpec>,
+    /// Phase 8: the facts behind each table read from the source schema.
+    pub schema: Vec<crate::schema_facts::TableFacts>,
+    /// Phase 8: the extracted schema (for the catalog comparison).
+    pub extracted_schema: Option<crate::schema_facts::ExtractedSchema>,
 }
 
 pub fn load_file(
@@ -237,7 +291,9 @@ fn build(
             raw.database.isolation
         ),
     })?;
-    let schema = build_schema(&raw.database.tables)?;
+    let (tables, schema_facts, extracted_schema) =
+        link_source_schema(&raw.database.tables, &raw.extraction, base_dir, provider)?;
+    let schema = build_schema(&tables)?;
     let initial_rows = build_initial(&schema, &raw.database.initial_state)?;
     if raw.actors.is_empty() {
         return bad("actors", "a scenario needs at least one actor");
@@ -254,13 +310,27 @@ fn build(
     }
     let mut report = LoadReport {
         source: raw.source_verification.clone(),
+        schema: schema_facts,
+        extracted_schema,
         ..LoadReport::default()
     };
     let mut actors = Vec::new();
     let mut process_names: Vec<String> = Vec::new();
     let mut process_of = Vec::new();
     let mut seen = BTreeSet::new();
-    let extraction = &raw.extraction;
+    // Tables read from the source are known to the actor extractor by
+    // their Drizzle binding.
+    let mut extraction = raw.extraction.clone();
+    for facts in &report.schema {
+        if let Some(binding) = &facts.binding
+            && !extraction.tables.contains_key(binding)
+        {
+            extraction
+                .tables
+                .insert(binding.clone(), facts.table.clone());
+        }
+    }
+    let extraction = &extraction;
     for (i, a) in raw.actors.iter().enumerate() {
         let path = format!("actors[{i}]");
         let name = a
@@ -352,11 +422,527 @@ fn build(
     Ok((model, report))
 }
 
+// ---------------------------------------------------------------------------
+// Phase 8: tables read from the application's Drizzle schema
+// ---------------------------------------------------------------------------
+
+/// The model type of an extracted column, if the model represents it.
+fn model_type(c: &crate::schema_facts::SchemaColumn) -> Option<&'static str> {
+    match c.builder.as_str() {
+        "serial" | "bigserial" | "smallserial" | "integer" | "smallint" | "bigint" => Some("int"),
+        "text" | "varchar" | "char" | "uuid" => Some("text"),
+        "boolean" => Some("bool"),
+        _ if c.sql_type.starts_with("enum ") => Some("text"),
+        _ => None,
+    }
+}
+
+fn literal_value(l: &crate::schema_facts::SchemaLiteral) -> Value {
+    use crate::schema_facts::SchemaLiteral;
+    match l {
+        SchemaLiteral::Integer(n) => Value::Int(*n),
+        SchemaLiteral::Text(t) => Value::Str(t.clone()),
+        SchemaLiteral::Boolean(b) => Value::Bool(*b),
+        SchemaLiteral::Null => Value::Null,
+    }
+}
+
+type Linked = (
+    Vec<RawTable>,
+    Vec<crate::schema_facts::TableFacts>,
+    Option<crate::schema_facts::ExtractedSchema>,
+);
+
+/// Resolve the tables declared with `from` against the extracted schema:
+/// every fact comes from the source unless the scenario overrides it
+/// visibly; a declared fact that contradicts the source is an error.
+fn link_source_schema(
+    raw: &[RawTable],
+    extraction: &RawExtraction,
+    base_dir: &Path,
+    provider: &dyn ActorProvider,
+) -> Result<Linked, ScenarioError> {
+    if raw.iter().all(|t| t.from.is_none()) {
+        for (i, t) in raw.iter().enumerate() {
+            if t.overrides.is_some() {
+                return bad(
+                    format!("database.tables[{i}].overrides"),
+                    "overrides need a table read from the source (`from`)",
+                );
+            }
+        }
+        return Ok((raw.to_vec(), Vec::new(), None));
+    }
+    let Some(file) = &extraction.schema else {
+        return bad(
+            "extraction.schema",
+            "tables with `from` need `extraction.schema` (the Drizzle schema module)",
+        );
+    };
+    let root = base_dir.join(extraction.root.as_deref().unwrap_or("."));
+    let extracted = provider
+        .extract_schema(&root, file)
+        .map_err(|e| ScenarioError {
+            path: "extraction.schema".into(),
+            message: e,
+        })?;
+    let mut tables = Vec::new();
+    let mut facts = Vec::new();
+    for (i, t) in raw.iter().enumerate() {
+        match &t.from {
+            None => tables.push(t.clone()),
+            Some(binding) => {
+                let Some(x) = extracted.table(binding) else {
+                    return bad(
+                        format!("database.tables[{i}].from"),
+                        format!("`{file}` declares no table `{binding}` the extractor understood"),
+                    );
+                };
+                let (table, table_facts) = link_table(t, i, x, file)?;
+                tables.push(table);
+                facts.push(table_facts);
+            }
+        }
+    }
+    Ok((tables, facts, Some(extracted)))
+}
+
+#[allow(clippy::too_many_lines)]
+fn link_table(
+    t: &RawTable,
+    i: usize,
+    x: &crate::schema_facts::SchemaTable,
+    file: &str,
+) -> Result<(RawTable, crate::schema_facts::TableFacts), ScenarioError> {
+    use crate::db::{ColumnDefault, SequenceSpec};
+    use crate::schema_facts::{FactOrigin, SchemaDefault, SchemaFact, TableFacts};
+    let path = format!("database.tables[{i}]");
+    let at = |line: u32| format!("{file}:{line}");
+    let mut facts: Vec<SchemaFact> = Vec::new();
+    let fact = |facts: &mut Vec<SchemaFact>, fact: String, origin, source: String| {
+        facts.push(SchemaFact {
+            fact,
+            origin,
+            source,
+        });
+    };
+    if !t.name.is_empty() && t.name != x.name {
+        return bad(
+            format!("{path}.name"),
+            format!(
+                "the scenario names the table `{}`, the source (`{}` at {}) `{}`",
+                t.name,
+                x.binding,
+                at(x.line),
+                x.name
+            ),
+        );
+    }
+    fact(
+        &mut facts,
+        format!(
+            "table `{}`{} from binding `{}`",
+            x.name,
+            x.schema
+                .as_ref()
+                .map(|s| format!(" in schema `{s}`"))
+                .unwrap_or_default(),
+            x.binding
+        ),
+        FactOrigin::ExtractedFromSource,
+        at(x.line),
+    );
+    let overrides = t.overrides.clone().unwrap_or_default();
+    let reason = &overrides.reason;
+    // Which columns the scenario models.
+    let declared: Vec<(String, Option<ColumnSchema>)> = t
+        .columns
+        .iter()
+        .map(|c| match c {
+            RawColumn::Name(n) => (n.clone(), None),
+            RawColumn::Full(c) => (c.name.clone(), Some(c.clone())),
+        })
+        .collect();
+    for (name, _) in &declared {
+        if x.column(name).is_none() {
+            return bad(
+                format!("{path}.columns"),
+                format!(
+                    "`{}` has no column `{name}` (TypeScript property names: {})",
+                    x.binding,
+                    x.columns
+                        .iter()
+                        .map(|c| c.property.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ),
+            );
+        }
+    }
+    let explicit = !declared.is_empty();
+    let mut columns = Vec::new();
+    for c in &x.columns {
+        let declared_column = declared.iter().find(|(n, _)| *n == c.property);
+        if explicit && declared_column.is_none() {
+            fact(
+                &mut facts,
+                format!("column `{}`: not selected by the scenario", c.sql_name),
+                FactOrigin::NotModeled,
+                at(c.line),
+            );
+            continue;
+        }
+        let Some(ty) = model_type(c) else {
+            if explicit {
+                return bad(
+                    format!("{path}.columns"),
+                    format!(
+                        "column `{}` has type `{}`, which the model does not represent",
+                        c.property, c.sql_type
+                    ),
+                );
+            }
+            fact(
+                &mut facts,
+                format!(
+                    "column `{}`: type `{}` is not modeled",
+                    c.sql_name, c.sql_type
+                ),
+                FactOrigin::NotModeled,
+                at(c.line),
+            );
+            if c.not_null && c.default.is_none() {
+                fact(
+                    &mut facts,
+                    format!(
+                        "column `{}` is NOT NULL without a default and is not modeled: an INSERT the model accepts may fail in PostgreSQL",
+                        c.sql_name
+                    ),
+                    FactOrigin::NotModeled,
+                    at(c.line),
+                );
+            }
+            continue;
+        };
+        let default = match &c.default {
+            None => None,
+            Some(SchemaDefault::Constant { value }) => {
+                Some(ColumnDefault::Value(literal_value(value)))
+            }
+            Some(SchemaDefault::Sequence { .. }) => {
+                Some(ColumnDefault::Sequence(SequenceSpec::default()))
+            }
+            Some(SchemaDefault::Expression { text } | SchemaDefault::Application { text }) => {
+                let by = if matches!(c.default, Some(SchemaDefault::Application { .. })) {
+                    "the application (Drizzle)"
+                } else {
+                    "the database"
+                };
+                if explicit {
+                    return bad(
+                        format!("{path}.columns"),
+                        format!(
+                            "column `{}` takes a default computed by {by} (`{text}`), which the model does not represent",
+                            c.property
+                        ),
+                    );
+                }
+                fact(
+                    &mut facts,
+                    format!(
+                        "column `{}`: default `{text}` computed by {by} is not modeled",
+                        c.sql_name
+                    ),
+                    FactOrigin::NotModeled,
+                    at(c.line),
+                );
+                continue;
+            }
+        };
+        let mut not_null = c.not_null;
+        if let Some((_, Some(d))) = declared_column {
+            if d.not_null != c.not_null && !overrides.not_null.contains_key(&c.property) {
+                return bad(
+                    format!("{path}.columns"),
+                    format!(
+                        "column `{}`: the scenario says {}, the source ({}) says {}; state an override with a reason to model the difference",
+                        c.property,
+                        if d.not_null { "NOT NULL" } else { "nullable" },
+                        at(c.line),
+                        if c.not_null { "NOT NULL" } else { "nullable" }
+                    ),
+                );
+            }
+            if let Some(sql) = &d.sql_name
+                && *sql != c.sql_name
+            {
+                return bad(
+                    format!("{path}.columns"),
+                    format!(
+                        "column `{}`: the scenario's sqlName `{sql}` differs from the source's `{}`",
+                        c.property, c.sql_name
+                    ),
+                );
+            }
+            if let Some(dt) = &d.sql_type
+                && dt != ty
+            {
+                return bad(
+                    format!("{path}.columns"),
+                    format!(
+                        "column `{}`: type `{dt}` declared, `{ty}` in the source",
+                        c.property
+                    ),
+                );
+            }
+            if d.default.is_some() && d.default != default {
+                return bad(
+                    format!("{path}.columns"),
+                    format!(
+                        "column `{}`: the declared default differs from the source",
+                        c.property
+                    ),
+                );
+            }
+        }
+        if let Some(value) = overrides.not_null.get(&c.property) {
+            not_null = *value;
+            fact(
+                &mut facts,
+                format!(
+                    "column `{}`: {} (source: {}) because {reason}",
+                    c.sql_name,
+                    if *value { "NOT NULL" } else { "nullable" },
+                    if c.not_null { "NOT NULL" } else { "nullable" }
+                ),
+                FactOrigin::ScenarioOverride,
+                format!("{path}.overrides.notNull"),
+            );
+        }
+        fact(
+            &mut facts,
+            format!(
+                "column `{}` → `{}` {ty}{}{}",
+                c.property,
+                c.sql_name,
+                if not_null { " NOT NULL" } else { "" },
+                match &default {
+                    Some(ColumnDefault::Value(v)) => format!(" DEFAULT {}", v.render()),
+                    Some(ColumnDefault::Sequence(_)) => " generated (sequence)".to_owned(),
+                    None => String::new(),
+                }
+            ),
+            if declared_column.is_some_and(|(_, d)| d.is_some()) {
+                FactOrigin::DeclaredByScenario
+            } else {
+                FactOrigin::ExtractedFromSource
+            },
+            at(c.line),
+        );
+        if !c.enum_values.is_empty() {
+            fact(
+                &mut facts,
+                format!(
+                    "column `{}`: enum domain ({}) is not enforced by the model",
+                    c.sql_name,
+                    c.enum_values.join(", ")
+                ),
+                FactOrigin::NotModeled,
+                at(c.line),
+            );
+        }
+        columns.push(ColumnSchema {
+            name: c.property.clone(),
+            not_null,
+            sql_type: Some(ty.to_owned()),
+            default,
+            sql_name: (c.sql_name != c.property).then(|| c.sql_name.clone()),
+        });
+    }
+    let property = |sql: &str| -> Option<String> {
+        x.column_by_sql(sql)
+            .map(|c| c.property.clone())
+            .filter(|p| columns.iter().any(|m| &m.name == p))
+    };
+    // Primary key.
+    let mut primary_key: Vec<String> = Vec::new();
+    for sql in &x.primary_key {
+        match property(sql) {
+            Some(p) => primary_key.push(p),
+            None => {
+                return bad(
+                    path.clone(),
+                    format!("primary key column `{sql}` of `{}` is not modeled", x.name),
+                );
+            }
+        }
+    }
+    if !primary_key.is_empty() {
+        fact(
+            &mut facts,
+            format!("primary key ({})", x.primary_key.join(", ")),
+            FactOrigin::ExtractedFromSource,
+            at(x.line),
+        );
+    }
+    if let Some(pk) = &overrides.primary_key {
+        fact(
+            &mut facts,
+            format!(
+                "primary key ({}) instead of ({}) because {reason}",
+                pk.join(", "),
+                primary_key.join(", ")
+            ),
+            FactOrigin::ScenarioOverride,
+            format!("{path}.overrides.primaryKey"),
+        );
+        primary_key = pk.clone();
+    } else if !t.primary_key.is_empty() && t.primary_key != primary_key {
+        return bad(
+            format!("{path}.primaryKey"),
+            format!(
+                "the scenario's primary key ({}) differs from the source's ({}); state an override with a reason",
+                t.primary_key.join(", "),
+                primary_key.join(", ")
+            ),
+        );
+    }
+    // Uniqueness: only global rules over modeled columns.
+    let mut unique: Vec<Vec<String>> = Vec::new();
+    for u in &x.unique {
+        let name = u.name.clone().unwrap_or_else(|| u.columns.join("_"));
+        let mapped: Option<Vec<String>> = u.columns.iter().map(|c| property(c)).collect();
+        let nullable = u
+            .columns
+            .iter()
+            .any(|c| x.column_by_sql(c).is_some_and(|c| !c.not_null));
+        if let Some(predicate) = &u.predicate {
+            fact(
+                &mut facts,
+                format!(
+                    "partial unique {} `{name}` on ({}) WHERE {predicate}: not modeled (it is not a global uniqueness rule)",
+                    u.kind,
+                    u.columns.join(", ")
+                ),
+                FactOrigin::NotModeled,
+                at(u.line),
+            );
+        } else if u.nulls_not_distinct && nullable {
+            fact(
+                &mut facts,
+                format!(
+                    "unique {} `{name}` NULLS NOT DISTINCT on nullable ({}): not modeled (the model treats NULLs as distinct)",
+                    u.kind,
+                    u.columns.join(", ")
+                ),
+                FactOrigin::NotModeled,
+                at(u.line),
+            );
+        } else if let Some(cols) = mapped {
+            fact(
+                &mut facts,
+                format!(
+                    "unique {} `{name}` on ({}){}",
+                    u.kind,
+                    u.columns.join(", "),
+                    if nullable {
+                        " (nullable: NULLs never conflict)"
+                    } else {
+                        ""
+                    }
+                ),
+                FactOrigin::ExtractedFromSource,
+                at(u.line),
+            );
+            unique.push(cols);
+        } else {
+            fact(
+                &mut facts,
+                format!(
+                    "unique {} `{name}` on ({}): a column is not modeled",
+                    u.kind,
+                    u.columns.join(", ")
+                ),
+                FactOrigin::NotModeled,
+                at(u.line),
+            );
+        }
+    }
+    let sorted = |v: &[Vec<String>]| {
+        let mut v: Vec<Vec<String>> = v.to_vec();
+        v.sort();
+        v
+    };
+    if let Some(declared_unique) = &overrides.unique {
+        fact(
+            &mut facts,
+            format!(
+                "unique sets {:?} instead of the source's {:?} because {reason}",
+                declared_unique, unique
+            ),
+            FactOrigin::ScenarioOverride,
+            format!("{path}.overrides.unique"),
+        );
+        unique = declared_unique.clone();
+    } else if !t.unique.is_empty() && sorted(&t.unique) != sorted(&unique) {
+        return bad(
+            format!("{path}.unique"),
+            format!(
+                "the scenario's unique sets {:?} differ from the source's {:?}; state an override with a reason",
+                t.unique, unique
+            ),
+        );
+    }
+    for fk in &x.foreign_keys {
+        fact(
+            &mut facts,
+            format!(
+                "foreign key ({}) → {}({}): not modeled (a violation, SQLSTATE 23503, is not predicted)",
+                fk.columns.join(", "),
+                fk.table,
+                fk.foreign_columns.join(", ")
+            ),
+            FactOrigin::NotModeled,
+            at(fk.line),
+        );
+    }
+    for check in &x.checks {
+        fact(
+            &mut facts,
+            format!("CHECK `{check}`: not interpreted"),
+            FactOrigin::NotModeled,
+            at(x.line),
+        );
+    }
+    for u in &x.unsupported {
+        fact(&mut facts, u.clone(), FactOrigin::Unknown, file.to_owned());
+    }
+    Ok((
+        RawTable {
+            name: x.name.clone(),
+            columns: columns.into_iter().map(RawColumn::Full).collect(),
+            primary_key,
+            unique,
+            checks: t.checks.clone(),
+            from: None,
+            overrides: None,
+        },
+        TableFacts {
+            table: x.name.clone(),
+            binding: Some(x.binding.clone()),
+            facts,
+        },
+    ))
+}
+
 fn build_schema(raw: &[RawTable]) -> Result<Schema, ScenarioError> {
     let mut tables = Vec::new();
     let mut names = BTreeSet::new();
     for (i, t) in raw.iter().enumerate() {
         let path = format!("database.tables[{i}]");
+        if t.name.is_empty() {
+            return bad(format!("{path}.name"), "a table needs `name` (or `from`)");
+        }
         if !names.insert(t.name.clone()) {
             return bad(
                 format!("{path}.name"),
@@ -602,6 +1188,16 @@ fn actor_program(
             key_argument: e.key_argument,
         })
         .collect();
+    let transaction_retries = extraction
+        .transaction_retries
+        .iter()
+        .map(|r| TransactionRetryBinding {
+            callee: r.callee.clone(),
+            callback_argument: r.callback_argument,
+            options_argument: r.options_argument,
+            attempts: r.attempts.max(1),
+        })
+        .collect();
     let request = ExtractRequest {
         root,
         file: file.clone(),
@@ -609,6 +1205,7 @@ fn actor_program(
         arguments: args.clone(),
         tables,
         externals,
+        transaction_retries,
         max_inline_depth: extraction.max_inline_depth.unwrap_or(3),
         selector: a.entry.as_ref().map(|e| e.selector.clone()),
         contract: a.entry.as_ref().and_then(|e| {

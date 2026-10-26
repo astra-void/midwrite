@@ -34,6 +34,23 @@ pub struct ExternalBinding {
     pub key_argument: Option<usize>,
 }
 
+/// Phase 8: an application helper that runs a callback in a database
+/// transaction and re-runs it in a NEW transaction after a serialization
+/// failure or deadlock (SQLSTATE 40001 / 40P01). Declared by the scenario:
+/// the helper's own loop is not analyzed; source verification runs it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TransactionRetryBinding {
+    /// Callee as written: `withTransactionRetry`.
+    pub callee: String,
+    /// Index of the callback argument (receives the transaction handle).
+    pub callback_argument: usize,
+    /// Index of an options object literal with `attempts` (total number of
+    /// executions) and `isolationLevel`.
+    pub options_argument: Option<usize>,
+    /// Total attempts when the options do not say.
+    pub attempts: u32,
+}
+
 /// What a scenario *declares* about how a wrapper invokes the selected
 /// callback (Phase 7). It is an assumption supplied by the scenario author,
 /// reported as such, and never shown as proven source semantics.
@@ -115,6 +132,8 @@ pub struct ExtractRequest {
     pub arguments: Vec<Value>,
     pub tables: Vec<TableBinding>,
     pub externals: Vec<ExternalBinding>,
+    /// Phase 8: declared transaction-retry helpers.
+    pub transaction_retries: Vec<TransactionRetryBinding>,
     /// How many levels of calls to local/imported helper functions are
     /// inlined.
     pub max_inline_depth: usize,
@@ -140,6 +159,19 @@ pub struct Extracted {
 
 pub trait ActorProvider {
     fn extract(&self, request: &ExtractRequest) -> Result<Extracted, String>;
+
+    /// Phase 8: the Drizzle schema facts of `file` (relative to `root`),
+    /// read statically.
+    fn extract_schema(
+        &self,
+        root: &std::path::Path,
+        file: &str,
+    ) -> Result<crate::schema_facts::ExtractedSchema, String> {
+        let _ = root;
+        Err(format!(
+            "no TypeScript frontend is available to read the schema in `{file}`"
+        ))
+    }
 }
 
 /// A provider that refuses every request: used when no project is available.

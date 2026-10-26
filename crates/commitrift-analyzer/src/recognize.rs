@@ -8,9 +8,7 @@
 //! against the supported Drizzle API or the configured external effects.
 //! Anything else is [`Classified::NotRecognized`].
 
-use oxc_ast::ast::{
-    Argument, CallExpression, ChainElement, Expression, IdentifierReference, ThisExpression,
-};
+use oxc_ast::ast::{Argument, CallExpression, Expression, IdentifierReference};
 use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 
@@ -24,79 +22,7 @@ use commitrift_core::analysis::CallArgument;
 
 use crate::bindings::{LocalBindings, Origin, Resolved, SymbolTable, resolve, resolve_reference};
 
-/// One step of a call chain, from the root outward.
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum Segment<'e, 'a> {
-    Property(&'a str),
-    Call(&'e CallExpression<'a>),
-}
-
-/// The expression a call chain is built on.
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum Root<'e, 'a> {
-    Identifier(&'e IdentifierReference<'a>),
-    This(&'e ThisExpression),
-}
-
-impl Root<'_, '_> {
-    fn start(&self) -> u32 {
-        match self {
-            Self::Identifier(ident) => ident.span.start,
-            Self::This(this) => this.span.start,
-        }
-    }
-
-    /// The root as written: an identifier or `this`.
-    fn written(&self) -> &str {
-        match self {
-            Self::Identifier(ident) => ident.name.as_str(),
-            Self::This(_) => "this",
-        }
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct Chain<'e, 'a> {
-    pub root: Option<Root<'e, 'a>>,
-    pub segments: Vec<Segment<'e, 'a>>,
-}
-
-/// Unwind `expr` into root and segments. Parentheses, TypeScript
-/// assertions (`as`, `!`, `satisfies`) and optional chaining are looked through.
-pub(crate) fn unwind<'e, 'a>(expr: &'e Expression<'a>) -> Chain<'e, 'a> {
-    let mut segments = Vec::new();
-    let mut current = expr;
-    let root = loop {
-        current = current.get_inner_expression();
-        match current {
-            Expression::CallExpression(call) => {
-                segments.push(Segment::Call(call));
-                current = &call.callee;
-            }
-            Expression::StaticMemberExpression(member) => {
-                segments.push(Segment::Property(member.property.name.as_str()));
-                current = &member.object;
-            }
-            Expression::ChainExpression(chain) => match &chain.expression {
-                ChainElement::CallExpression(call) => {
-                    segments.push(Segment::Call(call));
-                    current = &call.callee;
-                }
-                ChainElement::StaticMemberExpression(member) => {
-                    segments.push(Segment::Property(member.property.name.as_str()));
-                    current = &member.object;
-                }
-                ChainElement::TSNonNullExpression(inner) => current = &inner.expression,
-                _ => break None,
-            },
-            Expression::Identifier(ident) => break Some(Root::Identifier(ident)),
-            Expression::ThisExpression(this) => break Some(Root::This(this)),
-            _ => break None,
-        }
-    };
-    segments.reverse();
-    Chain { root, segments }
-}
+pub(crate) use crate::semantic::{Chain, Root, Segment, unwind};
 
 /// Whether reading a Drizzle query or writing with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
