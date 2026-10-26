@@ -16,6 +16,8 @@ node_modules/
 /fixtures/replay/**/dist/
 # Phase 7: build output of the first-party source-verification application.
 /fixtures/phase7/**/dist/
+# Phase 8: build output of the crash/recovery applications.
+/fixtures/phase8/**/dist/
 /fixtures/replay/drizzle-node/.gen-*
 /digest.txt
 .DS_Store
