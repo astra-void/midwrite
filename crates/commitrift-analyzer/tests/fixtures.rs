@@ -97,7 +97,8 @@ fn every_fixture_matches_its_expectations() {
     // Multi-file projects are checked as projects by `tests/projects.rs`,
     // replay harnesses by `tests/traces.rs`, model-checking projects by the
     // CLI's `model_check.rs`, the Phase 7 application by `tests/phase7.rs`,
-    // the Phase 8 applications by `tests/phase8.rs`.
+    // the Phase 8 applications by `tests/phase8.rs`, the Phase 9 application
+    // by the CLI's `phase9.rs`.
     let files: Vec<PathBuf> = discover(&[fixtures_dir()])
         .expect("fixtures exist")
         .into_iter()
@@ -107,6 +108,7 @@ fn every_fixture_matches_its_expectations() {
                 && !file.starts_with(fixtures_dir().join("concurrency"))
                 && !file.starts_with(fixtures_dir().join("phase7"))
                 && !file.starts_with(fixtures_dir().join("phase8"))
+                && !file.starts_with(fixtures_dir().join("phase9"))
         })
         .collect();
     assert!(

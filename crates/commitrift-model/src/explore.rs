@@ -22,7 +22,7 @@ use crate::engine::{Recorder, Unsupported, apply, enabled, initial_state, is_qui
 use crate::footprint::{Footprint, dependent};
 use crate::invariant::When;
 use crate::model::{Model, Strategy};
-use crate::state::{State, Transition};
+use crate::state::{State, TKind, Transition};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -60,6 +60,12 @@ pub struct Metrics {
     pub visited_bytes: u64,
     pub wall_ms: u64,
     pub first_violation_ms: Option<u64>,
+    /// DPOR only: reversible races found / backtrack points added.
+    pub dpor_races: u64,
+    pub dpor_backtracks: u64,
+    /// DPOR only: deepest stack of frames held at once (the search keeps no
+    /// visited-state table).
+    pub dpor_max_frames: u64,
 }
 
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
@@ -108,6 +114,9 @@ pub struct ExploreResult {
     pub stuck: Vec<StuckState>,
     /// Canonical keys of every state visited (only with `collect_states`).
     pub reached: Option<BTreeSet<Vec<u8>>>,
+    /// Canonical keys of every terminal state (quiescent, finished) and of
+    /// every stuck state (only with `collect_states`).
+    pub terminals: Option<BTreeSet<Vec<u8>>>,
     /// Number of states violating some invariant (only meaningful with
     /// `stop_at_first == false`).
     pub violating_states: u64,
@@ -170,6 +179,7 @@ struct Ctx<'a> {
     children: Vec<Vec<u32>>,
     terminal: Vec<bool>,
     reached: Option<BTreeSet<Vec<u8>>>,
+    terminals: Option<BTreeSet<Vec<u8>>>,
     counterexample: Option<Counterexample>,
     violating: u64,
 }
@@ -307,6 +317,7 @@ impl Ctx<'_> {
             unsupported: self.unsupported,
             stuck: self.stuck,
             reached: self.reached,
+            terminals: self.terminals,
             violating_states: self.violating,
         }
     }
@@ -361,6 +372,7 @@ pub fn explore_with(model: &Model, opts: &ExploreOptions) -> ExploreResult {
         children: Vec::new(),
         terminal: Vec::new(),
         reached: opts.collect_states.then(BTreeSet::new),
+        terminals: opts.collect_states.then(BTreeSet::new),
         counterexample: None,
         violating: 0,
     };
@@ -481,6 +493,9 @@ fn open_frame(
         if !ctx.terminal[node as usize] {
             ctx.terminal[node as usize] = true;
             ctx.metrics.terminal_states += 1;
+            if let Some(t) = &mut ctx.terminals {
+                t.insert(state.canonical(model));
+            }
             if state.is_finished() {
                 ctx.check_invariants(&state, true, path);
             } else {
@@ -553,6 +568,9 @@ fn bfs(ctx: &mut Ctx<'_>, opts: &ExploreOptions) {
         if is_quiescent(model, &en) {
             ctx.terminal[node as usize] = true;
             ctx.metrics.terminal_states += 1;
+            if let Some(t) = &mut ctx.terminals {
+                t.insert(state.canonical(model));
+            }
             if state.is_finished() {
                 ctx.check_invariants(&state, true, &|| path_to(&parents, node));
                 if ctx.counterexample.is_some() && opts.stop_at_first {
@@ -675,4 +693,346 @@ pub fn audit_independence(model: &Model, max_states: usize) -> Vec<IndependenceV
         }
     }
     out
+}
+
+// ---------------------------------------------------------------------------
+// Dynamic partial-order reduction (Phase 9)
+// ---------------------------------------------------------------------------
+
+/// Why DPOR cannot be used for `model`, if it cannot: the search explores one
+/// interleaving per Mazurkiewicz trace, which preserves what is a function of
+/// the final state of a trace (final invariants, deadlocks and stuck states,
+/// unsupported behavior that is enabled) but not the intermediate states of
+/// the other linearizations of the trace.
+pub fn dpor_inapplicable(model: &Model) -> Option<String> {
+    if model.invariants.iter().any(|i| i.when == When::Always) {
+        return Some(
+            "an `always` invariant is checked in every state, and DPOR does not visit the intermediate states of the interleavings it skips".to_owned(),
+        );
+    }
+    if model.bounds.max_context_switches.is_some() {
+        return Some(
+            "maxContextSwitches is set (a commuted ordering can need more context switches)"
+                .to_owned(),
+        );
+    }
+    None
+}
+
+/// A bit set over the events of the current trace.
+#[derive(Clone, Default)]
+struct Bits(Vec<u64>);
+
+impl Bits {
+    fn set(&mut self, i: usize) {
+        let w = i / 64;
+        if self.0.len() <= w {
+            self.0.resize(w + 1, 0);
+        }
+        self.0[w] |= 1 << (i % 64);
+    }
+    fn get(&self, i: usize) -> bool {
+        self.0.get(i / 64).is_some_and(|w| w & (1 << (i % 64)) != 0)
+    }
+    fn or(&mut self, other: &Bits) {
+        if self.0.len() < other.0.len() {
+            self.0.resize(other.0.len(), 0);
+        }
+        for (a, b) in self.0.iter_mut().zip(&other.0) {
+            *a |= *b;
+        }
+    }
+}
+
+/// The task whose program order a transition belongs to: the transitions of
+/// one task are sequenced by its program, so two of them are never a
+/// reversible race. Different tasks of one actor are concurrent.
+fn program_actor(t: &Transition) -> Option<(u16, u16)> {
+    match t.kind {
+        TKind::Step
+        | TKind::Resume
+        | TKind::Deadlock
+        | TKind::LostCommitted
+        | TKind::LostNotCommitted => Some((t.actor, t.thread)),
+        TKind::Crash
+        | TKind::Retry
+        | TKind::CrashInFlight
+        | TKind::ServerComplete => None,
+    }
+}
+
+/// Transitions of one choice: the server's alternative behaviors for the
+/// same operation of a task (it answers, or the answer is lost and the
+/// operation reaches the server or not), or the outcomes of the operations a
+/// crashing process has in flight. They are alternatives of one process, not
+/// concurrent processes, so exploring one of them means exploring all.
+fn choice_class(t: &Transition) -> Option<(u8, u16, u16)> {
+    match t.kind {
+        TKind::Step | TKind::LostCommitted | TKind::LostNotCommitted => {
+            Some((0, t.actor, t.thread))
+        }
+        TKind::CrashInFlight => Some((1, 0, t.thread)),
+        _ => None,
+    }
+}
+
+struct TraceEvent {
+    /// The task (actor, thread) whose program order the event belongs to.
+    program: Option<(u16, u16)>,
+    foot: Footprint,
+    /// Events that happen before this one (transitive closure of the
+    /// dependence relation along the trace).
+    before: Bits,
+}
+
+struct DFrame {
+    /// Every enabled transition applied once: footprint and successor.
+    succ: Vec<Succ>,
+    /// Transitions that must still be explored from this state.
+    backtrack: BTreeSet<Transition>,
+    done: BTreeSet<Transition>,
+    fresh: bool,
+}
+
+/// Depth-first search with dynamic partial-order reduction
+/// (Flanagan and Godefroid, POPL 2005), over transitions instead of
+/// processes, with *no* state cache and *no* sleep sets:
+///
+/// * after reaching a state, every enabled transition `u` is compared with
+///   the executed trace: the last event `e_i` that is dependent with `u` and
+///   not already ordered before it through another dependent event is a
+///   reversible race; the transition `u` (or, when `u` was not enabled before
+///   `e_i`, every transition enabled there) is added to the backtrack set of
+///   the state before `e_i`;
+/// * each state explores only its backtrack set, seeded with its first
+///   enabled transition.
+///
+/// The dependence relation is the footprint relation of the sleep-set
+/// explorer (and audited by `audit_independence`); crashes, retries, server
+/// completions and unknown resources are dependent with everything. Memory
+/// is the stack: nothing is stored per distinct state.
+///
+/// Not used when [`dpor_inapplicable`] says so; the caller falls back to the
+/// sleep-set search and reports why.
+pub fn explore_dpor(model: &Model, opts: &ExploreOptions) -> ExploreResult {
+    let mut ctx = Ctx {
+        model,
+        started: Instant::now(),
+        metrics: Metrics::default(),
+        truncation: Truncation::default(),
+        unsupported: Vec::new(),
+        stuck: Vec::new(),
+        visited: crate::fasthash::FxHashMap::default(),
+        nodes: Vec::new(),
+        children: Vec::new(),
+        terminal: Vec::new(),
+        reached: None,
+        terminals: opts.collect_states.then(BTreeSet::new),
+        counterexample: None,
+        violating: 0,
+    };
+    let init = initial_state(model);
+    let mut stack: Vec<DFrame> = Vec::new();
+    let mut trace: Vec<TraceEvent> = Vec::new();
+    let mut path: Vec<Transition> = Vec::new();
+    let init_enabled = enabled(model, &init);
+    if let Some(f) = dpor_open(&mut ctx, &init, &init_enabled, &path) {
+        stack.push(f);
+    }
+    ctx.metrics.dpor_max_frames = ctx.metrics.dpor_max_frames.max(stack.len() as u64);
+    while !stack.is_empty() {
+        if ctx.limits_hit() || (ctx.counterexample.is_some() && opts.stop_at_first) {
+            break;
+        }
+        let depth = stack.len() - 1;
+        if stack[depth].fresh {
+            stack[depth].fresh = false;
+            dpor_races(&mut ctx, &mut stack, &trace);
+            let f = &mut stack[depth];
+            if f.backtrack.is_empty()
+                && let Some(first) = f.succ.first()
+            {
+                f.backtrack.insert(first.t);
+            }
+        }
+        let f = &mut stack[depth];
+        // Alternatives of one choice are explored together.
+        let classes: Vec<(u8, u16, u16)> =
+            f.backtrack.iter().filter_map(choice_class).collect();
+        for s in &f.succ {
+            if choice_class(&s.t).is_some_and(|c| classes.contains(&c))
+                && !f.done.contains(&s.t)
+                && f.backtrack.insert(s.t)
+            {
+                ctx.metrics.dpor_backtracks += 1;
+            }
+        }
+        let Some(t) = f.backtrack.iter().find(|t| !f.done.contains(t)).copied() else {
+            stack.pop();
+            if depth > 0 {
+                trace.pop();
+                path.pop();
+            }
+            continue;
+        };
+        f.done.insert(t);
+        let Some(i) = f.succ.iter().position(|s| s.t == t) else {
+            continue;
+        };
+        let foot = f.succ[i].foot.clone();
+        let Some(child) = f.succ[i].state.take() else {
+            continue; // unsupported transition: recorded, no successor
+        };
+        ctx.metrics.transitions += 1;
+        ctx.metrics.max_depth = ctx.metrics.max_depth.max(depth as u32 + 1);
+        // Happens-before of the new event.
+        let mut before = Bits::default();
+        for (k, e) in trace.iter().enumerate() {
+            if dependent(model, &e.foot, &foot) {
+                before.set(k);
+                before.or(&e.before);
+            }
+        }
+        trace.push(TraceEvent {
+            program: program_actor(&t),
+            foot,
+            before,
+        });
+        path.push(t);
+        let child_enabled = enabled(model, &child);
+        // A transition that `t` disables is lost for good from the later
+        // states of this branch, so no later race can ask for it: it is an
+        // alternative at this state (the disabling pairs are dependent).
+        let frame = &mut stack[depth];
+        let disabled: Vec<Transition> = frame
+            .succ
+            .iter()
+            .map(|s| s.t)
+            .filter(|u| *u != t && !child_enabled.contains(u))
+            .collect();
+        for u in disabled {
+            if !frame.done.contains(&u) && frame.backtrack.insert(u) {
+                ctx.metrics.dpor_backtracks += 1;
+            }
+        }
+        match dpor_open(&mut ctx, &child, &child_enabled, &path) {
+            Some(frame) => {
+                stack.push(frame);
+                ctx.metrics.dpor_max_frames = ctx.metrics.dpor_max_frames.max(stack.len() as u64);
+            }
+            None => {
+                trace.pop();
+                path.pop();
+            }
+        }
+    }
+    ctx.finish(true)
+}
+
+/// Create the frame for `state`, or `None` for a leaf. Terminal states have
+/// their final invariants checked here.
+fn dpor_open(
+    ctx: &mut Ctx<'_>,
+    state: &State,
+    en: &[Transition],
+    path: &[Transition],
+) -> Option<DFrame> {
+    let model = ctx.model;
+    ctx.metrics.states += 1;
+    if is_quiescent(model, en) {
+        ctx.metrics.terminal_states += 1;
+        if let Some(t) = &mut ctx.terminals {
+            t.insert(state.canonical(model));
+        }
+        if state.is_finished() {
+            ctx.check_invariants(state, true, &|| path.to_vec());
+        } else {
+            ctx.stuck.push(StuckState {
+                schedule: path.to_vec(),
+            });
+        }
+        if en.is_empty() {
+            return None;
+        }
+    }
+    if state.steps >= model.bounds.max_steps {
+        ctx.truncation.max_steps = true;
+        return None;
+    }
+    let mut succ = ctx.expand(state);
+    if succ.is_empty() {
+        return None;
+    }
+    // A statement that starts waiting for a lock has not done its work yet:
+    // the footprint of the step does not show what the completed statement
+    // would conflict with in another order. Treat it as dependent with
+    // everything (it is completed by a separate `Resume`).
+    for s in &mut succ {
+        let blocked = s.state.as_ref().is_some_and(|c| {
+            c.actors
+                .get(s.t.actor as usize)
+                .and_then(|a| a.threads.get(s.t.thread as usize))
+                .is_some_and(|th| th.pending.as_ref().is_some_and(|p| p.blocked_on.is_some()))
+        });
+        if blocked && s.t.kind == TKind::Step {
+            s.foot.push(crate::footprint::Access::Global);
+        }
+    }
+    Some(DFrame {
+        succ,
+        backtrack: BTreeSet::new(),
+        done: BTreeSet::new(),
+        fresh: true,
+    })
+}
+
+/// Race detection at the top frame: for every enabled transition, find the
+/// last reversible race with the trace and add backtrack points.
+fn dpor_races(ctx: &mut Ctx<'_>, stack: &mut [DFrame], trace: &[TraceEvent]) {
+    let model = ctx.model;
+    let top = stack.len() - 1;
+    debug_assert_eq!(trace.len(), top);
+    let mut adds: Vec<(usize, Option<Transition>)> = Vec::new();
+    for u in &stack[top].succ {
+        // Events dependent with u.
+        let deps: Vec<usize> = (0..trace.len())
+            .filter(|&k| dependent(model, &trace[k].foot, &u.foot))
+            .collect();
+        if deps.is_empty() {
+            continue;
+        }
+        let mut ordered = Bits::default();
+        let program = program_actor(&u.t);
+        for &k in &deps {
+            ordered.or(&trace[k].before);
+            // The earlier steps of the same actor precede `u` by program
+            // order: they are not races.
+            if program.is_some() && trace[k].program == program {
+                ordered.set(k);
+            }
+        }
+        // The last dependent event not ordered before another dependent one.
+        let Some(&i) = deps.iter().rev().find(|&&k| !ordered.get(k)) else {
+            continue;
+        };
+        ctx.metrics.dpor_races += 1;
+        // Frame `i` holds the state before event `i`.
+        if stack[i].succ.iter().any(|s| s.t == u.t) {
+            adds.push((i, Some(u.t)));
+        } else {
+            adds.push((i, None));
+        }
+    }
+    for (i, t) in adds {
+        let frame = &mut stack[i];
+        let candidates: Vec<Transition> = match t {
+            Some(t) => vec![t],
+            None => frame.succ.iter().map(|s| s.t).collect(),
+        };
+        for c in candidates {
+            if !frame.done.contains(&c) && frame.backtrack.insert(c) {
+                ctx.metrics.dpor_backtracks += 1;
+            }
+        }
+    }
 }
