@@ -1,0 +1,22 @@
+| accept-crash-lock-holder | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | original-code-recovery-reproduced | 3/3 / 3/3 | holds | agree | — | yes | 17.11 (Homebrew) | 7.0 |
+| accept-crash-while-waiting | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | original-code-recovery-reproduced | 3/3 / 3/3 | holds | agree | — | yes | 17.11 (Homebrew) | 6.8 |
+| checkout-crash-after-charge | COUNTEREXAMPLE_FOUND | original-code-crash-reproduced | 3/3 / 3/3 | violated | agree | #2 agree | yes | 17.11 (Homebrew) | 6.0 |
+| checkout-idempotent-crash-after-charge | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | original-code-recovery-reproduced | 3/3 / 3/3 | holds | agree | #2 agree | yes | 17.11 (Homebrew) | 6.0 |
+| checkout-idempotent-two-requests | COUNTEREXAMPLE_FOUND | original-code-reproduced | 3/3 / 3/3 | violated | — | — | yes | 17.11 (Homebrew) | 5.7 |
+| inventory-notify-after-commit | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | original-code-invariant-held | 3/3 / 3/3 | holds | — | — | yes | 17.11 (Homebrew) | 5.6 |
+| inventory-retry-duplicate-notice | COUNTEREXAMPLE_FOUND | original-code-reproduced | 3/3 / 3/3 | violated | — | — | yes | 17.11 (Homebrew) | 5.6 |
+| inventory-retry-exhausted | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | original-code-invariant-held | 3/3 / 3/3 | holds | — | — | — | 17.11 (Homebrew) | 5.7 |
+| job-claimed-effect-concurrent | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | original-code-invariant-held | 3/3 / 3/3 | holds | — | — | yes | 17.11 (Homebrew) | 5.8 |
+| job-claimed-effect-redelivery | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | original-code-recovery-reproduced | 3/3 / 3/3 | holds | agree | #2 agree | yes | 17.11 (Homebrew) | 5.9 |
+| job-concurrent-claims-duplicate | COUNTEREXAMPLE_FOUND | original-code-reproduced | 3/3 / 3/3 | violated | — | — | yes | 17.11 (Homebrew) | 5.7 |
+| job-redelivery-duplicate | COUNTEREXAMPLE_FOUND | original-code-crash-reproduced | 3/3 / 3/3 | violated | agree | #2 agree | yes | 17.11 (Homebrew) | 6.0 |
+| pgjs-accept-crash-lock-holder | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | original-code-recovery-reproduced | 3/3 / 3/3 | holds | agree | — | yes | 17.11 (Homebrew) | 6.6 |
+| pgjs-accept-crash-while-waiting | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | original-code-recovery-reproduced | 3/3 / 3/3 | holds | agree | — | yes | 17.11 (Homebrew) | 6.9 |
+| pgjs-accept-invitation-twice | COUNTEREXAMPLE_FOUND | original-code-reproduced | 3/3 / 3/3 | violated | — | — | — | 17.11 (Homebrew) | 6.0 |
+| pgjs-checkout-crash-after-charge | COUNTEREXAMPLE_FOUND | original-code-crash-reproduced | 3/3 / 3/3 | violated | agree | #2 agree | yes | 17.11 (Homebrew) | 5.9 |
+| pgjs-inventory-retry-duplicate-notice | COUNTEREXAMPLE_FOUND | original-code-reproduced | 3/3 / 3/3 | violated | — | — | yes | 17.11 (Homebrew) | 5.7 |
+| pgjs-invite-double-submit | COUNTEREXAMPLE_FOUND | original-code-reproduced | 3/3 / 3/3 | violated | — | — | — | 17.11 (Homebrew) | 6.0 |
+| shipping-dual-write-crash | COUNTEREXAMPLE_FOUND | original-code-crash-reproduced | 3/3 / 3/3 | violated | agree | — | yes | 17.11 (Homebrew) | 4.9 |
+| shipping-outbox-no-loss | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | original-code-recovery-reproduced | 3/3 / 3/3 | holds | agree | #2 agree | yes | 17.11 (Homebrew) | 7.1 |
+| shipping-outbox-relay-duplicate | COUNTEREXAMPLE_FOUND | original-code-crash-reproduced | 3/3 / 3/3 | violated | agree | #2 agree | yes | 17.11 (Homebrew) | 6.9 |
+exit 0

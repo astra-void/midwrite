@@ -1,0 +1,40 @@
+1 done
+| 2 | Phase 8 | 40 | 39 | 0 | 8.2 | 75804 | 1895 | 205859 |
+| 2 | Phase 9 | 40 | 39 | 0 | 8.3 | 15809 | 395 | 208594 |
+| 3 | Phase 8 | 280 | 294 | 4 | 9.5 | 738920 | 2639 | 33984 |
+| 3 | Phase 9 | 280 | 294 | 4 | 8.7 | 50697 | 181 | 30971 |
+| 4 | Phase 8 | 1984 | 2291 | 40 | 17.0 | 6669280 | 3362 | 8545 |
+| 4 | Phase 9 | 1984 | 2291 | 40 | 9.4 | 272453 | 137 | 4733 |
+| 5 | Phase 8 | 13984 | 18042 | 360 | 90.9 | 56858880 | 4066 | 6501 |
+| 5 | Phase 9 | 13984 | 18042 | 342 | 12.1 | 1680001 | 120 | 866 |
+| 6 | Phase 8 | 97408 | 140975 | 3222 | 742.9 | 463456448 | 4758 | 7627 |
+| 6 | Phase 9 | 97408 | 140975 | 2997 | 26.7 | 14034161 | 144 | 274 |
+| 7 | Phase 8 | 669568 | 1084010 | 28979 | 2934.5 | 3643533952 | 5442 | 4383 |
+| 7 | Phase 9 | 669568 | 1084010 | 25240 | 118.5 | 113256237 | 169 | 177 |
+| 8 | Phase 9 | 4544512 | 8183475 | 207387 | 532.4 | 880814441 | 194 | 117 |
+| team-app, 3 actors (conflicting inserts) | full (no reduction) | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | 280 | 588 | 5 | 8.7 |
+| team-app, 3 actors (conflicting inserts) | sleep sets | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | 280 | 294 | 4 | 8.6 |
+| team-app, 3 actors (conflicting inserts) | DPOR | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | 6626 | 6625 | 55 | 8.5 |
+| team-app, 4 actors (conflicting inserts) | full (no reduction) | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | 1984 | 5344 | 50 | 9.5 |
+| team-app, 4 actors (conflicting inserts) | sleep sets | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | 1984 | 2291 | 35 | 9.4 |
+| team-app, 4 actors (conflicting inserts) | DPOR | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | 3476615 | 3476614 | 30362 | 8.9 |
+| independent actors, 2 (disjoint tables) | full (no reduction) | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | 16 | 24 | 0 | 4.7 |
+| independent actors, 2 (disjoint tables) | sleep sets | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | 16 | 15 | 0 | 4.7 |
+| independent actors, 2 (disjoint tables) | DPOR | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | 7 | 6 | 0 | 4.6 |
+| independent actors, 3 (disjoint tables) | full (no reduction) | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | 64 | 144 | 0 | 4.9 |
+| independent actors, 3 (disjoint tables) | sleep sets | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | 64 | 63 | 0 | 4.9 |
+| independent actors, 3 (disjoint tables) | DPOR | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | 10 | 9 | 0 | 4.7 |
+| independent actors, 4 (disjoint tables) | full (no reduction) | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | 256 | 768 | 3 | 5.0 |
+| independent actors, 4 (disjoint tables) | sleep sets | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | 256 | 255 | 2 | 5.1 |
+| independent actors, 4 (disjoint tables) | DPOR | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | 13 | 12 | 0 | 4.8 |
+| 2 clients, crash + retry + in-flight COMMIT (idempotent) | full (no reduction) | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | 792 | 1552 | 4 | 5.2 |
+| 2 clients, crash + retry + in-flight COMMIT (idempotent) | sleep sets | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | 792 | 1336 | 3 | 5.2 |
+| 2 clients, crash + retry + in-flight COMMIT (idempotent) | DPOR | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | 21898 | 21897 | 62 | 5.1 |
+| 2 tasks of one process, pool of 1 | full (no reduction) | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | 7 | 6 | 0 | 4.5 |
+| 2 tasks of one process, pool of 1 | sleep sets | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | 7 | 6 | 0 | 4.5 |
+| 2 tasks of one process, pool of 1 | DPOR | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | 7 | 6 | 0 | 4.4 |
+| checkout-crash-after-charge.json | 9 | 947 | 1787 |
+| ledger-blind-commit-in-flight.json | 10 | 902 | 1683 |
+| ledger-reconciled-commit-in-flight.json | 10 | 966 | 1877 |
+| ledger-shared-process-crash.json | 11 | 948 | 1410 |
+| ledger-pool-starvation.json | 9 | 922 | 2173 |

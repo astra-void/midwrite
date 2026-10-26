@@ -1,0 +1,314 @@
+{
+  "kind": "commitrift.model-check",
+  "schemaVersion": 4,
+  "modelVersion": "1.0.0",
+  "tool": {
+    "name": "commitrift",
+    "version": "0.1.0"
+  },
+  "scenario": {
+    "name": "ledger-pool-of-two",
+    "description": "The same settlement with a pool of two connections: the audit insert gets the second one and the run terminates (the model finds no stuck state).",
+    "scenarioVersion": 1,
+    "file": "/Users/returnf4lse/Desktop/Workspace/rust/crash-proof/fixtures/phase9/scenarios/ledger-pool-of-two.json"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "ledger",
+        "columns": [
+          "id",
+          "requestId",
+          "orderId",
+          "amount"
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "unique": [
+          [
+            "requestId"
+          ]
+        ],
+        "checks": [],
+        "initialRows": []
+      },
+      {
+        "name": "audit_log",
+        "columns": [
+          "id",
+          "requestId",
+          "event"
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "unique": [],
+        "checks": [],
+        "initialRows": []
+      }
+    ]
+  },
+  "actors": [
+    {
+      "name": "Client",
+      "function": "src/app/payments.ts#settleWithAudit",
+      "file": "src/app/payments.ts",
+      "arguments": [
+        [
+          "input",
+          {
+            "amount": 500,
+            "orderId": 1,
+            "requestId": "req-1"
+          }
+        ]
+      ],
+      "process": "Client",
+      "origin": "extracted",
+      "tasks": 2,
+      "operations": 10,
+      "sourceRefs": [
+        {
+          "origin": "extracted",
+          "file": "src/app/payments.ts",
+          "line": 100,
+          "column": 9,
+          "function": "settleWithAudit",
+          "diagnostics": [
+            "CP1004@2e261d77c93090ef"
+          ],
+          "text": "db.transaction(async (tx) => { await tx .insert(ledger) .values({ requestId: ..."
+        },
+        {
+          "origin": "extracted",
+          "file": "src/app/payments.ts",
+          "line": 101,
+          "column": 11,
+          "function": "settleWithAudit",
+          "effectId": 0,
+          "diagnostics": [
+            "CP1004@2e261d77c93090ef"
+          ],
+          "text": "tx .insert(ledger) .values({ requestId: input.requestId, orderId: input.order..."
+        },
+        {
+          "origin": "extracted",
+          "file": "src/app/payments.ts",
+          "line": 100,
+          "column": 9,
+          "function": "settleWithAudit",
+          "diagnostics": [
+            "CP1004@2e261d77c93090ef"
+          ],
+          "text": "db.transaction(async (tx) => { await tx .insert(ledger) .values({ requestId: ..."
+        },
+        {
+          "origin": "extracted",
+          "file": "src/app/payments.ts",
+          "line": 105,
+          "column": 24,
+          "function": "settleWithAudit",
+          "effectId": 1,
+          "diagnostics": [
+            "CP1004@2e261d77c93090ef"
+          ],
+          "text": "db.insert(auditLog).values({ requestId: input.requestId, event: \"settled\" })"
+        }
+      ]
+    }
+  ],
+  "bounds": {
+    "declared": {
+      "maxActors": 4,
+      "maxSteps": 40,
+      "maxStates": 200000,
+      "maxCrashes": 0,
+      "maxRetries": 0,
+      "maxContextSwitches": null,
+      "maxTransitions": null,
+      "maxWallMs": null,
+      "maxMemoryBytes": null
+    },
+    "partialOrderReduction": true,
+    "strategy": "dfs"
+  },
+  "exploration": {
+    "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS",
+    "complete": true,
+    "truncation": {
+      "maxStates": false,
+      "maxTransitions": false,
+      "maxWallTime": false,
+      "maxMemory": false,
+      "maxSteps": false,
+      "maxContextSwitches": false
+    },
+    "metrics": {
+      "states": 5,
+      "transitions": 4,
+      "terminalStates": 1,
+      "duplicateStateHits": 0,
+      "sleepPrunedTransitions": 0,
+      "contextPrunedTransitions": 0,
+      "maxDepth": 4,
+      "schedulesInExploredGraph": 1,
+      "visitedBytes": 7087
+    },
+    "unsupported": [],
+    "stuckStates": 0
+  },
+  "invariants": [
+    {
+      "name": "audited-at-most-once",
+      "when": "final",
+      "formula": "count(audit_log) <= 1",
+      "description": "at most one ledger row and one audit row",
+      "status": "holds-within-bounds"
+    },
+    {
+      "name": "termination",
+      "when": "final",
+      "formula": "stuck tasks = 0",
+      "description": "no task waits forever: not for a connection of a bounded pool, and not for a lock that only the application's own waiting could release",
+      "status": "holds-within-bounds"
+    }
+  ],
+  "evidence": {
+    "level": "none",
+    "summary": "no invariant violation exists in any behavior within the declared bounds (this does not prove the application race-free)"
+  },
+  "runtime": {
+    "performed": false,
+    "status": "not-requested",
+    "observations": [],
+    "sqlstates": [],
+    "note": "no runtime validation was requested (--validate-postgres)"
+  },
+  "assumptions": [
+    "database default isolation: read-committed (PostgreSQL semantics, see docs/phase6/POSTGRES-ISOLATION.md)",
+    "a database statement is atomic unless it must wait for another transaction; waiting statements resume with their original snapshot",
+    "autocommit (root `db`) statements are single-statement transactions at the default isolation level",
+    "local computation is not a scheduling point; it is folded into the preceding transition",
+    "rows are read in primary-key order for LIMIT 1 (the declared programs and generated SQL both use ORDER BY the primary key)",
+    "tasks of different actors never share a transaction, connection or event loop; actors listed with the same process share in-process variables and crash together",
+    "a process crash rolls back open transactions and loses local state; committed data and performed external effects remain",
+    "actor Client: declared invocation (scenario, not source): awaited"
+  ],
+  "diagnostics": [],
+  "timing": {
+    "wallMs": 0
+  },
+  "extraction": [
+    {
+      "actor": "Client",
+      "entry": {
+        "selector": "src/app/payments.ts#settleWithAudit",
+        "anchor": "src/app/payments.ts@99:8",
+        "file": "src/app/payments.ts",
+        "endLine": 108,
+        "staticName": "settleWithAudit",
+        "contract": {
+          "invocation": "awaited"
+        },
+        "contractStatus": "not-needed"
+      },
+      "sourceCoverage": {
+        "representedOperations": 4,
+        "assumedOperations": 1,
+        "unsupportedOperations": 0
+      },
+      "sourceFacts": [
+        "entry `src/app/payments.ts#settleWithAudit` is the function at src/app/payments.ts@99:8 (`settleWithAudit` in `commitrift check`)"
+      ],
+      "scenarioAssumptions": [
+        "invocation: awaited"
+      ]
+    }
+  ],
+  "sourceVerification": {
+    "performed": false,
+    "status": "not-run",
+    "harness": "/Users/returnf4lse/Desktop/Workspace/rust/crash-proof/fixtures/phase9/scenarios/../ledger-app/commitrift-source.json",
+    "runs": [],
+    "problems": [
+      "there is no counterexample to run"
+    ],
+    "note": ""
+  },
+  "schemaFacts": [
+    {
+      "table": "ledger",
+      "binding": "ledger",
+      "facts": [
+        {
+          "fact": "table `ledger` from binding `ledger`",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:19"
+        },
+        {
+          "fact": "column `id` → `id` int NOT NULL generated (sequence)",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:20"
+        },
+        {
+          "fact": "column `requestId` → `request_id` text NOT NULL",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:21"
+        },
+        {
+          "fact": "column `orderId` → `order_id` int NOT NULL",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:22"
+        },
+        {
+          "fact": "column `amount` → `amount` int NOT NULL",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:23"
+        },
+        {
+          "fact": "primary key (id)",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:19"
+        },
+        {
+          "fact": "unique constraint `request_id` on (request_id)",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:21"
+        }
+      ]
+    },
+    {
+      "table": "audit_log",
+      "binding": "auditLog",
+      "facts": [
+        {
+          "fact": "table `audit_log` from binding `auditLog`",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:29"
+        },
+        {
+          "fact": "column `id` → `id` int NOT NULL generated (sequence)",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:30"
+        },
+        {
+          "fact": "column `requestId` → `request_id` text NOT NULL",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:31"
+        },
+        {
+          "fact": "column `event` → `event` text NOT NULL",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:32"
+        },
+        {
+          "fact": "primary key (id)",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:29"
+        }
+      ]
+    }
+  ]
+}

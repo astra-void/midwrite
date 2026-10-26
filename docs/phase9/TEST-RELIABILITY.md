@@ -42,6 +42,24 @@ Rules the Phase 9 tests follow, and the flakes that led to them.
 The only nondeterminism the tests deliberately tolerate is the deadlock victim
 (bounded and counted). Everything else must agree on the first attempt.
 
+## `claim-skip-locked-2/serializable`: finalization attempt
+
+`constraint_delete_and_locking_workloads` (the `pg_matrix` test that contains
+the case) was run 10 more times in a row from the debug test binary
+(`reports/phase9/final/flake-claim-skip-locked.txt`), runs 1–5 while the
+700-seed release DPOR test loaded the CPU, runs 6–10 without it: **10/10
+passed**, `claim-skip-locked-2/serializable` replayed 70 of 70 schedules
+with 0 mismatches and 0 deadlock-victim retries every time (62–70 s per
+run). The failure was **not reproduced**; it stays an unresolved
+intermittent failure with an unconfirmed hypothesis. The assertion was not
+changed.
+
+What would test the hypothesis, not done: start the oracle cluster with
+autovacuum on and run `ANALYZE` on the claimed table between replays (or
+`SET enable_indexscan = off` for half of them) and compare the 40001 rate;
+the diagnostic already available is the matrix's per-schedule mismatch
+output, which names the schedule and the SQLSTATE.
+
 ## Not done
 
 * The SSI hypothesis was not tested by forcing a plan change; the flake was
@@ -49,3 +67,9 @@ The only nondeterminism the tests deliberately tolerate is the deadlock victim
 * Tests are not run under artificial CPU starvation as a gate. Repeated
   full-suite runs and isolated reruns are the evidence (counts in
   `FINAL-REPORT.md`).
+* Two Phase 7/8 HTML escaping tests read committed reports
+  (`reports/phase7/model-check/team-app-invite-double-submit.json`,
+  `reports/phase8/model-check/checkout-crash-after-charge.json`) as input:
+  git-tracked, but generated. Rerunning an evidence script into those
+  directories changes the tests' input. The Phase 9 escaping tests generate
+  their reports in the test (`every_string_of_a_fresh_phase9_report_is_escaped`).

@@ -57,9 +57,13 @@ resolved here.
 ## State-space exploration
 
 * **DPOR (`--dpor`) is evidence-checked, not proved.** Terminal-state set equality
-  with the unreduced search holds on 14 targeted workloads and 150 random
-  scenarios per test run (plus 700 seeds once, release mode, 364 s); a missed
-  interleaving elsewhere cannot be excluded.
+  with the unreduced search holds on 14 targeted workloads, 10 in-flight and
+  pool workloads and 150 random scenarios per test run (plus 700 seeds in
+  release mode on the final build); a missed interleaving elsewhere cannot be
+  excluded. The finalization audit found one such miss (a waiting pool task's
+  connection hand-over was not ordered by happens-before; fixed, refinement 5
+  in `DYNAMIC-POR.md`): the random generator produces no pools, so pool
+  coverage rests on the targeted workloads alone.
 * **DPOR preserves safety and stuck-state reachability only.** It is refused with
   an `always` invariant and with `maxContextSwitches`; it is not a liveness check.
 * **DPOR executes more transitions than sleep sets plus the state cache** on
@@ -74,6 +78,10 @@ resolved here.
 
 * A pool is a count with FIFO leases; real pools' idle timeouts, connection
   recycling, `maxUses`, health checks and priority are not modeled.
+* Tasks that reach a pooled operation when the scenario starts queue in
+  declaration order (they settle in the initial state, not by transitions);
+  other arrival orders at start-up are not explored. Later arrivals are
+  ordered by the explored interleavings.
 * The scenario's pool capacity must equal the harness pool's `max`; a mismatch
   is refused rather than reconciled.
 * Stuck confirmation at runtime relies on quiescence plus pool counters and

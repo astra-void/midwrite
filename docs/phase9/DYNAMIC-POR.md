@@ -10,7 +10,7 @@ default.
 | --- | --- |
 | Source-DPOR / Optimal DPOR (Abdulla et al.) | needs the *initials* of a trace and wakeup trees; a larger correctness surface than the transition model of this checker (nondeterministic choices, state-dependent footprints) justifies |
 | stateful DPOR with cycle handling | the visited-state cache is exactly what makes DPOR unsound without care (a revisited state hides backtrack points); not attempted |
-| **classic DPOR (Flanagan–Godefroid 2005), stateless, no sleep sets** | **chosen**: small, the soundness argument is the textbook one plus four explicit refinements below; memory is the stack |
+| **classic DPOR (Flanagan–Godefroid 2005), stateless, no sleep sets** | **chosen**: small, the soundness argument is the textbook one plus five explicit refinements below; memory is the stack |
 
 Stateless means no table of visited states: memory is the frames on the stack
 (`dpor_max_frames` in the metrics) instead of one key per reachable state. The
@@ -65,6 +65,20 @@ terminal state before it was fixed:
    crashing process's in-flight operations are alternatives of *one* process,
    not concurrent processes; DPOR's "one next transition per process" does
    not hold for them, so choosing one explores the siblings (random seed 30).
+5. **Taking over a pooled connection touches the pool.** A task that waits
+   for a connection of a bounded pool becomes enabled when another task's
+   COMMIT (or end) hands its connection over. The step that then uses the
+   connection (`claim_lease`: its BEGIN or autocommit statement) recorded no
+   pool access, so happens-before did not order it after the release, and no
+   race could request it before a conflicting step of a third task. Found in
+   the finalization audit (`in_flight_and_pool_workloads_keep_every_terminal_state`,
+   "3 tasks, pool of 2": DPOR reached 3 of the 4 terminal states — the one in
+   which the waiting task's insert takes the sequence value before the first
+   task's was missing; verdicts were unaffected on that workload). Fixed by
+   recording `Access::Pool` on the claim. Sleep sets are only made more
+   conservative by it (the claim was never co-enabled with the release):
+   "3 tasks, pool of 2, process crash" executes 130 instead of 114
+   transitions with the same states.
 
 Footprints of crashes, retries and server completions are conservative
 (`Access::Global` for crashes and retries; the rows a completion commits plus
@@ -106,9 +120,17 @@ model:
 * 14 targeted workloads (lost update at three isolation levels, `FOR UPDATE`,
   write skew, redeem with and without a constraint, deadlock, skip locked,
   crash/retry, transaction retry, concurrent tasks);
+* 10 Phase 9 workloads (`in_flight_and_pool_workloads_keep_every_terminal_state`):
+  the five recovery-strategy model scenarios of `fixtures/phase9/model-scenarios`
+  (lost acknowledgment, `ServerComplete` racing a retry or a second
+  delivery), three tasks of one process with a pool of 1 and of 2, a pool of
+  2 with a process crash, a pool of 1 with a crash while a COMMIT is in
+  flight, and three processes with a crash while a COMMIT is in flight;
 * 150 deterministic random scenarios (+ the regression seeds file), with
   in-flight faults on a third of them; and a 700-seed run in release mode
-  (`reports/phase9/dpor-700-seeds.txt`).
+  (`reports/phase9/final/dpor-release-700-seeds.txt`; the pre-fix run is
+  kept in `reports/phase9/dpor-700-seeds.txt`). The random generator has no
+  pools, which is why refinement 5 was not found by it.
 
 The independence audit (`audit_independence`) covers the footprint relation
 for the new transitions (`phase9_inflight`, `phase9_process`). No claim beyond

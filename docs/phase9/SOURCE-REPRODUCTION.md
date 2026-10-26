@@ -97,7 +97,7 @@ Phase 8 labels are not redefined; Phase 9 adds one level and the fields above.
 (cd fixtures/phase9/ledger-app && npm ci --ignore-scripts && npx tsc -p tsconfig.json)
 cargo build --release
 scripts/phase9-evidence.py reports/phase9/evidence 5      # every scenario, 5 runs each
-cargo test -p commitrift-cli --test phase9                # 16 end-to-end tests
+cargo test -p commitrift-cli --test phase9                # 20 end-to-end tests
 ```
 
 Each run uses its own disposable cluster and private directory; nothing is

@@ -1,0 +1,43 @@
+   Compiling commitrift-model v0.1.0 (/Users/returnf4lse/Desktop/Workspace/rust/crash-proof/crates/commitrift-model)
+    Finished `release` profile [optimized] target(s) in 13.23s
+     Running tests/dpor.rs (target/release/deps/dpor-7d41ca72bc5168c2)
+
+running 7 tests
+test an_always_invariant_refuses_dpor ... ok
+test a_dpor_counterexample_is_found_and_valid ... ok
+test dpor_collapses_independent_actors_to_one_interleaving ... ok
+test dpor_keeps_both_orders_of_conflicting_writers ... ok
+lost-update/rc: transitions full 26, sleep sets 22, dpor 40
+lost-update-tx/rc: transitions full 60, sleep sets 47, dpor 253
+lost-update-tx/rr: transitions full 54, sleep sets 41, dpor 173
+for-update/rc: transitions full 44, sleep sets 34, dpor 76
+atomic/rc: transitions full 10, sleep sets 8, dpor 6
+write-skew/rc: transitions full 40, sleep sets 30, dpor 53
+write-skew/ser: transitions full 40, sleep sets 33, dpor 105
+redeem/unique: transitions full 12, sleep sets 11, dpor 16
+redeem/no-constraint: transitions full 12, sleep sets 11, dpor 16
+deadlock/rc: transitions full 48, sleep sets 40, dpor 103
+skip-locked: transitions full 52, sleep sets 41, dpor 63
+crash-retry: transitions full 22, sleep sets 22, dpor 22
+tx-retry: transitions full 56, sleep sets 48, dpor 175
+tasks: transitions full 4, sleep sets 4, dpor 4
+
+test targeted_workloads_keep_every_terminal_state ... ok
+ambiguous-commit-blind-retry.json: transitions full 22, sleep sets 22, dpor 28
+ambiguous-commit-idempotency-key.json: transitions full 22, sleep sets 22, dpor 27
+ambiguous-commit-lookup-then-insert-concurrent.json: transitions full 604, sleep sets 493, dpor 5482
+ambiguous-commit-lookup-then-insert.json: transitions full 27, sleep sets 27, dpor 31
+ambiguous-commit-lookup-unique.json: transitions full 612, sleep sets 551, dpor 9251
+3 tasks, pool of 1: transitions full 9, sleep sets 9, dpor 9
+3 tasks, pool of 2: transitions full 88, sleep sets 82, dpor 489
+3 tasks, pool of 2, process crash: transitions full 136, sleep sets 130, dpor 863
+3 tasks, pool of 1, crash with COMMIT in flight: transitions full 92, sleep sets 85, dpor 123
+3 processes, crash with COMMIT in flight: transitions full 3263, sleep sets 2637, dpor 126907
+
+test in_flight_and_pool_workloads_keep_every_terminal_state ... ok
+test randomized_scenarios_keep_every_terminal_state has been running for over 60 seconds
+682 scenarios compared, 18 skipped (limit); transitions full 181080, sleep sets 136949, dpor 17591900
+test randomized_scenarios_keep_every_terminal_state ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 303.16s
+

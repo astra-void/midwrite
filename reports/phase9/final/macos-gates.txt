@@ -1,0 +1,6 @@
+fmt exit 0
+clippy exit 0
+test exit 0
+release exit 0
+digest-after: df9f2a6d6da35d6fa107e69a91b2ece1acd45ec1235804dd96dba7bdfd15a832 513
+done
