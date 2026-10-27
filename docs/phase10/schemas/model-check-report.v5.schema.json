@@ -1,0 +1,2259 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "commitrift.model-check.v5",
+  "title": "CommitRift model-check report, schema 5",
+  "definitions": {
+    "value": {
+      "type": [
+        "null",
+        "boolean",
+        "integer",
+        "string",
+        "object"
+      ]
+    },
+    "row": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/value"
+      }
+    },
+    "tables": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "$ref": "#/definitions/row"
+        }
+      }
+    },
+    "sourceRef": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "enum": [
+            "extracted",
+            "declared"
+          ]
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "function": {
+          "type": "string"
+        },
+        "callChain": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "effectId": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "text": {
+          "type": "string"
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^CP[0-9]{4}@[0-9a-f]+$"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "origin"
+      ]
+    },
+    "event": {
+      "type": "object",
+      "properties": {
+        "actor": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "thread": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "kind": {
+          "enum": [
+            "begin",
+            "commit",
+            "rollback",
+            "read",
+            "write",
+            "local",
+            "external",
+            "app",
+            "crash",
+            "retry",
+            "blocked",
+            "resumed",
+            "fail",
+            "abort",
+            "spawn",
+            "deadlock",
+            "ackLost",
+            "serverCompletion"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "result": {
+          "$ref": "#/definitions/value"
+        },
+        "sqlstate": {
+          "type": "string"
+        },
+        "blockedOn": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "src": {
+          "$ref": "#/definitions/sourceRef"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "actor",
+        "thread",
+        "kind",
+        "text"
+      ]
+    }
+  },
+  "type": "object",
+  "properties": {
+    "kind": {
+      "const": "commitrift.model-check"
+    },
+    "schemaVersion": {
+      "const": 5
+    },
+    "modelVersion": {
+      "type": "string"
+    },
+    "tool": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ]
+    },
+    "scenario": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "scenarioVersion": {
+          "const": 1
+        },
+        "file": {
+          "type": "string"
+        },
+        "sourceRevision": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "description",
+        "scenarioVersion"
+      ]
+    },
+    "database": {
+      "type": "object",
+      "properties": {
+        "isolation": {
+          "enum": [
+            "read-committed",
+            "repeatable-read",
+            "serializable"
+          ]
+        },
+        "tables": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "columns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "primaryKey": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "unique": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "checks": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "initialRows": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/row"
+                }
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "columns",
+              "primaryKey",
+              "unique",
+              "checks",
+              "initialRows"
+            ]
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "isolation",
+        "tables"
+      ]
+    },
+    "actors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "function": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "arguments": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": [
+                {
+                  "type": "string"
+                },
+                {
+                  "$ref": "#/definitions/value"
+                }
+              ]
+            }
+          },
+          "process": {
+            "type": "string"
+          },
+          "retry": {
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "extracted",
+              "declared",
+              "mixed"
+            ]
+          },
+          "tasks": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "operations": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sourceRefs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/sourceRef"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "function",
+          "arguments",
+          "process",
+          "origin",
+          "tasks",
+          "operations",
+          "sourceRefs"
+        ]
+      }
+    },
+    "bounds": {
+      "type": "object",
+      "properties": {
+        "declared": {
+          "type": "object",
+          "properties": {
+            "maxActors": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "maxSteps": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "maxStates": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "maxCrashes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "maxRetries": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "maxContextSwitches": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "maxTransitions": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "maxWallMs": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "maxMemoryBytes": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "maxInFlight": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "crashPolicy": {
+              "enum": [
+                "any",
+                "in-flight-only"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "maxActors",
+            "maxSteps",
+            "maxStates",
+            "maxCrashes",
+            "maxRetries",
+            "maxContextSwitches",
+            "maxTransitions",
+            "maxWallMs",
+            "maxMemoryBytes"
+          ]
+        },
+        "partialOrderReduction": {
+          "type": "boolean"
+        },
+        "partialOrderReductionDisabledBecause": {
+          "type": "string"
+        },
+        "strategy": {
+          "enum": [
+            "bfs",
+            "dfs"
+          ]
+        },
+        "reduction": {
+          "enum": [
+            "dpor",
+            "source-dpor"
+          ]
+        },
+        "sourceDporMode": {
+          "enum": [
+            "stateful-sleep",
+            "stateful",
+            "stateless-sleep"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "declared",
+        "partialOrderReduction",
+        "strategy"
+      ]
+    },
+    "exploration": {
+      "type": "object",
+      "properties": {
+        "verdict": {
+          "enum": [
+            "COUNTEREXAMPLE_FOUND",
+            "NO_COUNTEREXAMPLE_WITHIN_BOUNDS",
+            "INCONCLUSIVE",
+            "UNSUPPORTED"
+          ]
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "truncation": {
+          "type": "object",
+          "properties": {
+            "maxStates": {
+              "type": "boolean"
+            },
+            "maxTransitions": {
+              "type": "boolean"
+            },
+            "maxWallTime": {
+              "type": "boolean"
+            },
+            "maxMemory": {
+              "type": "boolean"
+            },
+            "maxSteps": {
+              "type": "boolean"
+            },
+            "maxContextSwitches": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "maxStates",
+            "maxTransitions",
+            "maxWallTime",
+            "maxMemory",
+            "maxSteps",
+            "maxContextSwitches"
+          ]
+        },
+        "metrics": {
+          "type": "object",
+          "properties": {
+            "states": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "transitions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "terminalStates": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "duplicateStateHits": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sleepPrunedTransitions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "contextPrunedTransitions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "maxDepth": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "schedulesInExploredGraph": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "visitedBytes": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "states",
+            "transitions",
+            "terminalStates",
+            "duplicateStateHits",
+            "sleepPrunedTransitions",
+            "contextPrunedTransitions",
+            "maxDepth",
+            "schedulesInExploredGraph",
+            "visitedBytes"
+          ]
+        },
+        "unsupported": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "actor": {
+                "type": "string"
+              },
+              "detail": {
+                "type": "string"
+              },
+              "location": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "actor",
+              "detail",
+              "location"
+            ]
+          }
+        },
+        "stuckStates": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stuck": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "storage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "storedStates",
+            "fragments",
+            "fragmentReferences",
+            "keyArenaBytes",
+            "tableBytes",
+            "internerBytes",
+            "edgeBytes",
+            "nodeBytes",
+            "bytesPerState"
+          ],
+          "properties": {
+            "storedStates": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "fragments": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "fragmentReferences": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "keyArenaBytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tableBytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "internerBytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "edgeBytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "nodeBytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "bytesPerState": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        },
+        "reductionMetrics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "races",
+            "backtrackPoints",
+            "summaryChecks",
+            "summaries",
+            "descriptors",
+            "summaryBytes",
+            "sleepPrunedTransitions",
+            "maxFrames"
+          ],
+          "properties": {
+            "races": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "backtrackPoints": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "summaryChecks": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "summaries": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "descriptors": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "summaryBytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "sleepPrunedTransitions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "maxFrames": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "verdict",
+        "complete",
+        "truncation",
+        "metrics",
+        "unsupported",
+        "stuckStates"
+      ]
+    },
+    "invariants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "when": {
+            "enum": [
+              "final",
+              "always"
+            ]
+          },
+          "formula": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "violated",
+              "holds-within-bounds",
+              "not-established"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "when",
+          "formula",
+          "description",
+          "status"
+        ]
+      }
+    },
+    "counterexample": {
+      "type": "object",
+      "properties": {
+        "invariant": {
+          "type": "string"
+        },
+        "formula": {
+          "type": "string"
+        },
+        "when": {
+          "enum": [
+            "final",
+            "always"
+          ]
+        },
+        "initialTables": {
+          "$ref": "#/definitions/tables"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "actor": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "step",
+                  "resume",
+                  "crash",
+                  "retry",
+                  "deadlock",
+                  "ack-lost-committed",
+                  "ack-lost-not-committed",
+                  "crash-in-flight",
+                  "server-complete"
+                ]
+              },
+              "events": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/event"
+                }
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "index",
+              "actor",
+              "kind",
+              "events"
+            ]
+          }
+        },
+        "finalState": {
+          "type": "object",
+          "properties": {
+            "tables": {
+              "$ref": "#/definitions/tables"
+            },
+            "actors": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              }
+            },
+            "externalEffects": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "terms": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "term": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "$ref": "#/definitions/value"
+                  }
+                },
+                "additionalProperties": false,
+                "required": [
+                  "term",
+                  "value"
+                ]
+              }
+            },
+            "quiescent": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "tables",
+            "actors",
+            "externalEffects",
+            "terms",
+            "quiescent"
+          ]
+        },
+        "contextSwitches": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minimized": {
+          "type": "boolean"
+        },
+        "originalLength": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "invariant",
+        "formula",
+        "when",
+        "initialTables",
+        "steps",
+        "finalState",
+        "contextSwitches",
+        "minimized",
+        "originalLength"
+      ]
+    },
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "enum": [
+            "none",
+            "model-counterexample",
+            "postgres-confirmed-schedule",
+            "postgres-did-not-reproduce",
+            "runtime-inconclusive",
+            "original-code-reproduced",
+            "original-code-crash-reproduced",
+            "original-code-recovery-reproduced",
+            "original-code-invariant-held",
+            "original-code-in-flight-failure-reproduced",
+            "original-code-connection-loss-reproduced"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "level",
+        "summary"
+      ]
+    },
+    "runtime": {
+      "type": "object",
+      "properties": {
+        "performed": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "confirmed",
+            "disagreement",
+            "blocked",
+            "not-requested"
+          ]
+        },
+        "postgresVersion": {
+          "type": "string"
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "transition": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "actor": {
+                "type": "string"
+              },
+              "sql": {
+                "type": "string"
+              },
+              "predicted": {
+                "type": "string"
+              },
+              "observed": {
+                "type": "string"
+              },
+              "agree": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "transition",
+              "actor",
+              "sql",
+              "predicted",
+              "observed",
+              "agree"
+            ]
+          }
+        },
+        "sqlstates": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-9A-Z]{5}$"
+          }
+        },
+        "tablesAgree": {
+          "type": "boolean"
+        },
+        "modelTables": {
+          "$ref": "#/definitions/tables"
+        },
+        "postgresTables": {
+          "$ref": "#/definitions/tables"
+        },
+        "sqlOrigin": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "performed",
+        "status",
+        "observations",
+        "sqlstates",
+        "note"
+      ]
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^CP7[0-9]{3}$"
+          },
+          "severity": {
+            "enum": [
+              "error",
+              "warning",
+              "info"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "severity",
+          "message"
+        ]
+      }
+    },
+    "timing": {
+      "type": "object",
+      "properties": {
+        "wallMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "firstViolationMs": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "wallMs"
+      ]
+    },
+    "extraction": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "type": "string"
+          },
+          "entry": {
+            "type": "object",
+            "properties": {
+              "selector": {
+                "type": "string"
+              },
+              "anchor": {
+                "type": "string"
+              },
+              "file": {
+                "type": "string"
+              },
+              "endLine": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "staticName": {
+                "type": "string"
+              },
+              "wrapper": {
+                "type": "object",
+                "properties": {
+                  "wrapper": {
+                    "type": "string"
+                  },
+                  "definedAt": {
+                    "type": "string"
+                  },
+                  "invocation": {
+                    "enum": [
+                      "returned-function-awaits",
+                      "returned-function-returns-promise",
+                      "returned-function-fire-and-forget",
+                      "invoked-during-wrap",
+                      "invoked-during-wrap-unawaited",
+                      "stored",
+                      "not-invoked",
+                      "unknown"
+                    ]
+                  },
+                  "conditional": {
+                    "type": "boolean"
+                  },
+                  "guards": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "arguments": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "detail": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "wrapper",
+                  "invocation",
+                  "conditional"
+                ],
+                "additionalProperties": false
+              },
+              "contract": {
+                "type": "object",
+                "properties": {
+                  "invocation": {
+                    "type": "string"
+                  },
+                  "preconditions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "additionalProperties": false
+              },
+              "contractStatus": {
+                "enum": [
+                  "not-needed",
+                  "consistent",
+                  "required",
+                  "absent"
+                ]
+              }
+            },
+            "required": [
+              "selector",
+              "anchor",
+              "staticName",
+              "contractStatus"
+            ],
+            "additionalProperties": false
+          },
+          "sourceCoverage": {
+            "type": "object",
+            "properties": {
+              "representedOperations": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "assumedOperations": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "unsupportedOperations": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "unsupported": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "representedOperations",
+              "assumedOperations",
+              "unsupportedOperations"
+            ],
+            "additionalProperties": false
+          },
+          "sourceFacts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scenarioAssumptions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "actor",
+          "entry",
+          "sourceCoverage"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "sourceVerification": {
+      "type": "object",
+      "properties": {
+        "performed": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "reproduced",
+            "not-reproduced",
+            "diverged",
+            "inconclusive",
+            "unsupported",
+            "blocked",
+            "unstable",
+            "not-run",
+            "recovery-reproduced",
+            "invariant-held"
+          ]
+        },
+        "harness": {
+          "type": "string"
+        },
+        "runs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "run": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "coordination": {
+                "enum": [
+                  "followed",
+                  "diverged",
+                  "inconclusive",
+                  "blocked"
+                ]
+              },
+              "statementsAgree": {
+                "type": "boolean"
+              },
+              "tablesAgree": {
+                "type": "boolean"
+              },
+              "outcomesAgree": {
+                "type": "boolean"
+              },
+              "invariant": {
+                "enum": [
+                  "violated",
+                  "holds",
+                  "not-evaluated"
+                ]
+              },
+              "reproduced": {
+                "type": "boolean"
+              },
+              "elapsedMs": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "recoveryAgrees": {
+                "type": "boolean"
+              },
+              "recoveryReproduced": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "run",
+              "coordination",
+              "statementsAgree",
+              "tablesAgree",
+              "outcomesAgree",
+              "invariant",
+              "reproduced"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "statements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "transition": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "actor": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "modelSource": {
+                "type": "string"
+              },
+              "predicted": {
+                "type": "string"
+              },
+              "sql": {
+                "type": "string"
+              },
+              "runtimeSource": {
+                "type": "string"
+              },
+              "observed": {
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "agree",
+                  "differ",
+                  "not-observed"
+                ]
+              },
+              "differences": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "transition",
+              "actor",
+              "model",
+              "predicted",
+              "observed",
+              "status"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "outsideModel": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unexpected": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "modelTables": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/row"
+            }
+          }
+        },
+        "runtimeTables": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/row"
+            }
+          }
+        },
+        "actors": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 3,
+            "maxItems": 3
+          }
+        },
+        "problems": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "postgresVersion": {
+          "type": "string"
+        },
+        "isolation": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "evidence": {
+          "enum": [
+            "ORIGINAL_CODE_CRASH_REPRODUCED",
+            "ORIGINAL_CODE_CONNECTION_LOSS_REPRODUCED",
+            "ORIGINAL_CODE_IN_FLIGHT_FAILURE_REPRODUCED",
+            "ORIGINAL_CODE_RECOVERY_REPRODUCED",
+            "ORIGINAL_CODE_INVARIANT_HELD",
+            "INCONCLUSIVE",
+            "UNSUPPORTED",
+            "DIVERGED",
+            "NOT_REPRODUCED"
+          ]
+        },
+        "probeSchedule": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "driverInternal": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "transactionConfig": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "recovery": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "effects",
+            "attempts",
+            "quiescence"
+          ],
+          "properties": {
+            "crashes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "transition",
+                  "actor",
+                  "attempt",
+                  "boundary",
+                  "killedBySignal",
+                  "sessionsEnded",
+                  "status"
+                ],
+                "properties": {
+                  "transition": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "actor": {
+                    "type": "string"
+                  },
+                  "attempt": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "boundary": {
+                    "type": "string"
+                  },
+                  "checkpoint": {
+                    "type": "string"
+                  },
+                  "neverSent": {
+                    "type": "string"
+                  },
+                  "pid": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "killedBySignal": {
+                    "type": "boolean"
+                  },
+                  "sessionsEnded": {
+                    "type": "boolean"
+                  },
+                  "sessionsEndedMs": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "modelTables": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/row"
+                      }
+                    }
+                  },
+                  "runtimeTables": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/row"
+                      }
+                    }
+                  },
+                  "status": {
+                    "enum": [
+                      "agree",
+                      "differ",
+                      "not-observed"
+                    ]
+                  },
+                  "differences": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "inFlight": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "operation",
+                      "modelFate",
+                      "observedFate",
+                      "mechanism",
+                      "forwardedToServer",
+                      "withheldFromServer",
+                      "clientAcknowledged",
+                      "sessionOpenAfterKill",
+                      "applicationKnowledge",
+                      "physicalOutcome"
+                    ],
+                    "properties": {
+                      "operation": {
+                        "type": "string"
+                      },
+                      "modelFate": {
+                        "enum": [
+                          "not-reached",
+                          "answered-and-withheld",
+                          "held-for-later-delivery"
+                        ]
+                      },
+                      "observedFate": {
+                        "enum": [
+                          "not-reached",
+                          "answered-and-withheld",
+                          "held-for-later-delivery"
+                        ]
+                      },
+                      "mechanism": {
+                        "type": "string"
+                      },
+                      "forwardedToServer": {
+                        "type": "boolean"
+                      },
+                      "withheldFromServer": {
+                        "type": "boolean"
+                      },
+                      "serverAnswer": {
+                        "type": "string"
+                      },
+                      "clientAcknowledged": {
+                        "type": "boolean"
+                      },
+                      "backendStateBeforeKill": {
+                        "type": "string"
+                      },
+                      "sessionOpenAfterKill": {
+                        "type": "boolean"
+                      },
+                      "wireEvents": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "applicationKnowledge": {
+                        "type": "string"
+                      },
+                      "physicalOutcome": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "restarts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "transition",
+                  "actor",
+                  "attempt",
+                  "mechanism",
+                  "status"
+                ],
+                "properties": {
+                  "transition": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "actor": {
+                    "type": "string"
+                  },
+                  "attempt": {
+                    "type": "integer",
+                    "minimum": 2
+                  },
+                  "mechanism": {
+                    "type": "string"
+                  },
+                  "pid": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "previousPid": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "previousOutcome": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "enum": [
+                      "agree",
+                      "differ",
+                      "not-observed"
+                    ]
+                  }
+                }
+              }
+            },
+            "effects": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "model",
+                "runtime",
+                "agree"
+              ],
+              "properties": {
+                "model": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "runtime": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "agree": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "attempts": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 3,
+                "items": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                ]
+              }
+            },
+            "contracts": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "serverSettings": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "quiescence": {
+              "type": "string"
+            },
+            "completions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "transition",
+                  "actor",
+                  "attempt",
+                  "serverAnswer",
+                  "sessionEnded",
+                  "status"
+                ],
+                "properties": {
+                  "transition": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "actor": {
+                    "type": "string"
+                  },
+                  "attempt": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "serverAnswer": {
+                    "type": "string"
+                  },
+                  "sessionEnded": {
+                    "type": "boolean"
+                  },
+                  "modelTables": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/row"
+                      }
+                    }
+                  },
+                  "runtimeTables": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/row"
+                      }
+                    }
+                  },
+                  "status": {
+                    "enum": [
+                      "agree",
+                      "differ",
+                      "not-observed"
+                    ]
+                  },
+                  "differences": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "losses": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "transition",
+                  "actor",
+                  "attempt",
+                  "operation",
+                  "modelFate",
+                  "observedFate",
+                  "mechanism",
+                  "forwardedToServer",
+                  "withheldFromServer",
+                  "clientSevered",
+                  "workerPid",
+                  "workerAliveAfter",
+                  "workerConnectedAfter",
+                  "sessionEnded",
+                  "sessionOpen",
+                  "applicationKnowledge",
+                  "physicalOutcome",
+                  "status"
+                ],
+                "properties": {
+                  "transition": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "actor": {
+                    "type": "string"
+                  },
+                  "attempt": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "operation": {
+                    "type": "string"
+                  },
+                  "modelFate": {
+                    "enum": [
+                      "not-reached",
+                      "answered-and-withheld",
+                      "held-for-later-delivery"
+                    ]
+                  },
+                  "observedFate": {
+                    "enum": [
+                      "not-reached",
+                      "answered-and-withheld",
+                      "held-for-later-delivery",
+                      ""
+                    ]
+                  },
+                  "mechanism": {
+                    "type": "string"
+                  },
+                  "forwardedToServer": {
+                    "type": "boolean"
+                  },
+                  "withheldFromServer": {
+                    "type": "boolean"
+                  },
+                  "serverAnswer": {
+                    "type": "string"
+                  },
+                  "clientSevered": {
+                    "type": "boolean"
+                  },
+                  "workerPid": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "workerAliveAfter": {
+                    "type": "boolean"
+                  },
+                  "workerConnectedAfter": {
+                    "type": "boolean"
+                  },
+                  "driverError": {
+                    "type": "string"
+                  },
+                  "driverSqlstate": {
+                    "type": "string"
+                  },
+                  "backendStateBefore": {
+                    "type": "string"
+                  },
+                  "backendPid": {
+                    "type": "integer"
+                  },
+                  "sessionEnded": {
+                    "type": "boolean"
+                  },
+                  "sessionOpen": {
+                    "type": "boolean"
+                  },
+                  "deadConnectionStatements": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "laterBackendPids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    }
+                  },
+                  "wireEvents": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "applicationKnowledge": {
+                    "type": "string"
+                  },
+                  "physicalOutcome": {
+                    "type": "string"
+                  },
+                  "modelTables": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/row"
+                      }
+                    }
+                  },
+                  "runtimeTables": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/row"
+                      }
+                    }
+                  },
+                  "status": {
+                    "enum": [
+                      "agree",
+                      "differ",
+                      "not-observed"
+                    ]
+                  },
+                  "differences": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "schemaFidelity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "tables",
+            "note"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "agree",
+                "drift",
+                "not-compared"
+              ]
+            },
+            "tables": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "table",
+                  "items"
+                ],
+                "properties": {
+                  "table": {
+                    "type": "string"
+                  },
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "fact",
+                        "status"
+                      ],
+                      "properties": {
+                        "fact": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "enum": [
+                            "agree",
+                            "drift",
+                            "not-compared"
+                          ]
+                        },
+                        "detail": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "postgresVersion": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string"
+            }
+          }
+        },
+        "wireLog": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sharedProcesses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "stuck": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "modelKind",
+            "observed",
+            "status"
+          ],
+          "properties": {
+            "modelKind": {
+              "enum": [
+                "pool-starvation",
+                "application-wait-cycle"
+              ]
+            },
+            "status": {
+              "enum": [
+                "agree",
+                "differ"
+              ]
+            },
+            "observed": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "quietMs",
+                "unfinished",
+                "confirmed",
+                "detail"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string"
+                },
+                "quietMs": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "unfinished": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "pool": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                },
+                "lockWaits": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "confirmed": {
+                  "type": "boolean"
+                },
+                "detail": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "required": [
+        "performed",
+        "status",
+        "harness",
+        "runs",
+        "note"
+      ],
+      "additionalProperties": false
+    },
+    "schemaFacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "table",
+          "facts"
+        ],
+        "properties": {
+          "table": {
+            "type": "string"
+          },
+          "binding": {
+            "type": "string"
+          },
+          "facts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "fact",
+                "origin",
+                "source"
+              ],
+              "properties": {
+                "fact": {
+                  "type": "string"
+                },
+                "origin": {
+                  "enum": [
+                    "extracted-from-source",
+                    "declared-by-scenario",
+                    "scenario-override",
+                    "not-modeled",
+                    "unknown",
+                    "confirmed-by-runtime-catalog"
+                  ]
+                },
+                "source": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "epistemic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "twins"
+      ],
+      "properties": {
+        "twins": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "transition",
+              "actor",
+              "operation",
+              "actual",
+              "other",
+              "knowledge",
+              "twin",
+              "observations",
+              "identicalObservations",
+              "reading"
+            ],
+            "properties": {
+              "transition": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "actor": {
+                "type": "string"
+              },
+              "operation": {
+                "type": "string"
+              },
+              "actual": {
+                "enum": [
+                  "committed",
+                  "notCommitted"
+                ]
+              },
+              "other": {
+                "enum": [
+                  "committed",
+                  "notCommitted"
+                ]
+              },
+              "knowledge": {
+                "type": "string"
+              },
+              "twin": {
+                "enum": [
+                  "replayed",
+                  "diverges"
+                ]
+              },
+              "detail": {
+                "type": "string"
+              },
+              "actualVerdicts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "invariant",
+                    "holds"
+                  ],
+                  "properties": {
+                    "invariant": {
+                      "type": "string"
+                    },
+                    "holds": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              },
+              "twinVerdicts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "invariant",
+                    "holds"
+                  ],
+                  "properties": {
+                    "invariant": {
+                      "type": "string"
+                    },
+                    "holds": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              },
+              "observations": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "identicalObservations": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "firstDifference": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "reading": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schemaVersion",
+    "modelVersion",
+    "tool",
+    "scenario",
+    "database",
+    "actors",
+    "bounds",
+    "exploration",
+    "invariants",
+    "evidence",
+    "runtime",
+    "assumptions",
+    "diagnostics"
+  ],
+  "description": "Phase 10: adds source-set dynamic partial-order reduction and connection losses under a live process. Everything of schema 4 is unchanged."
+}

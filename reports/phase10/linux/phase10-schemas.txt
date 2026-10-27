@@ -1,0 +1,23 @@
+model-check-report.v5 (builtin validator): live-autocommit-retry-lost-write.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v5 (builtin validator): live-autocommit-retry-write-not-reached.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v5 (builtin validator): live-blind-retry-commit-not-durable.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v5 (builtin validator): live-blind-retry-lost-commit-repeatable-read.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v5 (builtin validator): live-blind-retry-lost-commit-serializable.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v5 (builtin validator): live-blind-retry-lost-commit.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v5 (builtin validator): live-blind-retry-pool-of-one.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v5 (builtin validator): live-blind-retry-unhandled-error-event.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v5 (builtin validator): live-idempotent-retry-commit-not-durable.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v5 (builtin validator): live-idempotent-retry-lost-commit.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v5 (builtin validator): live-reconciled-retry-lost-commit-serializable.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v5 (builtin validator): live-reconciled-retry-lost-commit.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v5 (builtin validator): live-shared-process-lost-commit.json: 2 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v5 (builtin validator): pgjs-autocommit-retry-lost-write.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v5 (builtin validator): pgjs-autocommit-retry-write-not-reached.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v5 (builtin validator): pgjs-blind-retry-commit-not-durable.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v5 (builtin validator): pgjs-blind-retry-lost-commit.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v4 (builtin validator): pgjs-crash-blind-commit-in-flight.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v4 (builtin validator): pgjs-crash-idempotent-commit-not-reached.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v4 (builtin validator): pgjs-crash-reconciled-commit-in-flight.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v5 (builtin validator): pgjs-idempotent-retry-lost-commit.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v5 (builtin validator): pgjs-reconciled-retry-lost-commit.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+exit 0

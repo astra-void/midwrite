@@ -1,0 +1,95 @@
+1 completely independent actors (5) unreduced NO_COUNTEREXAMPLE_WITHIN_BOUNDS 12500 58
+1 completely independent actors (5) sleep sets NO_COUNTEREXAMPLE_WITHIN_BOUNDS 3124 31
+1 completely independent actors (5) classic DPOR NO_COUNTEREXAMPLE_WITHIN_BOUNDS 20 0
+1 completely independent actors (5) sdpor stateful NO_COUNTEREXAMPLE_WITHIN_BOUNDS 20 0
+1 completely independent actors (5) sdpor stateless+sleep NO_COUNTEREXAMPLE_WITHIN_BOUNDS 20 0
+1 completely independent actors (5) sdpor stateful+sleep NO_COUNTEREXAMPLE_WITHIN_BOUNDS 20 0
+2 mostly independent actors (4, one shared counter) unreduced NO_COUNTEREXAMPLE_WITHIN_BOUNDS 4320 20
+2 mostly independent actors (4, one shared counter) sleep sets NO_COUNTEREXAMPLE_WITHIN_BOUNDS 1416 13
+2 mostly independent actors (4, one shared counter) classic DPOR NO_COUNTEREXAMPLE_WITHIN_BOUNDS 14394505 94646
+2 mostly independent actors (4, one shared counter) sdpor stateful NO_COUNTEREXAMPLE_WITHIN_BOUNDS 1039 14
+2 mostly independent actors (4, one shared counter) sdpor stateless+sleep NO_COUNTEREXAMPLE_WITHIN_BOUNDS 160 1
+2 mostly independent actors (4, one shared counter) sdpor stateful+sleep NO_COUNTEREXAMPLE_WITHIN_BOUNDS 106 1
+3 highly conflicting transactions (4, lost update) unreduced COUNTEREXAMPLE_FOUND 22 0
+3 highly conflicting transactions (4, lost update) sleep sets COUNTEREXAMPLE_FOUND 21 0
+3 highly conflicting transactions (4, lost update) classic DPOR COUNTEREXAMPLE_FOUND 25 0
+3 highly conflicting transactions (4, lost update) sdpor stateful COUNTEREXAMPLE_FOUND 22 0
+3 highly conflicting transactions (4, lost update) sdpor stateless+sleep COUNTEREXAMPLE_FOUND 21 0
+3 highly conflicting transactions (4, lost update) sdpor stateful+sleep COUNTEREXAMPLE_FOUND 21 0
+3b highly conflicting, safe (4 atomic increments of one row) unreduced NO_COUNTEREXAMPLE_WITHIN_BOUNDS 6232 31
+3b highly conflicting, safe (4 atomic increments of one row) sleep sets NO_COUNTEREXAMPLE_WITHIN_BOUNDS 4638 26
+3b highly conflicting, safe (4 atomic increments of one row) classic DPOR NO_COUNTEREXAMPLE_WITHIN_BOUNDS 17667614 81117
+3b highly conflicting, safe (4 atomic increments of one row) sdpor stateful NO_COUNTEREXAMPLE_WITHIN_BOUNDS 5220 61
+3b highly conflicting, safe (4 atomic increments of one row) sdpor stateless+sleep NO_COUNTEREXAMPLE_WITHIN_BOUNDS 535327 2790
+3b highly conflicting, safe (4 atomic increments of one row) sdpor stateful+sleep NO_COUNTEREXAMPLE_WITHIN_BOUNDS 4843 55
+4 shared pool contention (4 tasks, pool of 2) unreduced NO_COUNTEREXAMPLE_WITHIN_BOUNDS 226 0
+4 shared pool contention (4 tasks, pool of 2) sleep sets NO_COUNTEREXAMPLE_WITHIN_BOUNDS 204 1
+4 shared pool contention (4 tasks, pool of 2) classic DPOR NO_COUNTEREXAMPLE_WITHIN_BOUNDS 3944 41
+4 shared pool contention (4 tasks, pool of 2) sdpor stateful NO_COUNTEREXAMPLE_WITHIN_BOUNDS 222 3
+4 shared pool contention (4 tasks, pool of 2) sdpor stateless+sleep NO_COUNTEREXAMPLE_WITHIN_BOUNDS 1216 13
+4 shared pool contention (4 tasks, pool of 2) sdpor stateful+sleep NO_COUNTEREXAMPLE_WITHIN_BOUNDS 210 3
+5 read/write skew (3 doctors, SERIALIZABLE) unreduced NO_COUNTEREXAMPLE_WITHIN_BOUNDS 522 3
+5 read/write skew (3 doctors, SERIALIZABLE) sleep sets NO_COUNTEREXAMPLE_WITHIN_BOUNDS 423 3
+5 read/write skew (3 doctors, SERIALIZABLE) classic DPOR NO_COUNTEREXAMPLE_WITHIN_BOUNDS 25586 157
+5 read/write skew (3 doctors, SERIALIZABLE) sdpor stateful NO_COUNTEREXAMPLE_WITHIN_BOUNDS 388 4
+5 read/write skew (3 doctors, SERIALIZABLE) sdpor stateless+sleep NO_COUNTEREXAMPLE_WITHIN_BOUNDS 3707 24
+5 read/write skew (3 doctors, SERIALIZABLE) sdpor stateful+sleep NO_COUNTEREXAMPLE_WITHIN_BOUNDS 357 4
+6 in-flight COMMIT + reconciliation (Phase 9) unreduced COUNTEREXAMPLE_FOUND 10 0
+6 in-flight COMMIT + reconciliation (Phase 9) sleep sets COUNTEREXAMPLE_FOUND 10 0
+6 in-flight COMMIT + reconciliation (Phase 9) classic DPOR COUNTEREXAMPLE_FOUND 10 0
+6 in-flight COMMIT + reconciliation (Phase 9) sdpor stateful COUNTEREXAMPLE_FOUND 10 0
+6 in-flight COMMIT + reconciliation (Phase 9) sdpor stateless+sleep COUNTEREXAMPLE_FOUND 10 0
+6 in-flight COMMIT + reconciliation (Phase 9) sdpor stateful+sleep COUNTEREXAMPLE_FOUND 10 0
+6b in-flight COMMIT, lookup + unique key, concurrent delivery (Phase 9) unreduced NO_COUNTEREXAMPLE_WITHIN_BOUNDS 612 2
+6b in-flight COMMIT, lookup + unique key, concurrent delivery (Phase 9) sleep sets NO_COUNTEREXAMPLE_WITHIN_BOUNDS 551 2
+6b in-flight COMMIT, lookup + unique key, concurrent delivery (Phase 9) classic DPOR NO_COUNTEREXAMPLE_WITHIN_BOUNDS 17008 62
+6b in-flight COMMIT, lookup + unique key, concurrent delivery (Phase 9) sdpor stateful NO_COUNTEREXAMPLE_WITHIN_BOUNDS 520 3
+6b in-flight COMMIT, lookup + unique key, concurrent delivery (Phase 9) sdpor stateless+sleep NO_COUNTEREXAMPLE_WITHIN_BOUNDS 3214 13
+6b in-flight COMMIT, lookup + unique key, concurrent delivery (Phase 9) sdpor stateful+sleep NO_COUNTEREXAMPLE_WITHIN_BOUNDS 505 4
+7 crash/retry (4 actors) unreduced NO_COUNTEREXAMPLE_WITHIN_BOUNDS 32600 142
+7 crash/retry (4 actors) sleep sets NO_COUNTEREXAMPLE_WITHIN_BOUNDS 24024 120
+7 crash/retry (4 actors) classic DPOR INCONCLUSIVE 27442959 120000
+7 crash/retry (4 actors) sdpor stateful NO_COUNTEREXAMPLE_WITHIN_BOUNDS 11960 126
+7 crash/retry (4 actors) sdpor stateless+sleep NO_COUNTEREXAMPLE_WITHIN_BOUNDS 405624 2693
+7 crash/retry (4 actors) sdpor stateful+sleep NO_COUNTEREXAMPLE_WITHIN_BOUNDS 10584 107
+8 multiple tasks per process (3 tasks + 1 actor) unreduced NO_COUNTEREXAMPLE_WITHIN_BOUNDS 36 0
+8 multiple tasks per process (3 tasks + 1 actor) sleep sets NO_COUNTEREXAMPLE_WITHIN_BOUNDS 28 0
+8 multiple tasks per process (3 tasks + 1 actor) classic DPOR NO_COUNTEREXAMPLE_WITHIN_BOUNDS 51 0
+8 multiple tasks per process (3 tasks + 1 actor) sdpor stateful NO_COUNTEREXAMPLE_WITHIN_BOUNDS 29 0
+8 multiple tasks per process (3 tasks + 1 actor) sdpor stateless+sleep NO_COUNTEREXAMPLE_WITHIN_BOUNDS 37 0
+8 multiple tasks per process (3 tasks + 1 actor) sdpor stateful+sleep NO_COUNTEREXAMPLE_WITHIN_BOUNDS 25 0
+9 queue redelivery (Phase 8 job) unreduced COUNTEREXAMPLE_FOUND 10 0
+9 queue redelivery (Phase 8 job) sleep sets COUNTEREXAMPLE_FOUND 10 0
+9 queue redelivery (Phase 8 job) classic DPOR COUNTEREXAMPLE_FOUND 10 0
+9 queue redelivery (Phase 8 job) sdpor stateful COUNTEREXAMPLE_FOUND 10 0
+9 queue redelivery (Phase 8 job) sdpor stateless+sleep COUNTEREXAMPLE_FOUND 10 0
+9 queue redelivery (Phase 8 job) sdpor stateful+sleep COUNTEREXAMPLE_FOUND 10 0
+10a team-app, 4 actors (extracted) unreduced NO_COUNTEREXAMPLE_WITHIN_BOUNDS 5344 64
+10a team-app, 4 actors (extracted) sleep sets NO_COUNTEREXAMPLE_WITHIN_BOUNDS 2291 44
+10a team-app, 4 actors (extracted) classic DPOR NO_COUNTEREXAMPLE_WITHIN_BOUNDS 3476614 37973
+10a team-app, 4 actors (extracted) sdpor stateful NO_COUNTEREXAMPLE_WITHIN_BOUNDS 1665 35
+10a team-app, 4 actors (extracted) sdpor stateless+sleep NO_COUNTEREXAMPLE_WITHIN_BOUNDS 696 10
+10a team-app, 4 actors (extracted) sdpor stateful+sleep NO_COUNTEREXAMPLE_WITHIN_BOUNDS 574 12
+10b team-app, 5 actors (extracted) unreduced NO_COUNTEREXAMPLE_WITHIN_BOUNDS 46160 599
+10b team-app, 5 actors (extracted) sleep sets NO_COUNTEREXAMPLE_WITHIN_BOUNDS 18042 398
+10b team-app, 5 actors (extracted) classic DPOR INCONCLUSIVE 10290928 120000
+10b team-app, 5 actors (extracted) sdpor stateful NO_COUNTEREXAMPLE_WITHIN_BOUNDS 13076 322
+10b team-app, 5 actors (extracted) sdpor stateless+sleep NO_COUNTEREXAMPLE_WITHIN_BOUNDS 6039 92
+10b team-app, 5 actors (extracted) sdpor stateful+sleep NO_COUNTEREXAMPLE_WITHIN_BOUNDS 3849 93
+scaling 3 sleep sets 294 4
+scaling 3 sdpor stateful+sleep 104 2
+scaling 3 sdpor stateless+sleep 107 1
+scaling 4 sleep sets 2291 44
+scaling 4 sdpor stateful+sleep 574 12
+scaling 4 sdpor stateless+sleep 696 10
+scaling 5 sleep sets 18042 411
+scaling 5 sdpor stateful+sleep 3849 92
+scaling 5 sdpor stateless+sleep 6039 91
+scaling 6 sleep sets 140975 3613
+scaling 6 sdpor stateful+sleep 27345 755
+scaling 6 sdpor stateless+sleep 64512 1021
+scaling 7 sleep sets 1084010 30811
+scaling 7 sdpor stateful+sleep 190830 6046
+scaling 7 sdpor stateless+sleep 807495 13482
+wrote reports/phase10/final/por-bench.md
+exit 0

@@ -1,5 +1,13 @@
 # Dynamic partial-order reduction
 
+> **Erratum (Phase 10).** The search described here handled only the *last*
+> race of each enabled transition. That loses terminal states when a
+> transition is enabled conditionally: a 9-transition scenario (two actors in
+> one process, one crash, no pool) lost one, found by the Phase 10
+> adversarial generator. Phase 10 handles every race (`explore_dpor`), keeps
+> this file as the record of Phase 9, and documents the fix in
+> `docs/phase10/POR-CORRECTNESS.md` and `docs/phase10/ENABLING-RELATIONS.md`.
+
 `crates/commitrift-model/src/explore.rs` (`explore_dpor`), selected with
 `--dpor` or `"options": {"dpor": true}`. Sleep-set reduction (Phase 6) stays the
 default.

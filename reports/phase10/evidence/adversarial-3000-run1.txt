@@ -1,0 +1,47 @@
+warning: unused import: `PROFILES`
+  --> crates/commitrift-model/tests/por_adversarial.rs:17:30
+   |
+17 |     COMBINATIONS, Generated, PROFILES, Profile, combinations_of, generate, observe,
+   |                              ^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `commitrift-model` (test "por_adversarial") generated 1 warning (run `cargo fix --test "por_adversarial" -p commitrift-model` to apply 1 suggestion)
+    Finished `release` profile [optimized] target(s) in 0.04s
+     Running tests/por_adversarial.rs (target/release/deps/por_adversarial-a67afbfd0f03fbe6)
+
+running 1 test
+test every_reduction_agrees_with_the_unreduced_search_on_adversarial_scenarios has been running for over 60 seconds
+3000 generated, 0 invalid, 0 unverified (unreduced search hit a limit), 3000 compared
+per profile (unverified, compared):
+  Rows: 0, 333
+  Pool: 0, 334
+  Tasks: 0, 334
+  App: 0, 334
+  Seq: 0, 333
+  Faults: 0, 333
+  Locks: 0, 333
+  Serializable: 0, 333
+  Mixed: 0, 333
+combinations covered (models):
+  pool release + waiting claimant: 330
+  pool + crash: 183
+  crash + pending COMMIT: 242
+  retry + unique constraint: 204
+  lock release + statement resumes: 502
+  ServerComplete + restart: 500
+  lost acknowledgment: 538
+  shared process + crash (no pool): 425
+  tasks of one actor: 125
+  app variable + shared process: 345
+  sequence inserts: 380
+  skip locked: 154
+  deadlock reachable: 148
+  serializable predicate reads: 236
+transitions: unreduced 7007888, classic 26826306, sdpor[cache+sleep] 4705159, sdpor[cache] 4649479, sdpor[stateless+sleep] 12236810, sleep 5134716
+
+test every_reduction_agrees_with_the_unreduced_search_on_adversarial_scenarios ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 958.81s
+
+exit 0

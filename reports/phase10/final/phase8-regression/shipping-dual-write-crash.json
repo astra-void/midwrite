@@ -1,0 +1,658 @@
+{
+  "kind": "commitrift.model-check",
+  "schemaVersion": 3,
+  "modelVersion": "1.0.0",
+  "tool": {
+    "name": "commitrift",
+    "version": "0.1.0"
+  },
+  "scenario": {
+    "name": "shipping-dual-write-crash",
+    "description": "FIRST-PARTY APPLICATION: the shipped status commits, then the process crashes before the event is published. No recovery mechanism exists (none is declared, none is invented): the event is lost.",
+    "scenarioVersion": 1,
+    "file": "/Users/returnf4lse/Desktop/Workspace/rust/crash-proof/fixtures/phase8/scenarios/shipping-dual-write-crash.json"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "orders",
+        "columns": [
+          "id",
+          "customerEmail",
+          "amount",
+          "status"
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "unique": [],
+        "checks": [],
+        "initialRows": [
+          {
+            "amount": 500,
+            "customerEmail": "c@example.com",
+            "id": 1,
+            "status": "paid"
+          }
+        ]
+      },
+      {
+        "name": "outbox",
+        "columns": [
+          "id",
+          "topic",
+          "orderId",
+          "published"
+        ],
+        "primaryKey": [
+          "id"
+        ],
+        "unique": [],
+        "checks": [],
+        "initialRows": []
+      }
+    ]
+  },
+  "actors": [
+    {
+      "name": "Shipper",
+      "function": "src/app/shipping.ts#shipOrderDualWrite",
+      "file": "src/app/shipping.ts",
+      "arguments": [
+        [
+          "input",
+          {
+            "orderId": 1
+          }
+        ]
+      ],
+      "process": "Shipper",
+      "origin": "extracted",
+      "tasks": 1,
+      "operations": 4,
+      "sourceRefs": [
+        {
+          "origin": "extracted",
+          "file": "src/app/shipping.ts",
+          "line": 14,
+          "column": 9,
+          "function": "shipOrderDualWrite",
+          "effectId": 0,
+          "diagnostics": [
+            "CP1001@6d4f40b79e09bb0a"
+          ],
+          "text": "db.update(orders).set({ status: \"shipped\" }).where(eq(orders.id, input.orderId))"
+        },
+        {
+          "origin": "extracted",
+          "file": "src/app/shipping.ts",
+          "line": 15,
+          "column": 9,
+          "function": "shipOrderDualWrite",
+          "effectId": 1,
+          "diagnostics": [
+            "CP1001@6d4f40b79e09bb0a"
+          ],
+          "text": "publishEvent({ topic: \"order.shipped\", orderId: input.orderId })"
+        }
+      ]
+    }
+  ],
+  "bounds": {
+    "declared": {
+      "maxActors": 4,
+      "maxSteps": 30,
+      "maxStates": 200000,
+      "maxCrashes": 1,
+      "maxRetries": 0,
+      "maxContextSwitches": null,
+      "maxTransitions": null,
+      "maxWallMs": null,
+      "maxMemoryBytes": null
+    },
+    "partialOrderReduction": true,
+    "strategy": "dfs"
+  },
+  "exploration": {
+    "verdict": "COUNTEREXAMPLE_FOUND",
+    "complete": true,
+    "truncation": {
+      "maxStates": false,
+      "maxTransitions": false,
+      "maxWallTime": false,
+      "maxMemory": false,
+      "maxSteps": false,
+      "maxContextSwitches": false
+    },
+    "metrics": {
+      "states": 4,
+      "transitions": 3,
+      "terminalStates": 2,
+      "duplicateStateHits": 0,
+      "sleepPrunedTransitions": 0,
+      "contextPrunedTransitions": 0,
+      "maxDepth": 2,
+      "schedulesInExploredGraph": 2,
+      "visitedBytes": 5864
+    },
+    "unsupported": [],
+    "stuckStates": 0
+  },
+  "invariants": [
+    {
+      "name": "shipped-event-not-lost",
+      "when": "final",
+      "formula": "count(orders[status=\"shipped\"]) <= (externals(order-events) + count(outbox[published=false]))",
+      "description": "every shipped order's event was published (or is pending in the outbox, which this code does not use)",
+      "status": "violated"
+    }
+  ],
+  "counterexample": {
+    "invariant": "shipped-event-not-lost",
+    "formula": "count(orders[status=\"shipped\"]) <= (externals(order-events) + count(outbox[published=false]))",
+    "when": "final",
+    "initialTables": {
+      "orders": [
+        {
+          "amount": 500,
+          "customerEmail": "c@example.com",
+          "id": 1,
+          "status": "paid"
+        }
+      ],
+      "outbox": []
+    },
+    "steps": [
+      {
+        "index": 1,
+        "actor": "Shipper",
+        "kind": "step",
+        "events": [
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "write",
+            "text": "UPDATE orders SET status = \"shipped\" WHERE (@id = 1) → 1 row",
+            "result": 1,
+            "src": {
+              "origin": "extracted",
+              "file": "src/app/shipping.ts",
+              "line": 14,
+              "column": 9,
+              "function": "shipOrderDualWrite",
+              "effectId": 0,
+              "diagnostics": [
+                "CP1001@6d4f40b79e09bb0a"
+              ],
+              "text": "db.update(orders).set({ status: \"shipped\" }).where(eq(orders.id, input.orderId))"
+            }
+          }
+        ]
+      },
+      {
+        "index": 2,
+        "actor": "process Shipper",
+        "kind": "crash",
+        "events": [
+          {
+            "actor": 0,
+            "thread": 0,
+            "kind": "crash",
+            "text": "PROCESS CRASH (Shipper)"
+          }
+        ]
+      }
+    ],
+    "finalState": {
+      "tables": {
+        "orders": [
+          {
+            "amount": 500,
+            "customerEmail": "c@example.com",
+            "id": 1,
+            "status": "shipped"
+          }
+        ],
+        "outbox": []
+      },
+      "actors": [
+        [
+          "Shipper",
+          "crashed"
+        ]
+      ],
+      "externalEffects": [],
+      "terms": [
+        {
+          "term": "count(orders[status=\"shipped\"])",
+          "value": 1
+        },
+        {
+          "term": "(externals(order-events) + count(outbox[published=false]))",
+          "value": 0
+        }
+      ],
+      "quiescent": true
+    },
+    "contextSwitches": 0,
+    "minimized": true,
+    "originalLength": 2
+  },
+  "evidence": {
+    "level": "original-code-crash-reproduced",
+    "summary": "the actors' original application code ran under this crash/retry schedule against PostgreSQL in 3 of 3 run(s): workers were killed with SIGKILL at the planned checkpoints, PostgreSQL ended their sessions, retries ran as new processes, every statement, effect, result and outcome matched the model, and the invariant is violated on the observed state"
+  },
+  "runtime": {
+    "performed": false,
+    "status": "not-requested",
+    "observations": [],
+    "sqlstates": [],
+    "note": "no runtime validation was requested (--validate-postgres)"
+  },
+  "assumptions": [
+    "database default isolation: read-committed (PostgreSQL semantics, see docs/phase6/POSTGRES-ISOLATION.md)",
+    "a database statement is atomic unless it must wait for another transaction; waiting statements resume with their original snapshot",
+    "autocommit (root `db`) statements are single-statement transactions at the default isolation level",
+    "local computation is not a scheduling point; it is folded into the preceding transition",
+    "rows are read in primary-key order for LIMIT 1 (the declared programs and generated SQL both use ORDER BY the primary key)",
+    "tasks of different actors never share a transaction, connection or event loop; actors listed with the same process share in-process variables and crash together",
+    "a process crash rolls back open transactions and loses local state; committed data and performed external effects remain",
+    "actor Shipper: declared invocation (scenario, not source): awaited"
+  ],
+  "diagnostics": [
+    {
+      "code": "CP7001",
+      "severity": "warning",
+      "message": "invariant `shipped-event-not-lost` can be violated by a bounded schedule of 2 transitions (0 context switches); evidence: original-code-crash-reproduced"
+    }
+  ],
+  "timing": {
+    "wallMs": 0,
+    "firstViolationMs": 0
+  },
+  "extraction": [
+    {
+      "actor": "Shipper",
+      "entry": {
+        "selector": "src/app/shipping.ts#shipOrderDualWrite",
+        "anchor": "src/app/shipping.ts@13:8",
+        "file": "src/app/shipping.ts",
+        "endLine": 17,
+        "staticName": "shipOrderDualWrite",
+        "contract": {
+          "invocation": "awaited"
+        },
+        "contractStatus": "not-needed"
+      },
+      "sourceCoverage": {
+        "representedOperations": 2,
+        "assumedOperations": 1,
+        "unsupportedOperations": 0
+      },
+      "sourceFacts": [
+        "entry `src/app/shipping.ts#shipOrderDualWrite` is the function at src/app/shipping.ts@13:8 (`shipOrderDualWrite` in `commitrift check`)"
+      ],
+      "scenarioAssumptions": [
+        "invocation: awaited"
+      ]
+    }
+  ],
+  "sourceVerification": {
+    "performed": true,
+    "status": "reproduced",
+    "harness": "shop-app",
+    "runs": [
+      {
+        "run": 1,
+        "coordination": "followed",
+        "statementsAgree": true,
+        "tablesAgree": true,
+        "outcomesAgree": true,
+        "invariant": "violated",
+        "reproduced": true,
+        "elapsedMs": 1304,
+        "recoveryAgrees": true
+      },
+      {
+        "run": 2,
+        "coordination": "followed",
+        "statementsAgree": true,
+        "tablesAgree": true,
+        "outcomesAgree": true,
+        "invariant": "violated",
+        "reproduced": true,
+        "elapsedMs": 1259,
+        "recoveryAgrees": true
+      },
+      {
+        "run": 3,
+        "coordination": "followed",
+        "statementsAgree": true,
+        "tablesAgree": true,
+        "outcomesAgree": true,
+        "invariant": "violated",
+        "reproduced": true,
+        "elapsedMs": 1241,
+        "recoveryAgrees": true
+      }
+    ],
+    "statements": [
+      {
+        "transition": 1,
+        "actor": "Shipper",
+        "model": "UPDATE orders SET status = \"shipped\" WHERE (@id = 1)",
+        "modelSource": "src/app/shipping.ts:14:9",
+        "predicted": "1 row(s)",
+        "sql": "update \"orders\" set \"status\" = $1 where \"orders\".\"id\" = $2",
+        "runtimeSource": "src/app/shipping.ts:14:27",
+        "observed": "1 row(s)",
+        "status": "agree"
+      }
+    ],
+    "modelTables": {
+      "orders": [
+        {
+          "amount": 500,
+          "customerEmail": "c@example.com",
+          "id": 1,
+          "status": "shipped"
+        }
+      ],
+      "outbox": []
+    },
+    "runtimeTables": {
+      "orders": [
+        {
+          "amount": 500,
+          "customerEmail": "c@example.com",
+          "id": 1,
+          "status": "shipped"
+        }
+      ],
+      "outbox": []
+    },
+    "actors": [
+      [
+        "Shipper",
+        "crashed",
+        "killed"
+      ]
+    ],
+    "assumptions": [
+      "outbox.id: generated values are compared exactly because both the model and the disposable database start the sequence at the same value",
+      "Only the columns the scenario models are compared; other columns of the application's tables keep their database defaults."
+    ],
+    "postgresVersion": "postgres (PostgreSQL) 17.11 (Homebrew)",
+    "isolation": "sandbox-exec: IP networking denied; Unix sockets and file writes limited to the replay directory",
+    "note": "Each actor's ORIGINAL application code ran in its own worker process (an authorized harness) against a private, disposable PostgreSQL database; every SQL statement the application sent was held until the coordinator released it in the order of the model's counterexample, and PostgreSQL's answers (rows, row counts, SQLSTATEs, lock waits reported by pg_stat_activity) were recorded. The invariant was evaluated on the rows the run left in the database. This is evidence about this application, this input and this schedule on this PostgreSQL; it is not a claim about production traffic.",
+    "evidence": "ORIGINAL_CODE_CRASH_REPRODUCED",
+    "recovery": {
+      "crashes": [
+        {
+          "transition": 2,
+          "actor": "Shipper",
+          "attempt": 1,
+          "boundary": "before EXTERNAL order-events (announced, never sent)",
+          "checkpoint": "after the previous operation was acknowledged, with the next one (`EFFECT order-events`) announced and held: never sent",
+          "neverSent": "EFFECT order-events",
+          "pid": 54503,
+          "killedBySignal": true,
+          "sessionsEnded": true,
+          "sessionsEndedMs": 14,
+          "modelTables": {
+            "orders": [
+              {
+                "amount": 500,
+                "customerEmail": "c@example.com",
+                "id": 1,
+                "status": "shipped"
+              }
+            ],
+            "outbox": []
+          },
+          "runtimeTables": {
+            "orders": [
+              {
+                "amount": 500,
+                "customerEmail": "c@example.com",
+                "id": 1,
+                "status": "shipped"
+              }
+            ],
+            "outbox": []
+          },
+          "status": "agree"
+        }
+      ],
+      "effects": {
+        "model": [],
+        "runtime": [],
+        "agree": true
+      },
+      "attempts": [
+        [
+          "Shipper",
+          1,
+          1
+        ]
+      ],
+      "serverSettings": [
+        "client_connection_check_interval=50ms"
+      ],
+      "quiescence": "every execution ended; no recovery mechanism is declared"
+    },
+    "schemaFidelity": {
+      "status": "agree",
+      "tables": [
+        {
+          "table": "orders",
+          "items": [
+            {
+              "fact": "column id type integer",
+              "status": "agree"
+            },
+            {
+              "fact": "column id NOT NULL",
+              "status": "agree"
+            },
+            {
+              "fact": "column id default",
+              "status": "agree"
+            },
+            {
+              "fact": "column customer_email type text",
+              "status": "agree"
+            },
+            {
+              "fact": "column customer_email NOT NULL",
+              "status": "agree"
+            },
+            {
+              "fact": "column customer_email default",
+              "status": "agree"
+            },
+            {
+              "fact": "column amount type integer",
+              "status": "agree"
+            },
+            {
+              "fact": "column amount NOT NULL",
+              "status": "agree"
+            },
+            {
+              "fact": "column amount default",
+              "status": "agree"
+            },
+            {
+              "fact": "column status type text",
+              "status": "agree"
+            },
+            {
+              "fact": "column status NOT NULL",
+              "status": "agree"
+            },
+            {
+              "fact": "column status default",
+              "status": "agree"
+            },
+            {
+              "fact": "column updated_at type timestamp without time zone",
+              "status": "agree"
+            },
+            {
+              "fact": "column updated_at NOT NULL",
+              "status": "agree"
+            },
+            {
+              "fact": "column updated_at default",
+              "status": "agree"
+            },
+            {
+              "fact": "primary key (id)",
+              "status": "agree"
+            }
+          ]
+        },
+        {
+          "table": "outbox",
+          "items": [
+            {
+              "fact": "column id type integer",
+              "status": "agree"
+            },
+            {
+              "fact": "column id NOT NULL",
+              "status": "agree"
+            },
+            {
+              "fact": "column id default",
+              "status": "agree"
+            },
+            {
+              "fact": "column topic type text",
+              "status": "agree"
+            },
+            {
+              "fact": "column topic NOT NULL",
+              "status": "agree"
+            },
+            {
+              "fact": "column topic default",
+              "status": "agree"
+            },
+            {
+              "fact": "column order_id type integer",
+              "status": "agree"
+            },
+            {
+              "fact": "column order_id NOT NULL",
+              "status": "agree"
+            },
+            {
+              "fact": "column order_id default",
+              "status": "agree"
+            },
+            {
+              "fact": "column published type boolean",
+              "status": "agree"
+            },
+            {
+              "fact": "column published NOT NULL",
+              "status": "agree"
+            },
+            {
+              "fact": "column published default",
+              "status": "agree"
+            },
+            {
+              "fact": "primary key (id)",
+              "status": "agree"
+            }
+          ]
+        }
+      ],
+      "postgresVersion": "postgres (PostgreSQL) 17.11 (Homebrew)",
+      "note": "Schema facts extracted statically from the Drizzle source, compared with the catalog of a disposable PostgreSQL database initialized by the application's migrations. A drift means the model (built from source) and the database the application runs on disagree; nothing was changed to make them agree."
+    }
+  },
+  "schemaFacts": [
+    {
+      "table": "orders",
+      "binding": "orders",
+      "facts": [
+        {
+          "fact": "table `orders` from binding `orders`",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:3"
+        },
+        {
+          "fact": "column `id` → `id` int NOT NULL",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:4"
+        },
+        {
+          "fact": "column `customerEmail` → `customer_email` text NOT NULL",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:5"
+        },
+        {
+          "fact": "column `amount` → `amount` int NOT NULL",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:6"
+        },
+        {
+          "fact": "column `status` → `status` text NOT NULL DEFAULT \"unpaid\"",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:7"
+        },
+        {
+          "fact": "column `updated_at`: not selected by the scenario",
+          "origin": "not-modeled",
+          "source": "src/lib/db/schema.ts:8"
+        },
+        {
+          "fact": "primary key (id)",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:3"
+        }
+      ]
+    },
+    {
+      "table": "outbox",
+      "binding": "outbox",
+      "facts": [
+        {
+          "fact": "table `outbox` from binding `outbox`",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:32"
+        },
+        {
+          "fact": "column `id` → `id` int NOT NULL generated (sequence)",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:33"
+        },
+        {
+          "fact": "column `topic` → `topic` text NOT NULL",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:34"
+        },
+        {
+          "fact": "column `orderId` → `order_id` int NOT NULL",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:35"
+        },
+        {
+          "fact": "column `published` → `published` bool NOT NULL DEFAULT false",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:36"
+        },
+        {
+          "fact": "primary key (id)",
+          "origin": "extracted-from-source",
+          "source": "src/lib/db/schema.ts:32"
+        }
+      ]
+    }
+  ]
+}

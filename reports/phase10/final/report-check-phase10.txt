@@ -1,0 +1,28 @@
+ok   team-4-stateful-sleep.json (schema 5): valid; 10/10 corruptions rejected
+ok   team-4-stateful.json (schema 5): valid; 10/10 corruptions rejected
+ok   team-4-stateless-sleep.json (schema 5): valid; 10/10 corruptions rejected
+ok   live-blind-retry-lost-commit-sdpor.json (schema 5): valid; 15/15 corruptions rejected
+ok   live-autocommit-retry-lost-write.json (schema 5): valid; 26/26 corruptions rejected
+ok   live-autocommit-retry-write-not-reached.json (schema 5): valid; 21/21 corruptions rejected
+ok   live-blind-retry-commit-not-durable.json (schema 5): valid; 21/21 corruptions rejected
+ok   live-blind-retry-lost-commit-repeatable-read.json (schema 5): valid; 26/26 corruptions rejected
+ok   live-blind-retry-lost-commit-serializable.json (schema 5): valid; 26/26 corruptions rejected
+ok   live-blind-retry-lost-commit.json (schema 5): valid; 26/26 corruptions rejected
+ok   live-blind-retry-pool-of-one.json (schema 5): valid; 26/26 corruptions rejected
+ok   live-blind-retry-unhandled-error-event.json (schema 5): valid; 20/20 corruptions rejected
+ok   live-idempotent-retry-commit-not-durable.json (schema 5): valid; 21/21 corruptions rejected
+ok   live-idempotent-retry-lost-commit.json (schema 5): valid; 21/21 corruptions rejected
+ok   live-reconciled-retry-lost-commit-serializable.json (schema 5): valid; 26/26 corruptions rejected
+ok   live-reconciled-retry-lost-commit.json (schema 5): valid; 26/26 corruptions rejected
+ok   live-shared-process-lost-commit.json (schema 5): valid; 26/26 corruptions rejected
+ok   pgjs-autocommit-retry-lost-write.json (schema 5): valid; 26/26 corruptions rejected
+ok   pgjs-autocommit-retry-write-not-reached.json (schema 5): valid; 21/21 corruptions rejected
+ok   pgjs-blind-retry-commit-not-durable.json (schema 5): valid; 21/21 corruptions rejected
+ok   pgjs-blind-retry-lost-commit.json (schema 5): valid; 26/26 corruptions rejected
+ok   pgjs-crash-blind-commit-in-flight.json (schema 4): valid; 23/23 corruptions rejected
+ok   pgjs-crash-idempotent-commit-not-reached.json (schema 4): valid; 18/18 corruptions rejected
+ok   pgjs-crash-reconciled-commit-in-flight.json (schema 4): valid; 23/23 corruptions rejected
+ok   pgjs-idempotent-retry-lost-commit.json (schema 5): valid; 21/21 corruptions rejected
+ok   pgjs-reconciled-retry-lost-commit.json (schema 5): valid; 26/26 corruptions rejected
+562 corruptions applied
+exit 0

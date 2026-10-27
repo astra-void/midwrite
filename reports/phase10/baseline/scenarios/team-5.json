@@ -1,0 +1,356 @@
+{
+ "schemaVersion": 1,
+ "name": "team-app-invite-double-submit",
+ "description": "FIRST-PARTY APPLICATION (fixtures/phase7/team-app, structurally like saas-starter's inviteTeamMember): the team owner submits the invite form twice concurrently (double click / client retry). The callback passed to validatedActionWithUser is extracted as written; the wrapper's authentication and validation are declared preconditions.",
+ "extraction": {
+  "root": "/Users/returnf4lse/Desktop/Workspace/rust/crash-proof/fixtures/phase7/team-app",
+  "tables": {
+   "teamMembers": "team_members",
+   "activityLogs": "activity_logs"
+  }
+ },
+ "database": {
+  "isolation": "read-committed",
+  "tables": [
+   {
+    "name": "users",
+    "columns": [
+     {
+      "name": "id",
+      "type": "int",
+      "notNull": true,
+      "default": {
+       "sequence": {}
+      }
+     },
+     {
+      "name": "email",
+      "type": "text",
+      "notNull": true
+     },
+     {
+      "name": "passwordHash",
+      "type": "text",
+      "notNull": true,
+      "sqlName": "password_hash"
+     }
+    ],
+    "primaryKey": [
+     "id"
+    ],
+    "unique": [
+     [
+      "email"
+     ]
+    ]
+   },
+   {
+    "name": "teams",
+    "columns": [
+     {
+      "name": "id",
+      "type": "int",
+      "notNull": true,
+      "default": {
+       "sequence": {}
+      }
+     },
+     {
+      "name": "name",
+      "type": "text",
+      "notNull": true
+     }
+    ],
+    "primaryKey": [
+     "id"
+    ]
+   },
+   {
+    "name": "team_members",
+    "columns": [
+     {
+      "name": "id",
+      "type": "int",
+      "notNull": true,
+      "default": {
+       "sequence": {}
+      }
+     },
+     {
+      "name": "userId",
+      "type": "int",
+      "notNull": true,
+      "sqlName": "user_id"
+     },
+     {
+      "name": "teamId",
+      "type": "int",
+      "notNull": true,
+      "sqlName": "team_id"
+     },
+     {
+      "name": "role",
+      "type": "text",
+      "notNull": true
+     }
+    ],
+    "primaryKey": [
+     "id"
+    ]
+   },
+   {
+    "name": "invitations",
+    "columns": [
+     {
+      "name": "id",
+      "type": "int",
+      "notNull": true,
+      "default": {
+       "sequence": {}
+      }
+     },
+     {
+      "name": "teamId",
+      "type": "int",
+      "notNull": true,
+      "sqlName": "team_id"
+     },
+     {
+      "name": "email",
+      "type": "text",
+      "notNull": true
+     },
+     {
+      "name": "role",
+      "type": "text",
+      "notNull": true
+     },
+     {
+      "name": "invitedBy",
+      "type": "int",
+      "notNull": true,
+      "sqlName": "invited_by"
+     },
+     {
+      "name": "status",
+      "type": "text",
+      "notNull": true,
+      "default": {
+       "value": "pending"
+      }
+     }
+    ],
+    "primaryKey": [
+     "id"
+    ],
+    "unique": [
+     [
+      "teamId",
+      "email"
+     ]
+    ]
+   },
+   {
+    "name": "activity_logs",
+    "columns": [
+     {
+      "name": "id",
+      "type": "int",
+      "notNull": true,
+      "default": {
+       "sequence": {}
+      }
+     },
+     {
+      "name": "teamId",
+      "type": "int",
+      "notNull": true,
+      "sqlName": "team_id"
+     },
+     {
+      "name": "userId",
+      "type": "int",
+      "sqlName": "user_id"
+     },
+     {
+      "name": "action",
+      "type": "text",
+      "notNull": true
+     },
+     {
+      "name": "ipAddress",
+      "type": "text",
+      "sqlName": "ip_address"
+     }
+    ],
+    "primaryKey": [
+     "id"
+    ]
+   }
+  ],
+  "initialState": {
+   "users": [
+    {
+     "id": 1,
+     "email": "owner@example.com",
+     "passwordHash": "x"
+    }
+   ],
+   "teams": [
+    {
+     "id": 1,
+     "name": "Acme"
+    }
+   ],
+   "team_members": [
+    {
+     "id": 1,
+     "userId": 1,
+     "teamId": 1,
+     "role": "owner"
+    }
+   ],
+   "invitations": [],
+   "activity_logs": []
+  }
+ },
+ "actors": [
+  {
+   "name": "Submit1",
+   "entry": {
+    "selector": "src/app/actions.ts#inviteTeamMember/arg[1]",
+    "invocation": "awaited",
+    "preconditions": [
+     "authenticated-user: the session belongs to user 1 (owner@example.com)",
+     "validation-succeeded: email and role pass inviteTeamMemberSchema"
+    ]
+   },
+   "arguments": [
+    {
+     "email": "new@example.com",
+     "role": "member"
+    },
+    null,
+    {
+     "id": 1,
+     "email": "owner@example.com"
+    }
+   ]
+  },
+  {
+   "name": "Submit2",
+   "entry": {
+    "selector": "src/app/actions.ts#inviteTeamMember/arg[1]",
+    "invocation": "awaited",
+    "preconditions": [
+     "authenticated-user: the session belongs to user 1 (owner@example.com)",
+     "validation-succeeded: email and role pass inviteTeamMemberSchema"
+    ]
+   },
+   "arguments": [
+    {
+     "email": "new@example.com",
+     "role": "member"
+    },
+    null,
+    {
+     "id": 1,
+     "email": "owner@example.com"
+    }
+   ]
+  },
+  {
+   "name": "Submit3",
+   "entry": {
+    "selector": "src/app/actions.ts#inviteTeamMember/arg[1]",
+    "invocation": "awaited",
+    "preconditions": [
+     "authenticated-user: the session belongs to user 1 (owner@example.com)",
+     "validation-succeeded: email and role pass inviteTeamMemberSchema"
+    ]
+   },
+   "arguments": [
+    {
+     "email": "new@example.com",
+     "role": "member"
+    },
+    null,
+    {
+     "id": 1,
+     "email": "owner@example.com"
+    }
+   ]
+  },
+  {
+   "name": "Submit4",
+   "entry": {
+    "selector": "src/app/actions.ts#inviteTeamMember/arg[1]",
+    "invocation": "awaited",
+    "preconditions": [
+     "authenticated-user: the session belongs to user 1 (owner@example.com)",
+     "validation-succeeded: email and role pass inviteTeamMemberSchema"
+    ]
+   },
+   "arguments": [
+    {
+     "email": "new@example.com",
+     "role": "member"
+    },
+    null,
+    {
+     "id": 1,
+     "email": "owner@example.com"
+    }
+   ]
+  },
+  {
+   "name": "Submit5",
+   "entry": {
+    "selector": "src/app/actions.ts#inviteTeamMember/arg[1]",
+    "invocation": "awaited",
+    "preconditions": [
+     "authenticated-user: the session belongs to user 1 (owner@example.com)",
+     "validation-succeeded: email and role pass inviteTeamMemberSchema"
+    ]
+   },
+   "arguments": [
+    {
+     "email": "new@example.com",
+     "role": "member"
+    },
+    null,
+    {
+     "id": 1,
+     "email": "owner@example.com"
+    }
+   ]
+  }
+ ],
+ "bounds": {
+  "maxSteps": 250,
+  "maxActors": 8,
+  "maxStates": 50000000
+ },
+ "invariants": [
+  {
+   "name": "one-pending-invitation-per-email",
+   "when": "final",
+   "description": "a team has at most one pending invitation per email (what the duplicate check intends)",
+   "assert": {
+    "le": [
+     {
+      "count": {
+       "table": "invitations",
+       "where": {
+        "teamId": 1,
+        "email": "new@example.com",
+        "status": "pending"
+       }
+      }
+     },
+     1
+    ]
+   }
+  }
+ ]
+}
