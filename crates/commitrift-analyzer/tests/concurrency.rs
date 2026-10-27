@@ -45,6 +45,7 @@ fn tables() -> Vec<TableBinding> {
         identifier: name.to_owned(),
         table: name.to_owned(),
         columns: columns.iter().map(|c| (*c).to_owned()).collect(),
+        source: None,
     };
     vec![
         table("products", &["id", "stock"]),
@@ -180,7 +181,7 @@ fn render_op(op: &Op) -> String {
         Op::Try { handler, .. } => format!("try -> {handler}"),
         Op::EndTry => "end try".into(),
         Op::Rethrow { local } => format!("rethrow {local}"),
-        Op::Unknown { detail } => format!("UNKNOWN {detail}"),
+        Op::Unknown { detail, .. } => format!("UNKNOWN {detail}"),
     }
 }
 
@@ -242,7 +243,7 @@ fn unknowns(extracted: &Extracted) -> Vec<(u32, String)> {
         .iter()
         .flatten()
         .filter_map(|s| match &s.op {
-            Op::Unknown { detail } => Some((s.src.line, detail.clone())),
+            Op::Unknown { detail, .. } => Some((s.src.line, detail.clone())),
             _ => None,
         })
         .collect()

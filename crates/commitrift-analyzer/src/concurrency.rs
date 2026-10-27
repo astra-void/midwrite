@@ -14,13 +14,14 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::{
-    Argument, ArrayExpressionElement, ArrowFunctionBody, BindingPattern, ChainElement, Declaration,
-    ExportDefaultDeclarationKind, Expression, FormalParameters, Function, FunctionBody,
-    ImportDeclarationSpecifier, ModuleExportName, ObjectPropertyKind, Program, Statement,
-    VariableDeclarator,
+    Argument, ArrayExpressionElement, ArrowFunctionBody, BindingPattern, ChainElement,
+    ClassElement, Declaration, ExportDefaultDeclarationKind, Expression, FormalParameters,
+    Function, FunctionBody, ImportDeclarationSpecifier, MethodDefinitionKind, ModuleExportName,
+    ObjectPropertyKind, Program, Statement, VariableDeclarator,
 };
 use oxc_parser::Parser;
 use oxc_span::{GetSpan, SourceType, Span};
@@ -40,8 +41,9 @@ use commitrift_model::provider::{
 };
 use commitrift_model::value::{BinOp, Expr, Value};
 
+use crate::context::{ProjectContext, Resolved};
 use crate::identity;
-use crate::resolve::{Resolution, Resolver, absolute};
+use crate::resolve::{Resolution, absolute};
 use crate::wrapper;
 
 /// Lowers functions of a TypeScript project to the concurrency IR.
@@ -49,6 +51,9 @@ use crate::wrapper;
 pub struct TsActorProvider {
     root: PathBuf,
     receivers: Vec<String>,
+    /// Phase 12: one [`ProjectContext`] per project root, shared by every
+    /// extraction made through this provider (and its clones).
+    contexts: Arc<Mutex<HashMap<PathBuf, Arc<ProjectContext>>>>,
 }
 
 impl TsActorProvider {
@@ -75,7 +80,22 @@ impl TsActorProvider {
                 receivers = names;
             }
         }
-        Self { root, receivers }
+        Self {
+            root,
+            receivers,
+            contexts: Arc::default(),
+        }
+    }
+
+    /// The shared analysis context of the project at `root`, built on first
+    /// use.
+    pub fn context(&self, root: &Path) -> Arc<ProjectContext> {
+        let key = absolute(root);
+        let mut contexts = self.contexts.lock().expect("contexts lock");
+        contexts
+            .entry(key.clone())
+            .or_insert_with(|| Arc::new(ProjectContext::new(&key)))
+            .clone()
     }
 
     /// Override the identifiers treated as the root database handle.
@@ -86,6 +106,20 @@ impl TsActorProvider {
 }
 
 impl ActorProvider for TsActorProvider {
+    fn resolve_reference(&self, root: &Path, file: &str, local: &str) -> Option<(String, String)> {
+        let root = if root.as_os_str().is_empty() {
+            self.root.as_path()
+        } else {
+            root
+        };
+        let ctx = self.context(root);
+        let index = ctx.index_of(&absolute(&root.join(file)))?;
+        match ctx.resolve_local(index, local).ok()? {
+            Resolved::Binding { file, local } => Some((ctx.rel(&ctx.files[file]), local)),
+            Resolved::Namespace { .. } => None,
+        }
+    }
+
     fn extract_schema(
         &self,
         root: &Path,
@@ -96,7 +130,47 @@ impl ActorProvider for TsActorProvider {
         } else {
             root
         };
-        crate::schema::extract_schema(root, file)
+        let mut extracted = crate::schema::extract_schema(root, file)?;
+        // Phase 12: `$defaultFn(helper)` with `helper` imported from a
+        // project module: classify the helper's own definition.
+        let ctx = self.context(root);
+        let here = absolute(&root.join(file));
+        for table in &mut extracted.tables {
+            for column in &mut table.columns {
+                let Some(generation) = &mut column.generation else {
+                    continue;
+                };
+                let Some((specifier, name)) = generation.callback_import.clone() else {
+                    continue;
+                };
+                let resolved = ctx.follow(&here, &specifier).and_then(|target| {
+                    match ctx.resolve_export(target, &name)? {
+                        Resolved::Binding { file, local } => Ok((file, local)),
+                        Resolved::Namespace { .. } => Err(format!("`{name}` is a namespace")),
+                    }
+                });
+                let outcome = resolved.and_then(|(target, local)| {
+                    let abs = ctx.files[target].clone();
+                    let text = ctx.source(&abs)?;
+                    let allocator = Allocator::default();
+                    let program = load(&allocator, &abs, &text)?;
+                    crate::generators::exported_callback(&program, &local)
+                        .map(|g| (g, format!("{}#{local}", ctx.rel(&abs))))
+                });
+                match outcome {
+                    Ok((g, at)) => {
+                        generation.class =
+                            commitrift_model::schema_facts::GeneratorClass::ApplicationGenerated;
+                        generation.generator = Some(g.to_owned());
+                        generation.detail = format!("{} (the helper `{at}`)", generation.detail);
+                    }
+                    Err(why) => {
+                        generation.detail = format!("{}: {why}", generation.detail);
+                    }
+                }
+            }
+        }
+        Ok(extracted)
     }
 
     fn extract(&self, request: &ExtractRequest) -> Result<Extracted, String> {
@@ -114,8 +188,17 @@ impl ActorProvider for TsActorProvider {
             .as_ref()
             .map_or_else(|| request.file.clone(), |s| s.module.clone());
         let main_abs = absolute(&root.join(&file));
-        let source =
-            std::fs::read_to_string(&main_abs).map_err(|e| format!("cannot read `{file}`: {e}"))?;
+        let mut ctx = self.context(&root);
+        if ctx.index_of(&main_abs).is_none() {
+            // A file outside the discovered modules (excluded by the
+            // project's configuration): a private context that includes it.
+            let mut files = ctx.files.clone();
+            files.push(main_abs.clone());
+            ctx = Arc::new(ProjectContext::with_files(ctx.root.clone(), files));
+        }
+        let source = ctx
+            .source(&main_abs)
+            .map_err(|_| format!("cannot read `{file}`"))?;
         let allocator = Allocator::default();
         let parsed = load(&allocator, &main_abs, &source).map_err(|e| format!("`{file}`: {e}"))?;
         let module = Module::new(&main_abs, file.clone(), &source, &parsed);
@@ -133,24 +216,11 @@ impl ActorProvider for TsActorProvider {
             })?,
         };
 
-        let root_abs = absolute(&root);
-        let mut files: Vec<PathBuf> = crate::discover(std::slice::from_ref(&root_abs))
-            .unwrap_or_default()
-            .into_iter()
-            .map(|p| absolute(&p))
-            .collect();
-        if !files.contains(&main_abs) {
-            files.push(main_abs.clone());
-        }
-        let names: Vec<String> = files.iter().map(|p| relative(&root_abs, p)).collect();
-        let resolver = Resolver::new(&files, names);
-
         let mut lowerer = Lowerer {
             request,
             receivers: &self.receivers,
-            root: root_abs,
-            files,
-            resolver,
+            root: ctx.root.clone(),
+            ctx: ctx.clone(),
             codes: vec![Vec::new()],
             cur: 0,
             frames: Vec::new(),
@@ -158,6 +228,8 @@ impl ActorProvider for TsActorProvider {
             tx_open: 0,
             assumptions: Vec::new(),
             qualify: false,
+            param_types: HashMap::new(),
+            pending_this: None,
         };
         let entry = match (&found, &selector) {
             (Some(found), Some(selector)) => {
@@ -416,6 +488,164 @@ fn find_export<'a>(module: &Module<'a>, export_name: &str) -> Result<FnInfo<'a>,
     ))
 }
 
+/// Phase 12: the initializer of a top-level `const name = ...` (exported or
+/// not).
+fn const_initializer<'a>(program: &'a Program<'a>, name: &str) -> Option<&'a Expression<'a>> {
+    for statement in &program.body {
+        let declaration = match statement {
+            Statement::ExportDeclaration(e) => Some(&e.declaration),
+            other => other.as_declaration(),
+        };
+        if let Some(Declaration::VariableDeclaration(v)) = declaration
+            && v.kind.is_const()
+        {
+            for d in &v.declarations {
+                if let BindingPattern::BindingIdentifier(id) = &d.id
+                    && id.name.as_str() == name
+                {
+                    return d.init.as_ref();
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Phase 12: whether the module's text writes a property of `name`
+/// (`name.p = ...`, `name[...] = ...`, `delete name.p`, `Object.assign(name,
+/// ...)`). Conservative: any such text disables method resolution on it.
+fn mutates(text: &str, name: &str) -> bool {
+    let bytes = text.as_bytes();
+    let is_ident = |b: u8| b.is_ascii_alphanumeric() || b == b'_' || b == b'$';
+    if text.contains(&format!("delete {name}.")) || text.contains(&format!("Object.assign({name}"))
+    {
+        return true;
+    }
+    let mut start = 0;
+    while let Some(found) = text[start..].find(name) {
+        let at = start + found;
+        start = at + name.len();
+        if at > 0 && (is_ident(bytes[at - 1]) || bytes[at - 1] == b'.') {
+            continue;
+        }
+        let rest = &text[at + name.len()..];
+        let after = if let Some(r) = rest.strip_prefix('.') {
+            let len = r.bytes().take_while(|b| is_ident(*b)).count();
+            &r[len..]
+        } else if rest.starts_with('[') {
+            match rest.find(']') {
+                Some(close) => &rest[close + 1..],
+                None => continue,
+            }
+        } else {
+            continue;
+        };
+        let after = after.trim_start();
+        if after.starts_with('=') && !after.starts_with("==") && !after.starts_with("=>") {
+            return true;
+        }
+    }
+    false
+}
+
+/// Phase 12: a class declared at the top level of the module.
+fn find_class<'a>(program: &'a Program<'a>, name: &str) -> Option<&'a oxc_ast::ast::Class<'a>> {
+    for statement in &program.body {
+        let declaration = match statement {
+            Statement::ExportDeclaration(e) => Some(&e.declaration),
+            other => other.as_declaration(),
+        };
+        if let Some(Declaration::ClassDeclaration(c)) = declaration
+            && c.id.as_ref().is_some_and(|id| id.name.as_str() == name)
+        {
+            return Some(c);
+        }
+        if let Statement::ExportDefaultDeclaration(e) = statement
+            && let ExportDefaultDeclarationKind::ClassDeclaration(c) = &e.declaration
+            && c.id.as_ref().is_some_and(|id| id.name.as_str() == name)
+        {
+            return Some(c);
+        }
+    }
+    None
+}
+
+/// Phase 12: an instance method (or arrow-function field) of a class.
+fn class_method<'a>(program: &'a Program<'a>, class: &str, method: &str) -> Option<FnInfo<'a>> {
+    let c = find_class(program, class)?;
+    let label = format!("{class}.{method}");
+    for element in &c.body.body {
+        match element {
+            ClassElement::MethodDefinition(def)
+                if def.kind == MethodDefinitionKind::Method
+                    && !def.r#static
+                    && !def.computed
+                    && property_key_name(&def.key).as_deref() == Some(method) =>
+            {
+                return info_of_function(&label, &def.value);
+            }
+            ClassElement::PropertyDefinition(def)
+                if !def.r#static
+                    && !def.computed
+                    && property_key_name(&def.key).as_deref() == Some(method) =>
+            {
+                return info_of_expression(&label, def.value.as_ref()?);
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Phase 12: a method of a `const` object literal: `m() {}`, `m: async ()
+/// => {}`, `m: function () {}`, or `m: f` / shorthand `m` of a function
+/// declared in the module.
+fn object_method<'a>(module: &Module<'a>, object: &str, method: &str) -> Option<FnInfo<'a>> {
+    let Expression::ObjectExpression(o) =
+        const_initializer(module.program, object)?.get_inner_expression()
+    else {
+        return None;
+    };
+    let label = format!("{object}.{method}");
+    let mut found = None;
+    for property in &o.properties {
+        let ObjectPropertyKind::ObjectProperty(p) = property else {
+            // A spread may redefine the method.
+            return None;
+        };
+        if p.computed || property_key_name(&p.key).as_deref() != Some(method) {
+            continue;
+        }
+        found = match p.value.get_inner_expression() {
+            Expression::Identifier(id) => find_function(module, id.name.as_str()),
+            value => info_of_expression(&label, value),
+        };
+    }
+    found
+}
+
+fn property_key_name(key: &oxc_ast::ast::PropertyKey<'_>) -> Option<String> {
+    match key {
+        oxc_ast::ast::PropertyKey::StaticIdentifier(id) => Some(id.name.as_str().to_owned()),
+        oxc_ast::ast::PropertyKey::StringLiteral(s) => s.value.as_str().map(str::to_owned),
+        _ => None,
+    }
+}
+
+/// Phase 12: the function a resolved export names: the top-level binding
+/// `local` of the declaring module (`default` for a default export).
+fn find_resolved<'a>(module: &Module<'a>, local: &str) -> Result<FnInfo<'a>, String> {
+    if local == "default" {
+        return find_export(module, local);
+    }
+    find_function(module, local).ok_or_else(|| {
+        format!(
+            "`{local}` in `{}` is not a function declaration",
+            module.rel
+        )
+    })
+}
+
 /// How a name used as a callee is imported.
 enum ImportRef {
     Named { source: String, name: String },
@@ -587,6 +817,27 @@ enum Binding {
     /// A caught exception: its properties (driver messages, SQLSTATE
     /// wrappers) are not modeled; only its truthiness is.
     Opaque,
+    /// Phase 12: an instance of an analyzed class (`new UserRepository(tx)`)
+    /// whose methods are inlined with this `this`.
+    Instance(Box<ThisBinding>),
+}
+
+/// Phase 12: whose methods `this.m()` calls inside an inlined method.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Owner {
+    /// A never-mutated `const` object literal of the module.
+    Object(String),
+    /// A class declared in the module (no `extends`).
+    Class(String),
+}
+
+/// Phase 12: what `this` denotes inside an inlined method: the fields the
+/// constructor stored (a database or transaction handle, or a value), and
+/// the object or class whose other methods `this.m()` calls.
+#[derive(Clone, Debug)]
+struct ThisBinding {
+    fields: HashMap<String, Binding>,
+    owner: (PathBuf, Owner),
 }
 
 struct Ret {
@@ -610,6 +861,9 @@ struct Frame {
     /// `continue` jumps (`None` for a `switch`), and the `try` depth at
     /// entry (jumping out leaves inner `try` blocks).
     breaks: Vec<JumpTarget>,
+    /// Phase 12: `this` inside an inlined method of a repository object or
+    /// class instance.
+    this: Option<ThisBinding>,
 }
 
 /// Pending jumps (code vector, index) to an enclosing `switch` or loop:
@@ -670,8 +924,9 @@ struct Lowerer<'r> {
     request: &'r ExtractRequest,
     receivers: &'r [String],
     root: PathBuf,
-    files: Vec<PathBuf>,
-    resolver: Resolver,
+    /// Phase 12: the shared project context (files, resolver, sources,
+    /// module summaries).
+    ctx: Arc<ProjectContext>,
     codes: Vec<Vec<Step>>,
     cur: usize,
     frames: Vec<Frame>,
@@ -681,6 +936,12 @@ struct Lowerer<'r> {
     /// Column references are qualified (`table.column`): set while lowering
     /// a joined query.
     qualify: bool,
+    /// Phase 12: declared types (as written) of the entry's parameters that
+    /// are not database handles, to name the blocker when one is used as a
+    /// Drizzle receiver.
+    param_types: HashMap<String, String>,
+    /// Phase 12: the `this` the next inlined function gets.
+    pending_this: Option<ThisBinding>,
 }
 
 struct ChainStep<'a, 'b> {
@@ -818,7 +1079,71 @@ impl<'r> Lowerer<'r> {
         }
     }
 
+    /// Phase 12: whether `name`, called with no arguments in `m`, returns a
+    /// root Drizzle database (see [`ProjectContext::returns_drizzle_database`]).
+    fn db_factory(&self, m: &Module<'_>, name: &str) -> bool {
+        let Some(file) = self.ctx.index_of(&m.abs) else {
+            return false;
+        };
+        match self.ctx.resolve_local(file, name) {
+            Ok(Resolved::Binding { file, local }) => {
+                self.ctx.returns_drizzle_database(file, &local)
+            }
+            _ => false,
+        }
+    }
+
+    /// The table an identifier written in module `m` denotes. Phase 12:
+    /// when the scenario's tables carry their declarations, the identifier
+    /// must resolve (through imports and re-exports, whatever its local
+    /// name) to one of them; a local variable or another declaration with
+    /// the same name is not a table. Otherwise (Phase 7–11 scenarios),
+    /// tables are bound by identifier name, as before.
+    fn table_ref(&self, m: &Module<'_>, identifier: &str) -> Option<&'r TableBinding> {
+        if !self.request.tables.iter().any(|t| t.source.is_some()) {
+            return self.table(identifier);
+        }
+        if self.lookup(identifier).is_some() {
+            return None;
+        }
+        let file = self.ctx.index_of(&m.abs)?;
+        let Ok(Resolved::Binding { file, local }) = self.ctx.resolve_local(file, identifier) else {
+            return None;
+        };
+        let module = self.ctx.rel(&self.ctx.files[file]);
+        self.request.tables.iter().find(|t| {
+            t.source
+                .as_ref()
+                .is_some_and(|(f, b)| *f == module && *b == local)
+        })
+    }
+
+    /// `db.query.<key>`: with declarations, only a table whose declaring
+    /// module the querying module reaches through its imports (the schema
+    /// object passed to `drizzle(...)` is imported somewhere on that path).
+    fn query_table(&self, m: &Module<'_>, key: &str) -> Option<&'r TableBinding> {
+        let table = self.table(key)?;
+        let Some((module, _)) = &table.source else {
+            return Some(table);
+        };
+        let from = self.ctx.index_of(&m.abs)?;
+        let target = self.ctx.index_of(&absolute(&self.root.join(module)))?;
+        self.ctx.closure(from).contains(&target).then_some(table)
+    }
+
+    /// A table by name: the identifier (Phase 7–11), or, for `db.query.<key>`
+    /// with declarations, the one table whose binding is `key` (the keys of
+    /// Drizzle's relational API are the schema's export names).
     fn table(&self, identifier: &str) -> Option<&'r TableBinding> {
+        if self.request.tables.iter().any(|t| t.source.is_some()) {
+            let mut found = self
+                .request
+                .tables
+                .iter()
+                .filter(|t| t.source.as_ref().is_some_and(|(_, b)| b == identifier));
+            let first = found.next()?;
+            return found.next().is_none().then_some(first);
+        }
         self.request
             .tables
             .iter()
@@ -832,6 +1157,7 @@ impl<'r> Lowerer<'r> {
             span,
             Op::Unknown {
                 detail: detail.clone(),
+                defines: Vec::new(),
             },
         );
         Res::Value(Expr::Unknown(detail))
@@ -981,11 +1307,15 @@ impl<'r> Lowerer<'r> {
             }
         };
         match self.resolve_callee(m, callee) {
+            Callee::Method { label, .. } => wrapper::unknown(
+                &label,
+                "a method of a repository object or class used as a wrapper is not analyzed",
+            ),
             Callee::Local(info) => analyze(&info, m),
             Callee::Imported {
                 abs, rel, export, ..
             } => {
-                let Ok(source) = std::fs::read_to_string(&abs) else {
+                let Ok(source) = self.ctx.source(&abs) else {
                     return wrapper::unknown(&label, format!("cannot read `{rel}`"));
                 };
                 let allocator = Allocator::default();
@@ -994,7 +1324,7 @@ impl<'r> Lowerer<'r> {
                     Err(e) => return wrapper::unknown(&label, format!("`{rel}`: {e}")),
                 };
                 let module = Module::new(&abs, rel.clone(), &source, &program);
-                match find_export(&module, &export) {
+                match find_resolved(&module, &export) {
                     Ok(info) => analyze(&info, &module),
                     Err(why) => wrapper::unknown(&label, why),
                 }
@@ -1025,12 +1355,34 @@ impl<'r> Lowerer<'r> {
             key: (module.abs.clone(), info.name.clone()),
             tries: 0,
             breaks: Vec::new(),
+            this: None,
         });
         let mut params = Vec::new();
         for (index, item) in info.params.items.iter().enumerate() {
             if let BindingPattern::BindingIdentifier(id) = &item.pattern {
                 let name = id.name.as_str().to_owned();
                 self.frame_mut().used.insert(name.clone());
+                // Phase 12: a parameter declared with a Drizzle database type
+                // (`db: Database` where `Database` is a drizzle-orm
+                // `...Database` type) is the root database handle.
+                if let Some(annotation) = &item.type_annotation {
+                    let file = self.ctx.index_of(&module.abs);
+                    match crate::context::reference_name(&annotation.type_annotation) {
+                        Some(t) if file.is_some_and(|f| self.ctx.is_database_type(f, &t)) => {
+                            self.declare(&name, Binding::Db);
+                            params.push(name);
+                            continue;
+                        }
+                        _ => {
+                            let span = annotation.type_annotation.span();
+                            let written = module
+                                .source
+                                .get(span.start as usize..span.end as usize)
+                                .unwrap_or_default();
+                            self.param_types.insert(name.clone(), written.to_owned());
+                        }
+                    }
+                }
                 self.declare(&name, Binding::Local(name.clone()));
                 params.push(name);
             } else {
@@ -1660,6 +2012,31 @@ impl<'r> Lowerer<'r> {
         match &d.id {
             BindingPattern::BindingIdentifier(id) => {
                 let name = id.name.as_str();
+                // Phase 12: `const db = getDb()` (or `await getDb()`) of a
+                // database factory binds a root database handle.
+                if let Some(Expression::CallExpression(c)) =
+                    call.map(Expression::get_inner_expression)
+                    && c.arguments.is_empty()
+                    && let Expression::Identifier(f) = c.callee.get_inner_expression()
+                    && self.db_factory(m, f.name.as_str())
+                {
+                    self.declare(name, Binding::Db);
+                    return;
+                }
+                // Phase 12: `const repo = new Repository(tx)` of an analyzed
+                // class.
+                if let Expression::NewExpression(new) = inner {
+                    match self.new_instance(m, new) {
+                        Ok(this) => {
+                            self.declare(name, Binding::Instance(Box::new(this)));
+                        }
+                        Err(why) => {
+                            self.unknown_op(m, new.span, format!("`new`: {why}"));
+                            self.declare(name, Binding::Opaque);
+                        }
+                    }
+                    return;
+                }
                 if let Some(call) = call {
                     let res = self.call_value(m, call, awaited, Want::Scalar, init.span());
                     self.bind_result(m, &d.id, res, d.span, false);
@@ -2034,6 +2411,10 @@ impl<'r> Lowerer<'r> {
             Some(Binding::Rows { .. }) => Expr::Unknown(format!(
                 "`{name}` (an array of rows) is only modeled through `length` and `[0]`"
             )),
+            Some(Binding::Instance(_)) if cx.truthy => Expr::lit(true),
+            Some(Binding::Instance(_)) => Expr::Unknown(format!(
+                "`{name}` (an instance of an analyzed class) is not a value"
+            )),
             Some(Binding::Opaque) if cx.truthy => Expr::lit(true),
             Some(Binding::Opaque) => Expr::Unknown(format!(
                 "the caught error `{name}` is not modeled (only that it was thrown)"
@@ -2047,7 +2428,7 @@ impl<'r> Lowerer<'r> {
                     return constant;
                 }
                 let _ = cx;
-                if self.table(name).is_some() {
+                if self.table_ref(m, name).is_some() {
                     return Expr::Unknown(format!("table `{name}` used as a value"));
                 }
                 Expr::Unknown(format!("unresolved identifier `{name}`"))
@@ -2098,7 +2479,7 @@ impl<'r> Lowerer<'r> {
                         .map_or(Expr::Lit(Value::Null), |(_, e)| e.clone());
                 }
                 None => {
-                    if let Some(table) = self.table(name) {
+                    if let Some(table) = self.table_ref(m, name) {
                         if !cx.col_ok {
                             return Expr::Unknown(format!(
                                 "column reference `{name}.{property}` outside a query"
@@ -2257,11 +2638,11 @@ impl<'r> Lowerer<'r> {
             ImportRef::Named { source, name } => (source, name),
             _ => return None,
         };
-        let Resolution::File(index) = self.resolver.resolve(&m.abs, &source) else {
+        let Resolution::File(index) = self.ctx.resolve(&m.abs, &source) else {
             return None;
         };
-        let abs = self.files[index].clone();
-        let text = std::fs::read_to_string(&abs).ok()?;
+        let abs = self.ctx.files[index].clone();
+        let text = self.ctx.source(&abs).ok()?;
         let allocator = Allocator::default();
         let program = load(&allocator, &abs, &text).ok()?;
         let module = Module::new(&abs, relative(&self.root, &abs), &text, &program);
@@ -2389,7 +2770,37 @@ impl<'r> Lowerer<'r> {
             return self.promise_all(m, call, awaited, want);
         }
         if let Some((root, steps)) = flatten(e)
-            && let Some(handle) = self.handle_of(&root)
+            && steps[0].path.is_empty()
+            && matches!(
+                steps[0].method.as_str(),
+                "select" | "insert" | "update" | "delete" | "transaction" | "execute"
+            )
+            && self.frames.len() == 1
+            && let Some(ty) = self.param_types.get(&root).cloned()
+        {
+            return self.unknown_op(
+                m,
+                call.span,
+                format!(
+                    "database handle of an unresolved type: parameter `{root}: {ty}` is not a drizzle-orm database type (its operations are not bound)"
+                ),
+            );
+        }
+        if let Some((root, mut steps)) = flatten(e)
+            && root == "this"
+            && let Some(field) = steps[0].path.first().cloned()
+            && let Some(handle) = self.this_field_handle(&field)
+        {
+            steps[0].path.remove(0);
+            let root = format!("this.{field}");
+            return self.database(m, call.span, &root, handle, &steps, awaited, want);
+        }
+        if let Some((root, steps)) = flatten(e)
+            && root != "this"
+            && let Some(handle) = match root.strip_suffix("()") {
+                Some(factory) => self.db_factory(m, factory).then_some(Binding::Db),
+                None => self.handle_of(&root),
+            }
         {
             return self.database(m, call.span, &root, handle, &steps, awaited, want);
         }
@@ -2426,6 +2837,13 @@ impl<'r> Lowerer<'r> {
             return self.transaction(m, call.span, &Binding::Db, &step, want, Some(&binding));
         }
         match self.resolve_callee(m, &call.callee) {
+            Callee::Method {
+                abs,
+                rel,
+                method,
+                this,
+                label,
+            } => self.inline_method(m, &abs, &rel, &method, this, &label, call, awaited, want),
             Callee::Local(info) => self.inline(m, &info, m, call, awaited, want),
             Callee::Imported {
                 abs,
@@ -2611,10 +3029,345 @@ impl<'r> Lowerer<'r> {
                         &label,
                     );
                 }
-                Callee::Unresolvable("method calls are not resolved".to_owned())
+                // Phase 12: repository objects and class instances.
+                let method = member.property.name.as_str();
+                match member.object.get_inner_expression() {
+                    Expression::Identifier(object) => {
+                        let name = object.name.as_str();
+                        // Wrapper analysis resolves callees before the
+                        // entry's frame exists: no locals then.
+                        let local = if self.frames.is_empty() {
+                            None
+                        } else {
+                            self.lookup(name)
+                        };
+                        match local {
+                            Some(Binding::Instance(this)) => self.method_callee(*this, method, name),
+                            Some(_) => Callee::Unresolvable(
+                                "method calls are not resolved (on a local value)".to_owned(),
+                            ),
+                            None => self.module_receiver(m, name, method),
+                        }
+                    }
+                    Expression::ThisExpression(_) => match self.frames.last().and_then(|f| f.this.clone()) {
+                        Some(this) => self.method_callee(this, method, "this"),
+                        None => Callee::Unresolvable(
+                            "method calls are not resolved (`this` outside an analyzed object or class)"
+                                .to_owned(),
+                        ),
+                    },
+                    _ => Callee::Unresolvable("method calls are not resolved".to_owned()),
+                }
             }
             _ => Callee::Unresolvable("the callee is not a plain function reference".to_owned()),
         }
+    }
+
+    // -- Phase 12: repository objects and class instances -------------------
+
+    fn this_field_handle(&self, field: &str) -> Option<Binding> {
+        match self.frames.last()?.this.as_ref()?.fields.get(field)? {
+            b @ (Binding::Db | Binding::Tx) => Some(b.clone()),
+            _ => None,
+        }
+    }
+
+    /// `this.field` where the field holds a database or transaction handle.
+    fn this_handle(&self, e: &Expression<'_>) -> Option<Binding> {
+        let Expression::StaticMemberExpression(member) = e else {
+            return None;
+        };
+        if !matches!(
+            member.object.get_inner_expression(),
+            Expression::ThisExpression(_)
+        ) {
+            return None;
+        }
+        self.this_field_handle(member.property.name.as_str())
+    }
+
+    fn method_callee<'a>(&self, this: ThisBinding, method: &str, written: &str) -> Callee<'a> {
+        let abs = this.owner.0.clone();
+        let rel = relative(&self.root, &abs);
+        Callee::Method {
+            abs,
+            rel,
+            method: method.to_owned(),
+            label: format!("{written}.{method}"),
+            this,
+        }
+    }
+
+    /// `name.method(...)` where `name` is (imported from) a module-level
+    /// `const name = { ... }` object literal that the module never mutates,
+    /// or `const name = new C(...)` of an analyzed class.
+    fn module_receiver<'a>(&mut self, m: &Module<'_>, name: &str, method: &str) -> Callee<'a> {
+        let unresolved =
+            |why: String| Callee::Unresolvable(format!("method calls are not resolved: {why}"));
+        let Some(file) = self.ctx.index_of(&m.abs) else {
+            return unresolved("the module is not analyzed".to_owned());
+        };
+        let (file, local) = match self.ctx.resolve_local(file, name) {
+            Ok(Resolved::Binding { file, local }) => (file, local),
+            Ok(Resolved::Namespace { .. }) => {
+                return unresolved(format!("`{name}` is a namespace"));
+            }
+            Err(why) => return unresolved(why),
+        };
+        let abs = self.ctx.files[file].clone();
+        let Ok(text) = self.ctx.source(&abs) else {
+            return unresolved(format!("cannot read `{}`", self.ctx.rel(&abs)));
+        };
+        let allocator = Allocator::default();
+        let Ok(program) = load(&allocator, &abs, &text) else {
+            return unresolved(format!("`{}` does not parse", self.ctx.rel(&abs)));
+        };
+        let Some(init) = const_initializer(&program, &local) else {
+            return unresolved(format!(
+                "`{name}` is not a module-level `const` object or instance"
+            ));
+        };
+        match init.get_inner_expression() {
+            Expression::ObjectExpression(_) => {
+                if mutates(&text, &local) {
+                    return unresolved(format!("the object `{local}` is modified in its module"));
+                }
+                let this = ThisBinding {
+                    fields: HashMap::new(),
+                    owner: (abs, Owner::Object(local)),
+                };
+                self.method_callee(this, method, name)
+            }
+            Expression::NewExpression(new) => {
+                let module = Module::new(&abs, self.ctx.rel(&abs), &text, &program);
+                // Constructor arguments of a module-level instance: handles
+                // only (the module's database receivers, or a factory call).
+                let args: Vec<Option<Binding>> = new
+                    .arguments
+                    .iter()
+                    .map(|a| match a.as_expression().map(Expression::get_inner_expression) {
+                        Some(Expression::Identifier(id))
+                            if self.receivers.iter().any(|r| r == id.name.as_str()) =>
+                        {
+                            Some(Binding::Db)
+                        }
+                        Some(Expression::CallExpression(c))
+                            if c.arguments.is_empty()
+                                && matches!(c.callee.get_inner_expression(), Expression::Identifier(f) if self.db_factory(&module, f.name.as_str())) =>
+                        {
+                            Some(Binding::Db)
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                match self.class_this(&module, &new.callee, args) {
+                    Ok(this) => self.method_callee(this, method, name),
+                    Err(why) => unresolved(why),
+                }
+            }
+            _ => unresolved(format!(
+                "`{name}` is neither an object literal nor an instance"
+            )),
+        }
+    }
+
+    /// `new C(args)` in a function being lowered: handles stay handles,
+    /// other arguments are evaluated now.
+    fn new_instance(
+        &mut self,
+        m: &Module<'_>,
+        new: &oxc_ast::ast::NewExpression<'_>,
+    ) -> Result<ThisBinding, String> {
+        let mut args = Vec::new();
+        for a in &new.arguments {
+            let Some(e) = a.as_expression() else {
+                return Err("spread argument".to_owned());
+            };
+            let inner = e.get_inner_expression();
+            if let Expression::Identifier(id) = inner
+                && let Some(h) = self.handle_of(id.name.as_str())
+            {
+                args.push(Some(h));
+            } else if let Some(h) = self.this_handle(inner) {
+                args.push(Some(h));
+            } else if let Expression::CallExpression(c) = inner
+                && c.arguments.is_empty()
+                && let Expression::Identifier(f) = c.callee.get_inner_expression()
+                && self.db_factory(m, f.name.as_str())
+            {
+                args.push(Some(Binding::Db));
+            } else {
+                let value = self.expr(m, e, TOP);
+                let local = self.tmp("field");
+                self.emit(
+                    m,
+                    a.span(),
+                    Op::Let {
+                        local: local.clone(),
+                        expr: value,
+                    },
+                );
+                args.push(Some(Binding::Local(local)));
+            }
+        }
+        self.class_this(m, &new.callee, args)
+    }
+
+    /// The `this` of an instance of the class `callee` (resolved in `m`)
+    /// constructed with `args`: constructor parameter properties and
+    /// `this.f = param` statements. A class with `extends`, or a constructor
+    /// that does anything else, is not analyzed.
+    fn class_this(
+        &self,
+        m: &Module<'_>,
+        callee: &Expression<'_>,
+        args: Vec<Option<Binding>>,
+    ) -> Result<ThisBinding, String> {
+        let Expression::Identifier(class) = callee.get_inner_expression() else {
+            return Err("the class is not a plain identifier".to_owned());
+        };
+        let file = self
+            .ctx
+            .index_of(&m.abs)
+            .ok_or("the module is not analyzed")?;
+        let (file, local) = match self.ctx.resolve_local(file, class.name.as_str())? {
+            Resolved::Binding { file, local } => (file, local),
+            Resolved::Namespace { .. } => return Err("a namespace is not a class".to_owned()),
+        };
+        let abs = self.ctx.files[file].clone();
+        let text = self.ctx.source(&abs)?;
+        let allocator = Allocator::default();
+        let program = load(&allocator, &abs, &text)?;
+        let class_node = find_class(&program, &local)
+            .ok_or_else(|| format!("`{local}` is not a class declared in its module"))?;
+        if class_node.heritage.is_some() {
+            return Err(format!(
+                "`{local}` extends another class (inherited methods are not resolved)"
+            ));
+        }
+        let mut fields = HashMap::new();
+        for element in &class_node.body.body {
+            if let ClassElement::MethodDefinition(def) = element
+                && def.kind == MethodDefinitionKind::Constructor
+            {
+                let params = &def.value.params;
+                let index_of = |name: &str| {
+                    params.items.iter().position(|p| {
+                        matches!(&p.pattern, BindingPattern::BindingIdentifier(id) if id.name.as_str() == name)
+                    })
+                };
+                for (i, p) in params.items.iter().enumerate() {
+                    if (p.accessibility.is_some() || p.readonly)
+                        && let BindingPattern::BindingIdentifier(id) = &p.pattern
+                        && let Some(Some(b)) = args.get(i)
+                    {
+                        fields.insert(id.name.as_str().to_owned(), b.clone());
+                    }
+                }
+                for statement in def.value.body.iter().flat_map(|b| b.statements.iter()) {
+                    let Statement::ExpressionStatement(es) = statement else {
+                        return Err(format!(
+                            "the constructor of `{local}` does more than store its parameters"
+                        ));
+                    };
+                    let Expression::AssignmentExpression(assign) =
+                        es.expression.get_inner_expression()
+                    else {
+                        return Err(format!(
+                            "the constructor of `{local}` does more than store its parameters"
+                        ));
+                    };
+                    let target = match &assign.left {
+                        oxc_ast::ast::AssignmentTarget::StaticMemberExpression(t)
+                            if matches!(
+                                t.object.get_inner_expression(),
+                                Expression::ThisExpression(_)
+                            ) =>
+                        {
+                            t.property.name.as_str().to_owned()
+                        }
+                        _ => {
+                            return Err(format!(
+                                "the constructor of `{local}` assigns something other than `this.field`"
+                            ));
+                        }
+                    };
+                    let Expression::Identifier(source) = assign.right.get_inner_expression() else {
+                        return Err(format!(
+                            "the constructor of `{local}` stores a computed value in `this.{target}`"
+                        ));
+                    };
+                    if let Some(i) = index_of(source.name.as_str())
+                        && let Some(Some(b)) = args.get(i)
+                    {
+                        fields.insert(target, b.clone());
+                    }
+                }
+            }
+            if let ClassElement::PropertyDefinition(def) = element
+                && !def.r#static
+                && let Some(value) = &def.value
+                && !matches!(
+                    value.get_inner_expression(),
+                    Expression::ArrowFunctionExpression(_) | Expression::FunctionExpression(_)
+                )
+            {
+                return Err(format!(
+                    "`{local}` initializes a field with a value (not analyzed)"
+                ));
+            }
+        }
+        Ok(ThisBinding {
+            fields,
+            owner: (abs, Owner::Class(local)),
+        })
+    }
+
+    /// Inline `method` of the object or class `this.owner`.
+    #[allow(clippy::too_many_arguments)]
+    fn inline_method(
+        &mut self,
+        caller: &Module<'_>,
+        abs: &Path,
+        rel: &str,
+        method: &str,
+        this: ThisBinding,
+        label: &str,
+        call: &oxc_ast::ast::CallExpression<'_>,
+        awaited: bool,
+        want: Want,
+    ) -> Res {
+        let source = match self.ctx.source(abs) {
+            Ok(s) => s,
+            Err(e) => return self.unknown_op(caller, call.span, format!("call to `{label}`: {e}")),
+        };
+        let allocator = Allocator::default();
+        let program = match load(&allocator, abs, &source) {
+            Ok(p) => p,
+            Err(e) => {
+                return self.unknown_op(
+                    caller,
+                    call.span,
+                    format!("call to `{label}`: `{rel}`: {e}"),
+                );
+            }
+        };
+        let module = Module::new(abs, rel.to_owned(), &source, &program);
+        let info = match &this.owner.1 {
+            Owner::Object(object) => object_method(&module, object, method),
+            Owner::Class(class) => class_method(&program, class, method),
+        };
+        let Some(info) = info else {
+            return self.unknown_op(
+                caller,
+                call.span,
+                format!("method calls are not resolved: `{label}` is not a method of an analyzed object or class"),
+            );
+        };
+        self.pending_this = Some(this);
+        let result = self.inline(caller, &info, &module, call, awaited, want);
+        self.pending_this = None;
+        result
     }
 
     fn callee_import<'a>(
@@ -2624,14 +3377,25 @@ impl<'r> Lowerer<'r> {
         export: String,
         label: &str,
     ) -> Callee<'a> {
-        match self.resolver.resolve(&m.abs, source) {
+        match self.ctx.resolve(&m.abs, source) {
             Resolution::File(index) => {
-                let abs = self.files[index].clone();
+                // Phase 12: follow re-exports (`export { x } from`, `export
+                // *`) to the module that declares the binding.
+                let (index, local) = match self.ctx.resolve_export(index, &export) {
+                    Ok(Resolved::Binding { file, local }) => (file, local),
+                    Ok(Resolved::Namespace { .. }) => {
+                        return Callee::Unresolvable(format!(
+                            "`{label}` is a namespace object, not a function"
+                        ));
+                    }
+                    Err(why) => return Callee::Unresolvable(why),
+                };
+                let abs = self.ctx.files[index].clone();
                 let rel = relative(&self.root, &abs);
                 Callee::Imported {
                     abs,
                     rel,
-                    export,
+                    export: local,
                     label: label.to_owned(),
                 }
             }
@@ -2658,14 +3422,10 @@ impl<'r> Lowerer<'r> {
         awaited: bool,
         want: Want,
     ) -> Res {
-        let source = match std::fs::read_to_string(abs) {
+        let source = match self.ctx.source(abs) {
             Ok(s) => s,
             Err(e) => {
-                return self.unknown_op(
-                    caller,
-                    call.span,
-                    format!("call to `{label}`: cannot read `{rel}`: {e}"),
-                );
+                return self.unknown_op(caller, call.span, format!("call to `{label}`: {e}"));
             }
         };
         let allocator = Allocator::default();
@@ -2680,7 +3440,7 @@ impl<'r> Lowerer<'r> {
             }
         };
         let module = Module::new(abs, rel.to_owned(), &source, &program);
-        let info = match find_export(&module, export) {
+        let info = match find_resolved(&module, export) {
             Ok(info) => info,
             Err(why) => {
                 return self.unknown_op(caller, call.span, format!("call to `{label}`: {why}"));
@@ -2700,6 +3460,8 @@ impl<'r> Lowerer<'r> {
         awaited: bool,
         want: Want,
     ) -> Res {
+        // Phase 12: `this` of an inlined method (set by `inline_method`).
+        let receiver = self.pending_this.take();
         let key = (callee_module.abs.clone(), info.name.clone());
         if self.frames.iter().any(|f| f.key == key) {
             return self.unknown_op(
@@ -2727,8 +3489,8 @@ impl<'r> Lowerer<'r> {
         }
         if !awaited && info.is_async && want == Want::Discard {
             // Fire-and-forget: a detached task running the helper.
-            let (child, ()) = self.with_child(caller, call.span, |this| {
-                this.inline_here(caller, info, callee_module, call, Want::Discard);
+            let (child, ()) = self.with_child(caller, call.span, move |this| {
+                this.inline_here(caller, info, callee_module, call, Want::Discard, receiver);
             });
             self.emit(
                 caller,
@@ -2750,7 +3512,7 @@ impl<'r> Lowerer<'r> {
                 ),
             );
         }
-        self.inline_here(caller, info, callee_module, call, want)
+        self.inline_here(caller, info, callee_module, call, want, receiver)
     }
 
     fn inline_here(
@@ -2760,6 +3522,7 @@ impl<'r> Lowerer<'r> {
         callee_module: &Module<'_>,
         call: &oxc_ast::ast::CallExpression<'_>,
         want: Want,
+        this: Option<ThisBinding>,
     ) -> Res {
         // Evaluate the arguments in the caller's frame.
         let mut args: Vec<ArgVal> = Vec::new();
@@ -2770,6 +3533,8 @@ impl<'r> Lowerer<'r> {
                     if let Expression::Identifier(id) = inner
                         && let Some(handle) = self.handle_of(id.name.as_str())
                     {
+                        args.push(ArgVal::Handle(handle));
+                    } else if let Some(handle) = self.this_handle(inner) {
                         args.push(ArgVal::Handle(handle));
                     } else {
                         args.push(ArgVal::Expr(self.expr(caller, expression, TOP)));
@@ -2785,6 +3550,17 @@ impl<'r> Lowerer<'r> {
         let result = format!("{prefix}ret");
         let mut used = HashSet::new();
         used.insert(result.clone());
+        // The return slot belongs to the call site: its source is the call
+        // in the caller's module (Phase 12; before, the caller's span was
+        // resolved in the callee's file, which named an unrelated line).
+        self.emit(
+            caller,
+            call.span,
+            Op::Let {
+                local: result.clone(),
+                expr: Expr::Lit(Value::Null),
+            },
+        );
         self.frames.push(Frame {
             function: info.name.clone(),
             file: callee_module.rel.clone(),
@@ -2799,15 +3575,8 @@ impl<'r> Lowerer<'r> {
             key: (callee_module.abs.clone(), info.name.clone()),
             tries: 0,
             breaks: Vec::new(),
+            this,
         });
-        self.emit(
-            callee_module,
-            call.span,
-            Op::Let {
-                local: result.clone(),
-                expr: Expr::Lit(Value::Null),
-            },
-        );
         let mut args = args.into_iter();
         for (index, item) in info.params.items.iter().enumerate() {
             let supplied = args.next();
@@ -3096,14 +3865,18 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    fn table_arg(&mut self, arg: Option<&Argument<'_>>) -> Result<&'r TableBinding, String> {
+    fn table_arg(
+        &mut self,
+        m: &Module<'_>,
+        arg: Option<&Argument<'_>>,
+    ) -> Result<&'r TableBinding, String> {
         let Some(expression) = arg.and_then(Argument::as_expression) else {
             return Err("missing table argument".to_owned());
         };
         let Expression::Identifier(id) = expression.get_inner_expression() else {
             return Err("the table is not a plain identifier".to_owned());
         };
-        self.table(id.name.as_str()).ok_or_else(|| {
+        self.table_ref(m, id.name.as_str()).ok_or_else(|| {
             format!(
                 "table identifier `{}` is not bound to a table of the scenario",
                 id.name
@@ -3197,7 +3970,14 @@ impl<'r> Lowerer<'r> {
     ) -> Option<()> {
         if let Some(detail) = exprs.iter().find_map(|e| e.unknown_detail()) {
             let detail = detail.to_owned();
-            self.emit(m, span, Op::Unknown { detail });
+            self.emit(
+                m,
+                span,
+                Op::Unknown {
+                    detail,
+                    defines: Vec::new(),
+                },
+            );
             return None;
         }
         self.emit(
@@ -3222,7 +4002,7 @@ impl<'r> Lowerer<'r> {
         if want == Want::Single || step_count != 1 {
             return self.unknown_op(m, span, "unsupported use of `query.<table>.findFirst`");
         }
-        let Some(table) = self.table(&step.path[1]) else {
+        let Some(table) = self.query_table(m, &step.path[1]) else {
             return self.unknown_op(
                 m,
                 span,
@@ -3308,7 +4088,7 @@ impl<'r> Lowerer<'r> {
                 return self.unknown_op(m, span, "unsupported select chain");
             }
             match step.method.as_str() {
-                "from" => match self.table_arg(step.args.first()) {
+                "from" => match self.table_arg(m, step.args.first()) {
                     Ok(t) if table.is_none() => table = Some(t),
                     Ok(_) => return self.unknown_op(m, span, "more than one `from`"),
                     Err(why) => return self.unknown_op(m, span, why),
@@ -3319,7 +4099,7 @@ impl<'r> Lowerer<'r> {
                     } else {
                         JoinKind::Inner
                     };
-                    match self.table_arg(step.args.first()) {
+                    match self.table_arg(m, step.args.first()) {
                         Ok(t)
                             if joins.iter().all(|(_, j, _)| j.table != t.table)
                                 && table.is_some_and(|b| b.table != t.table) =>
@@ -3617,7 +4397,7 @@ impl<'r> Lowerer<'r> {
         want: Want,
         kind: Mutation,
     ) -> Res {
-        let table = match self.table_arg(steps[0].args.first()) {
+        let table = match self.table_arg(m, steps[0].args.first()) {
             Ok(t) => t,
             Err(why) => return self.unknown_op(m, span, why),
         };
@@ -3625,7 +4405,7 @@ impl<'r> Lowerer<'r> {
         let mut values: Option<&ChainStep<'_, '_>> = None;
         let mut where_step = None;
         let mut returning = false;
-        let mut returning_projected = false;
+        let mut returning_step: Option<&ChainStep<'_, '_>> = None;
         let mut on_conflict = OnConflict::Error;
         for step in &steps[1..] {
             if !step.path.is_empty() {
@@ -3639,7 +4419,7 @@ impl<'r> Lowerer<'r> {
                 }
                 (_, "returning") => {
                     returning = true;
-                    returning_projected = !step.args.is_empty();
+                    returning_step = (!step.args.is_empty()).then_some(step);
                 }
                 (Mutation::Insert, "onConflictDoNothing") => on_conflict = OnConflict::DoNothing,
                 (_, other) => {
@@ -3664,17 +4444,22 @@ impl<'r> Lowerer<'r> {
         // row count.
         let returned_row =
             (kind == Mutation::Insert && want != Want::Discard).then(|| self.tmp("inserted"));
-        if returned_row.is_some() && returning_projected {
-            return self.unknown_op(
-                m,
-                span,
-                "`returning({...})` with a projection is not modeled (use `returning()`)",
-            );
-        }
+        // Phase 12: `returning({ alias: table.column, ... })` of a
+        // single-row insert: the statement returns the inserted row
+        // (generated values included) and a local projection builds the
+        // aliased row, so a generated key keeps its identity.
+        let projection: Option<Vec<(String, String)>> = match (returning_step, &returned_row) {
+            (Some(step), Some(_)) => match self.returning_projection(table, step) {
+                Ok(p) => Some(p),
+                Err(why) => return self.unknown_op(m, span, why),
+            },
+            _ => None,
+        };
+        let projected_row = projection.as_ref().map(|_| self.tmp("returned"));
         let affected_name = affected.clone();
         let res = match (&affected, &returned_row) {
             (Some(length), Some(row)) => Res::Rows {
-                row: row.clone(),
+                row: projected_row.clone().unwrap_or_else(|| row.clone()),
                 length: length.clone(),
             },
             (Some(local), None) => Res::Affected(local.clone()),
@@ -3812,14 +4597,102 @@ impl<'r> Lowerer<'r> {
                     values: assignments.clone(),
                     on_conflict,
                     affected: affected_name,
-                    returning: returned_row,
+                    returning: returned_row.clone(),
+                    // Drizzle sends `RETURNING` with the projected columns.
+                    returning_columns: projection.as_ref().map(|fields| {
+                        let mut cols: Vec<String> = Vec::new();
+                        for (_, c) in fields {
+                            if !cols.contains(c) {
+                                cols.push(c.clone());
+                            }
+                        }
+                        cols
+                    }),
                 };
-                match self.emit_db(m, span, conn, stmt, &refs) {
-                    Some(()) => res,
-                    None => Res::Value(Expr::Unknown("insert".to_owned())),
+                if self.emit_db(m, span, conn, stmt, &refs).is_none() {
+                    return Res::Value(Expr::Unknown("insert".to_owned()));
                 }
+                if let (Some(fields), Some(row), Some(out)) =
+                    (&projection, &returned_row, &projected_row)
+                {
+                    // out = null; if (row != null) out = { alias: row.column }
+                    self.emit(
+                        m,
+                        span,
+                        Op::Let {
+                            local: out.clone(),
+                            expr: Expr::Lit(Value::Null),
+                        },
+                    );
+                    let skip = self.emit(
+                        m,
+                        span,
+                        Op::JumpIf {
+                            cond: Expr::IsNull(Box::new(Expr::Local(row.clone()))),
+                            target: usize::MAX,
+                        },
+                    );
+                    self.emit(
+                        m,
+                        span,
+                        Op::Let {
+                            local: out.clone(),
+                            expr: Expr::Object(
+                                fields
+                                    .iter()
+                                    .map(|(alias, column)| {
+                                        (
+                                            alias.clone(),
+                                            Expr::field(Expr::Local(row.clone()), column),
+                                        )
+                                    })
+                                    .collect(),
+                            ),
+                        },
+                    );
+                    let end = self.here();
+                    self.patch(skip, end);
+                }
+                res
             }
         }
+    }
+
+    /// Phase 12: the fields of `returning({ alias: table.column, ... })`:
+    /// (alias, column). Only plain column references of the inserted table.
+    fn returning_projection(
+        &self,
+        table: &TableBinding,
+        step: &ChainStep<'_, '_>,
+    ) -> Result<Vec<(String, String)>, String> {
+        let Some(Expression::ObjectExpression(object)) = step
+            .args
+            .first()
+            .and_then(Argument::as_expression)
+            .map(Expression::get_inner_expression)
+        else {
+            return Err("`returning(...)` argument is not an object literal".to_owned());
+        };
+        let mut out = Vec::new();
+        for property in &object.properties {
+            let ObjectPropertyKind::ObjectProperty(p) = property else {
+                return Err("spread in `returning({...})`".to_owned());
+            };
+            let Some(alias) = static_key(&p.key).filter(|_| !p.computed) else {
+                return Err("computed key in `returning({...})`".to_owned());
+            };
+            let column = crate::semantic::member_path(&p.value)
+                .and_then(|path| path.split_once('.').map(|(_, c)| c.to_owned()))
+                .filter(|c| !c.contains('.') && table.columns.contains(c))
+                .ok_or_else(|| {
+                    format!(
+                        "`returning({{ {alias}: ... }})` is not a column of table `{}`",
+                        table.table
+                    )
+                })?;
+            out.push((alias, column));
+        }
+        Ok(out)
     }
 
     /// A value in `set({ col: <value> })`: a plain expression or a `sql`
@@ -3870,6 +4743,14 @@ enum Mutation {
 }
 
 enum Callee<'a> {
+    /// Phase 12: a method of a repository object or class instance.
+    Method {
+        abs: PathBuf,
+        rel: String,
+        method: String,
+        this: ThisBinding,
+        label: String,
+    },
     Local(FnInfo<'a>),
     Imported {
         abs: PathBuf,
@@ -3932,7 +4813,7 @@ fn throw_message(argument: &Expression<'_>) -> String {
     }
 }
 
-fn expression_kind(e: &Expression<'_>) -> &'static str {
+pub(crate) fn expression_kind(e: &Expression<'_>) -> &'static str {
     match e {
         Expression::TemplateLiteral(_) => "template literal",
         Expression::ObjectExpression(_) => "object literal",
@@ -3958,11 +4839,35 @@ fn expression_kind(e: &Expression<'_>) -> &'static str {
 /// (as before Phase 8).
 fn flatten<'a, 'b>(e: &'b Expression<'a>) -> Option<(String, Vec<ChainStep<'a, 'b>>)> {
     let chain = unwind(e);
-    if chain.optional || chain.root_call().is_some() {
+    if chain.optional {
         return None;
     }
-    let Some(Root::Identifier(root)) = chain.root else {
-        return None;
+    // Phase 12: `this.field.method(...)` inside an inlined method; the root
+    // is written `this` and the field is the first path segment.
+    let root = match chain.root {
+        Some(Root::Identifier(root)) => root,
+        Some(Root::This(_)) if chain.root_call().is_none() => {
+            let steps: Vec<ChainStep<'a, 'b>> = chain
+                .method_calls()?
+                .into_iter()
+                .map(|call| ChainStep {
+                    path: call.path.iter().map(|p| (*p).to_owned()).collect(),
+                    method: call.method.to_owned(),
+                    args: call.arguments,
+                })
+                .collect();
+            return (!steps.is_empty()).then(|| ("this".to_owned(), steps));
+        }
+        _ => return None,
+    };
+    // Phase 12: a zero-argument call of a plain function (`getDb()`) may be
+    // a database factory; the root is then written `getDb()`.
+    let root_name = match chain.root_call() {
+        None => root.name.as_str().to_owned(),
+        Some(call) if call.arguments.is_empty() && !call.optional => {
+            format!("{}()", root.name.as_str())
+        }
+        Some(_) => return None,
     };
     let steps: Vec<ChainStep<'a, 'b>> = chain
         .method_calls()?
@@ -3976,7 +4881,7 @@ fn flatten<'a, 'b>(e: &'b Expression<'a>) -> Option<(String, Vec<ChainStep<'a, '
     if steps.is_empty() {
         return None;
     }
-    Some((root.name.as_str().to_owned(), steps))
+    Some((root_name, steps))
 }
 
 // ---------------------------------------------------------------------------

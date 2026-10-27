@@ -99,7 +99,9 @@ fn every_fixture_matches_its_expectations() {
     // CLI's `model_check.rs`, the Phase 7 application by `tests/phase7.rs`,
     // the Phase 8 applications by `tests/phase8.rs`, the Phase 9 application
     // by the CLI's `phase9.rs`, the Phase 10 applications by its `phase10.rs`,
-    // the Phase 11 application by the discovery tests (`commitrift-discover`).
+    // the Phase 11 application by the discovery tests (`commitrift-discover`),
+    // the Phase 12 applications by `tests/phase12.rs` and the CLI's
+    // `phase12.rs`.
     let files: Vec<PathBuf> = discover(&[fixtures_dir()])
         .expect("fixtures exist")
         .into_iter()
@@ -112,6 +114,7 @@ fn every_fixture_matches_its_expectations() {
                 && !file.starts_with(fixtures_dir().join("phase9"))
                 && !file.starts_with(fixtures_dir().join("phase10"))
                 && !file.starts_with(fixtures_dir().join("phase11"))
+                && !file.starts_with(fixtures_dir().join("phase12"))
         })
         .collect();
     assert!(

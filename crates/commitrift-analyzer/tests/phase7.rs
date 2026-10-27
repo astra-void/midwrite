@@ -19,6 +19,7 @@ fn table(identifier: &str, name: &str, columns: &[&str]) -> TableBinding {
         identifier: identifier.to_owned(),
         table: name.to_owned(),
         columns: columns.iter().map(|c| (*c).to_owned()).collect(),
+        source: None,
     }
 }
 
@@ -61,7 +62,7 @@ fn ops(e: &Extracted) -> Vec<String> {
                 StmtKind::Update { table, .. } => format!("update {table}"),
                 StmtKind::Delete { table, .. } => format!("delete {table}"),
             }),
-            Op::Unknown { detail } => Some(format!("unknown: {detail}")),
+            Op::Unknown { detail, .. } => Some(format!("unknown: {detail}")),
             _ => None,
         })
         .collect()

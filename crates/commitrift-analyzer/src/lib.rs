@@ -38,11 +38,13 @@ mod bindings;
 mod builtins;
 mod classes;
 mod concurrency;
+pub mod context;
 mod discover;
 pub mod entries;
 mod error;
 mod exports;
 mod functions;
+pub mod generators;
 pub mod identity;
 mod link;
 mod lower;
@@ -51,6 +53,8 @@ mod recognize;
 mod resolve;
 pub mod schema;
 mod semantic;
+
+pub(crate) use concurrency::expression_kind as concurrency_kind;
 mod values;
 mod wrapper;
 

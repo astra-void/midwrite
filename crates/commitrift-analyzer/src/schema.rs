@@ -26,9 +26,11 @@ use oxc_parser::Parser;
 use oxc_span::{GetSpan, SourceType};
 
 pub use commitrift_model::schema_facts::{
-    ExtractedSchema, SchemaColumn, SchemaDefault, SchemaForeignKey, SchemaLiteral, SchemaTable,
-    SchemaUnique,
+    ExtractedSchema, Generation, GeneratorClass, SchemaColumn, SchemaDefault, SchemaForeignKey,
+    SchemaLiteral, SchemaTable, SchemaUnique,
 };
+
+use crate::generators::Recognizer;
 
 use crate::semantic::{member_path, property_key, string_value, unwind};
 
@@ -49,11 +51,16 @@ pub fn extract_schema_source(file: &str, source: &str) -> Result<ExtractedSchema
         return Err(format!("`{file}` does not parse"));
     }
     let lines = LineMap::new(source);
+    let recognizer = Recognizer::new(&parsed.program);
     let mut x = Extractor {
         file,
         lines: &lines,
-        out: ExtractedSchema::default(),
+        out: ExtractedSchema {
+            imports: recognizer.imports.clone(),
+            ..ExtractedSchema::default()
+        },
         schemas: BTreeMap::new(),
+        recognizer: &recognizer,
     };
     x.program(&parsed.program);
     Ok(x.out)
@@ -82,12 +89,47 @@ impl LineMap {
     }
 }
 
-struct Extractor<'s> {
+struct Extractor<'s, 'r, 'a> {
     file: &'s str,
     lines: &'s LineMap,
     out: ExtractedSchema,
     /// `const auth = pgSchema("auth")` bindings → schema name.
     schemas: BTreeMap<String, String>,
+    /// Phase 12: recognizes default generators against the module's imports.
+    recognizer: &'r Recognizer<'r, 'a>,
+}
+
+fn generation(class: GeneratorClass, generator: Option<&str>, detail: &str) -> Generation {
+    Generation {
+        class,
+        generator: generator.map(str::to_owned),
+        detail: detail.to_owned(),
+        callback_import: None,
+    }
+}
+
+/// `sql\`gen_random_uuid()\`` with `sql` imported from `drizzle-orm`.
+fn sql_generator(recognizer: &Recognizer<'_, '_>, e: &Expression<'_>) -> Option<&'static str> {
+    let Expression::TaggedTemplateExpression(t) = e else {
+        return None;
+    };
+    let Expression::Identifier(tag) = t.tag.get_inner_expression() else {
+        return None;
+    };
+    let from_drizzle = recognizer
+        .imports
+        .get(tag.name.as_str())
+        .is_some_and(|(specifier, imported)| specifier == "drizzle-orm" && imported == "sql");
+    if !from_drizzle || !t.quasi.expressions.is_empty() {
+        return None;
+    }
+    let text: String = t
+        .quasi
+        .quasis
+        .iter()
+        .map(|q| q.value.raw.as_str())
+        .collect();
+    (text.trim().eq_ignore_ascii_case("gen_random_uuid()")).then_some("gen_random_uuid()")
 }
 
 fn string_arg(arguments: &[Argument<'_>], index: usize) -> Option<String> {
@@ -101,7 +143,7 @@ fn source_text<'a>(source: &'a str, expression: &Expression<'_>) -> &'a str {
         .unwrap_or("<expression>")
 }
 
-impl<'s> Extractor<'s> {
+impl Extractor<'_, '_, '_> {
     fn line(&self, offset: u32) -> u32 {
         self.lines.line(offset)
     }
@@ -404,11 +446,19 @@ impl<'s> Extractor<'s> {
             }),
             enum_values,
             references: None,
+            generation: None,
             line,
         };
         if matches!(builder, "serial" | "bigserial" | "smallserial") {
             column.not_null = true;
         }
+        // Phase 12: how the default is produced. Drizzle uses a `$defaultFn`
+        // callback whenever the INSERT omits the column, whatever database
+        // default the column also has, so an application default wins.
+        let mut database_side: Option<Generation> =
+            matches!(builder, "serial" | "bigserial" | "smallserial")
+                .then(|| generation(GeneratorClass::SequenceGenerated, None, builder));
+        let mut application_side: Option<Generation> = None;
         for step in steps {
             if !step.path.is_empty() {
                 table.unsupported.push(format!(
@@ -441,6 +491,43 @@ impl<'s> Extractor<'s> {
                     });
                 }
                 "default" => {
+                    let first = args
+                        .first()
+                        .and_then(Argument::as_expression)
+                        .map(Expression::get_inner_expression);
+                    database_side = Some(match first {
+                        Some(
+                            Expression::StringLiteral(_)
+                            | Expression::NumericLiteral(_)
+                            | Expression::BooleanLiteral(_)
+                            | Expression::NullLiteral(_),
+                        ) => generation(
+                            GeneratorClass::ConstantDefault,
+                            None,
+                            first.map_or("", |e| source_text(source, e)),
+                        ),
+                        Some(e) => match sql_generator(self.recognizer, e) {
+                            Some(g) => generation(
+                                GeneratorClass::DatabaseGenerated,
+                                Some(g),
+                                source_text(source, e),
+                            ),
+                            None if matches!(e, Expression::UnaryExpression(_)) => generation(
+                                GeneratorClass::ConstantDefault,
+                                None,
+                                source_text(source, e),
+                            ),
+                            None => generation(
+                                GeneratorClass::UnknownDefault,
+                                None,
+                                &format!(
+                                    "`{}`: a database expression the model does not represent",
+                                    source_text(source, e)
+                                ),
+                            ),
+                        },
+                        None => generation(GeneratorClass::UnknownDefault, None, "<missing>"),
+                    });
                     column.default = Some(
                         match args
                             .first()
@@ -491,16 +578,35 @@ impl<'s> Extractor<'s> {
                     );
                 }
                 "defaultNow" => {
+                    database_side =
+                        Some(generation(GeneratorClass::DatabaseGenerated, None, "now()"));
                     column.default = Some(SchemaDefault::Expression {
                         text: "now()".to_owned(),
                     });
                 }
                 "defaultRandom" => {
+                    database_side = Some(generation(
+                        GeneratorClass::DatabaseGenerated,
+                        Some("gen_random_uuid()"),
+                        "defaultRandom()",
+                    ));
                     column.default = Some(SchemaDefault::Expression {
                         text: "gen_random_uuid()".to_owned(),
                     });
                 }
                 "$defaultFn" | "$default" => {
+                    let written = format!(
+                        ".{}({})",
+                        step.method,
+                        args.first()
+                            .and_then(Argument::as_expression)
+                            .map(|e| source_text(source, e))
+                            .unwrap_or_default()
+                    );
+                    application_side = Some(
+                        self.recognizer
+                            .callback(args.first().and_then(Argument::as_expression), &written),
+                    );
                     column.default = Some(SchemaDefault::Application {
                         text: args
                             .first()
@@ -510,6 +616,11 @@ impl<'s> Extractor<'s> {
                     });
                 }
                 "generatedAlwaysAsIdentity" | "generatedByDefaultAsIdentity" => {
+                    database_side = Some(generation(
+                        GeneratorClass::IdentityGenerated,
+                        None,
+                        step.method,
+                    ));
                     column.not_null = true;
                     column.default = Some(SchemaDefault::Sequence {
                         generated: step.method.to_owned(),
@@ -555,6 +666,7 @@ impl<'s> Extractor<'s> {
                 )),
             }
         }
+        column.generation = application_side.or(database_side);
         table.columns.push(column);
     }
 
