@@ -339,3 +339,116 @@ fn an_autocommit_statement_can_be_held_and_delivered_later() {
     rig.proxy.deliver(held.conn).unwrap();
     until("the late statement ran", || rig.count() == 1);
 }
+
+// ---------------------------------------------------------------------------
+// Phase 10: the connection is broken while the client process is alive.
+// ---------------------------------------------------------------------------
+
+/// The client ended on its own (it was not killed): with the exit status and
+/// what it printed.
+fn ended_by_itself(client: &mut Client) -> (std::process::ExitStatus, String) {
+    let deadline = Instant::now() + WAIT;
+    loop {
+        if let Some(status) = client.child.try_wait().unwrap() {
+            return (status, client.output());
+        }
+        assert!(Instant::now() < deadline, "the client did not notice");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+#[test]
+fn a_severed_connection_after_the_answer_leaves_the_commit_durable_and_the_client_alive() {
+    let bins = require!();
+    let rig = rig(bins);
+    rig.proxy.arm("w#1", Fault::DropResponse, Target::Commit);
+    let since = rig.proxy.cursor();
+    let mut client = rig.client("w#1", PAY);
+    let done = rig
+        .proxy
+        .wait(since, WAIT, |e| e.kind == EventKind::OperationCompleted)
+        .expect("the server answered the COMMIT");
+    assert!(done.detail.contains("CommandComplete COMMIT"), "{done:?}");
+    let pid = rig.proxy.backend_pid(done.conn).unwrap();
+    // Until now the client waits; nobody has touched it.
+    assert!(client.child.try_wait().unwrap().is_none());
+    rig.proxy.sever_client(done.conn).expect("sever");
+    // The client process is still the one it was: it ends by itself, with an
+    // error about its connection, never having been told the COMMIT's result.
+    let (status, out) = ended_by_itself(&mut client);
+    assert!(!status.success(), "{out}");
+    assert!(!out.contains("after commit"), "{out}");
+    until("the backend ended", || rig.backend_state(pid) == "gone");
+    assert_eq!(
+        rig.count(),
+        1,
+        "the COMMIT the client never heard about is durable"
+    );
+    let kinds: Vec<EventKind> = rig.proxy.events().iter().map(|e| e.kind).collect();
+    assert!(kinds.contains(&EventKind::ClientSevered));
+    assert!(kinds.contains(&EventKind::ClientClosed));
+}
+
+#[test]
+fn a_severed_connection_with_a_withheld_commit_keeps_the_transaction_for_a_late_delivery() {
+    let bins = require!();
+    let rig = rig(bins);
+    rig.proxy.arm("w#1", Fault::HoldRequest, Target::Commit);
+    let since = rig.proxy.cursor();
+    let mut client = rig.client("w#1", PAY);
+    let held = rig
+        .proxy
+        .wait(since, WAIT, |e| e.kind == EventKind::OperationHeld)
+        .expect("the COMMIT was withheld");
+    let pid = rig.proxy.backend_pid(held.conn).unwrap();
+    rig.proxy.sever_client(held.conn).expect("sever");
+    let (status, _) = ended_by_itself(&mut client);
+    assert!(!status.success());
+    // The client is gone from the connection; the server still has its open
+    // transaction and no COMMIT.
+    std::thread::sleep(Duration::from_millis(200));
+    assert_eq!(rig.backend_state(pid), "idle in transaction");
+    assert_eq!(rig.count(), 0);
+    let since = rig.proxy.cursor();
+    rig.proxy.deliver(held.conn).expect("deliver");
+    rig.proxy
+        .wait(since, WAIT, |e| e.kind == EventKind::OperationCompleted)
+        .expect("the server completed the late COMMIT");
+    assert_eq!(rig.count(), 1);
+}
+
+#[test]
+fn a_severed_connection_with_a_discarded_commit_rolls_the_transaction_back() {
+    let bins = require!();
+    let rig = rig(bins);
+    rig.proxy.arm("w#1", Fault::HoldRequest, Target::Commit);
+    let since = rig.proxy.cursor();
+    let mut client = rig.client("w#1", PAY);
+    let held = rig
+        .proxy
+        .wait(since, WAIT, |e| e.kind == EventKind::OperationHeld)
+        .unwrap();
+    let pid = rig.proxy.backend_pid(held.conn).unwrap();
+    rig.proxy.sever_client(held.conn).expect("sever");
+    rig.proxy.discard(held.conn);
+    let (status, _) = ended_by_itself(&mut client);
+    assert!(!status.success());
+    until("the backend ended", || rig.backend_state(pid) == "gone");
+    assert_eq!(rig.count(), 0);
+}
+
+#[test]
+fn a_connection_can_only_be_severed_once_and_only_if_it_exists() {
+    let bins = require!();
+    let rig = rig(bins);
+    assert!(rig.proxy.sever_client(99).is_err());
+    rig.proxy.arm("w#1", Fault::HoldRequest, Target::Commit);
+    let since = rig.proxy.cursor();
+    let _client = rig.client("w#1", PAY);
+    let held = rig
+        .proxy
+        .wait(since, WAIT, |e| e.kind == EventKind::OperationHeld)
+        .unwrap();
+    assert!(rig.proxy.sever_client(held.conn).is_ok());
+    assert!(rig.proxy.sever_client(held.conn).is_err());
+}

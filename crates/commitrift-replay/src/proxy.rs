@@ -93,6 +93,9 @@ pub enum EventKind {
     ResponseWithheld,
     Delivered,
     Discarded,
+    /// Phase 10: the proxy closed the client's connection while the client
+    /// process was alive (a broken connection, not a killed process).
+    ClientSevered,
     ClientClosed,
     ServerClosed,
     Unsupported,
@@ -141,6 +144,9 @@ struct ConnState {
     /// The upstream connection kept open for a later delivery.
     upstream: Option<UnixStream>,
     client_gone: bool,
+    /// A handle on the client's socket, so the proxy can close it while the
+    /// client process lives (Phase 10, [`FaultProxy::sever_client`]).
+    client: Option<UnixStream>,
 }
 
 struct Inner {
@@ -374,6 +380,34 @@ impl FaultProxy {
             .event(conn, EventKind::Discarded, "held COMMIT discarded");
     }
 
+    /// Phase 10: close the client's side of `conn` now, with the client
+    /// process alive. The driver sees its socket end (node-postgres: the
+    /// connection ends unexpectedly), exactly as for a network failure; the
+    /// proxy does not write anything to the client first. What happens to the
+    /// server side follows from the fault that was armed: a withheld COMMIT
+    /// stays held for a later delivery, an answered one is already complete,
+    /// and `discard` ends a withheld one.
+    pub fn sever_client(&self, conn: u64) -> Result<(), String> {
+        let client = {
+            let mut g = self.shared.lock();
+            g.conns
+                .get_mut(&conn)
+                .ok_or("no such connection")?
+                .client
+                .take()
+        };
+        let client = client.ok_or("the client connection is already closed")?;
+        client
+            .shutdown(std::net::Shutdown::Both)
+            .map_err(|e| format!("closing the client connection: {e}"))?;
+        self.shared.event(
+            conn,
+            EventKind::ClientSevered,
+            "the proxy closed the client connection; the client process was not touched",
+        );
+        Ok(())
+    }
+
     /// Stop the proxy: close every connection and remove the socket.
     pub fn stop(&mut self) {
         self.shared.stop.store(true, Ordering::SeqCst);
@@ -411,6 +445,30 @@ pub enum Control {
     Begin,
     Rollback,
     Other,
+}
+
+/// Whether SQL text is a data-modifying statement (`INSERT`, `UPDATE`,
+/// `DELETE`, after comments and an optional `WITH`-less prefix): the only
+/// kind of statement the model ever puts in flight outside a transaction.
+/// A driver's own catalog reads (postgres-js reads `pg_type` on a new
+/// connection) are therefore never mistaken for the targeted statement.
+pub fn is_write_sql(sql: &str) -> bool {
+    let mut text = sql.trim();
+    loop {
+        if let Some(rest) = text.strip_prefix("--") {
+            text = rest.split_once('\n').map_or("", |(_, r)| r).trim_start();
+        } else if let Some(rest) = text.strip_prefix("/*") {
+            text = rest.split_once("*/").map_or("", |(_, r)| r).trim_start();
+        } else {
+            break;
+        }
+    }
+    let word: String = text
+        .chars()
+        .take_while(|c| c.is_ascii_alphabetic())
+        .collect::<String>()
+        .to_ascii_lowercase();
+    matches!(word.as_str(), "insert" | "update" | "delete")
 }
 
 /// Classify SQL text: only plain `COMMIT`/`END` (optionally `TRANSACTION`,
@@ -587,6 +645,9 @@ fn accept_loop(shared: &Arc<Shared>, listener: &UnixListener, upstream: &Path) {
                 };
                 let _ = client.set_nonblocking(false);
                 let _ = server.set_nonblocking(false);
+                if let Some(c) = shared.lock().conns.get_mut(&id) {
+                    c.client = client.try_clone().ok();
+                }
                 if let Err(e) = serve(shared, id, client, server, &mut handles) {
                     shared.event(id, EventKind::Unsupported, e);
                 }
@@ -767,14 +828,14 @@ fn forward_client_frame(shared: &Shared, id: u64, f: &Frame, server: &mut UnixSt
         b'Q' => {
             let (sql, _) = cstr(&f.body);
             is_commit_frame = classify_sql(&sql) == Control::Commit;
-            is_statement_frame = classify_sql(&sql) == Control::Other;
+            is_statement_frame = classify_sql(&sql) == Control::Other && is_write_sql(&sql);
             detail = redacted_sql(&sql);
         }
         b'P' => {
             let (name, rest) = cstr(&f.body);
             let (sql, _) = cstr(rest);
             let commit = classify_sql(&sql) == Control::Commit;
-            is_statement_frame = classify_sql(&sql) == Control::Other;
+            is_statement_frame = classify_sql(&sql) == Control::Other && is_write_sql(&sql);
             detail = format!(
                 "{} (statement name {})",
                 redacted_sql(&sql),
@@ -1061,6 +1122,23 @@ fn forward_server_frame(shared: &Shared, id: u64, f: &Frame, client: &mut UnixSt
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_data_modifying_statements_are_statement_targets() {
+        assert!(is_write_sql(
+            "insert into \"payments\" (\"id\") values ($1)"
+        ));
+        assert!(is_write_sql("  /* c */ UPDATE orders SET status = $1"));
+        assert!(is_write_sql("-- x\ndelete from t"));
+        // postgres-js's catalog read on a new connection, a plain read, and
+        // transaction control are not.
+        assert!(!is_write_sql(
+            "select b.oid, b.typarray from pg_catalog.pg_type a left join pg_catalog.pg_type b on b.oid = a.typelem"
+        ));
+        assert!(!is_write_sql("select 1"));
+        assert!(!is_write_sql("commit"));
+        assert!(!is_write_sql("inserted"));
+    }
 
     #[test]
     fn only_a_plain_commit_is_a_commit() {
