@@ -1,0 +1,1278 @@
+{
+ "actors": [
+  {
+   "arguments": [
+    [
+     "input",
+     {
+      "productId": 1,
+      "quantity": 3
+     }
+    ]
+   ],
+   "file": "src/app/inventory.ts",
+   "function": "src/app/inventory.ts#reserveItem",
+   "name": "reserveItem-1",
+   "operations": 20,
+   "origin": "extracted",
+   "process": "reserveItem-1",
+   "sourceRefs": [
+    {
+     "callChain": [
+      "reserveItem"
+     ],
+     "column": 27,
+     "effectId": 0,
+     "file": "src/repositories/inventory-repository.ts",
+     "function": "getProduct",
+     "line": 7,
+     "origin": "extracted",
+     "text": "db.select().from(products).where(eq(products.id, productId)).limit(1)"
+    },
+    {
+     "callChain": [
+      "reserveItem"
+     ],
+     "column": 9,
+     "diagnostics": [
+      "CP1004@06065fe9c097c22f"
+     ],
+     "effectId": 0,
+     "file": "src/repositories/inventory-repository.ts",
+     "function": "setStock",
+     "line": 12,
+     "origin": "extracted",
+     "text": "db.update(products).set({ stock }).where(eq(products.id, productId))"
+    },
+    {
+     "callChain": [
+      "reserveItem"
+     ],
+     "column": 9,
+     "diagnostics": [
+      "CP1004@06065fe9c097c22f",
+      "CP1004@d35b05f3f31e3df3"
+     ],
+     "effectId": 0,
+     "file": "src/repositories/inventory-repository.ts",
+     "function": "addReservation",
+     "line": 16,
+     "origin": "extracted",
+     "text": "db.insert(reservations).values({ productId, quantity })"
+    }
+   ],
+   "tasks": 1
+  },
+  {
+   "arguments": [
+    [
+     "input",
+     {
+      "productId": 1,
+      "quantity": 3
+     }
+    ]
+   ],
+   "file": "src/app/inventory.ts",
+   "function": "src/app/inventory.ts#reserveItem",
+   "name": "reserveItem-2",
+   "operations": 20,
+   "origin": "extracted",
+   "process": "reserveItem-2",
+   "sourceRefs": [
+    {
+     "callChain": [
+      "reserveItem"
+     ],
+     "column": 27,
+     "effectId": 0,
+     "file": "src/repositories/inventory-repository.ts",
+     "function": "getProduct",
+     "line": 7,
+     "origin": "extracted",
+     "text": "db.select().from(products).where(eq(products.id, productId)).limit(1)"
+    },
+    {
+     "callChain": [
+      "reserveItem"
+     ],
+     "column": 9,
+     "diagnostics": [
+      "CP1004@06065fe9c097c22f"
+     ],
+     "effectId": 0,
+     "file": "src/repositories/inventory-repository.ts",
+     "function": "setStock",
+     "line": 12,
+     "origin": "extracted",
+     "text": "db.update(products).set({ stock }).where(eq(products.id, productId))"
+    },
+    {
+     "callChain": [
+      "reserveItem"
+     ],
+     "column": 9,
+     "diagnostics": [
+      "CP1004@06065fe9c097c22f",
+      "CP1004@d35b05f3f31e3df3"
+     ],
+     "effectId": 0,
+     "file": "src/repositories/inventory-repository.ts",
+     "function": "addReservation",
+     "line": 16,
+     "origin": "extracted",
+     "text": "db.insert(reservations).values({ productId, quantity })"
+    }
+   ],
+   "tasks": 1
+  }
+ ],
+ "assumptions": [
+  "database default isolation: read-committed (PostgreSQL semantics, see docs/phase6/POSTGRES-ISOLATION.md)",
+  "a database statement is atomic unless it must wait for another transaction; waiting statements resume with their original snapshot",
+  "autocommit (root `db`) statements are single-statement transactions at the default isolation level",
+  "local computation is not a scheduling point; it is folded into the preceding transition",
+  "rows are read in primary-key order for LIMIT 1 (the declared programs and generated SQL both use ORDER BY the primary key)",
+  "tasks of different actors never share a transaction, connection or event loop; actors listed with the same process share in-process variables and crash together",
+  "a process crash rolls back open transactions and loses local state; committed data and performed external effects remain",
+  "actor reserveItem-1: select without orderBy: the first row in primary-key order is used",
+  "actor reserveItem-2: select without orderBy: the first row in primary-key order is used"
+ ],
+ "bounds": {
+  "declared": {
+   "maxActors": 4,
+   "maxContextSwitches": null,
+   "maxCrashes": 0,
+   "maxMemoryBytes": null,
+   "maxRetries": 0,
+   "maxStates": 200000,
+   "maxSteps": 64,
+   "maxTransitions": null,
+   "maxWallMs": 60000
+  },
+  "partialOrderReduction": true,
+  "strategy": "dfs"
+ },
+ "counterexample": {
+  "contextSwitches": 2,
+  "finalState": {
+   "actors": [
+    [
+     "reserveItem-1",
+     "ok"
+    ],
+    [
+     "reserveItem-2",
+     "ok"
+    ]
+   ],
+   "externalEffects": [],
+   "quiescent": true,
+   "tables": {
+    "products": [
+     {
+      "id": 1,
+      "sku": "sku-1",
+      "stock": 7
+     }
+    ],
+    "reservations": [
+     {
+      "id": 1,
+      "productId": 1,
+      "quantity": 3
+     },
+     {
+      "id": 2,
+      "productId": 1,
+      "quantity": 3
+     }
+    ]
+   },
+   "terms": [
+    {
+     "term": "ok",
+     "value": 2
+    },
+    {
+     "term": "committed(products[id=1].stock)",
+     "value": 7
+    },
+    {
+     "term": "ok",
+     "value": 2
+    },
+    {
+     "term": "committed(products[id=1].stock)",
+     "value": 7
+    },
+    {
+     "term": "ok",
+     "value": 2
+    },
+    {
+     "term": "committed(products[id=1].stock)",
+     "value": 7
+    }
+   ]
+  },
+  "formula": "((ok = 0) and (committed(products[id=1].stock) = 10)) or ((ok = 1) and (committed(products[id=1].stock) = 7)) or ((ok = 2) and (committed(products[id=1].stock) = 4))",
+  "initialTables": {
+   "products": [
+    {
+     "id": 1,
+     "sku": "sku-1",
+     "stock": 10
+    }
+   ],
+   "reservations": []
+  },
+  "invariant": "serial-products-stock",
+  "minimized": true,
+  "originalLength": 6,
+  "steps": [
+   {
+    "actor": "reserveItem-2",
+    "events": [
+     {
+      "actor": 1,
+      "kind": "read",
+      "result": {
+       "id": 1,
+       "sku": "sku-1",
+       "stock": 10
+      },
+      "src": {
+       "callChain": [
+        "reserveItem"
+       ],
+       "column": 27,
+       "effectId": 0,
+       "file": "src/repositories/inventory-repository.ts",
+       "function": "getProduct",
+       "line": 7,
+       "origin": "extracted",
+       "text": "db.select().from(products).where(eq(products.id, productId)).limit(1)"
+      },
+      "text": "SELECT products WHERE (@id = 1) \u2192 {id=1, sku=\"sku-1\", stock=10}",
+      "thread": 0
+     },
+     {
+      "actor": 1,
+      "kind": "local",
+      "result": {
+       "id": 1,
+       "sku": "sku-1",
+       "stock": 10
+      },
+      "src": {
+       "callChain": [
+        "reserveItem"
+       ],
+       "column": 3,
+       "file": "src/repositories/inventory-repository.ts",
+       "function": "getProduct",
+       "line": 8,
+       "origin": "extracted",
+       "text": "return product;"
+      },
+      "text": "h1$ret = {id=1, sku=\"sku-1\", stock=10}",
+      "thread": 0
+     },
+     {
+      "actor": 1,
+      "kind": "local",
+      "result": {
+       "id": 1,
+       "sku": "sku-1",
+       "stock": 10
+      },
+      "src": {
+       "column": 9,
+       "file": "src/app/inventory.ts",
+       "function": "reserveItem",
+       "line": 20,
+       "origin": "extracted",
+       "text": "product = await getProduct(input.productId)"
+      },
+      "text": "product = {id=1, sku=\"sku-1\", stock=10}",
+      "thread": 0
+     },
+     {
+      "actor": 1,
+      "kind": "local",
+      "result": false,
+      "src": {
+       "column": 7,
+       "file": "src/app/inventory.ts",
+       "function": "reserveItem",
+       "line": 21,
+       "origin": "extracted",
+       "text": "!product"
+      },
+      "text": "CHECK !product \u2192 false",
+      "thread": 0
+     },
+     {
+      "actor": 1,
+      "kind": "local",
+      "result": false,
+      "src": {
+       "column": 7,
+       "file": "src/app/inventory.ts",
+       "function": "reserveItem",
+       "line": 24,
+       "origin": "extracted",
+       "text": "product.stock < input.quantity"
+      },
+      "text": "CHECK (product.stock < input.quantity) \u2192 false",
+      "thread": 0
+     },
+     {
+      "actor": 1,
+      "kind": "local",
+      "result": null,
+      "src": {
+       "callChain": [
+        "reserveItem"
+       ],
+       "column": 40,
+       "file": "src/repositories/inventory-repository.ts",
+       "function": "setStock",
+       "line": 20,
+       "origin": "extracted",
+       "text": ". export async function takeStock(productId: number,"
+      },
+      "text": "h3$ret = null",
+      "thread": 0
+     },
+     {
+      "actor": 1,
+      "kind": "local",
+      "result": 1,
+      "src": {
+       "callChain": [
+        "reserveItem"
+       ],
+       "column": 32,
+       "file": "src/repositories/inventory-repository.ts",
+       "function": "setStock",
+       "line": 11,
+       "origin": "extracted",
+       "text": "productId: number"
+      },
+      "text": "h3$productId = 1",
+      "thread": 0
+     },
+     {
+      "actor": 1,
+      "kind": "local",
+      "result": 7,
+      "src": {
+       "callChain": [
+        "reserveItem"
+       ],
+       "column": 51,
+       "file": "src/repositories/inventory-repository.ts",
+       "function": "setStock",
+       "line": 11,
+       "origin": "extracted",
+       "text": "stock: number"
+      },
+      "text": "h3$stock = 7",
+      "thread": 0
+     }
+    ],
+    "index": 1,
+    "kind": "step"
+   },
+   {
+    "actor": "reserveItem-1",
+    "events": [
+     {
+      "actor": 0,
+      "kind": "read",
+      "result": {
+       "id": 1,
+       "sku": "sku-1",
+       "stock": 10
+      },
+      "src": {
+       "callChain": [
+        "reserveItem"
+       ],
+       "column": 27,
+       "effectId": 0,
+       "file": "src/repositories/inventory-repository.ts",
+       "function": "getProduct",
+       "line": 7,
+       "origin": "extracted",
+       "text": "db.select().from(products).where(eq(products.id, productId)).limit(1)"
+      },
+      "text": "SELECT products WHERE (@id = 1) \u2192 {id=1, sku=\"sku-1\", stock=10}",
+      "thread": 0
+     },
+     {
+      "actor": 0,
+      "kind": "local",
+      "result": {
+       "id": 1,
+       "sku": "sku-1",
+       "stock": 10
+      },
+      "src": {
+       "callChain": [
+        "reserveItem"
+       ],
+       "column": 3,
+       "file": "src/repositories/inventory-repository.ts",
+       "function": "getProduct",
+       "line": 8,
+       "origin": "extracted",
+       "text": "return product;"
+      },
+      "text": "h1$ret = {id=1, sku=\"sku-1\", stock=10}",
+      "thread": 0
+     },
+     {
+      "actor": 0,
+      "kind": "local",
+      "result": {
+       "id": 1,
+       "sku": "sku-1",
+       "stock": 10
+      },
+      "src": {
+       "column": 9,
+       "file": "src/app/inventory.ts",
+       "function": "reserveItem",
+       "line": 20,
+       "origin": "extracted",
+       "text": "product = await getProduct(input.productId)"
+      },
+      "text": "product = {id=1, sku=\"sku-1\", stock=10}",
+      "thread": 0
+     },
+     {
+      "actor": 0,
+      "kind": "local",
+      "result": false,
+      "src": {
+       "column": 7,
+       "file": "src/app/inventory.ts",
+       "function": "reserveItem",
+       "line": 21,
+       "origin": "extracted",
+       "text": "!product"
+      },
+      "text": "CHECK !product \u2192 false",
+      "thread": 0
+     },
+     {
+      "actor": 0,
+      "kind": "local",
+      "result": false,
+      "src": {
+       "column": 7,
+       "file": "src/app/inventory.ts",
+       "function": "reserveItem",
+       "line": 24,
+       "origin": "extracted",
+       "text": "product.stock < input.quantity"
+      },
+      "text": "CHECK (product.stock < input.quantity) \u2192 false",
+      "thread": 0
+     },
+     {
+      "actor": 0,
+      "kind": "local",
+      "result": null,
+      "src": {
+       "callChain": [
+        "reserveItem"
+       ],
+       "column": 40,
+       "file": "src/repositories/inventory-repository.ts",
+       "function": "setStock",
+       "line": 20,
+       "origin": "extracted",
+       "text": ". export async function takeStock(productId: number,"
+      },
+      "text": "h3$ret = null",
+      "thread": 0
+     },
+     {
+      "actor": 0,
+      "kind": "local",
+      "result": 1,
+      "src": {
+       "callChain": [
+        "reserveItem"
+       ],
+       "column": 32,
+       "file": "src/repositories/inventory-repository.ts",
+       "function": "setStock",
+       "line": 11,
+       "origin": "extracted",
+       "text": "productId: number"
+      },
+      "text": "h3$productId = 1",
+      "thread": 0
+     },
+     {
+      "actor": 0,
+      "kind": "local",
+      "result": 7,
+      "src": {
+       "callChain": [
+        "reserveItem"
+       ],
+       "column": 51,
+       "file": "src/repositories/inventory-repository.ts",
+       "function": "setStock",
+       "line": 11,
+       "origin": "extracted",
+       "text": "stock: number"
+      },
+      "text": "h3$stock = 7",
+      "thread": 0
+     }
+    ],
+    "index": 2,
+    "kind": "step"
+   },
+   {
+    "actor": "reserveItem-1",
+    "events": [
+     {
+      "actor": 0,
+      "kind": "write",
+      "result": 1,
+      "src": {
+       "callChain": [
+        "reserveItem"
+       ],
+       "column": 9,
+       "diagnostics": [
+        "CP1004@06065fe9c097c22f"
+       ],
+       "effectId": 0,
+       "file": "src/repositories/inventory-repository.ts",
+       "function": "setStock",
+       "line": 12,
+       "origin": "extracted",
+       "text": "db.update(products).set({ stock }).where(eq(products.id, productId))"
+      },
+      "text": "UPDATE products SET stock = 7 WHERE (@id = 1) \u2192 1 row",
+      "thread": 0
+     },
+     {
+      "actor": 0,
+      "kind": "local",
+      "result": null,
+      "src": {
+       "callChain": [
+        "reserveItem"
+       ],
+       "column": 61,
+       "file": "src/repositories/inventory-repository.ts",
+       "function": "addReservation",
+       "line": 21,
+       "origin": "extracted",
+       "text": "number) { return db .update(product"
+      },
+      "text": "h4$ret = null",
+      "thread": 0
+     },
+     {
+      "actor": 0,
+      "kind": "local",
+      "result": 1,
+      "src": {
+       "callChain": [
+        "reserveItem"
+       ],
+       "column": 38,
+       "file": "src/repositories/inventory-repository.ts",
+       "function": "addReservation",
+       "line": 15,
+       "origin": "extracted",
+       "text": "productId: number"
+      },
+      "text": "h4$productId = 1",
+      "thread": 0
+     },
+     {
+      "actor": 0,
+      "kind": "local",
+      "result": 3,
+      "src": {
+       "callChain": [
+        "reserveItem"
+       ],
+       "column": 57,
+       "file": "src/repositories/inventory-repository.ts",
+       "function": "addReservation",
+       "line": 15,
+       "origin": "extracted",
+       "text": "quantity: number"
+      },
+      "text": "h4$quantity = 3",
+      "thread": 0
+     }
+    ],
+    "index": 3,
+    "kind": "step"
+   },
+   {
+    "actor": "reserveItem-1",
+    "events": [
+     {
+      "actor": 0,
+      "kind": "write",
+      "result": 1,
+      "src": {
+       "callChain": [
+        "reserveItem"
+       ],
+       "column": 9,
+       "diagnostics": [
+        "CP1004@06065fe9c097c22f",
+        "CP1004@d35b05f3f31e3df3"
+       ],
+       "effectId": 0,
+       "file": "src/repositories/inventory-repository.ts",
+       "function": "addReservation",
+       "line": 16,
+       "origin": "extracted",
+       "text": "db.insert(reservations).values({ productId, quantity })"
+      },
+      "text": "INSERT reservations {productId=1, quantity=3} \u2192 1 row",
+      "thread": 0
+     },
+     {
+      "actor": 0,
+      "kind": "local",
+      "text": "return (success)",
+      "thread": 0
+     }
+    ],
+    "index": 4,
+    "kind": "step"
+   },
+   {
+    "actor": "reserveItem-2",
+    "events": [
+     {
+      "actor": 1,
+      "kind": "write",
+      "result": 1,
+      "src": {
+       "callChain": [
+        "reserveItem"
+       ],
+       "column": 9,
+       "diagnostics": [
+        "CP1004@06065fe9c097c22f"
+       ],
+       "effectId": 0,
+       "file": "src/repositories/inventory-repository.ts",
+       "function": "setStock",
+       "line": 12,
+       "origin": "extracted",
+       "text": "db.update(products).set({ stock }).where(eq(products.id, productId))"
+      },
+      "text": "UPDATE products SET stock = 7 WHERE (@id = 1) \u2192 1 row",
+      "thread": 0
+     },
+     {
+      "actor": 1,
+      "kind": "local",
+      "result": null,
+      "src": {
+       "callChain": [
+        "reserveItem"
+       ],
+       "column": 61,
+       "file": "src/repositories/inventory-repository.ts",
+       "function": "addReservation",
+       "line": 21,
+       "origin": "extracted",
+       "text": "number) { return db .update(product"
+      },
+      "text": "h4$ret = null",
+      "thread": 0
+     },
+     {
+      "actor": 1,
+      "kind": "local",
+      "result": 1,
+      "src": {
+       "callChain": [
+        "reserveItem"
+       ],
+       "column": 38,
+       "file": "src/repositories/inventory-repository.ts",
+       "function": "addReservation",
+       "line": 15,
+       "origin": "extracted",
+       "text": "productId: number"
+      },
+      "text": "h4$productId = 1",
+      "thread": 0
+     },
+     {
+      "actor": 1,
+      "kind": "local",
+      "result": 3,
+      "src": {
+       "callChain": [
+        "reserveItem"
+       ],
+       "column": 57,
+       "file": "src/repositories/inventory-repository.ts",
+       "function": "addReservation",
+       "line": 15,
+       "origin": "extracted",
+       "text": "quantity: number"
+      },
+      "text": "h4$quantity = 3",
+      "thread": 0
+     }
+    ],
+    "index": 5,
+    "kind": "step"
+   },
+   {
+    "actor": "reserveItem-2",
+    "events": [
+     {
+      "actor": 1,
+      "kind": "write",
+      "result": 1,
+      "src": {
+       "callChain": [
+        "reserveItem"
+       ],
+       "column": 9,
+       "diagnostics": [
+        "CP1004@06065fe9c097c22f",
+        "CP1004@d35b05f3f31e3df3"
+       ],
+       "effectId": 0,
+       "file": "src/repositories/inventory-repository.ts",
+       "function": "addReservation",
+       "line": 16,
+       "origin": "extracted",
+       "text": "db.insert(reservations).values({ productId, quantity })"
+      },
+      "text": "INSERT reservations {productId=1, quantity=3} \u2192 1 row",
+      "thread": 0
+     },
+     {
+      "actor": 1,
+      "kind": "local",
+      "text": "return (success)",
+      "thread": 0
+     }
+    ],
+    "index": 6,
+    "kind": "step"
+   }
+  ],
+  "when": "final"
+ },
+ "database": {
+  "isolation": "read-committed",
+  "tables": [
+   {
+    "checks": [],
+    "columns": [
+     "id",
+     "sku",
+     "stock"
+    ],
+    "initialRows": [
+     {
+      "id": 1,
+      "sku": "sku-1",
+      "stock": 10
+     }
+    ],
+    "name": "products",
+    "primaryKey": [
+     "id"
+    ],
+    "unique": [
+     [
+      "sku"
+     ]
+    ]
+   },
+   {
+    "checks": [],
+    "columns": [
+     "id",
+     "productId",
+     "quantity"
+    ],
+    "initialRows": [],
+    "name": "reservations",
+    "primaryKey": [
+     "id"
+    ],
+    "unique": []
+   }
+  ]
+ },
+ "diagnostics": [
+  {
+   "code": "CP7001",
+   "message": "invariant `serial-products-stock` can be violated by a bounded schedule of 6 transitions (2 context switches); evidence: original-code-reproduced",
+   "severity": "warning"
+  }
+ ],
+ "evidence": {
+  "level": "original-code-reproduced",
+  "summary": "the actors' original application code ran under this schedule against PostgreSQL in 3 of 3 run(s): every statement, result and outcome matched the model, and the invariant is violated on the rows the run left"
+ },
+ "exploration": {
+  "complete": true,
+  "metrics": {
+   "contextPrunedTransitions": 0,
+   "duplicateStateHits": 0,
+   "maxDepth": 6,
+   "schedulesInExploredGraph": 3,
+   "sleepPrunedTransitions": 2,
+   "states": 16,
+   "terminalStates": 3,
+   "transitions": 15,
+   "visitedBytes": 9620
+  },
+  "stuckStates": 0,
+  "truncation": {
+   "maxContextSwitches": false,
+   "maxMemory": false,
+   "maxStates": false,
+   "maxSteps": false,
+   "maxTransitions": false,
+   "maxWallTime": false
+  },
+  "unsupported": [],
+  "verdict": "COUNTEREXAMPLE_FOUND"
+ },
+ "extraction": [
+  {
+   "actor": "reserveItem-1",
+   "entry": {
+    "anchor": "src/app/inventory.ts@19:8",
+    "contractStatus": "not-needed",
+    "endLine": 30,
+    "file": "src/app/inventory.ts",
+    "selector": "src/app/inventory.ts#reserveItem",
+    "staticName": "reserveItem"
+   },
+   "sourceCoverage": {
+    "assumedOperations": 0,
+    "representedOperations": 3,
+    "unsupportedOperations": 0
+   },
+   "sourceFacts": [
+    "entry `src/app/inventory.ts#reserveItem` is the function at src/app/inventory.ts@19:8 (`reserveItem` in `commitrift check`)"
+   ]
+  },
+  {
+   "actor": "reserveItem-2",
+   "entry": {
+    "anchor": "src/app/inventory.ts@19:8",
+    "contractStatus": "not-needed",
+    "endLine": 30,
+    "file": "src/app/inventory.ts",
+    "selector": "src/app/inventory.ts#reserveItem",
+    "staticName": "reserveItem"
+   },
+   "sourceCoverage": {
+    "assumedOperations": 0,
+    "representedOperations": 3,
+    "unsupportedOperations": 0
+   },
+   "sourceFacts": [
+    "entry `src/app/inventory.ts#reserveItem` is the function at src/app/inventory.ts@19:8 (`reserveItem` in `commitrift check`)"
+   ]
+  }
+ ],
+ "invariants": [
+  {
+   "description": "[HEURISTIC_HYPOTHESIS] `products.stock` of the row (id = $input.productId) ends with a value some serial execution of the same requests produces (the value of a serial execution of the requests that completed, computed by the model)",
+   "formula": "((ok = 0) and (committed(products[id=1].stock) = 10)) or ((ok = 1) and (committed(products[id=1].stock) = 7)) or ((ok = 2) and (committed(products[id=1].stock) = 4))",
+   "name": "serial-products-stock",
+   "status": "violated",
+   "when": "final"
+  }
+ ],
+ "kind": "commitrift.model-check",
+ "modelVersion": "1.0.0",
+ "runtime": {
+  "note": "no runtime validation was requested (--validate-postgres)",
+  "observations": [],
+  "performed": false,
+  "sqlstates": [],
+  "status": "not-requested"
+ },
+ "scenario": {
+  "description": "GENERATED by `commitrift discover` from candidate CR-SYNTH-05E13A (read-modify-write): read-modify-write of `products.stock` (id = $input.productId). Variant `actual` [actual configuration]: the application as analyzed. Properties: serial-products-stock (HEURISTIC_HYPOTHESIS). Every value in this file was synthesized; the rows satisfy the modeled constraints. A counterexample to a HEURISTIC_HYPOTHESIS is not a confirmed defect.",
+  "file": "/Users/returnf4lse/Desktop/Workspace/rust/crash-proof/reports/phase11/evidence/scenarios/commerce-app/cr-synth-05e13a-actual.json",
+  "name": "cr-synth-05e13a-actual",
+  "scenarioVersion": 1
+ },
+ "schemaFacts": [
+  {
+   "binding": "products",
+   "facts": [
+    {
+     "fact": "table `products` from binding `products`",
+     "origin": "extracted-from-source",
+     "source": "src/db/schema.ts:46"
+    },
+    {
+     "fact": "column `id` \u2192 `id` int NOT NULL",
+     "origin": "extracted-from-source",
+     "source": "src/db/schema.ts:47"
+    },
+    {
+     "fact": "column `sku` \u2192 `sku` text NOT NULL",
+     "origin": "extracted-from-source",
+     "source": "src/db/schema.ts:48"
+    },
+    {
+     "fact": "column `stock` \u2192 `stock` int NOT NULL",
+     "origin": "extracted-from-source",
+     "source": "src/db/schema.ts:49"
+    },
+    {
+     "fact": "primary key (id)",
+     "origin": "extracted-from-source",
+     "source": "src/db/schema.ts:46"
+    },
+    {
+     "fact": "unique constraint `sku` on (sku)",
+     "origin": "extracted-from-source",
+     "source": "src/db/schema.ts:48"
+    }
+   ],
+   "table": "products"
+  },
+  {
+   "binding": "reservations",
+   "facts": [
+    {
+     "fact": "table `reservations` from binding `reservations`",
+     "origin": "extracted-from-source",
+     "source": "src/db/schema.ts:52"
+    },
+    {
+     "fact": "column `id` \u2192 `id` int NOT NULL generated (sequence)",
+     "origin": "extracted-from-source",
+     "source": "src/db/schema.ts:53"
+    },
+    {
+     "fact": "column `productId` \u2192 `product_id` int NOT NULL",
+     "origin": "extracted-from-source",
+     "source": "src/db/schema.ts:54"
+    },
+    {
+     "fact": "column `quantity` \u2192 `quantity` int NOT NULL",
+     "origin": "extracted-from-source",
+     "source": "src/db/schema.ts:57"
+    },
+    {
+     "fact": "primary key (id)",
+     "origin": "extracted-from-source",
+     "source": "src/db/schema.ts:52"
+    },
+    {
+     "fact": "foreign key (product_id) \u2192 products(id): not modeled (a violation, SQLSTATE 23503, is not predicted)",
+     "origin": "not-modeled",
+     "source": "src/db/schema.ts:54"
+    }
+   ],
+   "table": "reservations"
+  }
+ ],
+ "schemaVersion": 3,
+ "sourceVerification": {
+  "actors": [
+   [
+    "reserveItem-1",
+    "ok",
+    "returned"
+   ],
+   [
+    "reserveItem-2",
+    "ok",
+    "returned"
+   ]
+  ],
+  "assumptions": [
+   "reservations.id: generated values are compared exactly because both the model and the disposable database start the sequence at the same value",
+   "Only the columns the scenario models are compared; other columns of the application's tables keep their database defaults."
+  ],
+  "harness": "commerce-app",
+  "isolation": "sandbox-exec: IP networking denied; Unix sockets and file writes limited to the replay directory",
+  "modelTables": {
+   "products": [
+    {
+     "id": 1,
+     "sku": "sku-1",
+     "stock": 7
+    }
+   ],
+   "reservations": [
+    {
+     "id": 1,
+     "productId": 1,
+     "quantity": 3
+    },
+    {
+     "id": 2,
+     "productId": 1,
+     "quantity": 3
+    }
+   ]
+  },
+  "note": "Each actor's ORIGINAL application code ran in its own worker process (an authorized harness) against a private, disposable PostgreSQL database; every SQL statement the application sent was held until the coordinator released it in the order of the model's counterexample, and PostgreSQL's answers (rows, row counts, SQLSTATEs, lock waits reported by pg_stat_activity) were recorded. The invariant was evaluated on the rows the run left in the database. This is evidence about this application, this input and this schedule on this PostgreSQL; it is not a claim about production traffic.",
+  "performed": true,
+  "postgresVersion": "postgres (PostgreSQL) 17.11 (Homebrew)",
+  "runs": [
+   {
+    "coordination": "followed",
+    "elapsedMs": 1766,
+    "invariant": "violated",
+    "outcomesAgree": true,
+    "reproduced": true,
+    "run": 1,
+    "statementsAgree": true,
+    "tablesAgree": true
+   },
+   {
+    "coordination": "followed",
+    "elapsedMs": 1777,
+    "invariant": "violated",
+    "outcomesAgree": true,
+    "reproduced": true,
+    "run": 2,
+    "statementsAgree": true,
+    "tablesAgree": true
+   },
+   {
+    "coordination": "followed",
+    "elapsedMs": 1776,
+    "invariant": "violated",
+    "outcomesAgree": true,
+    "reproduced": true,
+    "run": 3,
+    "statementsAgree": true,
+    "tablesAgree": true
+   }
+  ],
+  "runtimeTables": {
+   "products": [
+    {
+     "id": 1,
+     "sku": "sku-1",
+     "stock": 7
+    }
+   ],
+   "reservations": [
+    {
+     "id": 1,
+     "productId": 1,
+     "quantity": 3
+    },
+    {
+     "id": 2,
+     "productId": 1,
+     "quantity": 3
+    }
+   ]
+  },
+  "schemaFidelity": {
+   "note": "Schema facts extracted statically from the Drizzle source, compared with the catalog of a disposable PostgreSQL database initialized by the application's migrations. A drift means the model (built from source) and the database the application runs on disagree; nothing was changed to make them agree.",
+   "postgresVersion": "postgres (PostgreSQL) 17.11 (Homebrew)",
+   "status": "agree",
+   "tables": [
+    {
+     "items": [
+      {
+       "fact": "column id type integer",
+       "status": "agree"
+      },
+      {
+       "fact": "column id NOT NULL",
+       "status": "agree"
+      },
+      {
+       "fact": "column id default",
+       "status": "agree"
+      },
+      {
+       "fact": "column sku type text",
+       "status": "agree"
+      },
+      {
+       "fact": "column sku NOT NULL",
+       "status": "agree"
+      },
+      {
+       "fact": "column sku default",
+       "status": "agree"
+      },
+      {
+       "fact": "column stock type integer",
+       "status": "agree"
+      },
+      {
+       "fact": "column stock NOT NULL",
+       "status": "agree"
+      },
+      {
+       "fact": "column stock default",
+       "status": "agree"
+      },
+      {
+       "fact": "primary key (id)",
+       "status": "agree"
+      },
+      {
+       "fact": "unique (sku)",
+       "status": "agree"
+      }
+     ],
+     "table": "products"
+    },
+    {
+     "items": [
+      {
+       "fact": "column id type integer",
+       "status": "agree"
+      },
+      {
+       "fact": "column id NOT NULL",
+       "status": "agree"
+      },
+      {
+       "fact": "column id default",
+       "status": "agree"
+      },
+      {
+       "fact": "column product_id type integer",
+       "status": "agree"
+      },
+      {
+       "fact": "column product_id NOT NULL",
+       "status": "agree"
+      },
+      {
+       "fact": "column product_id default",
+       "status": "agree"
+      },
+      {
+       "fact": "column quantity type integer",
+       "status": "agree"
+      },
+      {
+       "fact": "column quantity NOT NULL",
+       "status": "agree"
+      },
+      {
+       "fact": "column quantity default",
+       "status": "agree"
+      },
+      {
+       "fact": "primary key (id)",
+       "status": "agree"
+      },
+      {
+       "fact": "foreign key (product_id) \u2192 products(id)",
+       "status": "agree"
+      }
+     ],
+     "table": "reservations"
+    }
+   ]
+  },
+  "statements": [
+   {
+    "actor": "reserveItem-2",
+    "model": "SELECT products WHERE (@id = 1)",
+    "modelSource": "src/repositories/inventory-repository.ts:7:27",
+    "observed": "{\"products.id\":1,\"products.sku\":\"sku-1\",\"products.stock\":10}",
+    "predicted": "{id=1, sku=\"sku-1\", stock=10}",
+    "runtimeSource": "src/repositories/inventory-repository.ts:7:88",
+    "sql": "select \"id\", \"sku\", \"stock\" from \"products\" where \"products\".\"id\" = $1 limit $2",
+    "status": "agree",
+    "transition": 1
+   },
+   {
+    "actor": "reserveItem-1",
+    "model": "SELECT products WHERE (@id = 1)",
+    "modelSource": "src/repositories/inventory-repository.ts:7:27",
+    "observed": "{\"products.id\":1,\"products.sku\":\"sku-1\",\"products.stock\":10}",
+    "predicted": "{id=1, sku=\"sku-1\", stock=10}",
+    "runtimeSource": "src/repositories/inventory-repository.ts:7:88",
+    "sql": "select \"id\", \"sku\", \"stock\" from \"products\" where \"products\".\"id\" = $1 limit $2",
+    "status": "agree",
+    "transition": 2
+   },
+   {
+    "actor": "reserveItem-1",
+    "model": "UPDATE products SET stock = 7 WHERE (@id = 1)",
+    "modelSource": "src/repositories/inventory-repository.ts:12:9",
+    "observed": "1 row(s)",
+    "predicted": "1 row(s)",
+    "runtimeSource": "src/repositories/inventory-repository.ts:12:29",
+    "sql": "update \"products\" set \"stock\" = $1 where \"products\".\"id\" = $2",
+    "status": "agree",
+    "transition": 3
+   },
+   {
+    "actor": "reserveItem-1",
+    "model": "INSERT reservations {id=1, productId=1, quantity=3}",
+    "modelSource": "src/repositories/inventory-repository.ts:16:9",
+    "observed": "1 row(s)",
+    "predicted": "1 row(s)",
+    "runtimeSource": "src/repositories/inventory-repository.ts:16:33",
+    "sql": "insert into \"reservations\" (\"id\", \"product_id\", \"quantity\") values (default, $1, $2)",
+    "status": "agree",
+    "transition": 4
+   },
+   {
+    "actor": "reserveItem-2",
+    "model": "UPDATE products SET stock = 7 WHERE (@id = 1)",
+    "modelSource": "src/repositories/inventory-repository.ts:12:9",
+    "observed": "1 row(s)",
+    "predicted": "1 row(s)",
+    "runtimeSource": "src/repositories/inventory-repository.ts:12:29",
+    "sql": "update \"products\" set \"stock\" = $1 where \"products\".\"id\" = $2",
+    "status": "agree",
+    "transition": 5
+   },
+   {
+    "actor": "reserveItem-2",
+    "model": "INSERT reservations {id=2, productId=1, quantity=3}",
+    "modelSource": "src/repositories/inventory-repository.ts:16:9",
+    "observed": "1 row(s)",
+    "predicted": "1 row(s)",
+    "runtimeSource": "src/repositories/inventory-repository.ts:16:33",
+    "sql": "insert into \"reservations\" (\"id\", \"product_id\", \"quantity\") values (default, $1, $2)",
+    "status": "agree",
+    "transition": 6
+   }
+  ],
+  "status": "reproduced"
+ },
+ "tool": {
+  "name": "commitrift",
+  "version": "0.1.0"
+ }
+}

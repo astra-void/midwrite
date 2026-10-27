@@ -1,0 +1,6111 @@
+{
+ "algorithm": "sleep-set partial-order reduction (default)",
+ "budgets": {
+  "candidatesFound": 22,
+  "candidatesOverBudget": 0,
+  "candidatesReported": 22,
+  "maxCandidates": 64,
+  "maxPartners": 6,
+  "maxStatesPerScenario": 200000,
+  "maxTotalStates": 5000000,
+  "maxWallMsPerScenario": 60000,
+  "partnersTruncated": 0,
+  "scenariosBuilt": 31,
+  "scenariosModelChecked": 31,
+  "scenariosSkippedForBudget": 0,
+  "totalStatesExplored": 781
+ },
+ "candidates": [
+  {
+   "actorEntries": [
+    0,
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "class": "write-skew",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "endShift",
+     "location": "src/services/orders.ts:73:30",
+     "operation": "SELECT count(*) shifts WHERE storeId = $change.storeId AND onDuty = true",
+     "role": "read"
+    },
+    {
+     "entry": 0,
+     "function": "endShift",
+     "location": "src/services/orders.ts:80:13",
+     "operation": "UPDATE shifts WHERE id = $change.shiftId",
+     "role": "write"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/services/orders.ts@70:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "endShift",
+     "selector": "src/services/orders.ts#endShift"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "distinct-row"
+   },
+   "finding": "MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `manager-on-duty` (USER_DECLARED). The property is declared by the user; the counterexample replays in the model.",
+   "fingerprint": "af7eb46db12a28dd",
+   "group": "2dfa9708fbbf6eca",
+   "id": "CR-SYNTH-AF7EB4",
+   "inconclusiveIf": [
+    "without a declared invariant there is no property to check",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "Every store keeps at least one manager on duty (operations policy).",
+     "name": "manager-on-duty",
+     "origin": "USER_DECLARED",
+     "rationale": "declared in commitrift-contracts.json",
+     "spec": {
+      "filter": {
+       "onDuty": true
+      },
+      "group_by": [
+       "storeId"
+      ],
+      "min": 1,
+      "table": "shifts",
+      "template": "atLeast"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 1,
+   "ranking": [
+    "property origin: USER_DECLARED",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "1 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "onDuty",
+     "storeId"
+    ],
+    "kind": "row-predicate",
+    "table": "shifts",
+    "text": "shifts WHERE storeId = $change.storeId AND onDuty = true"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "shiftId": 1,
+         "storeId": 2
+        }
+       ],
+       "name": "endShift-1",
+       "selector": "src/services/orders.ts#endShift"
+      },
+      {
+       "arguments": [
+        {
+         "shiftId": 101,
+         "storeId": 2
+        }
+       ],
+       "name": "endShift-2",
+       "selector": "src/services/orders.ts#endShift"
+      }
+     ],
+     "file": "cr-synth-af7eb4-actual.json",
+     "initialState": {
+      "shifts": [
+       {
+        "id": 1,
+        "managerId": 10,
+        "onDuty": true,
+        "storeId": 2
+       },
+       {
+        "id": 101,
+        "managerId": 10,
+        "onDuty": true,
+        "storeId": 2
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Ge([Op(Count(RowRef { table: \"shifts\", filter: {\"onDuty\": Bool(true), \"storeId\": Int(2)}, column: None })), Int(1)])",
+       "name": "manager-on-duty",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "model-counterexample",
+      "finalTerms": [
+       "count(shifts[onDuty=true,storeId=2]) = 0"
+      ],
+      "schedule": [
+       "endShift-1 begin BEGIN ISOLATION LEVEL REPEATABLE READ  (src/services/orders.ts:71:10)",
+       "endShift-1 local _tx1 = null  (src/services/orders.ts:71:10)",
+       "endShift-1 read COUNT shifts WHERE ((@storeId = 2) and (@onDuty = true)) \u2192 2  (src/services/orders.ts:73:30)",
+       "endShift-1 local CHECK (_count2 < 2) \u2192 false  (src/services/orders.ts:77:11)",
+       "endShift-1 write UPDATE shifts SET onDuty = false WHERE (@id = 1) \u2192 1 row  (src/services/orders.ts:80:13)",
+       "endShift-1 local _tx1 = {ended=true}  (src/services/orders.ts:81:7)",
+       "endShift-2 begin BEGIN ISOLATION LEVEL REPEATABLE READ  (src/services/orders.ts:71:10)",
+       "endShift-2 local _tx1 = null  (src/services/orders.ts:71:10)",
+       "endShift-2 read COUNT shifts WHERE ((@storeId = 2) and (@onDuty = true)) \u2192 2  (src/services/orders.ts:73:30)",
+       "endShift-2 local CHECK (_count2 < 2) \u2192 false  (src/services/orders.ts:77:11)",
+       "endShift-2 write UPDATE shifts SET onDuty = false WHERE (@id = 101) \u2192 1 row  (src/services/orders.ts:80:13)",
+       "endShift-2 local _tx1 = {ended=true}  (src/services/orders.ts:81:7)",
+       "endShift-2 commit COMMIT  (src/services/orders.ts:71:10)",
+       "endShift-2 local return (success)",
+       "endShift-1 commit COMMIT  (src/services/orders.ts:71:10)",
+       "endShift-1 local return (success)"
+      ],
+      "states": 12,
+      "transitions": 11,
+      "validation": {
+       "initialStateValid": true,
+       "minimized": true,
+       "operationsExercised": [
+        "read src/services/orders.ts:73:30",
+        "write src/services/orders.ts:80:13"
+       ],
+       "operationsNotExercised": [],
+       "replayed": true,
+       "violates": true
+      },
+      "verdict": "COUNTEREXAMPLE_FOUND",
+      "violated": "manager-on-duty"
+     },
+     "sourceVerification": false,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 4,
+      "notes": [],
+      "rows": {
+       "shifts": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "distinct-row"
+     }
+    }
+   ],
+   "status": "MODEL_COUNTEREXAMPLE",
+   "title": "write skew on `shifts` (read storeId = $change.storeId AND onDuty = true, write another row)",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "declared",
+     "text": "an at-least-once queue can hand the same message to two workers at once (declared delivery)"
+    },
+    {
+     "kind": "delivery",
+     "origin": "declared",
+     "text": "at-least-once: a message is redelivered after a crash or a lost acknowledgement, and two deliveries can overlap"
+    }
+   ],
+   "class": "duplicate-processing",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "processRefund",
+     "location": "src/services/jobs.ts:23:9",
+     "operation": "external effect on `payout`",
+     "role": "external"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/services/jobs.ts@14:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "processRefund",
+     "selector": "src/services/jobs.ts#processRefund"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 1,
+    "maxInFlight": 0,
+    "maxRetries": 1,
+    "relation": "same",
+    "retry": "at-least-once"
+   },
+   "finding": "MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `one-payout-per-message` (FRAMEWORK_CONTRACT). The property is implied by a declared integration contract; the counterexample replays in the model.",
+   "fingerprint": "bedc65b5db2d512c",
+   "group": "63a1a5d28868e02a",
+   "id": "CR-SYNTH-BEDC65",
+   "inconclusiveIf": [
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "a message causes at most one effect on `payout`, however often it is delivered",
+     "evidence": [
+      "delivery contract of src/services/jobs.ts#processRefund"
+     ],
+     "name": "one-payout-per-message",
+     "origin": "FRAMEWORK_CONTRACT",
+     "rationale": "the declared delivery is at-least-once: a consumer must tolerate redelivery",
+     "spec": {
+      "channel": "payout",
+      "max": 1,
+      "template": "maxExternal"
+     },
+     "strength": "recovery-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 2,
+   "ranking": [
+    "property origin: FRAMEWORK_CONTRACT",
+    "no unsupported operation on the path",
+    "entries are request handlers or have declared contracts",
+    "2 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "payout"
+    ],
+    "kind": "external-channel",
+    "table": "",
+    "text": "payout"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "jobId": 1
+        }
+       ],
+       "name": "processRefund-1",
+       "retry": "at-least-once",
+       "selector": "src/services/jobs.ts#processRefund"
+      },
+      {
+       "arguments": [
+        {
+         "jobId": 1
+        }
+       ],
+       "name": "processRefund-2",
+       "retry": "at-least-once",
+       "selector": "src/services/jobs.ts#processRefund"
+      }
+     ],
+     "file": "cr-synth-bedc65-actual.json",
+     "initialState": {
+      "orders": [
+       {
+        "amount": 10,
+        "customerEmail": "customerEmail-1",
+        "id": 10,
+        "status": "unpaid"
+       }
+      ],
+      "refund_jobs": [
+       {
+        "amount": 10,
+        "id": 1,
+        "orderId": 10,
+        "status": "queued"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Externals(ExternalsRef { channel: \"payout\", key: None, distinct_keys: false })), Int(1)])",
+       "name": "one-payout-per-message",
+       "origin": "FRAMEWORK_CONTRACT"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "model-counterexample",
+      "finalTerms": [
+       "externals(payout) = 2"
+      ],
+      "schedule": [
+       "processRefund-1 read SELECT refund_jobs WHERE (@id = 1) \u2192 {amount=10, id=1, orderId=10, status=\"queued\"}  (src/services/jobs.ts:15:23)",
+       "processRefund-1 local CHECK (!_row1 or (_row1.status = \"done\")) \u2192 false  (src/services/jobs.ts:20:7)",
+       "processRefund-1 external EXTERNAL payout {amount=10, orderId=10}  (src/services/jobs.ts:23:9)",
+       "processRefund-2 read SELECT refund_jobs WHERE (@id = 1) \u2192 {amount=10, id=1, orderId=10, status=\"queued\"}  (src/services/jobs.ts:15:23)",
+       "processRefund-2 local CHECK (!_row1 or (_row1.status = \"done\")) \u2192 false  (src/services/jobs.ts:20:7)",
+       "processRefund-2 external EXTERNAL payout {amount=10, orderId=10}  (src/services/jobs.ts:23:9)",
+       "processRefund-2 write UPDATE refund_jobs SET status = \"done\" WHERE (@id = 1) \u2192 1 row  (src/services/jobs.ts:24:9)",
+       "processRefund-2 local return (success)",
+       "processRefund-1 write UPDATE refund_jobs SET status = \"done\" WHERE (@id = 1) \u2192 1 row  (src/services/jobs.ts:24:9)",
+       "processRefund-1 local return (success)"
+      ],
+      "states": 15,
+      "transitions": 16,
+      "validation": {
+       "initialStateValid": true,
+       "minimized": true,
+       "operationsExercised": [
+        "external src/services/jobs.ts:23:9"
+       ],
+       "operationsNotExercised": [],
+       "replayed": true,
+       "violates": true
+      },
+      "verdict": "COUNTEREXAMPLE_FOUND",
+      "violated": "one-payout-per-message"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 5,
+      "notes": [],
+      "rows": {
+       "orders": 1,
+       "refund_jobs": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    }
+   ],
+   "status": "MODEL_COUNTEREXAMPLE",
+   "title": "redelivered message repeats `payout`",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "class": "status-transition",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "getOrder",
+     "location": "src/repositories/order-repository.ts:7:25",
+     "operation": "SELECT orders WHERE id = $input.orderId",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "markPaid",
+     "location": "src/repositories/order-repository.ts:16:9",
+     "operation": "UPDATE orders WHERE id = read#0.id",
+     "role": "transition"
+    },
+    {
+     "entry": 0,
+     "function": "recordCharge",
+     "location": "src/repositories/order-repository.ts:12:9",
+     "operation": "INSERT charges",
+     "role": "consequence"
+    },
+    {
+     "entry": 0,
+     "function": "checkoutIdempotent",
+     "location": "src/app/checkout.ts:35:9",
+     "operation": "external effect on `card-charge`",
+     "role": "consequence"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/app/checkout.ts@27:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "checkoutIdempotent",
+     "selector": "src/app/checkout.ts#checkoutIdempotent"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `one-charges-per-transition` (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). That the application requires this property has NOT been established; this is not a confirmed defect.",
+   "fingerprint": "1c8df2634a1453aa",
+   "group": "3325480f9415200b",
+   "id": "CR-SYNTH-1C8DF2",
+   "inconclusiveIf": [
+    "whether a repeated transition is wrong for the application is not established",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "at most one effect on `card-charge` \u2014 the transition of `orders` happens once",
+     "evidence": [
+      "guard at src/app/checkout.ts:32:7"
+     ],
+     "name": "one-card-charge-per-transition",
+     "origin": "HEURISTIC_HYPOTHESIS",
+     "rationale": "the effect runs only after the guard `!(order.status = \"paid\")` (src/app/checkout.ts:32:7) saw the row in its old state",
+     "spec": {
+      "channel": "card-charge",
+      "max": 1,
+      "template": "maxExternal"
+     },
+     "strength": "application-safety"
+    },
+    {
+     "description": "at most one `charges` row per (orderId = $input.orderId, amount = read#0.amount) \u2014 the transition of `orders` happens once",
+     "evidence": [
+      "guard at src/app/checkout.ts:32:7"
+     ],
+     "name": "one-charges-per-transition",
+     "origin": "HEURISTIC_HYPOTHESIS",
+     "rationale": "the insert runs only after the guard `!(order.status = \"paid\")` (src/app/checkout.ts:32:7) saw the row in its old state; that suggests one insert per transition, which the source does not establish",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "orderId",
+        {
+         "kind": "param",
+         "path": "input.orderId"
+        }
+       ],
+       [
+        "amount",
+        {
+         "column": "amount",
+         "effect": 0,
+         "kind": "read"
+        }
+       ]
+      ],
+      "table": "charges",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [
+    "the effect on `card-charge` carries an idempotency key and the channel deduplicates by key (declared)"
+   ],
+   "rank": 3,
+   "ranking": [
+    "property origin: HEURISTIC_HYPOTHESIS",
+    "no unsupported operation on the path",
+    "entries are request handlers or have declared contracts",
+    "1 assumption(s)",
+    "1 recognized protection(s)"
+   ],
+   "resource": {
+    "columns": [
+     "status"
+    ],
+    "kind": "row",
+    "table": "orders",
+    "text": "orders(id = $input.orderId)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "orderId": 1,
+         "requestId": "requestId-1"
+        }
+       ],
+       "name": "checkoutIdempotent-1",
+       "selector": "src/app/checkout.ts#checkoutIdempotent"
+      },
+      {
+       "arguments": [
+        {
+         "orderId": 1,
+         "requestId": "requestId-1"
+        }
+       ],
+       "name": "checkoutIdempotent-2",
+       "selector": "src/app/checkout.ts#checkoutIdempotent"
+      }
+     ],
+     "file": "cr-synth-1c8df2-actual.json",
+     "initialState": {
+      "orders": [
+       {
+        "amount": 10,
+        "customerEmail": "customerEmail-1",
+        "id": 1,
+        "status": "unpaid"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Externals(ExternalsRef { channel: \"card-charge\", key: None, distinct_keys: false })), Int(1)])",
+       "name": "one-card-charge-per-transition",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      },
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"charges\", filter: {\"amount\": Int(10), \"orderId\": Int(1)}, column: None })), Int(1)])",
+       "name": "one-charges-per-transition",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "model-counterexample",
+      "finalTerms": [
+       "count(charges[amount=10,orderId=1]) = 2"
+      ],
+      "schedule": [
+       "checkoutIdempotent-1 read SELECT orders WHERE (@id = 1) \u2192 {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/repositories/order-repository.ts:7:25)",
+       "checkoutIdempotent-1 local h1$ret = {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/repositories/order-repository.ts:8:3)",
+       "checkoutIdempotent-1 local order = {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/app/checkout.ts:28:9)",
+       "checkoutIdempotent-1 local CHECK !order \u2192 false  (src/app/checkout.ts:29:7)",
+       "checkoutIdempotent-1 local CHECK (order.status = \"paid\") \u2192 false  (src/app/checkout.ts:32:7)",
+       "checkoutIdempotent-1 external EXTERNAL card-charge key=\"requestId-1\" {amount=10, orderId=1}  (src/app/checkout.ts:35:9)",
+       "checkoutIdempotent-1 local h3$ret = null  (src/repositories/order-repository.ts:18:1)",
+       "checkoutIdempotent-1 local h3$orderId = 1  (src/repositories/order-repository.ts:11:36)",
+       "checkoutIdempotent-1 local h3$amount = 10  (src/repositories/order-repository.ts:11:53)",
+       "checkoutIdempotent-1 write INSERT charges {amount=10, orderId=1} \u2192 1 row  (src/repositories/order-repository.ts:12:9)",
+       "checkoutIdempotent-1 local h4$ret = null  (src/repositories/order-repository.ts:18:1)",
+       "checkoutIdempotent-1 local h4$orderId = 1  (src/repositories/order-repository.ts:15:32)",
+       "checkoutIdempotent-2 read SELECT orders WHERE (@id = 1) \u2192 {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/repositories/order-repository.ts:7:25)",
+       "checkoutIdempotent-2 local h1$ret = {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/repositories/order-repository.ts:8:3)",
+       "checkoutIdempotent-2 local order = {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/app/checkout.ts:28:9)",
+       "checkoutIdempotent-2 local CHECK !order \u2192 false  (src/app/checkout.ts:29:7)",
+       "checkoutIdempotent-2 local CHECK (order.status = \"paid\") \u2192 false  (src/app/checkout.ts:32:7)",
+       "checkoutIdempotent-2 external EXTERNAL card-charge key=\"requestId-1\" {amount=10, orderId=1} (deduplicated by the channel)  (src/app/checkout.ts:35:9)",
+       "checkoutIdempotent-2 local h3$ret = null  (src/repositories/order-repository.ts:18:1)",
+       "checkoutIdempotent-2 local h3$orderId = 1  (src/repositories/order-repository.ts:11:36)",
+       "checkoutIdempotent-2 local h3$amount = 10  (src/repositories/order-repository.ts:11:53)",
+       "checkoutIdempotent-2 write INSERT charges {amount=10, orderId=1} \u2192 1 row  (src/repositories/order-repository.ts:12:9)",
+       "checkoutIdempotent-2 local h4$ret = null  (src/repositories/order-repository.ts:18:1)",
+       "checkoutIdempotent-2 local h4$orderId = 1  (src/repositories/order-repository.ts:15:32)",
+       "checkoutIdempotent-2 write UPDATE orders SET status = \"paid\" WHERE (@id = 1) \u2192 1 row  (src/repositories/order-repository.ts:16:9)",
+       "checkoutIdempotent-2 local return (success)",
+       "checkoutIdempotent-1 write UPDATE orders SET status = \"paid\" WHERE (@id = 1) \u2192 1 row  (src/repositories/order-repository.ts:16:9)",
+       "checkoutIdempotent-1 local return (success)"
+      ],
+      "states": 11,
+      "transitions": 10,
+      "validation": {
+       "initialStateValid": true,
+       "minimized": true,
+       "operationsExercised": [
+        "check src/repositories/order-repository.ts:7:25",
+        "transition src/repositories/order-repository.ts:16:9",
+        "consequence src/repositories/order-repository.ts:12:9",
+        "consequence src/app/checkout.ts:35:9"
+       ],
+       "operationsNotExercised": [],
+       "replayed": true,
+       "violates": true
+      },
+      "verdict": "COUNTEREXAMPLE_FOUND",
+      "violated": "one-charges-per-transition"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 1 synthesized row(s)",
+      "iterations": 4,
+      "notes": [],
+      "rows": {
+       "orders": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "orderId": 1,
+         "requestId": "requestId-1"
+        }
+       ],
+       "name": "checkoutIdempotent-1",
+       "selector": "src/app/checkout.ts#checkoutIdempotent"
+      },
+      {
+       "arguments": [
+        {
+         "orderId": 101,
+         "requestId": "requestId-1"
+        }
+       ],
+       "name": "checkoutIdempotent-2",
+       "selector": "src/app/checkout.ts#checkoutIdempotent"
+      }
+     ],
+     "file": "cr-synth-1c8df2-distinct-key.json",
+     "initialState": {
+      "orders": [
+       {
+        "amount": 10,
+        "customerEmail": "customerEmail-1",
+        "id": 1,
+        "status": "unpaid"
+       },
+       {
+        "amount": 10,
+        "customerEmail": "customerEmail-2",
+        "id": 101,
+        "status": "unpaid"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Externals(ExternalsRef { channel: \"card-charge\", key: None, distinct_keys: false })), Int(2)])",
+       "name": "one-card-charge-per-transition",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      },
+      {
+       "formula": "And([Le([Op(Count(RowRef { table: \"charges\", filter: {\"amount\": Int(10), \"orderId\": Int(1)}, column: None })), Int(1)]), Le([Op(Count(RowRef { table: \"charges\", filter: {\"amount\": Int(10), \"orderId\": Int(101)}, column: None })), Int(1)])])",
+       "name": "one-charges-per-transition",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 42,
+      "transitions": 41,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 4,
+      "notes": [],
+      "rows": {
+       "orders": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "orderId": 1,
+         "requestId": "requestId-1"
+        }
+       ],
+       "name": "checkoutIdempotent-1",
+       "selector": "src/app/checkout.ts#checkoutIdempotent"
+      },
+      {
+       "arguments": [
+        {
+         "orderId": 1,
+         "requestId": "requestId-1-b"
+        }
+       ],
+       "name": "checkoutIdempotent-2",
+       "selector": "src/app/checkout.ts#checkoutIdempotent"
+      }
+     ],
+     "file": "cr-synth-1c8df2-distinct-request-key.json",
+     "initialState": {
+      "orders": [
+       {
+        "amount": 10,
+        "customerEmail": "customerEmail-1",
+        "id": 1,
+        "status": "unpaid"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Externals(ExternalsRef { channel: \"card-charge\", key: None, distinct_keys: false })), Int(1)])",
+       "name": "one-card-charge-per-transition",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      },
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"charges\", filter: {\"amount\": Int(10), \"orderId\": Int(1)}, column: None })), Int(1)])",
+       "name": "one-charges-per-transition",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "model-counterexample",
+      "finalTerms": [
+       "externals(card-charge) = 2"
+      ],
+      "schedule": [
+       "checkoutIdempotent-1 read SELECT orders WHERE (@id = 1) \u2192 {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/repositories/order-repository.ts:7:25)",
+       "checkoutIdempotent-1 local h1$ret = {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/repositories/order-repository.ts:8:3)",
+       "checkoutIdempotent-1 local order = {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/app/checkout.ts:28:9)",
+       "checkoutIdempotent-1 local CHECK !order \u2192 false  (src/app/checkout.ts:29:7)",
+       "checkoutIdempotent-1 local CHECK (order.status = \"paid\") \u2192 false  (src/app/checkout.ts:32:7)",
+       "checkoutIdempotent-1 external EXTERNAL card-charge key=\"requestId-1\" {amount=10, orderId=1}  (src/app/checkout.ts:35:9)",
+       "checkoutIdempotent-1 local h3$ret = null  (src/repositories/order-repository.ts:18:1)",
+       "checkoutIdempotent-1 local h3$orderId = 1  (src/repositories/order-repository.ts:11:36)",
+       "checkoutIdempotent-1 local h3$amount = 10  (src/repositories/order-repository.ts:11:53)",
+       "checkoutIdempotent-1 write INSERT charges {amount=10, orderId=1} \u2192 1 row  (src/repositories/order-repository.ts:12:9)",
+       "checkoutIdempotent-1 local h4$ret = null  (src/repositories/order-repository.ts:18:1)",
+       "checkoutIdempotent-1 local h4$orderId = 1  (src/repositories/order-repository.ts:15:32)",
+       "checkoutIdempotent-2 read SELECT orders WHERE (@id = 1) \u2192 {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/repositories/order-repository.ts:7:25)",
+       "checkoutIdempotent-2 local h1$ret = {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/repositories/order-repository.ts:8:3)",
+       "checkoutIdempotent-2 local order = {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/app/checkout.ts:28:9)",
+       "checkoutIdempotent-2 local CHECK !order \u2192 false  (src/app/checkout.ts:29:7)",
+       "checkoutIdempotent-2 local CHECK (order.status = \"paid\") \u2192 false  (src/app/checkout.ts:32:7)",
+       "checkoutIdempotent-2 external EXTERNAL card-charge key=\"requestId-1-b\" {amount=10, orderId=1}  (src/app/checkout.ts:35:9)",
+       "checkoutIdempotent-2 local h3$ret = null  (src/repositories/order-repository.ts:18:1)",
+       "checkoutIdempotent-2 local h3$orderId = 1  (src/repositories/order-repository.ts:11:36)",
+       "checkoutIdempotent-2 local h3$amount = 10  (src/repositories/order-repository.ts:11:53)",
+       "checkoutIdempotent-2 write INSERT charges {amount=10, orderId=1} \u2192 1 row  (src/repositories/order-repository.ts:12:9)",
+       "checkoutIdempotent-2 local h4$ret = null  (src/repositories/order-repository.ts:18:1)",
+       "checkoutIdempotent-2 local h4$orderId = 1  (src/repositories/order-repository.ts:15:32)",
+       "checkoutIdempotent-2 write UPDATE orders SET status = \"paid\" WHERE (@id = 1) \u2192 1 row  (src/repositories/order-repository.ts:16:9)",
+       "checkoutIdempotent-2 local return (success)",
+       "checkoutIdempotent-1 write UPDATE orders SET status = \"paid\" WHERE (@id = 1) \u2192 1 row  (src/repositories/order-repository.ts:16:9)",
+       "checkoutIdempotent-1 local return (success)"
+      ],
+      "states": 11,
+      "transitions": 10,
+      "validation": {
+       "initialStateValid": true,
+       "minimized": true,
+       "operationsExercised": [
+        "check src/repositories/order-repository.ts:7:25",
+        "transition src/repositories/order-repository.ts:16:9",
+        "consequence src/repositories/order-repository.ts:12:9",
+        "consequence src/app/checkout.ts:35:9"
+       ],
+       "operationsNotExercised": [],
+       "replayed": true,
+       "violates": true
+      },
+      "verdict": "COUNTEREXAMPLE_FOUND",
+      "violated": "one-card-charge-per-transition"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 1 synthesized row(s)",
+      "iterations": 4,
+      "notes": [],
+      "rows": {
+       "orders": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the same requests with different idempotency keys (input.requestId): a client that makes a new key per attempt (assumed environment, not established)",
+      "kind": "actual",
+      "name": "distinct-request-key",
+      "relation": "distinct-request-key"
+     }
+    }
+   ],
+   "status": "MODEL_COUNTEREXAMPLE",
+   "title": "concurrent transition of `orders`.status (id = $input.orderId)",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "retry",
+     "origin": "declared",
+     "text": "the caller retries the request (on-crash)"
+    }
+   ],
+   "class": "external-effect-gap",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "checkout",
+     "location": "src/app/checkout.ts:20:9",
+     "operation": "external effect on `card-charge`",
+     "role": "external"
+    },
+    {
+     "entry": 0,
+     "function": "recordCharge",
+     "location": "src/repositories/order-repository.ts:12:9",
+     "operation": "INSERT charges",
+     "role": "write-after"
+    },
+    {
+     "entry": 0,
+     "function": "markPaid",
+     "location": "src/repositories/order-repository.ts:16:9",
+     "operation": "UPDATE orders WHERE id = read#0.id",
+     "role": "write-after"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/app/checkout.ts@12:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "checkout",
+     "selector": "src/app/checkout.ts#checkout"
+    }
+   ],
+   "environment": {
+    "actors": 1,
+    "maxCrashes": 1,
+    "maxInFlight": 0,
+    "maxRetries": 1,
+    "relation": "same",
+    "retry": "on-crash"
+   },
+   "finding": "MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `one-effective-card-charge`. That the application requires this property has NOT been established; this is not a confirmed defect.",
+   "fingerprint": "3e97d80cf9691f68",
+   "group": "ed723653a83a223a",
+   "id": "CR-SYNTH-3E97D8",
+   "inconclusiveIf": [
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "one request causes at most one effective `card-charge` effect, retries included",
+     "name": "one-effective-card-charge",
+     "origin": "HEURISTIC_HYPOTHESIS",
+     "rationale": "the effect at src/app/checkout.ts:20:9 is not atomic with the writes after it; a retried request repeats it. That one request should cause one effect is a hypothesis",
+     "spec": {
+      "channel": "card-charge",
+      "max": 1,
+      "template": "maxExternal"
+     },
+     "strength": "recovery-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 4,
+   "ranking": [
+    "property origin: HEURISTIC_HYPOTHESIS",
+    "no unsupported operation on the path",
+    "entries are request handlers or have declared contracts",
+    "1 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "card-charge"
+    ],
+    "kind": "external-channel",
+    "table": "",
+    "text": "card-charge"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "orderId": 1
+        }
+       ],
+       "name": "checkout",
+       "retry": "on-crash",
+       "selector": "src/app/checkout.ts#checkout"
+      }
+     ],
+     "file": "cr-synth-3e97d8-actual.json",
+     "initialState": {
+      "orders": [
+       {
+        "amount": 10,
+        "customerEmail": "customerEmail-1",
+        "id": 1,
+        "status": "unpaid"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Externals(ExternalsRef { channel: \"card-charge\", key: None, distinct_keys: false })), Int(1)])",
+       "name": "one-effective-card-charge",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "model-counterexample",
+      "finalTerms": [
+       "externals(card-charge) = 2"
+      ],
+      "schedule": [
+       "checkout read SELECT orders WHERE (@id = 1) \u2192 {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/repositories/order-repository.ts:7:25)",
+       "checkout local h1$ret = {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/repositories/order-repository.ts:8:3)",
+       "checkout local order = {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/app/checkout.ts:13:9)",
+       "checkout local CHECK !order \u2192 false  (src/app/checkout.ts:14:7)",
+       "checkout local CHECK (order.status = \"paid\") \u2192 false  (src/app/checkout.ts:17:7)",
+       "checkout external EXTERNAL card-charge {amount=10, orderId=1}  (src/app/checkout.ts:20:9)",
+       "checkout local h3$ret = null  (src/repositories/order-repository.ts:18:1)",
+       "checkout local h3$orderId = 1  (src/repositories/order-repository.ts:11:36)",
+       "checkout local h3$amount = 10  (src/repositories/order-repository.ts:11:53)",
+       "process checkout crash PROCESS CRASH (checkout)",
+       "checkout retry RETRY: the operation is re-executed from the start (attempt 2)",
+       "checkout local h1$ret = null  (src/repositories/order-repository.ts:16:35)",
+       "checkout local h1$orderId = 1  (src/repositories/order-repository.ts:6:32)",
+       "checkout read SELECT orders WHERE (@id = 1) \u2192 {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/repositories/order-repository.ts:7:25)",
+       "checkout local h1$ret = {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/repositories/order-repository.ts:8:3)",
+       "checkout local order = {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/app/checkout.ts:13:9)",
+       "checkout local CHECK !order \u2192 false  (src/app/checkout.ts:14:7)",
+       "checkout local CHECK (order.status = \"paid\") \u2192 false  (src/app/checkout.ts:17:7)",
+       "checkout external EXTERNAL card-charge {amount=10, orderId=1}  (src/app/checkout.ts:20:9)",
+       "checkout local h3$ret = null  (src/repositories/order-repository.ts:18:1)",
+       "checkout local h3$orderId = 1  (src/repositories/order-repository.ts:11:36)",
+       "checkout local h3$amount = 10  (src/repositories/order-repository.ts:11:53)",
+       "checkout write INSERT charges {amount=10, orderId=1} \u2192 1 row  (src/repositories/order-repository.ts:12:9)",
+       "checkout local h4$ret = null  (src/repositories/order-repository.ts:18:1)",
+       "checkout local h4$orderId = 1  (src/repositories/order-repository.ts:15:32)",
+       "checkout write UPDATE orders SET status = \"paid\" WHERE (@id = 1) \u2192 1 row  (src/repositories/order-repository.ts:16:9)",
+       "checkout local return (success)"
+      ],
+      "states": 11,
+      "transitions": 10,
+      "validation": {
+       "initialStateValid": true,
+       "minimized": true,
+       "operationsExercised": [
+        "external src/app/checkout.ts:20:9",
+        "write-after src/repositories/order-repository.ts:12:9",
+        "write-after src/repositories/order-repository.ts:16:9"
+       ],
+       "operationsNotExercised": [],
+       "replayed": true,
+       "violates": true
+      },
+      "verdict": "COUNTEREXAMPLE_FOUND",
+      "violated": "one-effective-card-charge"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 1 synthesized row(s)",
+      "iterations": 2,
+      "notes": [],
+      "rows": {
+       "orders": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    }
+   ],
+   "status": "MODEL_COUNTEREXAMPLE",
+   "title": "crash between `card-charge` and the database writes, then a retry",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "class": "status-transition",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "getOrder",
+     "location": "src/repositories/order-repository.ts:7:25",
+     "operation": "SELECT orders WHERE id = $input.orderId",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "markPaid",
+     "location": "src/repositories/order-repository.ts:16:9",
+     "operation": "UPDATE orders WHERE id = read#0.id",
+     "role": "transition"
+    },
+    {
+     "entry": 0,
+     "function": "recordCharge",
+     "location": "src/repositories/order-repository.ts:12:9",
+     "operation": "INSERT charges",
+     "role": "consequence"
+    },
+    {
+     "entry": 0,
+     "function": "checkout",
+     "location": "src/app/checkout.ts:20:9",
+     "operation": "external effect on `card-charge`",
+     "role": "consequence"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/app/checkout.ts@12:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "checkout",
+     "selector": "src/app/checkout.ts#checkout"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `one-card-charge-per-transition` (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). That the application requires this property has NOT been established; this is not a confirmed defect.",
+   "fingerprint": "5e3d04ae9e623240",
+   "group": "16f4305cb4015f09",
+   "id": "CR-SYNTH-5E3D04",
+   "inconclusiveIf": [
+    "whether a repeated transition is wrong for the application is not established",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "at most one effect on `card-charge` \u2014 the transition of `orders` happens once",
+     "evidence": [
+      "guard at src/app/checkout.ts:17:7"
+     ],
+     "name": "one-card-charge-per-transition",
+     "origin": "HEURISTIC_HYPOTHESIS",
+     "rationale": "the effect runs only after the guard `!(order.status = \"paid\")` (src/app/checkout.ts:17:7) saw the row in its old state",
+     "spec": {
+      "channel": "card-charge",
+      "max": 1,
+      "template": "maxExternal"
+     },
+     "strength": "application-safety"
+    },
+    {
+     "description": "at most one `charges` row per (orderId = $input.orderId, amount = read#0.amount) \u2014 the transition of `orders` happens once",
+     "evidence": [
+      "guard at src/app/checkout.ts:17:7"
+     ],
+     "name": "one-charges-per-transition",
+     "origin": "HEURISTIC_HYPOTHESIS",
+     "rationale": "the insert runs only after the guard `!(order.status = \"paid\")` (src/app/checkout.ts:17:7) saw the row in its old state; that suggests one insert per transition, which the source does not establish",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "orderId",
+        {
+         "kind": "param",
+         "path": "input.orderId"
+        }
+       ],
+       [
+        "amount",
+        {
+         "column": "amount",
+         "effect": 0,
+         "kind": "read"
+        }
+       ]
+      ],
+      "table": "charges",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 5,
+   "ranking": [
+    "property origin: HEURISTIC_HYPOTHESIS",
+    "no unsupported operation on the path",
+    "entries are request handlers or have declared contracts",
+    "1 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "status"
+    ],
+    "kind": "row",
+    "table": "orders",
+    "text": "orders(id = $input.orderId)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "orderId": 1
+        }
+       ],
+       "name": "checkout-1",
+       "selector": "src/app/checkout.ts#checkout"
+      },
+      {
+       "arguments": [
+        {
+         "orderId": 1
+        }
+       ],
+       "name": "checkout-2",
+       "selector": "src/app/checkout.ts#checkout"
+      }
+     ],
+     "file": "cr-synth-5e3d04-actual.json",
+     "initialState": {
+      "orders": [
+       {
+        "amount": 10,
+        "customerEmail": "customerEmail-1",
+        "id": 1,
+        "status": "unpaid"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Externals(ExternalsRef { channel: \"card-charge\", key: None, distinct_keys: false })), Int(1)])",
+       "name": "one-card-charge-per-transition",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      },
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"charges\", filter: {\"amount\": Int(10), \"orderId\": Int(1)}, column: None })), Int(1)])",
+       "name": "one-charges-per-transition",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "model-counterexample",
+      "finalTerms": [
+       "externals(card-charge) = 2"
+      ],
+      "schedule": [
+       "checkout-1 read SELECT orders WHERE (@id = 1) \u2192 {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/repositories/order-repository.ts:7:25)",
+       "checkout-1 local h1$ret = {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/repositories/order-repository.ts:8:3)",
+       "checkout-1 local order = {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/app/checkout.ts:13:9)",
+       "checkout-1 local CHECK !order \u2192 false  (src/app/checkout.ts:14:7)",
+       "checkout-1 local CHECK (order.status = \"paid\") \u2192 false  (src/app/checkout.ts:17:7)",
+       "checkout-1 external EXTERNAL card-charge {amount=10, orderId=1}  (src/app/checkout.ts:20:9)",
+       "checkout-1 local h3$ret = null  (src/repositories/order-repository.ts:18:1)",
+       "checkout-1 local h3$orderId = 1  (src/repositories/order-repository.ts:11:36)",
+       "checkout-1 local h3$amount = 10  (src/repositories/order-repository.ts:11:53)",
+       "checkout-1 write INSERT charges {amount=10, orderId=1} \u2192 1 row  (src/repositories/order-repository.ts:12:9)",
+       "checkout-1 local h4$ret = null  (src/repositories/order-repository.ts:18:1)",
+       "checkout-1 local h4$orderId = 1  (src/repositories/order-repository.ts:15:32)",
+       "checkout-2 read SELECT orders WHERE (@id = 1) \u2192 {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/repositories/order-repository.ts:7:25)",
+       "checkout-2 local h1$ret = {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/repositories/order-repository.ts:8:3)",
+       "checkout-2 local order = {amount=10, customerEmail=\"customerEmail-1\", id=1, status=\"unpaid\"}  (src/app/checkout.ts:13:9)",
+       "checkout-2 local CHECK !order \u2192 false  (src/app/checkout.ts:14:7)",
+       "checkout-2 local CHECK (order.status = \"paid\") \u2192 false  (src/app/checkout.ts:17:7)",
+       "checkout-2 external EXTERNAL card-charge {amount=10, orderId=1}  (src/app/checkout.ts:20:9)",
+       "checkout-2 local h3$ret = null  (src/repositories/order-repository.ts:18:1)",
+       "checkout-2 local h3$orderId = 1  (src/repositories/order-repository.ts:11:36)",
+       "checkout-2 local h3$amount = 10  (src/repositories/order-repository.ts:11:53)",
+       "checkout-2 write INSERT charges {amount=10, orderId=1} \u2192 1 row  (src/repositories/order-repository.ts:12:9)",
+       "checkout-2 local h4$ret = null  (src/repositories/order-repository.ts:18:1)",
+       "checkout-2 local h4$orderId = 1  (src/repositories/order-repository.ts:15:32)",
+       "checkout-2 write UPDATE orders SET status = \"paid\" WHERE (@id = 1) \u2192 1 row  (src/repositories/order-repository.ts:16:9)",
+       "checkout-2 local return (success)",
+       "checkout-1 write UPDATE orders SET status = \"paid\" WHERE (@id = 1) \u2192 1 row  (src/repositories/order-repository.ts:16:9)",
+       "checkout-1 local return (success)"
+      ],
+      "states": 11,
+      "transitions": 10,
+      "validation": {
+       "initialStateValid": true,
+       "minimized": true,
+       "operationsExercised": [
+        "check src/repositories/order-repository.ts:7:25",
+        "transition src/repositories/order-repository.ts:16:9",
+        "consequence src/repositories/order-repository.ts:12:9",
+        "consequence src/app/checkout.ts:20:9"
+       ],
+       "operationsNotExercised": [],
+       "replayed": true,
+       "violates": true
+      },
+      "verdict": "COUNTEREXAMPLE_FOUND",
+      "violated": "one-card-charge-per-transition"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 1 synthesized row(s)",
+      "iterations": 4,
+      "notes": [],
+      "rows": {
+       "orders": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "orderId": 1
+        }
+       ],
+       "name": "checkout-1",
+       "selector": "src/app/checkout.ts#checkout"
+      },
+      {
+       "arguments": [
+        {
+         "orderId": 101
+        }
+       ],
+       "name": "checkout-2",
+       "selector": "src/app/checkout.ts#checkout"
+      }
+     ],
+     "file": "cr-synth-5e3d04-distinct-key.json",
+     "initialState": {
+      "orders": [
+       {
+        "amount": 10,
+        "customerEmail": "customerEmail-1",
+        "id": 1,
+        "status": "unpaid"
+       },
+       {
+        "amount": 10,
+        "customerEmail": "customerEmail-2",
+        "id": 101,
+        "status": "unpaid"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Externals(ExternalsRef { channel: \"card-charge\", key: None, distinct_keys: false })), Int(2)])",
+       "name": "one-card-charge-per-transition",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      },
+      {
+       "formula": "And([Le([Op(Count(RowRef { table: \"charges\", filter: {\"amount\": Int(10), \"orderId\": Int(1)}, column: None })), Int(1)]), Le([Op(Count(RowRef { table: \"charges\", filter: {\"amount\": Int(10), \"orderId\": Int(101)}, column: None })), Int(1)])])",
+       "name": "one-charges-per-transition",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 42,
+      "transitions": 41,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 4,
+      "notes": [],
+      "rows": {
+       "orders": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "MODEL_COUNTEREXAMPLE",
+   "title": "concurrent transition of `orders`.status (id = $input.orderId)",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "declared",
+     "text": "an at-least-once queue can hand the same message to two workers at once (declared delivery)"
+    }
+   ],
+   "class": "status-transition",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "processRefund",
+     "location": "src/services/jobs.ts:15:23",
+     "operation": "SELECT refund_jobs WHERE id = $delivery.jobId",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "processRefund",
+     "location": "src/services/jobs.ts:24:9",
+     "operation": "UPDATE refund_jobs WHERE id = read#0.id",
+     "role": "transition"
+    },
+    {
+     "entry": 0,
+     "function": "processRefund",
+     "location": "src/services/jobs.ts:23:9",
+     "operation": "external effect on `payout`",
+     "role": "consequence"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/services/jobs.ts@14:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "processRefund",
+     "selector": "src/services/jobs.ts#processRefund"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `one-payout-per-transition` (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). That the application requires this property has NOT been established; this is not a confirmed defect.",
+   "fingerprint": "eef9ea8e5ccab723",
+   "group": "309b0c6b4d613f2d",
+   "id": "CR-SYNTH-EEF9EA",
+   "inconclusiveIf": [
+    "whether a repeated transition is wrong for the application is not established",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "at most one effect on `payout` \u2014 the transition of `refund_jobs` happens once",
+     "evidence": [
+      "guard at src/services/jobs.ts:20:7"
+     ],
+     "name": "one-payout-per-transition",
+     "origin": "HEURISTIC_HYPOTHESIS",
+     "rationale": "the effect runs only after the guard `!(!_row1 or (_row1.status = \"done\"))` (src/services/jobs.ts:20:7) saw the row in its old state",
+     "spec": {
+      "channel": "payout",
+      "max": 1,
+      "template": "maxExternal"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 6,
+   "ranking": [
+    "property origin: HEURISTIC_HYPOTHESIS",
+    "no unsupported operation on the path",
+    "entries are request handlers or have declared contracts",
+    "1 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "status"
+    ],
+    "kind": "row",
+    "table": "refund_jobs",
+    "text": "refund_jobs(id = $delivery.jobId)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "jobId": 1
+        }
+       ],
+       "name": "processRefund-1",
+       "selector": "src/services/jobs.ts#processRefund"
+      },
+      {
+       "arguments": [
+        {
+         "jobId": 1
+        }
+       ],
+       "name": "processRefund-2",
+       "selector": "src/services/jobs.ts#processRefund"
+      }
+     ],
+     "file": "cr-synth-eef9ea-actual.json",
+     "initialState": {
+      "orders": [
+       {
+        "amount": 10,
+        "customerEmail": "customerEmail-1",
+        "id": 10,
+        "status": "unpaid"
+       }
+      ],
+      "refund_jobs": [
+       {
+        "amount": 10,
+        "id": 1,
+        "orderId": 10,
+        "status": "queued"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Externals(ExternalsRef { channel: \"payout\", key: None, distinct_keys: false })), Int(1)])",
+       "name": "one-payout-per-transition",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "model-counterexample",
+      "finalTerms": [
+       "externals(payout) = 2"
+      ],
+      "schedule": [
+       "processRefund-1 read SELECT refund_jobs WHERE (@id = 1) \u2192 {amount=10, id=1, orderId=10, status=\"queued\"}  (src/services/jobs.ts:15:23)",
+       "processRefund-1 local CHECK (!_row1 or (_row1.status = \"done\")) \u2192 false  (src/services/jobs.ts:20:7)",
+       "processRefund-1 external EXTERNAL payout {amount=10, orderId=10}  (src/services/jobs.ts:23:9)",
+       "processRefund-2 read SELECT refund_jobs WHERE (@id = 1) \u2192 {amount=10, id=1, orderId=10, status=\"queued\"}  (src/services/jobs.ts:15:23)",
+       "processRefund-2 local CHECK (!_row1 or (_row1.status = \"done\")) \u2192 false  (src/services/jobs.ts:20:7)",
+       "processRefund-2 external EXTERNAL payout {amount=10, orderId=10}  (src/services/jobs.ts:23:9)",
+       "processRefund-2 write UPDATE refund_jobs SET status = \"done\" WHERE (@id = 1) \u2192 1 row  (src/services/jobs.ts:24:9)",
+       "processRefund-2 local return (success)",
+       "processRefund-1 write UPDATE refund_jobs SET status = \"done\" WHERE (@id = 1) \u2192 1 row  (src/services/jobs.ts:24:9)",
+       "processRefund-1 local return (success)"
+      ],
+      "states": 9,
+      "transitions": 8,
+      "validation": {
+       "initialStateValid": true,
+       "minimized": true,
+       "operationsExercised": [
+        "check src/services/jobs.ts:15:23",
+        "transition src/services/jobs.ts:24:9",
+        "consequence src/services/jobs.ts:23:9"
+       ],
+       "operationsNotExercised": [],
+       "replayed": true,
+       "violates": true
+      },
+      "verdict": "COUNTEREXAMPLE_FOUND",
+      "violated": "one-payout-per-transition"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 4,
+      "notes": [],
+      "rows": {
+       "orders": 1,
+       "refund_jobs": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "jobId": 1
+        }
+       ],
+       "name": "processRefund-1",
+       "selector": "src/services/jobs.ts#processRefund"
+      },
+      {
+       "arguments": [
+        {
+         "jobId": 101
+        }
+       ],
+       "name": "processRefund-2",
+       "selector": "src/services/jobs.ts#processRefund"
+      }
+     ],
+     "file": "cr-synth-eef9ea-distinct-key.json",
+     "initialState": {
+      "orders": [
+       {
+        "amount": 10,
+        "customerEmail": "customerEmail-1",
+        "id": 10,
+        "status": "unpaid"
+       }
+      ],
+      "refund_jobs": [
+       {
+        "amount": 10,
+        "id": 1,
+        "orderId": 10,
+        "status": "queued"
+       },
+       {
+        "amount": 10,
+        "id": 101,
+        "orderId": 10,
+        "status": "queued"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Externals(ExternalsRef { channel: \"payout\", key: None, distinct_keys: false })), Int(2)])",
+       "name": "one-payout-per-transition",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 20,
+      "transitions": 19,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 3 synthesized row(s)",
+      "iterations": 4,
+      "notes": [],
+      "rows": {
+       "orders": 1,
+       "refund_jobs": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "MODEL_COUNTEREXAMPLE",
+   "title": "concurrent transition of `refund_jobs`.status (id = $delivery.jobId)",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "framework",
+     "text": "two requests can run the Server Action at the same time (double submit, two tabs, client retry)"
+    },
+    {
+     "kind": "precondition",
+     "origin": "source-derived",
+     "text": "`withMember` runs the callback only when its guards pass; the scenario assumes they do: `const member = await currentMember();` may reject before the call (src/lib/auth.ts:29:5); `if (!member)` \u2192 throw (src/lib/auth.ts:30:5); `if (!parsed.success)` \u2192 return (src/lib/auth.ts:34:5)"
+    }
+   ],
+   "class": "check-then-act",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "findPendingInvitation",
+     "location": "src/repositories/invitation-repository.ts:7:28",
+     "operation": "SELECT invitations WHERE orgId = $member.orgId AND email = $data.email AND status = \"pending\"",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "createInvitation",
+     "location": "src/repositories/invitation-repository.ts:22:9",
+     "operation": "INSERT invitations",
+     "role": "act"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/app/invitations.ts@19:54",
+     "guards": [
+      "`const member = await currentMember();` may reject before the call (src/lib/auth.ts:29:5)",
+      "`if (!member)` \u2192 throw (src/lib/auth.ts:30:5)",
+      "`if (!parsed.success)` \u2192 return (src/lib/auth.ts:34:5)"
+     ],
+     "invocation": "wrapper-awaited-when-guards-pass",
+     "kind": "server-action",
+     "name": "inviteMember(withMember)",
+     "selector": "src/app/invitations.ts#inviteMember/arg[1]",
+     "wrapper": "withMember"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `at-most-one-invitations-per-key` (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). That the application requires this property has NOT been established; this is not a confirmed defect.",
+   "fingerprint": "19919390e07f595d",
+   "group": "783dc51a175f336c",
+   "id": "CR-SYNTH-199193",
+   "inconclusiveIf": [
+    "the intended uniqueness of the key is not established by the source",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "at most one `invitations` row per (orgId = $member.orgId, email = $data.email, status = \"pending\")",
+     "evidence": [
+      "guard `!existing` at src/app/invitations.ts:21:7"
+     ],
+     "name": "at-most-one-invitations-per-key",
+     "origin": "HEURISTIC_HYPOTHESIS",
+     "rationale": "the code inserts only after a read finds no row with this key (src/app/invitations.ts:21:7); that suggests, but does not establish, that the application intends one row per key. No supported UNIQUE constraint on these columns was found in the analyzed schema",
+     "spec": {
+      "filter": {
+       "status": "pending"
+      },
+      "key": [
+       [
+        "orgId",
+        {
+         "kind": "param",
+         "path": "member.orgId"
+        }
+       ],
+       [
+        "email",
+        {
+         "kind": "param",
+         "path": "data.email"
+        }
+       ]
+      ],
+      "table": "invitations",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 7,
+   "ranking": [
+    "property origin: HEURISTIC_HYPOTHESIS",
+    "no unsupported operation on the path",
+    "entries are request handlers or have declared contracts",
+    "2 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "orgId",
+     "email",
+     "status"
+    ],
+    "kind": "unique-key",
+    "table": "invitations",
+    "text": "invitations(orgId = $member.orgId, email = $data.email, status = \"pending\")"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "email": "alice@example.test",
+         "role": "member"
+        },
+        {
+         "id": 1,
+         "orgId": 2
+        }
+       ],
+       "invocation": "awaited",
+       "name": "inviteMember-1",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `withMember` pass (`const member = await currentMember();` may reject before the call (src/lib/auth.ts:29:5); `if (!member)` \u2192 throw (src/lib/auth.ts:30:5); `if (!parsed.success)` \u2192 return (src/lib/auth.ts:34:5))"
+       ],
+       "selector": "src/app/invitations.ts#inviteMember/arg[1]"
+      },
+      {
+       "arguments": [
+        {
+         "email": "alice@example.test",
+         "role": "member"
+        },
+        {
+         "id": 1,
+         "orgId": 2
+        }
+       ],
+       "invocation": "awaited",
+       "name": "inviteMember-2",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `withMember` pass (`const member = await currentMember();` may reject before the call (src/lib/auth.ts:29:5); `if (!member)` \u2192 throw (src/lib/auth.ts:30:5); `if (!parsed.success)` \u2192 return (src/lib/auth.ts:34:5))"
+       ],
+       "selector": "src/app/invitations.ts#inviteMember/arg[1]"
+      }
+     ],
+     "file": "cr-synth-199193-actual.json",
+     "initialState": {
+      "members": [
+       {
+        "email": "email-1",
+        "id": 1,
+        "orgId": 2,
+        "role": "member"
+       }
+      ],
+      "organizations": [
+       {
+        "id": 2,
+        "name": "name-1"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"invitations\", filter: {\"email\": Str(\"alice@example.test\"), \"orgId\": Int(2), \"status\": Str(\"pending\")}, column: None })), Int(1)])",
+       "name": "at-most-one-invitations-per-key",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "model-counterexample",
+      "finalTerms": [
+       "count(invitations[email=\"alice@example.test\",orgId=2,status=\"pending\"]) = 2"
+      ],
+      "schedule": [
+       "inviteMember-1 read SELECT invitations WHERE (((@orgId = 2) and (@email = \"alice@example.test\")) and (@status = \"pending\")) \u2192 null  (src/repositories/invitation-repository.ts:7:28)",
+       "inviteMember-1 local h1$ret = null  (src/repositories/invitation-repository.ts:18:3)",
+       "inviteMember-1 local existing = null  (src/app/invitations.ts:20:9)",
+       "inviteMember-1 local CHECK existing \u2192 false  (src/app/invitations.ts:21:7)",
+       "inviteMember-1 local h3$ret = null  (src/repositories/invitation-repository.ts:25:53)",
+       "inviteMember-1 local h3$orgId = 2  (src/repositories/invitation-repository.ts:21:40)",
+       "inviteMember-1 local h3$email = \"alice@example.test\"  (src/repositories/invitation-repository.ts:21:55)",
+       "inviteMember-1 local h3$role = \"member\"  (src/repositories/invitation-repository.ts:21:70)",
+       "inviteMember-1 local h3$invitedBy = 1  (src/repositories/invitation-repository.ts:21:84)",
+       "inviteMember-2 read SELECT invitations WHERE (((@orgId = 2) and (@email = \"alice@example.test\")) and (@status = \"pending\")) \u2192 null  (src/repositories/invitation-repository.ts:7:28)",
+       "inviteMember-2 local h1$ret = null  (src/repositories/invitation-repository.ts:18:3)",
+       "inviteMember-2 local existing = null  (src/app/invitations.ts:20:9)",
+       "inviteMember-2 local CHECK existing \u2192 false  (src/app/invitations.ts:21:7)",
+       "inviteMember-2 local h3$ret = null  (src/repositories/invitation-repository.ts:25:53)",
+       "inviteMember-2 local h3$orgId = 2  (src/repositories/invitation-repository.ts:21:40)",
+       "inviteMember-2 local h3$email = \"alice@example.test\"  (src/repositories/invitation-repository.ts:21:55)",
+       "inviteMember-2 local h3$role = \"member\"  (src/repositories/invitation-repository.ts:21:70)",
+       "inviteMember-2 local h3$invitedBy = 1  (src/repositories/invitation-repository.ts:21:84)",
+       "inviteMember-2 write INSERT invitations {email=\"alice@example.test\", invitedBy=1, orgId=2, role=\"member\", status=\"pending\"} \u2192 1 row  (src/repositories/invitation-repository.ts:22:9)",
+       "inviteMember-2 local return (success)",
+       "inviteMember-1 write INSERT invitations {email=\"alice@example.test\", invitedBy=1, orgId=2, role=\"member\", status=\"pending\"} \u2192 1 row  (src/repositories/invitation-repository.ts:22:9)",
+       "inviteMember-1 local return (success)"
+      ],
+      "states": 7,
+      "transitions": 6,
+      "validation": {
+       "initialStateValid": true,
+       "minimized": true,
+       "operationsExercised": [
+        "check src/repositories/invitation-repository.ts:7:28",
+        "act src/repositories/invitation-repository.ts:22:9"
+       ],
+       "operationsNotExercised": [],
+       "replayed": true,
+       "violates": true
+      },
+      "verdict": "COUNTEREXAMPLE_FOUND",
+      "violated": "at-most-one-invitations-per-key"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 4,
+      "notes": [
+       "argument `member` of `inviteMember-1` is taken to be the `members` row with id = 1 (its fields are that table's columns)"
+      ],
+      "rows": {
+       "members": 1,
+       "organizations": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "email": "alice@example.test",
+         "role": "member"
+        },
+        {
+         "id": 1,
+         "orgId": 2
+        }
+       ],
+       "invocation": "awaited",
+       "name": "inviteMember-1",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `withMember` pass (`const member = await currentMember();` may reject before the call (src/lib/auth.ts:29:5); `if (!member)` \u2192 throw (src/lib/auth.ts:30:5); `if (!parsed.success)` \u2192 return (src/lib/auth.ts:34:5))"
+       ],
+       "selector": "src/app/invitations.ts#inviteMember/arg[1]"
+      },
+      {
+       "arguments": [
+        {
+         "email": "bob@example.test",
+         "role": "member"
+        },
+        {
+         "id": 1,
+         "orgId": 102
+        }
+       ],
+       "invocation": "awaited",
+       "name": "inviteMember-2",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `withMember` pass (`const member = await currentMember();` may reject before the call (src/lib/auth.ts:29:5); `if (!member)` \u2192 throw (src/lib/auth.ts:30:5); `if (!parsed.success)` \u2192 return (src/lib/auth.ts:34:5))"
+       ],
+       "selector": "src/app/invitations.ts#inviteMember/arg[1]"
+      }
+     ],
+     "file": "cr-synth-199193-distinct-key.json",
+     "initialState": {
+      "members": [
+       {
+        "email": "email-1",
+        "id": 1,
+        "orgId": 2,
+        "role": "member"
+       }
+      ],
+      "organizations": [
+       {
+        "id": 2,
+        "name": "name-1"
+       },
+       {
+        "id": 102,
+        "name": "name-2"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "And([Le([Op(Count(RowRef { table: \"invitations\", filter: {\"email\": Str(\"alice@example.test\"), \"orgId\": Int(2), \"status\": Str(\"pending\")}, column: None })), Int(1)]), Le([Op(Count(RowRef { table: \"invitations\", filter: {\"email\": Str(\"bob@example.test\"), \"orgId\": Int(102), \"status\": Str(\"pending\")}, column: None })), Int(1)])])",
+       "name": "at-most-one-invitations-per-key",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 10,
+      "transitions": 9,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 3 synthesized row(s)",
+      "iterations": 5,
+      "notes": [
+       "argument `member` of `inviteMember-1` is taken to be the `members` row with id = 1 (its fields are that table's columns)"
+      ],
+      "rows": {
+       "members": 1,
+       "organizations": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "MODEL_COUNTEREXAMPLE",
+   "title": "concurrent check-then-insert on `invitations` (orgId = $member.orgId, email = $data.email, status = \"pending\")",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "class": "read-modify-write",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "getProduct",
+     "location": "src/repositories/inventory-repository.ts:7:27",
+     "operation": "SELECT products WHERE id = $input.productId",
+     "role": "read"
+    },
+    {
+     "entry": 0,
+     "function": "setStock",
+     "location": "src/repositories/inventory-repository.ts:12:9",
+     "operation": "UPDATE products WHERE id = read#0.id",
+     "role": "write"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/app/inventory.ts@19:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "reserveItem",
+     "selector": "src/app/inventory.ts#reserveItem"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `serial-products-stock` (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). That the application requires this property has NOT been established; this is not a confirmed defect.",
+   "fingerprint": "05e13a3cfe6378ed",
+   "group": "dac89cd1aee3db32",
+   "id": "CR-SYNTH-05E13A",
+   "inconclusiveIf": [
+    "whether a non-serial outcome is wrong for the application is not established",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "`products.stock` of the row (id = $input.productId) ends with a value some serial execution of the same requests produces",
+     "evidence": [
+      "read at src/repositories/inventory-repository.ts:7:27, write at src/repositories/inventory-repository.ts:12:9"
+     ],
+     "name": "serial-products-stock",
+     "origin": "HEURISTIC_HYPOTHESIS",
+     "rationale": "`stock` is written as `(product.stock - input.quantity)`, computed from the value read at src/repositories/inventory-repository.ts:7:27; a concurrent update between the read and the write would be overwritten. Whether the application requires serial outcomes is not established",
+     "spec": {
+      "column": "stock",
+      "key": [
+       [
+        "id",
+        {
+         "kind": "param",
+         "path": "input.productId"
+        }
+       ]
+      ],
+      "table": "products",
+      "template": "serialCell"
+     },
+     "strength": "concurrency-relational"
+    }
+   ],
+   "protections": [],
+   "rank": 8,
+   "ranking": [
+    "property origin: HEURISTIC_HYPOTHESIS",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "1 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "stock"
+    ],
+    "kind": "column",
+    "table": "products",
+    "text": "products.stock(id = $input.productId)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "productId": 1,
+         "quantity": 3
+        }
+       ],
+       "name": "reserveItem-1",
+       "selector": "src/app/inventory.ts#reserveItem"
+      },
+      {
+       "arguments": [
+        {
+         "productId": 1,
+         "quantity": 3
+        }
+       ],
+       "name": "reserveItem-2",
+       "selector": "src/app/inventory.ts#reserveItem"
+      }
+     ],
+     "file": "cr-synth-05e13a-actual.json",
+     "initialState": {
+      "products": [
+       {
+        "id": 1,
+        "sku": "sku-1",
+        "stock": 10
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Or([And([Eq([Op(Actors(ActorsRef { function: None, outcome: Ok })), Int(0)]), Eq([Op(Row(RowRef { table: \"products\", filter: {\"id\": Int(1)}, column: Some(\"stock\") })), Int(10)])]), And([Eq([Op(Actors(ActorsRef { function: None, outcome: Ok })), Int(1)]), Eq([Op(Row(RowRef { table: \"products\", filter: {\"id\": Int(1)}, column: Some(\"stock\") })), Int(7)])]), And([Eq([Op(Actors(ActorsRef { function: None, outcome: Ok })), Int(2)]), Eq([Op(Row(RowRef { table: \"products\", filter: {\"id\": Int(1)}, column: Some(\"stock\") })), Int(4)])])])",
+       "name": "serial-products-stock",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "model-counterexample",
+      "finalTerms": [
+       "ok = 2",
+       "committed(products[id=1].stock) = 7",
+       "ok = 2",
+       "committed(products[id=1].stock) = 7",
+       "ok = 2",
+       "committed(products[id=1].stock) = 7"
+      ],
+      "schedule": [
+       "reserveItem-2 read SELECT products WHERE (@id = 1) \u2192 {id=1, sku=\"sku-1\", stock=10}  (src/repositories/inventory-repository.ts:7:27)",
+       "reserveItem-2 local h1$ret = {id=1, sku=\"sku-1\", stock=10}  (src/repositories/inventory-repository.ts:8:3)",
+       "reserveItem-2 local product = {id=1, sku=\"sku-1\", stock=10}  (src/app/inventory.ts:20:9)",
+       "reserveItem-2 local CHECK !product \u2192 false  (src/app/inventory.ts:21:7)",
+       "reserveItem-2 local CHECK (product.stock < input.quantity) \u2192 false  (src/app/inventory.ts:24:7)",
+       "reserveItem-2 local h3$ret = null  (src/repositories/inventory-repository.ts:20:40)",
+       "reserveItem-2 local h3$productId = 1  (src/repositories/inventory-repository.ts:11:32)",
+       "reserveItem-2 local h3$stock = 7  (src/repositories/inventory-repository.ts:11:51)",
+       "reserveItem-1 read SELECT products WHERE (@id = 1) \u2192 {id=1, sku=\"sku-1\", stock=10}  (src/repositories/inventory-repository.ts:7:27)",
+       "reserveItem-1 local h1$ret = {id=1, sku=\"sku-1\", stock=10}  (src/repositories/inventory-repository.ts:8:3)",
+       "reserveItem-1 local product = {id=1, sku=\"sku-1\", stock=10}  (src/app/inventory.ts:20:9)",
+       "reserveItem-1 local CHECK !product \u2192 false  (src/app/inventory.ts:21:7)",
+       "reserveItem-1 local CHECK (product.stock < input.quantity) \u2192 false  (src/app/inventory.ts:24:7)",
+       "reserveItem-1 local h3$ret = null  (src/repositories/inventory-repository.ts:20:40)",
+       "reserveItem-1 local h3$productId = 1  (src/repositories/inventory-repository.ts:11:32)",
+       "reserveItem-1 local h3$stock = 7  (src/repositories/inventory-repository.ts:11:51)",
+       "reserveItem-1 write UPDATE products SET stock = 7 WHERE (@id = 1) \u2192 1 row  (src/repositories/inventory-repository.ts:12:9)",
+       "reserveItem-1 local h4$ret = null  (src/repositories/inventory-repository.ts:21:61)",
+       "reserveItem-1 local h4$productId = 1  (src/repositories/inventory-repository.ts:15:38)",
+       "reserveItem-1 local h4$quantity = 3  (src/repositories/inventory-repository.ts:15:57)",
+       "reserveItem-1 write INSERT reservations {productId=1, quantity=3} \u2192 1 row  (src/repositories/inventory-repository.ts:16:9)",
+       "reserveItem-1 local return (success)",
+       "reserveItem-2 write UPDATE products SET stock = 7 WHERE (@id = 1) \u2192 1 row  (src/repositories/inventory-repository.ts:12:9)",
+       "reserveItem-2 local h4$ret = null  (src/repositories/inventory-repository.ts:21:61)",
+       "reserveItem-2 local h4$productId = 1  (src/repositories/inventory-repository.ts:15:38)",
+       "reserveItem-2 local h4$quantity = 3  (src/repositories/inventory-repository.ts:15:57)",
+       "reserveItem-2 write INSERT reservations {productId=1, quantity=3} \u2192 1 row  (src/repositories/inventory-repository.ts:16:9)",
+       "reserveItem-2 local return (success)"
+      ],
+      "states": 16,
+      "transitions": 15,
+      "validation": {
+       "initialStateValid": true,
+       "minimized": true,
+       "operationsExercised": [
+        "read src/repositories/inventory-repository.ts:7:27",
+        "write src/repositories/inventory-repository.ts:12:9"
+       ],
+       "operationsNotExercised": [],
+       "replayed": true,
+       "violates": true
+      },
+      "verdict": "COUNTEREXAMPLE_FOUND",
+      "violated": "serial-products-stock"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 1 synthesized row(s)",
+      "iterations": 4,
+      "notes": [],
+      "rows": {
+       "products": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "productId": 1,
+         "quantity": 3
+        }
+       ],
+       "name": "reserveItem-1",
+       "selector": "src/app/inventory.ts#reserveItem"
+      },
+      {
+       "arguments": [
+        {
+         "productId": 101,
+         "quantity": 3
+        }
+       ],
+       "name": "reserveItem-2",
+       "selector": "src/app/inventory.ts#reserveItem"
+      }
+     ],
+     "file": "cr-synth-05e13a-distinct-key.json",
+     "initialState": {
+      "products": [
+       {
+        "id": 1,
+        "sku": "sku-1",
+        "stock": 10
+       },
+       {
+        "id": 101,
+        "sku": "sku-2",
+        "stock": 10
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Or([And([Eq([Op(Actors(ActorsRef { function: None, outcome: Ok })), Int(0)]), Eq([Op(Row(RowRef { table: \"products\", filter: {\"id\": Int(1)}, column: Some(\"stock\") })), Int(10)])]), And([Eq([Op(Actors(ActorsRef { function: None, outcome: Ok })), Int(1)]), Or([Eq([Op(Row(RowRef { table: \"products\", filter: {\"id\": Int(1)}, column: Some(\"stock\") })), Int(7)]), Eq([Op(Row(RowRef { table: \"products\", filter: {\"id\": Int(1)}, column: Some(\"stock\") })), Int(10)])])]), And([Eq([Op(Actors(ActorsRef { function: None, outcome: Ok })), Int(2)]), Eq([Op(Row(RowRef { table: \"products\", filter: {\"id\": Int(1)}, column: Some(\"stock\") })), Int(7)])])])",
+       "name": "serial-products-stock",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 17,
+      "transitions": 16,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 4,
+      "notes": [],
+      "rows": {
+       "products": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "MODEL_COUNTEREXAMPLE",
+   "title": "read-modify-write of `products.stock` (id = $input.productId)",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "class": "status-transition",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "claimTask",
+     "location": "src/services/orders.ts:15:24",
+     "operation": "SELECT tasks WHERE id = $input.taskId",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "claimTask",
+     "location": "src/services/orders.ts:19:9",
+     "operation": "UPDATE tasks WHERE id = read#0.id",
+     "role": "transition"
+    },
+    {
+     "entry": 0,
+     "function": "claimTask",
+     "location": "src/services/orders.ts:20:9",
+     "operation": "INSERT task_assignments",
+     "role": "consequence"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/services/orders.ts@14:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "claimTask",
+     "selector": "src/services/orders.ts#claimTask"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `one-task_assignments-per-transition` (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). That the application requires this property has NOT been established; this is not a confirmed defect.",
+   "fingerprint": "2551df2c2854425a",
+   "group": "66a34cd92a047bf5",
+   "id": "CR-SYNTH-2551DF",
+   "inconclusiveIf": [
+    "whether a repeated transition is wrong for the application is not established",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "at most one `task_assignments` row per (taskId = $input.taskId, assignee = $input.assignee) \u2014 the transition of `tasks` happens once",
+     "evidence": [
+      "guard at src/services/orders.ts:16:7"
+     ],
+     "name": "one-task_assignments-per-transition",
+     "origin": "HEURISTIC_HYPOTHESIS",
+     "rationale": "the insert runs only after the guard `!(!_row1 or (_row1.status != \"open\"))` (src/services/orders.ts:16:7) saw the row in its old state; that suggests one insert per transition, which the source does not establish",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "taskId",
+        {
+         "kind": "param",
+         "path": "input.taskId"
+        }
+       ],
+       [
+        "assignee",
+        {
+         "kind": "param",
+         "path": "input.assignee"
+        }
+       ]
+      ],
+      "table": "task_assignments",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 9,
+   "ranking": [
+    "property origin: HEURISTIC_HYPOTHESIS",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "1 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "status"
+    ],
+    "kind": "row",
+    "table": "tasks",
+    "text": "tasks(id = $input.taskId)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "assignee": "assignee-1",
+         "taskId": 1
+        }
+       ],
+       "name": "claimTask-1",
+       "selector": "src/services/orders.ts#claimTask"
+      },
+      {
+       "arguments": [
+        {
+         "assignee": "assignee-1",
+         "taskId": 1
+        }
+       ],
+       "name": "claimTask-2",
+       "selector": "src/services/orders.ts#claimTask"
+      }
+     ],
+     "file": "cr-synth-2551df-actual.json",
+     "initialState": {
+      "tasks": [
+       {
+        "id": 1,
+        "status": "open",
+        "title": "title-1"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"task_assignments\", filter: {\"assignee\": Str(\"assignee-1\"), \"taskId\": Int(1)}, column: None })), Int(1)])",
+       "name": "one-task_assignments-per-transition",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "model-counterexample",
+      "finalTerms": [
+       "count(task_assignments[assignee=\"assignee-1\",taskId=1]) = 2"
+      ],
+      "schedule": [
+       "claimTask-2 read SELECT tasks WHERE (@id = 1) \u2192 {id=1, status=\"open\", title=\"title-1\"}  (src/services/orders.ts:15:24)",
+       "claimTask-2 local CHECK (!_row1 or (_row1.status != \"open\")) \u2192 false  (src/services/orders.ts:16:7)",
+       "claimTask-1 read SELECT tasks WHERE (@id = 1) \u2192 {id=1, status=\"open\", title=\"title-1\"}  (src/services/orders.ts:15:24)",
+       "claimTask-1 local CHECK (!_row1 or (_row1.status != \"open\")) \u2192 false  (src/services/orders.ts:16:7)",
+       "claimTask-1 write UPDATE tasks SET status = \"claimed\" WHERE (@id = 1) \u2192 1 row  (src/services/orders.ts:19:9)",
+       "claimTask-1 write INSERT task_assignments {assignee=\"assignee-1\", taskId=1} \u2192 1 row  (src/services/orders.ts:20:9)",
+       "claimTask-1 local return (success)",
+       "claimTask-2 write UPDATE tasks SET status = \"claimed\" WHERE (@id = 1) \u2192 1 row  (src/services/orders.ts:19:9)",
+       "claimTask-2 write INSERT task_assignments {assignee=\"assignee-1\", taskId=1} \u2192 1 row  (src/services/orders.ts:20:9)",
+       "claimTask-2 local return (success)"
+      ],
+      "states": 11,
+      "transitions": 10,
+      "validation": {
+       "initialStateValid": true,
+       "minimized": true,
+       "operationsExercised": [
+        "check src/services/orders.ts:15:24",
+        "transition src/services/orders.ts:19:9",
+        "consequence src/services/orders.ts:20:9"
+       ],
+       "operationsNotExercised": [],
+       "replayed": true,
+       "violates": true
+      },
+      "verdict": "COUNTEREXAMPLE_FOUND",
+      "violated": "one-task_assignments-per-transition"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 1 synthesized row(s)",
+      "iterations": 4,
+      "notes": [],
+      "rows": {
+       "tasks": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "assignee": "assignee-1",
+         "taskId": 1
+        }
+       ],
+       "name": "claimTask-1",
+       "selector": "src/services/orders.ts#claimTask"
+      },
+      {
+       "arguments": [
+        {
+         "assignee": "assignee-1-b",
+         "taskId": 101
+        }
+       ],
+       "name": "claimTask-2",
+       "selector": "src/services/orders.ts#claimTask"
+      }
+     ],
+     "file": "cr-synth-2551df-distinct-key.json",
+     "initialState": {
+      "tasks": [
+       {
+        "id": 1,
+        "status": "open",
+        "title": "title-1"
+       },
+       {
+        "id": 101,
+        "status": "open",
+        "title": "title-2"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "And([Le([Op(Count(RowRef { table: \"task_assignments\", filter: {\"assignee\": Str(\"assignee-1\"), \"taskId\": Int(1)}, column: None })), Int(1)]), Le([Op(Count(RowRef { table: \"task_assignments\", filter: {\"assignee\": Str(\"assignee-1-b\"), \"taskId\": Int(101)}, column: None })), Int(1)])])",
+       "name": "one-task_assignments-per-transition",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 17,
+      "transitions": 16,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 4,
+      "notes": [],
+      "rows": {
+       "tasks": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "MODEL_COUNTEREXAMPLE",
+   "title": "concurrent transition of `tasks`.status (id = $input.taskId)",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "fault",
+     "origin": "discovery-default",
+     "text": "the acknowledgment of an autocommit write can be lost after the server committed it (a broken connection); the driver then raises an error"
+    }
+   ],
+   "class": "ambiguous-commit",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "insertPayment",
+     "location": "src/repositories/payment-repository.ts:5:9",
+     "operation": "INSERT payments",
+     "role": "first-write"
+    },
+    {
+     "entry": 0,
+     "function": "insertPayment",
+     "location": "src/repositories/payment-repository.ts:5:9",
+     "operation": "INSERT payments",
+     "role": "retried-write"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/services/orders.ts@45:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "recordPayment",
+     "selector": "src/services/orders.ts#recordPayment"
+    }
+   ],
+   "environment": {
+    "actors": 1,
+    "maxCrashes": 0,
+    "maxInFlight": 1,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `one-payments-per-call`. That the application requires this property has NOT been established; this is not a confirmed defect.",
+   "fingerprint": "4a9542ea8996552a",
+   "group": "46d0f5f0f5b0034a",
+   "id": "CR-SYNTH-4A9542",
+   "inconclusiveIf": [
+    "the driver's error does not say whether the write committed",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "one call records at most one `payments` row per (orderId, reference, amount)",
+     "evidence": [
+      "write at src/repositories/payment-repository.ts:5:9 repeated by the catch block at src/repositories/payment-repository.ts:5:9"
+     ],
+     "name": "one-payments-per-call",
+     "origin": "HEURISTIC_HYPOTHESIS",
+     "rationale": "the handler repeats the same insert; that one call should record one row is a hypothesis",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "orderId",
+        {
+         "kind": "param",
+         "path": "transfer.orderId"
+        }
+       ],
+       [
+        "reference",
+        {
+         "kind": "param",
+         "path": "transfer.reference"
+        }
+       ],
+       [
+        "amount",
+        {
+         "kind": "param",
+         "path": "transfer.amount"
+        }
+       ]
+      ],
+      "table": "payments",
+      "template": "atMostOne"
+     },
+     "strength": "recovery-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 10,
+   "ranking": [
+    "property origin: HEURISTIC_HYPOTHESIS",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "1 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "orderId",
+     "reference",
+     "amount"
+    ],
+    "kind": "unique-key",
+    "table": "payments",
+    "text": "payments(orderId, reference, amount)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "amount": 3,
+         "orderId": 1,
+         "reference": "reference-1"
+        }
+       ],
+       "name": "recordPayment",
+       "selector": "src/services/orders.ts#recordPayment"
+      }
+     ],
+     "file": "cr-synth-4a9542-actual.json",
+     "initialState": {
+      "orders": [
+       {
+        "amount": 10,
+        "customerEmail": "customerEmail-1",
+        "id": 1,
+        "status": "unpaid"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"payments\", filter: {\"amount\": Int(3), \"orderId\": Int(1), \"reference\": Str(\"reference-1\")}, column: None })), Int(1)])",
+       "name": "one-payments-per-call",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "model-counterexample",
+      "finalTerms": [
+       "count(payments[amount=3,orderId=1,reference=\"reference-1\"]) = 2"
+      ],
+      "schedule": [
+       "recordPayment ackLost INSERT payments {amount=3, orderId=1, reference=\"reference-1\"} submitted; it reaches PostgreSQL, which will complete it; the acknowledgment never reaches the application (connection lost)  (src/repositories/payment-repository.ts:5:9)",
+       "recordPayment fail caught: connection terminated unexpectedly: the outcome of the statement is unknown",
+       "recordPayment local h2$ret = null  (src/repositories/payment-repository.ts:11:1)",
+       "recordPayment local h2$orderId = 1  (src/repositories/payment-repository.ts:4:37)",
+       "recordPayment local h2$reference = \"reference-1\"  (src/repositories/payment-repository.ts:4:54)",
+       "recordPayment local h2$amount = 3  (src/repositories/payment-repository.ts:4:73)",
+       "recordPayment serverCompletion the server executes the statement it received: INSERT payments {amount=3, orderId=1, reference=\"reference-1\"} (committed)",
+       "recordPayment write INSERT payments {amount=3, orderId=1, reference=\"reference-1\"} \u2192 1 row  (src/repositories/payment-repository.ts:5:9)",
+       "recordPayment local return (success)"
+      ],
+      "states": 5,
+      "transitions": 4,
+      "validation": {
+       "initialStateValid": true,
+       "minimized": true,
+       "operationsExercised": [
+        "first-write src/repositories/payment-repository.ts:5:9",
+        "retried-write src/repositories/payment-repository.ts:5:9"
+       ],
+       "operationsNotExercised": [],
+       "replayed": true,
+       "violates": true
+      },
+      "verdict": "COUNTEREXAMPLE_FOUND",
+      "violated": "one-payments-per-call"
+     },
+     "sourceVerification": false,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 1 synthesized row(s)",
+      "iterations": 3,
+      "notes": [],
+      "rows": {
+       "orders": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    }
+   ],
+   "status": "MODEL_COUNTEREXAMPLE",
+   "title": "write to `payments` repeated after an unknown outcome",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "class": "lock-order",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "transferStock",
+     "location": "src/app/inventory.ts:72:11",
+     "operation": "UPDATE bins WHERE id = $input.from",
+     "role": "first-lock"
+    },
+    {
+     "entry": 0,
+     "function": "transferStock",
+     "location": "src/app/inventory.ts:76:11",
+     "operation": "UPDATE bins WHERE id = $input.to",
+     "role": "second-lock"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/app/inventory.ts@70:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "transferStock",
+     "selector": "src/app/inventory.ts#transferStock"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "swapped"
+   },
+   "finding": "MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `no-request-fails`. That the application requires this property has NOT been established; this is not a confirmed defect.",
+   "fingerprint": "a563e27a121f58ef",
+   "group": "2351b46e411b8eef",
+   "id": "CR-SYNTH-A563E2",
+   "inconclusiveIf": [
+    "a failure for another reason also violates `no-request-fails`",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "no invocation fails (a deadlock victim fails with 40P01)",
+     "evidence": [
+      "src/app/inventory.ts:72:11",
+      "src/app/inventory.ts:76:11"
+     ],
+     "name": "no-request-fails",
+     "origin": "HEURISTIC_HYPOTHESIS",
+     "rationale": "two invocations with swapped `$input.from` / `$input.to` lock the same rows in opposite orders; PostgreSQL aborts one of them. That the operation should not fail this way is a hypothesis",
+     "spec": {
+      "template": "noFailedActors"
+     },
+     "strength": "bounded-liveness"
+    }
+   ],
+   "protections": [],
+   "rank": 11,
+   "ranking": [
+    "property origin: HEURISTIC_HYPOTHESIS",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "1 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "id"
+    ],
+    "kind": "row",
+    "table": "bins",
+    "text": "bins($input.from / $input.to)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "from": 1,
+         "quantity": 3,
+         "to": 2
+        }
+       ],
+       "name": "transferStock-1",
+       "selector": "src/app/inventory.ts#transferStock"
+      },
+      {
+       "arguments": [
+        {
+         "from": 2,
+         "quantity": 3,
+         "to": 1
+        }
+       ],
+       "name": "transferStock-2",
+       "selector": "src/app/inventory.ts#transferStock"
+      }
+     ],
+     "file": "cr-synth-a563e2-actual.json",
+     "initialState": {
+      "bins": [
+       {
+        "id": 1,
+        "quantity": 10
+       },
+       {
+        "id": 2,
+        "quantity": 10
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Eq([Op(Actors(ActorsRef { function: None, outcome: Failed })), Int(0)])",
+       "name": "no-request-fails",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "model-counterexample",
+      "finalTerms": [
+       "failed = 1"
+      ],
+      "schedule": [
+       "transferStock-1 begin BEGIN ISOLATION LEVEL READ COMMITTED  (src/app/inventory.ts:71:9)",
+       "transferStock-1 local _tx1 = null  (src/app/inventory.ts:71:9)",
+       "transferStock-1 write UPDATE bins SET quantity = (@quantity - 3) WHERE (@id = 1) \u2192 1 row  (src/app/inventory.ts:72:11)",
+       "transferStock-2 begin BEGIN ISOLATION LEVEL READ COMMITTED  (src/app/inventory.ts:71:9)",
+       "transferStock-2 local _tx1 = null  (src/app/inventory.ts:71:9)",
+       "transferStock-2 write UPDATE bins SET quantity = (@quantity - 3) WHERE (@id = 2) \u2192 1 row  (src/app/inventory.ts:72:11)",
+       "transferStock-2 blocked UPDATE bins SET quantity = (@quantity + 3) WHERE (@id = 1) \u2192 BLOCKED waiting for transferStock-1's transaction  (src/app/inventory.ts:76:11)",
+       "transferStock-1 blocked UPDATE bins SET quantity = (@quantity + 3) WHERE (@id = 2) \u2192 BLOCKED waiting for transferStock-2's transaction  (src/app/inventory.ts:76:11)",
+       "transferStock-1 deadlock \u2192 ERROR 40P01: deadlock detected (this transaction is the victim)  (src/app/inventory.ts:76:11)",
+       "transferStock-1 fail failed: 40P01: deadlock detected",
+       "transferStock-2 resumed (wait over, statement continues)  (src/app/inventory.ts:76:11)",
+       "transferStock-2 write UPDATE bins SET quantity = (@quantity + 3) WHERE (@id = 1) \u2192 1 row  (src/app/inventory.ts:76:11)",
+       "transferStock-2 commit COMMIT  (src/app/inventory.ts:71:9)",
+       "transferStock-2 local return (success)"
+      ],
+      "states": 19,
+      "transitions": 19,
+      "validation": {
+       "initialStateValid": true,
+       "minimized": true,
+       "operationsExercised": [
+        "first-lock src/app/inventory.ts:72:11",
+        "second-lock src/app/inventory.ts:76:11"
+       ],
+       "operationsNotExercised": [],
+       "replayed": true,
+       "violates": true
+      },
+      "verdict": "COUNTEREXAMPLE_FOUND",
+      "violated": "no-request-fails"
+     },
+     "sourceVerification": false,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 4,
+      "notes": [],
+      "rows": {
+       "bins": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "swapped"
+     }
+    }
+   ],
+   "status": "MODEL_COUNTEREXAMPLE",
+   "title": "rows of `bins` locked in argument order ($input.from then $input.to)",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    1
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "`reserveItem` and `reserveItemLocked` can run at the same time on the same row"
+    },
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "class": "read-modify-write",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "getProduct",
+     "location": "src/repositories/inventory-repository.ts:7:27",
+     "operation": "SELECT products WHERE id = $input.productId",
+     "role": "read"
+    },
+    {
+     "entry": 0,
+     "function": "setStock",
+     "location": "src/repositories/inventory-repository.ts:12:9",
+     "operation": "UPDATE products WHERE id = read#0.id",
+     "role": "write"
+    },
+    {
+     "entry": 1,
+     "function": "reserveItemLocked",
+     "location": "src/app/inventory.ts:54:11",
+     "operation": "UPDATE products WHERE id = read#0.id",
+     "role": "write"
+    }
+   ],
+   "duplicateOf": "CR-SYNTH-05E13A",
+   "entries": [
+    {
+     "anchor": "src/app/inventory.ts@19:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "reserveItem",
+     "selector": "src/app/inventory.ts#reserveItem"
+    },
+    {
+     "anchor": "src/app/inventory.ts@43:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "reserveItemLocked",
+     "selector": "src/app/inventory.ts#reserveItemLocked"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `serial-products-stock` (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). That the application requires this property has NOT been established; this is not a confirmed defect.",
+   "fingerprint": "9336e17d47e9ff0c",
+   "group": "dac89cd1aee3db32",
+   "id": "CR-SYNTH-9336E1",
+   "inconclusiveIf": [
+    "whether a non-serial outcome is wrong for the application is not established",
+    "the exploration bounds are exceeded (the result is then `not established`)",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "`products.stock` of the row (id = $input.productId) ends with a value some serial execution of the same requests produces",
+     "evidence": [
+      "read at src/repositories/inventory-repository.ts:7:27, write at src/repositories/inventory-repository.ts:12:9"
+     ],
+     "name": "serial-products-stock",
+     "origin": "HEURISTIC_HYPOTHESIS",
+     "rationale": "`stock` is written as `(product.stock - input.quantity)`, computed from the value read at src/repositories/inventory-repository.ts:7:27; a concurrent update between the read and the write would be overwritten. Whether the application requires serial outcomes is not established The partner `reserveItemLocked` writes `stock` at src/app/inventory.ts:54:11",
+     "spec": {
+      "column": "stock",
+      "key": [
+       [
+        "id",
+        {
+         "kind": "param",
+         "path": "input.productId"
+        }
+       ]
+      ],
+      "table": "products",
+      "template": "serialCell"
+     },
+     "strength": "concurrency-relational"
+    }
+   ],
+   "protections": [],
+   "rank": 12,
+   "ranking": [
+    "property origin: HEURISTIC_HYPOTHESIS",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "2 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "stock"
+    ],
+    "kind": "column",
+    "table": "products",
+    "text": "products.stock(id = $input.productId)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "productId": 1,
+         "quantity": 3
+        }
+       ],
+       "name": "reserveItem-1",
+       "selector": "src/app/inventory.ts#reserveItem"
+      },
+      {
+       "arguments": [
+        {
+         "productId": 1,
+         "quantity": 3
+        }
+       ],
+       "name": "reserveItemLocked-2",
+       "selector": "src/app/inventory.ts#reserveItemLocked"
+      }
+     ],
+     "file": "cr-synth-9336e1-actual.json",
+     "initialState": {
+      "products": [
+       {
+        "id": 1,
+        "sku": "sku-1",
+        "stock": 10
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Or([And([Eq([Op(Actors(ActorsRef { function: None, outcome: Ok })), Int(0)]), Eq([Op(Row(RowRef { table: \"products\", filter: {\"id\": Int(1)}, column: Some(\"stock\") })), Int(10)])]), And([Eq([Op(Actors(ActorsRef { function: None, outcome: Ok })), Int(1)]), Eq([Op(Row(RowRef { table: \"products\", filter: {\"id\": Int(1)}, column: Some(\"stock\") })), Int(7)])]), And([Eq([Op(Actors(ActorsRef { function: None, outcome: Ok })), Int(2)]), Eq([Op(Row(RowRef { table: \"products\", filter: {\"id\": Int(1)}, column: Some(\"stock\") })), Int(4)])])])",
+       "name": "serial-products-stock",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "model-counterexample",
+      "finalTerms": [
+       "ok = 2",
+       "committed(products[id=1].stock) = 7",
+       "ok = 2",
+       "committed(products[id=1].stock) = 7",
+       "ok = 2",
+       "committed(products[id=1].stock) = 7"
+      ],
+      "schedule": [
+       "reserveItem-1 read SELECT products WHERE (@id = 1) \u2192 {id=1, sku=\"sku-1\", stock=10}  (src/repositories/inventory-repository.ts:7:27)",
+       "reserveItem-1 local h1$ret = {id=1, sku=\"sku-1\", stock=10}  (src/repositories/inventory-repository.ts:8:3)",
+       "reserveItem-1 local product = {id=1, sku=\"sku-1\", stock=10}  (src/app/inventory.ts:20:9)",
+       "reserveItem-1 local CHECK !product \u2192 false  (src/app/inventory.ts:21:7)",
+       "reserveItem-1 local CHECK (product.stock < input.quantity) \u2192 false  (src/app/inventory.ts:24:7)",
+       "reserveItem-1 local h3$ret = null  (src/repositories/inventory-repository.ts:20:40)",
+       "reserveItem-1 local h3$productId = 1  (src/repositories/inventory-repository.ts:11:32)",
+       "reserveItem-1 local h3$stock = 7  (src/repositories/inventory-repository.ts:11:51)",
+       "reserveItemLocked-2 begin BEGIN ISOLATION LEVEL READ COMMITTED  (src/app/inventory.ts:44:10)",
+       "reserveItemLocked-2 local _tx1 = null  (src/app/inventory.ts:44:10)",
+       "reserveItemLocked-2 read SELECT products WHERE (@id = 1) FOR UPDATE \u2192 {id=1, sku=\"sku-1\", stock=10}  (src/app/inventory.ts:45:29)",
+       "reserveItemLocked-2 local CHECK (!_row2 or (_row2.stock < input.quantity)) \u2192 false  (src/app/inventory.ts:51:9)",
+       "reserveItem-1 blocked UPDATE products SET stock = 7 WHERE (@id = 1) \u2192 BLOCKED waiting for reserveItemLocked-2's transaction  (src/repositories/inventory-repository.ts:12:9)",
+       "reserveItemLocked-2 write UPDATE products SET stock = 7 WHERE (@id = 1) \u2192 1 row  (src/app/inventory.ts:54:11)",
+       "reserveItemLocked-2 write INSERT reservations {productId=1, quantity=3} \u2192 1 row  (src/app/inventory.ts:58:11)",
+       "reserveItemLocked-2 local _tx1 = {reserved=3}  (src/app/inventory.ts:59:5)",
+       "reserveItemLocked-2 commit COMMIT  (src/app/inventory.ts:44:10)",
+       "reserveItemLocked-2 local return (success)",
+       "reserveItem-1 resumed (wait over, statement continues)  (src/repositories/inventory-repository.ts:12:9)",
+       "reserveItem-1 write UPDATE products SET stock = 7 WHERE (@id = 1) \u2192 1 row  (src/repositories/inventory-repository.ts:12:9)",
+       "reserveItem-1 local h4$ret = null  (src/repositories/inventory-repository.ts:21:61)",
+       "reserveItem-1 local h4$productId = 1  (src/repositories/inventory-repository.ts:15:38)",
+       "reserveItem-1 local h4$quantity = 3  (src/repositories/inventory-repository.ts:15:57)",
+       "reserveItem-1 write INSERT reservations {productId=1, quantity=3} \u2192 1 row  (src/repositories/inventory-repository.ts:16:9)",
+       "reserveItem-1 local return (success)"
+      ],
+      "states": 24,
+      "transitions": 23,
+      "validation": {
+       "initialStateValid": true,
+       "minimized": true,
+       "operationsExercised": [
+        "read src/repositories/inventory-repository.ts:7:27",
+        "write src/repositories/inventory-repository.ts:12:9",
+        "write src/app/inventory.ts:54:11"
+       ],
+       "operationsNotExercised": [],
+       "replayed": true,
+       "violates": true
+      },
+      "verdict": "COUNTEREXAMPLE_FOUND",
+      "violated": "serial-products-stock"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 1 synthesized row(s)",
+      "iterations": 4,
+      "notes": [],
+      "rows": {
+       "products": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "productId": 1,
+         "quantity": 3
+        }
+       ],
+       "name": "reserveItem-1",
+       "selector": "src/app/inventory.ts#reserveItem"
+      },
+      {
+       "arguments": [
+        {
+         "productId": 101,
+         "quantity": 3
+        }
+       ],
+       "name": "reserveItemLocked-2",
+       "selector": "src/app/inventory.ts#reserveItemLocked"
+      }
+     ],
+     "file": "cr-synth-9336e1-distinct-key.json",
+     "initialState": {
+      "products": [
+       {
+        "id": 1,
+        "sku": "sku-1",
+        "stock": 10
+       },
+       {
+        "id": 101,
+        "sku": "sku-2",
+        "stock": 10
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Or([And([Eq([Op(Actors(ActorsRef { function: None, outcome: Ok })), Int(0)]), Eq([Op(Row(RowRef { table: \"products\", filter: {\"id\": Int(1)}, column: Some(\"stock\") })), Int(10)])]), And([Eq([Op(Actors(ActorsRef { function: None, outcome: Ok })), Int(1)]), Or([Eq([Op(Row(RowRef { table: \"products\", filter: {\"id\": Int(1)}, column: Some(\"stock\") })), Int(7)]), Eq([Op(Row(RowRef { table: \"products\", filter: {\"id\": Int(1)}, column: Some(\"stock\") })), Int(10)])])]), And([Eq([Op(Actors(ActorsRef { function: None, outcome: Ok })), Int(2)]), Eq([Op(Row(RowRef { table: \"products\", filter: {\"id\": Int(1)}, column: Some(\"stock\") })), Int(7)])])])",
+       "name": "serial-products-stock",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 26,
+      "transitions": 25,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 4,
+      "notes": [],
+      "rows": {
+       "products": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "MODEL_COUNTEREXAMPLE",
+   "title": "read-modify-write of `products.stock` against `reserveItemLocked`",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "framework",
+     "text": "two requests can run the Server Action at the same time (double submit, two tabs, client retry)"
+    },
+    {
+     "kind": "precondition",
+     "origin": "source-derived",
+     "text": "`withMember` runs the callback only when its guards pass; the scenario assumes they do: `const member = await currentMember();` may reject before the call (src/lib/auth.ts:29:5); `if (!member)` \u2192 throw (src/lib/auth.ts:30:5); `if (!parsed.success)` \u2192 return (src/lib/auth.ts:34:5)"
+    }
+   ],
+   "class": "check-then-act",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "findSeatInvite",
+     "location": "src/repositories/invitation-repository.ts:26:28",
+     "operation": "SELECT seat_invites WHERE orgId = $member.orgId AND email = $data.email",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "createSeatInvite",
+     "location": "src/repositories/invitation-repository.ts:35:9",
+     "operation": "INSERT seat_invites",
+     "role": "act"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/app/invitations.ts@31:50",
+     "guards": [
+      "`const member = await currentMember();` may reject before the call (src/lib/auth.ts:29:5)",
+      "`if (!member)` \u2192 throw (src/lib/auth.ts:30:5)",
+      "`if (!parsed.success)` \u2192 return (src/lib/auth.ts:34:5)"
+     ],
+     "invocation": "wrapper-awaited-when-guards-pass",
+     "kind": "server-action",
+     "name": "inviteSeat(withMember)",
+     "selector": "src/app/invitations.ts#inviteSeat/arg[1]",
+     "wrapper": "withMember"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "No violation found within the modeled bounds (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). This is not a proof that the application is safe.",
+   "fingerprint": "e3399f7c9b080772",
+   "group": "4ecf44d9f0a9f8c3",
+   "id": "CR-SYNTH-E3399F",
+   "inconclusiveIf": [
+    "the intended uniqueness of the key is not established by the source",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "at most one `seat_invites` row per (orgId, email) \u2014 enforced by the database",
+     "evidence": [
+      "schema: seat_invites"
+     ],
+     "name": "unique-seat_invites-orgId-email",
+     "origin": "SCHEMA_ENFORCED",
+     "rationale": "UNIQUE(orgId, email) in the analyzed schema covers the key the code checks",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "orgId",
+        {
+         "kind": "param",
+         "path": "member.orgId"
+        }
+       ],
+       [
+        "email",
+        {
+         "kind": "param",
+         "path": "data.email"
+        }
+       ]
+      ],
+      "table": "seat_invites",
+      "template": "atMostOne"
+     },
+     "strength": "database-integrity"
+    }
+   ],
+   "protections": [
+    "UNIQUE(orgId, email) on `seat_invites` (schema): a second insert of the same key fails with SQLSTATE 23505"
+   ],
+   "rank": 13,
+   "ranking": [
+    "property origin: SCHEMA_ENFORCED",
+    "no unsupported operation on the path",
+    "entries are request handlers or have declared contracts",
+    "2 assumption(s)",
+    "1 recognized protection(s)"
+   ],
+   "resource": {
+    "columns": [
+     "orgId",
+     "email"
+    ],
+    "kind": "unique-key",
+    "table": "seat_invites",
+    "text": "seat_invites(orgId = $member.orgId, email = $data.email)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "email": "alice@example.test"
+        },
+        {
+         "orgId": 1
+        }
+       ],
+       "invocation": "awaited",
+       "name": "inviteSeat-1",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `withMember` pass (`const member = await currentMember();` may reject before the call (src/lib/auth.ts:29:5); `if (!member)` \u2192 throw (src/lib/auth.ts:30:5); `if (!parsed.success)` \u2192 return (src/lib/auth.ts:34:5))"
+       ],
+       "selector": "src/app/invitations.ts#inviteSeat/arg[1]"
+      },
+      {
+       "arguments": [
+        {
+         "email": "alice@example.test"
+        },
+        {
+         "orgId": 1
+        }
+       ],
+       "invocation": "awaited",
+       "name": "inviteSeat-2",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `withMember` pass (`const member = await currentMember();` may reject before the call (src/lib/auth.ts:29:5); `if (!member)` \u2192 throw (src/lib/auth.ts:30:5); `if (!parsed.success)` \u2192 return (src/lib/auth.ts:34:5))"
+       ],
+       "selector": "src/app/invitations.ts#inviteSeat/arg[1]"
+      }
+     ],
+     "file": "cr-synth-e3399f-actual.json",
+     "initialState": {
+      "organizations": [
+       {
+        "id": 1,
+        "name": "name-1"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"seat_invites\", filter: {\"email\": Str(\"alice@example.test\"), \"orgId\": Int(1)}, column: None })), Int(1)])",
+       "name": "unique-seat_invites-orgId-email",
+       "origin": "SCHEMA_ENFORCED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 12,
+      "transitions": 11,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": false,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 1 synthesized row(s)",
+      "iterations": 5,
+      "notes": [],
+      "rows": {
+       "organizations": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "email": "alice@example.test"
+        },
+        {
+         "orgId": 1
+        }
+       ],
+       "invocation": "awaited",
+       "name": "inviteSeat-1",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `withMember` pass (`const member = await currentMember();` may reject before the call (src/lib/auth.ts:29:5); `if (!member)` \u2192 throw (src/lib/auth.ts:30:5); `if (!parsed.success)` \u2192 return (src/lib/auth.ts:34:5))"
+       ],
+       "selector": "src/app/invitations.ts#inviteSeat/arg[1]"
+      },
+      {
+       "arguments": [
+        {
+         "email": "bob@example.test"
+        },
+        {
+         "orgId": 101
+        }
+       ],
+       "invocation": "awaited",
+       "name": "inviteSeat-2",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `withMember` pass (`const member = await currentMember();` may reject before the call (src/lib/auth.ts:29:5); `if (!member)` \u2192 throw (src/lib/auth.ts:30:5); `if (!parsed.success)` \u2192 return (src/lib/auth.ts:34:5))"
+       ],
+       "selector": "src/app/invitations.ts#inviteSeat/arg[1]"
+      }
+     ],
+     "file": "cr-synth-e3399f-distinct-key.json",
+     "initialState": {
+      "organizations": [
+       {
+        "id": 1,
+        "name": "name-1"
+       },
+       {
+        "id": 101,
+        "name": "name-2"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "And([Le([Op(Count(RowRef { table: \"seat_invites\", filter: {\"email\": Str(\"alice@example.test\"), \"orgId\": Int(1)}, column: None })), Int(1)]), Le([Op(Count(RowRef { table: \"seat_invites\", filter: {\"email\": Str(\"bob@example.test\"), \"orgId\": Int(101)}, column: None })), Int(1)])])",
+       "name": "unique-seat_invites-orgId-email",
+       "origin": "SCHEMA_ENFORCED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 10,
+      "transitions": 9,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": false,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 6,
+      "notes": [],
+      "rows": {
+       "organizations": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "NO_VIOLATION_WITHIN_BOUNDS",
+   "title": "concurrent check-then-insert on `seat_invites` (orgId = $member.orgId, email = $data.email)",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "fault",
+     "origin": "discovery-default",
+     "text": "the acknowledgment of an autocommit write can be lost after the server committed it (a broken connection); the driver then raises an error"
+    }
+   ],
+   "class": "ambiguous-commit",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "insertSettledPayment",
+     "location": "src/repositories/payment-repository.ts:9:9",
+     "operation": "INSERT settled_payments ON CONFLICT DO NOTHING",
+     "role": "first-write"
+    },
+    {
+     "entry": 0,
+     "function": "insertSettledPayment",
+     "location": "src/repositories/payment-repository.ts:9:9",
+     "operation": "INSERT settled_payments ON CONFLICT DO NOTHING",
+     "role": "retried-write"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/services/orders.ts@55:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "recordPaymentIdempotent",
+     "selector": "src/services/orders.ts#recordPaymentIdempotent"
+    }
+   ],
+   "environment": {
+    "actors": 1,
+    "maxCrashes": 0,
+    "maxInFlight": 1,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "No violation found within the modeled bounds. This is not a proof that the application is safe.",
+   "fingerprint": "e1dd492e22affd8d",
+   "group": "21305dd9e8908f0f",
+   "id": "CR-SYNTH-E1DD49",
+   "inconclusiveIf": [
+    "the driver's error does not say whether the write committed",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "one call records at most one `settled_payments` row per (reference)",
+     "evidence": [
+      "write at src/repositories/payment-repository.ts:9:9 repeated by the catch block at src/repositories/payment-repository.ts:9:9"
+     ],
+     "name": "one-settled_payments-per-call",
+     "origin": "SCHEMA_ENFORCED",
+     "rationale": "UNIQUE(reference) in the analyzed schema",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "reference",
+        {
+         "kind": "param",
+         "path": "transfer.reference"
+        }
+       ]
+      ],
+      "table": "settled_payments",
+      "template": "atMostOne"
+     },
+     "strength": "database-integrity"
+    }
+   ],
+   "protections": [
+    "UNIQUE(reference) on `settled_payments` with ON CONFLICT DO NOTHING"
+   ],
+   "rank": 14,
+   "ranking": [
+    "property origin: SCHEMA_ENFORCED",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "1 assumption(s)",
+    "1 recognized protection(s)"
+   ],
+   "resource": {
+    "columns": [
+     "reference"
+    ],
+    "kind": "unique-key",
+    "table": "settled_payments",
+    "text": "settled_payments(reference)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "amount": 3,
+         "orderId": 1,
+         "reference": "reference-1"
+        }
+       ],
+       "name": "recordPaymentIdempotent",
+       "selector": "src/services/orders.ts#recordPaymentIdempotent"
+      }
+     ],
+     "file": "cr-synth-e1dd49-actual.json",
+     "initialState": {
+      "orders": [
+       {
+        "amount": 10,
+        "customerEmail": "customerEmail-1",
+        "id": 1,
+        "status": "unpaid"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"settled_payments\", filter: {\"reference\": Str(\"reference-1\")}, column: None })), Int(1)])",
+       "name": "one-settled_payments-per-call",
+       "origin": "SCHEMA_ENFORCED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 8,
+      "transitions": 8,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": false,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 1 synthesized row(s)",
+      "iterations": 3,
+      "notes": [],
+      "rows": {
+       "orders": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    }
+   ],
+   "status": "NO_VIOLATION_WITHIN_BOUNDS",
+   "title": "write to `settled_payments` repeated after an unknown outcome",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "class": "write-skew",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "endShiftSerializable",
+     "location": "src/services/orders.ts:91:30",
+     "operation": "SELECT count(*) shifts WHERE storeId = $change.storeId AND onDuty = true",
+     "role": "read"
+    },
+    {
+     "entry": 0,
+     "function": "endShiftSerializable",
+     "location": "src/services/orders.ts:98:13",
+     "operation": "UPDATE shifts WHERE id = $change.shiftId",
+     "role": "write"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/services/orders.ts@88:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "endShiftSerializable",
+     "selector": "src/services/orders.ts#endShiftSerializable"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "distinct-row"
+   },
+   "finding": "No violation found within the modeled bounds. This is not a proof that the application is safe.",
+   "fingerprint": "279c7cd433782ba1",
+   "group": "f495e338df6a8bcb",
+   "id": "CR-SYNTH-279C7C",
+   "inconclusiveIf": [
+    "without a declared invariant there is no property to check",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "Every store keeps at least one manager on duty (operations policy).",
+     "name": "manager-on-duty",
+     "origin": "USER_DECLARED",
+     "rationale": "declared in commitrift-contracts.json",
+     "spec": {
+      "filter": {
+       "onDuty": true
+      },
+      "group_by": [
+       "storeId"
+      ],
+      "min": 1,
+      "table": "shifts",
+      "template": "atLeast"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [
+    "read and write run in one SERIALIZABLE transaction"
+   ],
+   "rank": 15,
+   "ranking": [
+    "property origin: USER_DECLARED",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "1 assumption(s)",
+    "1 recognized protection(s)"
+   ],
+   "resource": {
+    "columns": [
+     "onDuty",
+     "storeId"
+    ],
+    "kind": "row-predicate",
+    "table": "shifts",
+    "text": "shifts WHERE storeId = $change.storeId AND onDuty = true"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "shiftId": 1,
+         "storeId": 2
+        }
+       ],
+       "name": "endShiftSerializable-1",
+       "selector": "src/services/orders.ts#endShiftSerializable"
+      },
+      {
+       "arguments": [
+        {
+         "shiftId": 101,
+         "storeId": 2
+        }
+       ],
+       "name": "endShiftSerializable-2",
+       "selector": "src/services/orders.ts#endShiftSerializable"
+      }
+     ],
+     "file": "cr-synth-279c7c-actual.json",
+     "initialState": {
+      "shifts": [
+       {
+        "id": 1,
+        "managerId": 10,
+        "onDuty": true,
+        "storeId": 2
+       },
+       {
+        "id": 101,
+        "managerId": 10,
+        "onDuty": true,
+        "storeId": 2
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Ge([Op(Count(RowRef { table: \"shifts\", filter: {\"onDuty\": Bool(true), \"storeId\": Int(2)}, column: None })), Int(1)])",
+       "name": "manager-on-duty",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 30,
+      "transitions": 33,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": false,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 4,
+      "notes": [],
+      "rows": {
+       "shifts": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "distinct-row"
+     }
+    }
+   ],
+   "status": "NO_VIOLATION_WITHIN_BOUNDS",
+   "title": "write skew on `shifts` (read storeId = $change.storeId AND onDuty = true, write another row)",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "declared",
+     "text": "an at-least-once queue can hand the same message to two workers at once (declared delivery)"
+    },
+    {
+     "kind": "delivery",
+     "origin": "declared",
+     "text": "at-least-once: a message is redelivered after a crash or a lost acknowledgement, and two deliveries can overlap"
+    }
+   ],
+   "class": "duplicate-processing",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "processRefundOnce",
+     "location": "src/services/jobs.ts:46:9",
+     "operation": "external effect on `payout`",
+     "role": "external"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/services/jobs.ts@29:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "processRefundOnce",
+     "selector": "src/services/jobs.ts#processRefundOnce"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 1,
+    "maxInFlight": 0,
+    "maxRetries": 1,
+    "relation": "same",
+    "retry": "at-least-once"
+   },
+   "finding": "No violation found within the modeled bounds. This is not a proof that the application is safe.",
+   "fingerprint": "fd660d667faf440a",
+   "group": "73197bde7168d389",
+   "id": "CR-SYNTH-FD660D",
+   "inconclusiveIf": [
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "a message causes at most one effect on `payout`, however often it is delivered",
+     "evidence": [
+      "delivery contract of src/services/jobs.ts#processRefundOnce"
+     ],
+     "name": "one-payout-per-message",
+     "origin": "FRAMEWORK_CONTRACT",
+     "rationale": "the declared delivery is at-least-once: a consumer must tolerate redelivery",
+     "spec": {
+      "channel": "payout",
+      "max": 1,
+      "template": "maxExternal"
+     },
+     "strength": "recovery-safety"
+    }
+   ],
+   "protections": [
+    "the insert into `job_effects` is keyed by a unique constraint (ON CONFLICT DO NOTHING)"
+   ],
+   "rank": 16,
+   "ranking": [
+    "property origin: FRAMEWORK_CONTRACT",
+    "no unsupported operation on the path",
+    "entries are request handlers or have declared contracts",
+    "2 assumption(s)",
+    "1 recognized protection(s)"
+   ],
+   "resource": {
+    "columns": [
+     "payout"
+    ],
+    "kind": "external-channel",
+    "table": "",
+    "text": "payout"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "jobId": 1
+        }
+       ],
+       "name": "processRefundOnce-1",
+       "retry": "at-least-once",
+       "selector": "src/services/jobs.ts#processRefundOnce"
+      },
+      {
+       "arguments": [
+        {
+         "jobId": 1
+        }
+       ],
+       "name": "processRefundOnce-2",
+       "retry": "at-least-once",
+       "selector": "src/services/jobs.ts#processRefundOnce"
+      }
+     ],
+     "file": "cr-synth-fd660d-actual.json",
+     "initialState": {
+      "orders": [
+       {
+        "amount": 10,
+        "customerEmail": "customerEmail-1",
+        "id": 10,
+        "status": "unpaid"
+       }
+      ],
+      "refund_jobs": [
+       {
+        "amount": 10,
+        "id": 1,
+        "orderId": 10,
+        "status": "queued"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Externals(ExternalsRef { channel: \"payout\", key: None, distinct_keys: false })), Int(1)])",
+       "name": "one-payout-per-message",
+       "origin": "FRAMEWORK_CONTRACT"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 192,
+      "transitions": 271,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 5,
+      "notes": [],
+      "rows": {
+       "orders": 1,
+       "refund_jobs": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    }
+   ],
+   "status": "NO_VIOLATION_WITHIN_BOUNDS",
+   "title": "redelivered message repeats `payout`",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "retry",
+     "origin": "declared",
+     "text": "the caller retries the request (on-crash)"
+    }
+   ],
+   "class": "external-effect-gap",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "checkoutIdempotent",
+     "location": "src/app/checkout.ts:35:9",
+     "operation": "external effect on `card-charge`",
+     "role": "external"
+    },
+    {
+     "entry": 0,
+     "function": "recordCharge",
+     "location": "src/repositories/order-repository.ts:12:9",
+     "operation": "INSERT charges",
+     "role": "write-after"
+    },
+    {
+     "entry": 0,
+     "function": "markPaid",
+     "location": "src/repositories/order-repository.ts:16:9",
+     "operation": "UPDATE orders WHERE id = read#0.id",
+     "role": "write-after"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/app/checkout.ts@27:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "checkoutIdempotent",
+     "selector": "src/app/checkout.ts#checkoutIdempotent"
+    }
+   ],
+   "environment": {
+    "actors": 1,
+    "maxCrashes": 1,
+    "maxInFlight": 0,
+    "maxRetries": 1,
+    "relation": "same",
+    "retry": "on-crash"
+   },
+   "finding": "No violation found within the modeled bounds. This is not a proof that the application is safe.",
+   "fingerprint": "3117b45cb40b8fd9",
+   "group": "4c32a8e3795214e8",
+   "id": "CR-SYNTH-3117B4",
+   "inconclusiveIf": [
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "one request causes at most one effective `card-charge` effect, retries included",
+     "name": "one-effective-card-charge",
+     "origin": "HEURISTIC_HYPOTHESIS",
+     "rationale": "the effect at src/app/checkout.ts:35:9 is not atomic with the writes after it; a retried request repeats it. That one request should cause one effect is a hypothesis",
+     "spec": {
+      "channel": "card-charge",
+      "max": 1,
+      "template": "maxExternal"
+     },
+     "strength": "recovery-safety"
+    }
+   ],
+   "protections": [
+    "the effect carries an idempotency key ($input.requestId) and `card-charge` deduplicates by key (declared)"
+   ],
+   "rank": 17,
+   "ranking": [
+    "property origin: HEURISTIC_HYPOTHESIS",
+    "no unsupported operation on the path",
+    "entries are request handlers or have declared contracts",
+    "1 assumption(s)",
+    "1 recognized protection(s)"
+   ],
+   "resource": {
+    "columns": [
+     "card-charge"
+    ],
+    "kind": "external-channel",
+    "table": "",
+    "text": "card-charge"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "orderId": 1,
+         "requestId": "requestId-1"
+        }
+       ],
+       "name": "checkoutIdempotent",
+       "retry": "on-crash",
+       "selector": "src/app/checkout.ts#checkoutIdempotent"
+      }
+     ],
+     "file": "cr-synth-3117b4-actual.json",
+     "initialState": {
+      "orders": [
+       {
+        "amount": 10,
+        "customerEmail": "customerEmail-1",
+        "id": 1,
+        "status": "unpaid"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Externals(ExternalsRef { channel: \"card-charge\", key: None, distinct_keys: false })), Int(1)])",
+       "name": "one-effective-card-charge",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 23,
+      "transitions": 22,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 1 synthesized row(s)",
+      "iterations": 2,
+      "notes": [],
+      "rows": {
+       "orders": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    }
+   ],
+   "status": "NO_VIOLATION_WITHIN_BOUNDS",
+   "title": "crash between `card-charge` and the database writes, then a retry",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "declared",
+     "text": "an at-least-once queue can hand the same message to two workers at once (declared delivery)"
+    }
+   ],
+   "class": "status-transition",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "processRefundOnce",
+     "location": "src/services/jobs.ts:30:23",
+     "operation": "SELECT refund_jobs WHERE id = $delivery.jobId",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "processRefundOnce",
+     "location": "src/services/jobs.ts:47:9",
+     "operation": "UPDATE refund_jobs WHERE id = read#0.id",
+     "role": "transition"
+    },
+    {
+     "entry": 0,
+     "function": "processRefundOnce",
+     "location": "src/services/jobs.ts:38:25",
+     "operation": "INSERT job_effects ON CONFLICT DO NOTHING",
+     "role": "consequence"
+    },
+    {
+     "entry": 0,
+     "function": "processRefundOnce",
+     "location": "src/services/jobs.ts:46:9",
+     "operation": "external effect on `payout`",
+     "role": "consequence"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/services/jobs.ts@29:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "processRefundOnce",
+     "selector": "src/services/jobs.ts#processRefundOnce"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "No violation found within the modeled bounds (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). This is not a proof that the application is safe.",
+   "fingerprint": "ba6a320ae907abba",
+   "group": "94eae68b661c7aa1",
+   "id": "CR-SYNTH-BA6A32",
+   "inconclusiveIf": [
+    "whether a repeated transition is wrong for the application is not established",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "at most one `job_effects` row per (jobId = $delivery.jobId) \u2014 the transition of `refund_jobs` happens once",
+     "evidence": [
+      "guard at src/services/jobs.ts:35:7"
+     ],
+     "name": "one-job_effects-per-transition",
+     "origin": "HEURISTIC_HYPOTHESIS",
+     "rationale": "the insert runs only after the guard `!(!_row1 or (_row1.status = \"done\"))` (src/services/jobs.ts:35:7) saw the row in its old state; that suggests one insert per transition, which the source does not establish",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "jobId",
+        {
+         "kind": "param",
+         "path": "delivery.jobId"
+        }
+       ]
+      ],
+      "table": "job_effects",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    },
+    {
+     "description": "at most one effect on `payout` \u2014 the transition of `refund_jobs` happens once",
+     "evidence": [
+      "guard at src/services/jobs.ts:35:7"
+     ],
+     "name": "one-payout-per-transition",
+     "origin": "HEURISTIC_HYPOTHESIS",
+     "rationale": "the effect runs only after the guard `!(!_row1 or (_row1.status = \"done\"))` (src/services/jobs.ts:35:7) saw the row in its old state",
+     "spec": {
+      "channel": "payout",
+      "max": 1,
+      "template": "maxExternal"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 18,
+   "ranking": [
+    "property origin: HEURISTIC_HYPOTHESIS",
+    "no unsupported operation on the path",
+    "entries are request handlers or have declared contracts",
+    "1 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "status"
+    ],
+    "kind": "row",
+    "table": "refund_jobs",
+    "text": "refund_jobs(id = $delivery.jobId)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "jobId": 1
+        }
+       ],
+       "name": "processRefundOnce-1",
+       "selector": "src/services/jobs.ts#processRefundOnce"
+      },
+      {
+       "arguments": [
+        {
+         "jobId": 1
+        }
+       ],
+       "name": "processRefundOnce-2",
+       "selector": "src/services/jobs.ts#processRefundOnce"
+      }
+     ],
+     "file": "cr-synth-ba6a32-actual.json",
+     "initialState": {
+      "orders": [
+       {
+        "amount": 10,
+        "customerEmail": "customerEmail-1",
+        "id": 10,
+        "status": "unpaid"
+       }
+      ],
+      "refund_jobs": [
+       {
+        "amount": 10,
+        "id": 1,
+        "orderId": 10,
+        "status": "queued"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"job_effects\", filter: {\"jobId\": Int(1)}, column: None })), Int(1)])",
+       "name": "one-job_effects-per-transition",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      },
+      {
+       "formula": "Le([Op(Externals(ExternalsRef { channel: \"payout\", key: None, distinct_keys: false })), Int(1)])",
+       "name": "one-payout-per-transition",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 24,
+      "transitions": 23,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 4,
+      "notes": [],
+      "rows": {
+       "orders": 1,
+       "refund_jobs": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "jobId": 1
+        }
+       ],
+       "name": "processRefundOnce-1",
+       "selector": "src/services/jobs.ts#processRefundOnce"
+      },
+      {
+       "arguments": [
+        {
+         "jobId": 101
+        }
+       ],
+       "name": "processRefundOnce-2",
+       "selector": "src/services/jobs.ts#processRefundOnce"
+      }
+     ],
+     "file": "cr-synth-ba6a32-distinct-key.json",
+     "initialState": {
+      "orders": [
+       {
+        "amount": 10,
+        "customerEmail": "customerEmail-1",
+        "id": 10,
+        "status": "unpaid"
+       }
+      ],
+      "refund_jobs": [
+       {
+        "amount": 10,
+        "id": 1,
+        "orderId": 10,
+        "status": "queued"
+       },
+       {
+        "amount": 10,
+        "id": 101,
+        "orderId": 10,
+        "status": "queued"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "And([Le([Op(Count(RowRef { table: \"job_effects\", filter: {\"jobId\": Int(1)}, column: None })), Int(1)]), Le([Op(Count(RowRef { table: \"job_effects\", filter: {\"jobId\": Int(101)}, column: None })), Int(1)])])",
+       "name": "one-job_effects-per-transition",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      },
+      {
+       "formula": "Le([Op(Externals(ExternalsRef { channel: \"payout\", key: None, distinct_keys: false })), Int(2)])",
+       "name": "one-payout-per-transition",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 42,
+      "transitions": 41,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 3 synthesized row(s)",
+      "iterations": 4,
+      "notes": [],
+      "rows": {
+       "orders": 1,
+       "refund_jobs": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "NO_VIOLATION_WITHIN_BOUNDS",
+   "title": "concurrent transition of `refund_jobs`.status (id = $delivery.jobId)",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "class": "read-modify-write",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "reserveItemLocked",
+     "location": "src/app/inventory.ts:45:29",
+     "operation": "SELECT products WHERE id = $input.productId FOR UPDATE",
+     "role": "read"
+    },
+    {
+     "entry": 0,
+     "function": "reserveItemLocked",
+     "location": "src/app/inventory.ts:54:11",
+     "operation": "UPDATE products WHERE id = read#0.id",
+     "role": "write"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/app/inventory.ts@43:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "reserveItemLocked",
+     "selector": "src/app/inventory.ts#reserveItemLocked"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "No violation found within the modeled bounds (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). This is not a proof that the application is safe.",
+   "fingerprint": "b0b1d6c1aed94665",
+   "group": "32cd152cdd657a75",
+   "id": "CR-SYNTH-B0B1D6",
+   "inconclusiveIf": [
+    "whether a non-serial outcome is wrong for the application is not established",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "`products.stock` of the row (id = $input.productId) ends with a value some serial execution of the same requests produces",
+     "evidence": [
+      "read at src/app/inventory.ts:45:29, write at src/app/inventory.ts:54:11"
+     ],
+     "name": "serial-products-stock",
+     "origin": "HEURISTIC_HYPOTHESIS",
+     "rationale": "`stock` is written as `(_row2.stock - input.quantity)`, computed from the value read at src/app/inventory.ts:45:29; a concurrent update between the read and the write would be overwritten. Whether the application requires serial outcomes is not established",
+     "spec": {
+      "column": "stock",
+      "key": [
+       [
+        "id",
+        {
+         "kind": "param",
+         "path": "input.productId"
+        }
+       ]
+      ],
+      "table": "products",
+      "template": "serialCell"
+     },
+     "strength": "concurrency-relational"
+    }
+   ],
+   "protections": [
+    "the row is read FOR UPDATE in the transaction that writes it"
+   ],
+   "rank": 19,
+   "ranking": [
+    "property origin: HEURISTIC_HYPOTHESIS",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "1 assumption(s)",
+    "1 recognized protection(s)"
+   ],
+   "resource": {
+    "columns": [
+     "stock"
+    ],
+    "kind": "column",
+    "table": "products",
+    "text": "products.stock(id = $input.productId)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "productId": 1,
+         "quantity": 3
+        }
+       ],
+       "name": "reserveItemLocked-1",
+       "selector": "src/app/inventory.ts#reserveItemLocked"
+      },
+      {
+       "arguments": [
+        {
+         "productId": 1,
+         "quantity": 3
+        }
+       ],
+       "name": "reserveItemLocked-2",
+       "selector": "src/app/inventory.ts#reserveItemLocked"
+      }
+     ],
+     "file": "cr-synth-b0b1d6-actual.json",
+     "initialState": {
+      "products": [
+       {
+        "id": 1,
+        "sku": "sku-1",
+        "stock": 10
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Or([And([Eq([Op(Actors(ActorsRef { function: None, outcome: Ok })), Int(0)]), Eq([Op(Row(RowRef { table: \"products\", filter: {\"id\": Int(1)}, column: Some(\"stock\") })), Int(10)])]), And([Eq([Op(Actors(ActorsRef { function: None, outcome: Ok })), Int(1)]), Eq([Op(Row(RowRef { table: \"products\", filter: {\"id\": Int(1)}, column: Some(\"stock\") })), Int(7)])]), And([Eq([Op(Actors(ActorsRef { function: None, outcome: Ok })), Int(2)]), Eq([Op(Row(RowRef { table: \"products\", filter: {\"id\": Int(1)}, column: Some(\"stock\") })), Int(4)])])])",
+       "name": "serial-products-stock",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 36,
+      "transitions": 43,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 1 synthesized row(s)",
+      "iterations": 4,
+      "notes": [],
+      "rows": {
+       "products": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "productId": 1,
+         "quantity": 3
+        }
+       ],
+       "name": "reserveItemLocked-1",
+       "selector": "src/app/inventory.ts#reserveItemLocked"
+      },
+      {
+       "arguments": [
+        {
+         "productId": 101,
+         "quantity": 3
+        }
+       ],
+       "name": "reserveItemLocked-2",
+       "selector": "src/app/inventory.ts#reserveItemLocked"
+      }
+     ],
+     "file": "cr-synth-b0b1d6-distinct-key.json",
+     "initialState": {
+      "products": [
+       {
+        "id": 1,
+        "sku": "sku-1",
+        "stock": 10
+       },
+       {
+        "id": 101,
+        "sku": "sku-2",
+        "stock": 10
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Or([And([Eq([Op(Actors(ActorsRef { function: None, outcome: Ok })), Int(0)]), Eq([Op(Row(RowRef { table: \"products\", filter: {\"id\": Int(1)}, column: Some(\"stock\") })), Int(10)])]), And([Eq([Op(Actors(ActorsRef { function: None, outcome: Ok })), Int(1)]), Or([Eq([Op(Row(RowRef { table: \"products\", filter: {\"id\": Int(1)}, column: Some(\"stock\") })), Int(7)]), Eq([Op(Row(RowRef { table: \"products\", filter: {\"id\": Int(1)}, column: Some(\"stock\") })), Int(10)])])]), And([Eq([Op(Actors(ActorsRef { function: None, outcome: Ok })), Int(2)]), Eq([Op(Row(RowRef { table: \"products\", filter: {\"id\": Int(1)}, column: Some(\"stock\") })), Int(7)])])])",
+       "name": "serial-products-stock",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 40,
+      "transitions": 39,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 4,
+      "notes": [],
+      "rows": {
+       "products": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "NO_VIOLATION_WITHIN_BOUNDS",
+   "title": "read-modify-write of `products.stock` (id = $input.productId)",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "class": "lock-order",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "transferStockOrdered",
+     "location": "src/app/inventory.ts:88:13",
+     "operation": "UPDATE bins WHERE id = $input.from",
+     "role": "first-lock"
+    },
+    {
+     "entry": 0,
+     "function": "transferStockOrdered",
+     "location": "src/app/inventory.ts:92:13",
+     "operation": "UPDATE bins WHERE id = $input.to",
+     "role": "second-lock"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/app/inventory.ts@85:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "transferStockOrdered",
+     "selector": "src/app/inventory.ts#transferStockOrdered"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "swapped"
+   },
+   "finding": "No violation found within the modeled bounds. This is not a proof that the application is safe.",
+   "fingerprint": "b4d4a97858627ff7",
+   "group": "2f01955da881f452",
+   "id": "CR-SYNTH-B4D4A9",
+   "inconclusiveIf": [
+    "a failure for another reason also violates `no-request-fails`",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "no invocation fails (a deadlock victim fails with 40P01)",
+     "evidence": [
+      "src/app/inventory.ts:88:13",
+      "src/app/inventory.ts:92:13"
+     ],
+     "name": "no-request-fails",
+     "origin": "HEURISTIC_HYPOTHESIS",
+     "rationale": "two invocations with swapped `$input.from` / `$input.to` lock the same rows in opposite orders; PostgreSQL aborts one of them. That the operation should not fail this way is a hypothesis",
+     "spec": {
+      "template": "noFailedActors"
+     },
+     "strength": "bounded-liveness"
+    }
+   ],
+   "protections": [],
+   "rank": 20,
+   "ranking": [
+    "property origin: HEURISTIC_HYPOTHESIS",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "1 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "id"
+    ],
+    "kind": "row",
+    "table": "bins",
+    "text": "bins($input.from / $input.to)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "from": 1,
+         "quantity": 3,
+         "to": 2
+        }
+       ],
+       "name": "transferStockOrdered-1",
+       "selector": "src/app/inventory.ts#transferStockOrdered"
+      },
+      {
+       "arguments": [
+        {
+         "from": 2,
+         "quantity": 3,
+         "to": 1
+        }
+       ],
+       "name": "transferStockOrdered-2",
+       "selector": "src/app/inventory.ts#transferStockOrdered"
+      }
+     ],
+     "file": "cr-synth-b4d4a9-actual.json",
+     "initialState": {
+      "bins": [
+       {
+        "id": 1,
+        "quantity": 10
+       },
+       {
+        "id": 2,
+        "quantity": 10
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Eq([Op(Actors(ActorsRef { function: None, outcome: Failed })), Int(0)])",
+       "name": "no-request-fails",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 28,
+      "transitions": 31,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": false,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 4,
+      "notes": [],
+      "rows": {
+       "bins": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "swapped"
+     }
+    }
+   ],
+   "status": "NO_VIOLATION_WITHIN_BOUNDS",
+   "title": "rows of `bins` locked in argument order ($input.from then $input.to)",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    1
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "`reserveItemLocked` and `reserveItemAtomic` can run at the same time on the same row"
+    },
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "class": "read-modify-write",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "reserveItemLocked",
+     "location": "src/app/inventory.ts:45:29",
+     "operation": "SELECT products WHERE id = $input.productId FOR UPDATE",
+     "role": "read"
+    },
+    {
+     "entry": 0,
+     "function": "reserveItemLocked",
+     "location": "src/app/inventory.ts:54:11",
+     "operation": "UPDATE products WHERE id = read#0.id",
+     "role": "write"
+    },
+    {
+     "entry": 1,
+     "function": "takeStock",
+     "location": "src/repositories/inventory-repository.ts:22:10",
+     "operation": "UPDATE products WHERE id = $input.productId AND (@stock >= h1$quantity)",
+     "role": "write"
+    }
+   ],
+   "duplicateOf": "CR-SYNTH-B0B1D6",
+   "entries": [
+    {
+     "anchor": "src/app/inventory.ts@43:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "reserveItemLocked",
+     "selector": "src/app/inventory.ts#reserveItemLocked"
+    },
+    {
+     "anchor": "src/app/inventory.ts@33:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "reserveItemAtomic",
+     "selector": "src/app/inventory.ts#reserveItemAtomic"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "UNSUPPORTED: actor `reserveItemAtomic-2` reaches an operation the model does not support at src/repositories/inventory-repository.ts:22:3: an array of rows used as a value",
+   "fingerprint": "7450cebebccad8ea",
+   "group": "32cd152cdd657a75",
+   "id": "CR-SYNTH-7450CE",
+   "inconclusiveIf": [
+    "whether a non-serial outcome is wrong for the application is not established",
+    "the exploration bounds are exceeded (the result is then `not established`)",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "`products.stock` of the row (id = $input.productId) ends with a value some serial execution of the same requests produces",
+     "evidence": [
+      "read at src/app/inventory.ts:45:29, write at src/app/inventory.ts:54:11"
+     ],
+     "name": "serial-products-stock",
+     "origin": "HEURISTIC_HYPOTHESIS",
+     "rationale": "`stock` is written as `(_row2.stock - input.quantity)`, computed from the value read at src/app/inventory.ts:45:29; a concurrent update between the read and the write would be overwritten. Whether the application requires serial outcomes is not established The partner `reserveItemAtomic` writes `stock` at src/repositories/inventory-repository.ts:22:10",
+     "spec": {
+      "column": "stock",
+      "key": [
+       [
+        "id",
+        {
+         "kind": "param",
+         "path": "input.productId"
+        }
+       ]
+      ],
+      "table": "products",
+      "template": "serialCell"
+     },
+     "strength": "concurrency-relational"
+    }
+   ],
+   "protections": [
+    "the row is read FOR UPDATE in the transaction that writes it"
+   ],
+   "rank": 21,
+   "ranking": [
+    "property origin: HEURISTIC_HYPOTHESIS",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "2 assumption(s)",
+    "1 recognized protection(s)"
+   ],
+   "resource": {
+    "columns": [
+     "stock"
+    ],
+    "kind": "column",
+    "table": "products",
+    "text": "products.stock(id = $input.productId)"
+   },
+   "scenarios": [
+    {
+     "sourceVerification": false,
+     "synthesis": {
+      "detail": "actor `reserveItemAtomic-2` reaches an operation the model does not support at src/repositories/inventory-repository.ts:22:3: an array of rows used as a value",
+      "iterations": 2,
+      "notes": [],
+      "rows": {
+       "products": 1
+      },
+      "status": "unsupported"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "sourceVerification": false,
+     "synthesis": {
+      "detail": "actor `reserveItemAtomic-2` reaches an operation the model does not support at src/repositories/inventory-repository.ts:22:3: an array of rows used as a value",
+      "iterations": 2,
+      "notes": [],
+      "rows": {
+       "products": 2
+      },
+      "status": "unsupported"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "UNSUPPORTED",
+   "title": "read-modify-write of `products.stock` against `reserveItemAtomic`",
+   "unsupported": [
+    "an array of rows used as a value (src/repositories/inventory-repository.ts:22:3)"
+   ],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    1
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "`reserveItem` and `reserveItemAtomic` can run at the same time on the same row"
+    },
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "class": "read-modify-write",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "getProduct",
+     "location": "src/repositories/inventory-repository.ts:7:27",
+     "operation": "SELECT products WHERE id = $input.productId",
+     "role": "read"
+    },
+    {
+     "entry": 0,
+     "function": "setStock",
+     "location": "src/repositories/inventory-repository.ts:12:9",
+     "operation": "UPDATE products WHERE id = read#0.id",
+     "role": "write"
+    },
+    {
+     "entry": 1,
+     "function": "takeStock",
+     "location": "src/repositories/inventory-repository.ts:22:10",
+     "operation": "UPDATE products WHERE id = $input.productId AND (@stock >= h1$quantity)",
+     "role": "write"
+    }
+   ],
+   "duplicateOf": "CR-SYNTH-05E13A",
+   "entries": [
+    {
+     "anchor": "src/app/inventory.ts@19:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "reserveItem",
+     "selector": "src/app/inventory.ts#reserveItem"
+    },
+    {
+     "anchor": "src/app/inventory.ts@33:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "reserveItemAtomic",
+     "selector": "src/app/inventory.ts#reserveItemAtomic"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "UNSUPPORTED: actor `reserveItemAtomic-2` reaches an operation the model does not support at src/repositories/inventory-repository.ts:22:3: an array of rows used as a value",
+   "fingerprint": "ff9c7981de884f3c",
+   "group": "dac89cd1aee3db32",
+   "id": "CR-SYNTH-FF9C79",
+   "inconclusiveIf": [
+    "whether a non-serial outcome is wrong for the application is not established",
+    "the exploration bounds are exceeded (the result is then `not established`)",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "`products.stock` of the row (id = $input.productId) ends with a value some serial execution of the same requests produces",
+     "evidence": [
+      "read at src/repositories/inventory-repository.ts:7:27, write at src/repositories/inventory-repository.ts:12:9"
+     ],
+     "name": "serial-products-stock",
+     "origin": "HEURISTIC_HYPOTHESIS",
+     "rationale": "`stock` is written as `(product.stock - input.quantity)`, computed from the value read at src/repositories/inventory-repository.ts:7:27; a concurrent update between the read and the write would be overwritten. Whether the application requires serial outcomes is not established The partner `reserveItemAtomic` writes `stock` at src/repositories/inventory-repository.ts:22:10",
+     "spec": {
+      "column": "stock",
+      "key": [
+       [
+        "id",
+        {
+         "kind": "param",
+         "path": "input.productId"
+        }
+       ]
+      ],
+      "table": "products",
+      "template": "serialCell"
+     },
+     "strength": "concurrency-relational"
+    }
+   ],
+   "protections": [],
+   "rank": 22,
+   "ranking": [
+    "property origin: HEURISTIC_HYPOTHESIS",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "2 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "stock"
+    ],
+    "kind": "column",
+    "table": "products",
+    "text": "products.stock(id = $input.productId)"
+   },
+   "scenarios": [
+    {
+     "sourceVerification": false,
+     "synthesis": {
+      "detail": "actor `reserveItemAtomic-2` reaches an operation the model does not support at src/repositories/inventory-repository.ts:22:3: an array of rows used as a value",
+      "iterations": 2,
+      "notes": [],
+      "rows": {
+       "products": 1
+      },
+      "status": "unsupported"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "sourceVerification": false,
+     "synthesis": {
+      "detail": "actor `reserveItemAtomic-2` reaches an operation the model does not support at src/repositories/inventory-repository.ts:22:3: an array of rows used as a value",
+      "iterations": 2,
+      "notes": [],
+      "rows": {
+       "products": 2
+      },
+      "status": "unsupported"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "UNSUPPORTED",
+   "title": "read-modify-write of `products.stock` against `reserveItemAtomic`",
+   "unsupported": [
+    "an array of rows used as a value (src/repositories/inventory-repository.ts:22:3)"
+   ],
+   "unsupportedOnPath": false
+  }
+ ],
+ "entries": [
+  {
+   "externals": 1,
+   "invocation": "direct",
+   "kind": "route-handler",
+   "reads": 1,
+   "selector": "src/app/api/checkout/route.ts#POST",
+   "status": "effectful",
+   "unknown": [
+    "call to `request.json`: method calls are not resolved (src/app/api/checkout/route.ts:5:23)",
+    "call to `request.json`: method calls are not resolved (src/app/api/checkout/route.ts:5:9)",
+    "call to `Response.json`: method calls are not resolved (src/app/api/checkout/route.ts:7:10)"
+   ],
+   "writes": 2
+  },
+  {
+   "externals": 1,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 1,
+   "selector": "src/app/checkout.ts#checkout",
+   "status": "effectful",
+   "writes": 2
+  },
+  {
+   "externals": 1,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 1,
+   "selector": "src/app/checkout.ts#checkoutIdempotent",
+   "status": "effectful",
+   "writes": 2
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 1,
+   "selector": "src/app/inventory.ts#reserveItem",
+   "status": "effectful",
+   "writes": 2
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/app/inventory.ts#reserveItemAtomic",
+   "status": "effectful",
+   "unknown": [
+    "an array of rows used as a value (src/repositories/inventory-repository.ts:22:3)"
+   ],
+   "writes": 2
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 1,
+   "selector": "src/app/inventory.ts#reserveItemLocked",
+   "status": "effectful",
+   "writes": 2
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/app/inventory.ts#transferStock",
+   "status": "effectful",
+   "writes": 2
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/app/inventory.ts#transferStockOrdered",
+   "status": "effectful",
+   "writes": 4
+  },
+  {
+   "externals": 0,
+   "invocation": "wrapper-awaited-when-guards-pass",
+   "kind": "server-action",
+   "reads": 1,
+   "selector": "src/app/invitations.ts#inviteMember/arg[1]",
+   "status": "effectful",
+   "writes": 1
+  },
+  {
+   "externals": 0,
+   "invocation": "wrapper-awaited-when-guards-pass",
+   "kind": "server-action",
+   "reads": 1,
+   "selector": "src/app/invitations.ts#inviteSeat/arg[1]",
+   "status": "effectful",
+   "writes": 1
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/db/pool.ts#usePool",
+   "status": "no-database-effects",
+   "unknown": [
+    "unresolved identifier `configured` (src/db/pool.ts:9:7)",
+    "assignment target is not a local variable (src/db/pool.ts:10:3)"
+   ],
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/db/pool.ts#configuredPool",
+   "status": "no-database-effects",
+   "unknown": [
+    "unresolved identifier `configured` (src/db/pool.ts:14:7)"
+   ],
+   "writes": 0
+  },
+  {
+   "detail": "its import closure mentions no database receiver and no declared external",
+   "externals": 0,
+   "invocation": "",
+   "kind": "wrapped-callback",
+   "reads": 0,
+   "selector": "src/db/schema.ts#seatInvites/arg[2]",
+   "status": "not-extracted",
+   "writes": 0
+  },
+  {
+   "detail": "its import closure mentions no database receiver and no declared external",
+   "externals": 0,
+   "invocation": "",
+   "kind": "wrapped-callback",
+   "reads": 0,
+   "selector": "src/db/schema.ts#jobEffects/arg[2]",
+   "status": "not-extracted",
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 1,
+   "selector": "src/lib/auth.ts#currentMember",
+   "status": "read-only",
+   "unknown": [
+    "call to `storage.getStore`: method calls are not resolved (src/lib/session.ts:15:10)",
+    "call to `storage.getStore`: method calls are not resolved (src/lib/session.ts:15:10)"
+   ],
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/lib/auth.ts#withMember",
+   "status": "no-database-effects",
+   "writes": 0
+  },
+  {
+   "detail": "its import closure mentions no database receiver and no declared external",
+   "externals": 0,
+   "invocation": "",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/lib/session.ts#runWithSession",
+   "status": "not-extracted",
+   "writes": 0
+  },
+  {
+   "detail": "its import closure mentions no database receiver and no declared external",
+   "externals": 0,
+   "invocation": "",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/lib/session.ts#currentSession",
+   "status": "not-extracted",
+   "writes": 0
+  },
+  {
+   "detail": "its import closure mentions no database receiver and no declared external",
+   "externals": 0,
+   "invocation": "",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/lib/validation.ts#email",
+   "status": "not-extracted",
+   "writes": 0
+  },
+  {
+   "detail": "its import closure mentions no database receiver and no declared external",
+   "externals": 0,
+   "invocation": "",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/lib/validation.ts#positiveInteger",
+   "status": "not-extracted",
+   "writes": 0
+  },
+  {
+   "detail": "its import closure mentions no database receiver and no declared external",
+   "externals": 0,
+   "invocation": "",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/lib/validation.ts#oneOf",
+   "status": "not-extracted",
+   "writes": 0
+  },
+  {
+   "detail": "its import closure mentions no database receiver and no declared external",
+   "externals": 0,
+   "invocation": "",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/lib/validation.ts#object",
+   "status": "not-extracted",
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 1,
+   "selector": "src/repositories/inventory-repository.ts#getProduct",
+   "status": "read-only",
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/repositories/inventory-repository.ts#setStock",
+   "status": "effectful",
+   "writes": 1
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/repositories/inventory-repository.ts#addReservation",
+   "status": "effectful",
+   "writes": 1
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/repositories/inventory-repository.ts#takeStock",
+   "status": "effectful",
+   "writes": 1
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 1,
+   "selector": "src/repositories/invitation-repository.ts#findPendingInvitation",
+   "status": "read-only",
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/repositories/invitation-repository.ts#createInvitation",
+   "status": "effectful",
+   "writes": 1
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 1,
+   "selector": "src/repositories/invitation-repository.ts#findSeatInvite",
+   "status": "read-only",
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/repositories/invitation-repository.ts#createSeatInvite",
+   "status": "effectful",
+   "writes": 1
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 1,
+   "selector": "src/repositories/order-repository.ts#getOrder",
+   "status": "read-only",
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/repositories/order-repository.ts#recordCharge",
+   "status": "effectful",
+   "writes": 1
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/repositories/order-repository.ts#markPaid",
+   "status": "effectful",
+   "writes": 1
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/repositories/payment-repository.ts#insertPayment",
+   "status": "effectful",
+   "writes": 1
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/repositories/payment-repository.ts#insertSettledPayment",
+   "status": "effectful",
+   "writes": 1
+  },
+  {
+   "externals": 1,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 1,
+   "selector": "src/services/jobs.ts#processRefund",
+   "status": "effectful",
+   "writes": 1
+  },
+  {
+   "externals": 1,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 1,
+   "selector": "src/services/jobs.ts#processRefundOnce",
+   "status": "effectful",
+   "writes": 2
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 1,
+   "selector": "src/services/orders.ts#claimTask",
+   "status": "effectful",
+   "writes": 2
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/services/orders.ts#claimTaskConditional",
+   "status": "effectful",
+   "writes": 2
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/services/orders.ts#recordPayment",
+   "status": "effectful",
+   "writes": 2
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/services/orders.ts#recordPaymentIdempotent",
+   "status": "effectful",
+   "writes": 2
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 1,
+   "selector": "src/services/orders.ts#endShift",
+   "status": "effectful",
+   "writes": 1
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 1,
+   "selector": "src/services/orders.ts#endShiftSerializable",
+   "status": "effectful",
+   "writes": 1
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/services/payments.ts#usePaymentProvider",
+   "status": "no-database-effects",
+   "unknown": [
+    "unresolved identifier `configured` (src/services/payments.ts:16:7)",
+    "assignment target is not a local variable (src/services/payments.ts:17:3)"
+   ],
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/services/payments.ts#chargeCard",
+   "status": "no-database-effects",
+   "unknown": [
+    "call to `<expression>`: method calls are not resolved (src/services/payments.ts:27:9)"
+   ],
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/services/payments.ts#sendPayout",
+   "status": "no-database-effects",
+   "unknown": [
+    "call to `<expression>`: method calls are not resolved (src/services/payments.ts:32:9)"
+   ],
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 1,
+   "selector": "src/services/reports.ts#stockLevel",
+   "status": "read-only",
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/services/reports.ts#archiveOrder",
+   "status": "no-database-effects",
+   "unknown": [
+    "raw SQL via `execute` is not parsed (src/services/reports.ts:15:9)"
+   ],
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 1,
+   "selector": "src/services/reports.ts#notifyCustomer",
+   "status": "read-only",
+   "unknown": [
+    "call to `client.send`: method calls are not resolved (src/services/reports.ts:22:11)"
+   ],
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/services/reports.ts#formatAmount",
+   "status": "no-database-effects",
+   "writes": 0
+  }
+ ],
+ "evaluation": {
+  "candidateToModel": "20/20",
+  "cases": [
+   {
+    "candidates": [
+     "check-then-act:MODEL_COUNTEREXAMPLE"
+    ],
+    "class": "check-then-act",
+    "classAgrees": true,
+    "entry": "src/app/invitations.ts#inviteMember/arg[1]",
+    "label": "positive",
+    "modelPrediction": true,
+    "outcome": "TP",
+    "staticPrediction": true
+   },
+   {
+    "candidates": [
+     "check-then-act:NO_VIOLATION_WITHIN_BOUNDS"
+    ],
+    "class": "check-then-act",
+    "entry": "src/app/invitations.ts#inviteSeat/arg[1]",
+    "label": "negative",
+    "modelPrediction": false,
+    "outcome": "TN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [
+     "read-modify-write:MODEL_COUNTEREXAMPLE"
+    ],
+    "class": "read-modify-write",
+    "classAgrees": true,
+    "entry": "src/app/inventory.ts#reserveItem",
+    "label": "positive",
+    "modelPrediction": true,
+    "outcome": "TP",
+    "staticPrediction": true
+   },
+   {
+    "candidates": [],
+    "class": "read-modify-write",
+    "entry": "src/app/inventory.ts#reserveItemAtomic",
+    "label": "negative",
+    "modelPrediction": false,
+    "outcome": "TN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [
+     "read-modify-write:NO_VIOLATION_WITHIN_BOUNDS"
+    ],
+    "class": "read-modify-write",
+    "entry": "src/app/inventory.ts#reserveItemLocked",
+    "label": "negative",
+    "modelPrediction": false,
+    "outcome": "TN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [
+     "status-transition:MODEL_COUNTEREXAMPLE"
+    ],
+    "class": "check-then-act",
+    "classAgrees": false,
+    "entry": "src/services/orders.ts#claimTask",
+    "label": "positive",
+    "modelPrediction": true,
+    "outcome": "TP",
+    "staticPrediction": true
+   },
+   {
+    "candidates": [],
+    "class": "check-then-act",
+    "entry": "src/services/orders.ts#claimTaskConditional",
+    "label": "negative",
+    "modelPrediction": false,
+    "outcome": "TN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [
+     "write-skew:MODEL_COUNTEREXAMPLE"
+    ],
+    "class": "write-skew",
+    "classAgrees": true,
+    "entry": "src/services/orders.ts#endShift",
+    "label": "positive",
+    "modelPrediction": true,
+    "outcome": "TP",
+    "staticPrediction": true
+   },
+   {
+    "candidates": [
+     "write-skew:NO_VIOLATION_WITHIN_BOUNDS"
+    ],
+    "class": "write-skew",
+    "entry": "src/services/orders.ts#endShiftSerializable",
+    "label": "negative",
+    "modelPrediction": false,
+    "outcome": "TN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [
+     "duplicate-processing:MODEL_COUNTEREXAMPLE",
+     "status-transition:MODEL_COUNTEREXAMPLE"
+    ],
+    "class": "duplicate-processing",
+    "classAgrees": true,
+    "entry": "src/services/jobs.ts#processRefund",
+    "label": "positive",
+    "modelPrediction": true,
+    "outcome": "TP",
+    "staticPrediction": true
+   },
+   {
+    "candidates": [
+     "duplicate-processing:NO_VIOLATION_WITHIN_BOUNDS",
+     "status-transition:NO_VIOLATION_WITHIN_BOUNDS"
+    ],
+    "class": "duplicate-processing",
+    "entry": "src/services/jobs.ts#processRefundOnce",
+    "label": "negative",
+    "modelPrediction": false,
+    "outcome": "TN",
+    "staticPrediction": true
+   },
+   {
+    "candidates": [
+     "external-effect-gap:MODEL_COUNTEREXAMPLE",
+     "status-transition:MODEL_COUNTEREXAMPLE"
+    ],
+    "class": "external-effect-gap",
+    "classAgrees": true,
+    "entry": "src/app/checkout.ts#checkout",
+    "label": "positive",
+    "modelPrediction": true,
+    "outcome": "TP",
+    "staticPrediction": true
+   },
+   {
+    "candidates": [
+     "status-transition:MODEL_COUNTEREXAMPLE",
+     "external-effect-gap:NO_VIOLATION_WITHIN_BOUNDS"
+    ],
+    "class": "external-effect-gap",
+    "classAgrees": false,
+    "entry": "src/app/checkout.ts#checkoutIdempotent",
+    "label": "negative",
+    "modelPrediction": true,
+    "note": "MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `one-charges-per-transition` (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). That the application requires this property has NOT been established; this is not a confirmed defect.",
+    "outcome": "FP",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [
+     "ambiguous-commit:MODEL_COUNTEREXAMPLE"
+    ],
+    "class": "ambiguous-commit",
+    "classAgrees": true,
+    "entry": "src/services/orders.ts#recordPayment",
+    "label": "positive",
+    "modelPrediction": true,
+    "outcome": "TP",
+    "staticPrediction": true
+   },
+   {
+    "candidates": [
+     "ambiguous-commit:NO_VIOLATION_WITHIN_BOUNDS"
+    ],
+    "class": "ambiguous-commit",
+    "entry": "src/services/orders.ts#recordPaymentIdempotent",
+    "label": "negative",
+    "modelPrediction": false,
+    "outcome": "TN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [
+     "lock-order:MODEL_COUNTEREXAMPLE"
+    ],
+    "class": "lock-order",
+    "classAgrees": true,
+    "entry": "src/app/inventory.ts#transferStock",
+    "label": "positive",
+    "modelPrediction": true,
+    "outcome": "TP",
+    "staticPrediction": true
+   },
+   {
+    "candidates": [
+     "lock-order:NO_VIOLATION_WITHIN_BOUNDS"
+    ],
+    "class": "lock-order",
+    "entry": "src/app/inventory.ts#transferStockOrdered",
+    "label": "negative",
+    "modelPrediction": false,
+    "outcome": "TN",
+    "staticPrediction": true
+   },
+   {
+    "candidates": [],
+    "class": "none",
+    "entry": "src/services/reports.ts#stockLevel",
+    "label": "negative",
+    "modelPrediction": false,
+    "outcome": "TN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [],
+    "class": "unsupported",
+    "entry": "src/services/reports.ts#archiveOrder",
+    "label": "unsupported",
+    "modelPrediction": false,
+    "outcome": "reported",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [],
+    "class": "unsupported",
+    "entry": "src/services/reports.ts#notifyCustomer",
+    "label": "unsupported",
+    "modelPrediction": false,
+    "outcome": "reported",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [],
+    "class": "unsupported",
+    "entry": "src/app/api/checkout/route.ts#POST",
+    "label": "unsupported",
+    "modelPrediction": false,
+    "outcome": "reported",
+    "staticPrediction": false
+   }
+  ],
+  "classAgreement": {
+   "agrees": 7,
+   "differs": 2
+  },
+  "labelsCorrected": 0,
+  "modelPrediction": {
+   "f1": 0.941,
+   "falseNegatives": 0,
+   "falsePositives": 1,
+   "precision": 0.889,
+   "recall": 1.0,
+   "trueNegatives": 9,
+   "truePositives": 8
+  },
+  "staticHazardPrediction": {
+   "f1": 0.889,
+   "falseNegatives": 0,
+   "falsePositives": 2,
+   "precision": 0.8,
+   "recall": 1.0,
+   "trueNegatives": 8,
+   "truePositives": 8
+  },
+  "unsupportedMissed": 0,
+  "unsupportedReported": 3
+ },
+ "executesApplicationCode": false,
+ "index": {
+  "cacheHits": 0,
+  "cacheMisses": 0,
+  "effectfulEntries": 27,
+  "entriesByKind": {
+   "exported-function": 45,
+   "route-handler": 1,
+   "server-action": 2,
+   "wrapped-callback": 2
+  },
+  "entriesExtracted": 42,
+  "entriesWithUnknownOperations": 10,
+  "entriesWithoutDatabaseReach": 8,
+  "entryCandidates": 50,
+  "extractionFailures": 0,
+  "readOnlyEntries": 7,
+  "resources": 29,
+  "tablesModeled": 16,
+  "tablesRefused": [],
+  "transactionHelpers": [],
+  "unknownOperations": 15
+ },
+ "kind": "commitrift.discovery",
+ "mode": "discover+model-check",
+ "notes": [],
+ "project": {
+  "contracts": "commitrift-contracts.json",
+  "modules": 19,
+  "name": "commerce-app",
+  "parseErrors": 0,
+  "schemaFiles": [
+   "src/db/schema.ts"
+  ]
+ },
+ "rejected": [
+  {
+   "class": "external-effect-gap",
+   "entries": [
+    "src/app/api/checkout/route.ts#POST"
+   ],
+   "location": "src/app/checkout.ts:20:9",
+   "reason": "`card-charge` is followed by database writes, but no retry or redelivery of the entry is declared (a crash alone repeats nothing)"
+  },
+  {
+   "class": "external-effect-gap",
+   "entries": [
+    "src/services/jobs.ts#processRefund"
+   ],
+   "location": "src/services/jobs.ts:23:9",
+   "reason": "`payout` is followed by database writes, but no retry or redelivery of the entry is declared (a crash alone repeats nothing)"
+  },
+  {
+   "class": "external-effect-gap",
+   "entries": [
+    "src/services/jobs.ts#processRefundOnce"
+   ],
+   "location": "src/services/jobs.ts:46:9",
+   "reason": "`payout` is followed by database writes, but no retry or redelivery of the entry is declared (a crash alone repeats nothing)"
+  }
+ ],
+ "schemaVersion": 1,
+ "summary": {
+  "byClass": {
+   "ambiguous-commit": 2,
+   "check-then-act": 2,
+   "duplicate-processing": 2,
+   "external-effect-gap": 2,
+   "lock-order": 2,
+   "read-modify-write": 5,
+   "status-transition": 5,
+   "write-skew": 2
+  },
+  "byPropertyOrigin": {
+   "FRAMEWORK_CONTRACT": 2,
+   "HEURISTIC_HYPOTHESIS": 16,
+   "SCHEMA_ENFORCED": 2,
+   "USER_DECLARED": 2
+  },
+  "byStatus": {
+   "MODEL_COUNTEREXAMPLE": 12,
+   "NO_VIOLATION_WITHIN_BOUNDS": 8,
+   "UNSUPPORTED": 2
+  },
+  "candidates": 22,
+  "counterexamplesAgainstHypotheses": 10,
+  "deduplicatedFindings": 11,
+  "modelCheckable": 20,
+  "modelCounterexamples": 12,
+  "requiringAssumptions": 22,
+  "unknownOperationBreakdown": {
+   "other": 3,
+   "unresolved identifier": 3,
+   "unresolved method call": 8,
+   "unsupported query (raw SQL)": 1
+  },
+  "unsupportedBreakdown": {
+   "unsupported operation": 2
+  },
+  "withDeclaredProperty": 2
+ },
+ "tool": {
+  "name": "commitrift",
+  "version": "0.1.0"
+ }
+}

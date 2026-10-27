@@ -1,0 +1,422 @@
+commitrift discover: commerce-app (19 modules, 50 entry candidates, 42 extracted, 27 effectful)
+mode: discover+model-check; application code executed: no; search: sleep-set partial-order reduction (default)
+candidates: 22 (12 model counterexamples, 10 against hypotheses; 11 deduplicated findings)
+
+Candidate CR-SYNTH-AF7EB4  [MODEL_COUNTEREXAMPLE]
+  write skew on `shifts` (read storeId = $change.storeId AND onDuty = true, write another row)
+  Entry:
+    src/services/orders.ts#endShift (exported-function, direct)
+  Conflict:
+    [read] SELECT count(*) shifts WHERE storeId = $change.storeId AND onDuty = true  src/services/orders.ts:73:30
+    [write] UPDATE shifts WHERE id = $change.shiftId  src/services/orders.ts:80:13
+  Resource: shifts WHERE storeId = $change.storeId AND onDuty = true
+  Property: Every store keeps at least one manager on duty (operations policy).
+    origin: USER_DECLARED
+    why: declared in commitrift-contracts.json
+  Assumption (concurrency, discovery-default): the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)
+  Scenario actual [Actual]: synthesis satisfied — COUNTEREXAMPLE_FOUND (12 states, violates `manager-on-duty`)
+  Status: MODEL_COUNTEREXAMPLE
+  MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `manager-on-duty` (USER_DECLARED). The property is declared by the user; the counterexample replays in the model.
+
+Candidate CR-SYNTH-BEDC65  [MODEL_COUNTEREXAMPLE]
+  redelivered message repeats `payout`
+  Entry:
+    src/services/jobs.ts#processRefund (exported-function, direct)
+  Conflict:
+    [external] external effect on `payout`  src/services/jobs.ts:23:9
+  Resource: payout
+  Property: a message causes at most one effect on `payout`, however often it is delivered
+    origin: FRAMEWORK_CONTRACT
+    why: the declared delivery is at-least-once: a consumer must tolerate redelivery
+  Assumption (concurrency, declared): an at-least-once queue can hand the same message to two workers at once (declared delivery)
+  Assumption (delivery, declared): at-least-once: a message is redelivered after a crash or a lost acknowledgement, and two deliveries can overlap
+  Scenario actual [Actual]: synthesis satisfied — COUNTEREXAMPLE_FOUND (15 states, violates `one-payout-per-message`)
+  Status: MODEL_COUNTEREXAMPLE
+  MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `one-payout-per-message` (FRAMEWORK_CONTRACT). The property is implied by a declared integration contract; the counterexample replays in the model.
+
+Candidate CR-SYNTH-1C8DF2  [MODEL_COUNTEREXAMPLE]
+  concurrent transition of `orders`.status (id = $input.orderId)
+  Entry:
+    src/app/checkout.ts#checkoutIdempotent (exported-function, direct)
+  Conflict:
+    [check] SELECT orders WHERE id = $input.orderId  src/repositories/order-repository.ts:7:25
+    [transition] UPDATE orders WHERE id = read#0.id  src/repositories/order-repository.ts:16:9
+    [consequence] INSERT charges  src/repositories/order-repository.ts:12:9
+    [consequence] external effect on `card-charge`  src/app/checkout.ts:35:9
+  Resource: orders(id = $input.orderId)
+  Property: at most one effect on `card-charge` — the transition of `orders` happens once
+    origin: HEURISTIC_HYPOTHESIS
+    why: the effect runs only after the guard `!(order.status = "paid")` (src/app/checkout.ts:32:7) saw the row in its old state
+  Property: at most one `charges` row per (orderId = $input.orderId, amount = read#0.amount) — the transition of `orders` happens once
+    origin: HEURISTIC_HYPOTHESIS
+    why: the insert runs only after the guard `!(order.status = "paid")` (src/app/checkout.ts:32:7) saw the row in its old state; that suggests one insert per transition, which the source does not establish
+  Protection: the effect on `card-charge` carries an idempotency key and the channel deduplicates by key (declared)
+  Assumption (concurrency, discovery-default): the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)
+  Scenario actual [Actual]: synthesis satisfied — COUNTEREXAMPLE_FOUND (11 states, violates `one-charges-per-transition`)
+  Scenario distinct-key [Control]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (42 states)
+  Scenario distinct-request-key [Actual]: synthesis satisfied — COUNTEREXAMPLE_FOUND (11 states, violates `one-card-charge-per-transition`)
+  Status: MODEL_COUNTEREXAMPLE
+  MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `one-charges-per-transition` (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). That the application requires this property has NOT been established; this is not a confirmed defect.
+
+Candidate CR-SYNTH-3E97D8  [MODEL_COUNTEREXAMPLE]
+  crash between `card-charge` and the database writes, then a retry
+  Entry:
+    src/app/checkout.ts#checkout (exported-function, direct)
+  Conflict:
+    [external] external effect on `card-charge`  src/app/checkout.ts:20:9
+    [write-after] INSERT charges  src/repositories/order-repository.ts:12:9
+    [write-after] UPDATE orders WHERE id = read#0.id  src/repositories/order-repository.ts:16:9
+  Resource: card-charge
+  Property: one request causes at most one effective `card-charge` effect, retries included
+    origin: HEURISTIC_HYPOTHESIS
+    why: the effect at src/app/checkout.ts:20:9 is not atomic with the writes after it; a retried request repeats it. That one request should cause one effect is a hypothesis
+  Assumption (retry, declared): the caller retries the request (on-crash)
+  Scenario actual [Actual]: synthesis satisfied — COUNTEREXAMPLE_FOUND (11 states, violates `one-effective-card-charge`)
+  Status: MODEL_COUNTEREXAMPLE
+  MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `one-effective-card-charge`. That the application requires this property has NOT been established; this is not a confirmed defect.
+
+Candidate CR-SYNTH-5E3D04  [MODEL_COUNTEREXAMPLE]
+  concurrent transition of `orders`.status (id = $input.orderId)
+  Entry:
+    src/app/checkout.ts#checkout (exported-function, direct)
+  Conflict:
+    [check] SELECT orders WHERE id = $input.orderId  src/repositories/order-repository.ts:7:25
+    [transition] UPDATE orders WHERE id = read#0.id  src/repositories/order-repository.ts:16:9
+    [consequence] INSERT charges  src/repositories/order-repository.ts:12:9
+    [consequence] external effect on `card-charge`  src/app/checkout.ts:20:9
+  Resource: orders(id = $input.orderId)
+  Property: at most one effect on `card-charge` — the transition of `orders` happens once
+    origin: HEURISTIC_HYPOTHESIS
+    why: the effect runs only after the guard `!(order.status = "paid")` (src/app/checkout.ts:17:7) saw the row in its old state
+  Property: at most one `charges` row per (orderId = $input.orderId, amount = read#0.amount) — the transition of `orders` happens once
+    origin: HEURISTIC_HYPOTHESIS
+    why: the insert runs only after the guard `!(order.status = "paid")` (src/app/checkout.ts:17:7) saw the row in its old state; that suggests one insert per transition, which the source does not establish
+  Assumption (concurrency, discovery-default): the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)
+  Scenario actual [Actual]: synthesis satisfied — COUNTEREXAMPLE_FOUND (11 states, violates `one-card-charge-per-transition`)
+  Scenario distinct-key [Control]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (42 states)
+  Status: MODEL_COUNTEREXAMPLE
+  MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `one-card-charge-per-transition` (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). That the application requires this property has NOT been established; this is not a confirmed defect.
+
+Candidate CR-SYNTH-EEF9EA  [MODEL_COUNTEREXAMPLE]
+  concurrent transition of `refund_jobs`.status (id = $delivery.jobId)
+  Entry:
+    src/services/jobs.ts#processRefund (exported-function, direct)
+  Conflict:
+    [check] SELECT refund_jobs WHERE id = $delivery.jobId  src/services/jobs.ts:15:23
+    [transition] UPDATE refund_jobs WHERE id = read#0.id  src/services/jobs.ts:24:9
+    [consequence] external effect on `payout`  src/services/jobs.ts:23:9
+  Resource: refund_jobs(id = $delivery.jobId)
+  Property: at most one effect on `payout` — the transition of `refund_jobs` happens once
+    origin: HEURISTIC_HYPOTHESIS
+    why: the effect runs only after the guard `!(!_row1 or (_row1.status = "done"))` (src/services/jobs.ts:20:7) saw the row in its old state
+  Assumption (concurrency, declared): an at-least-once queue can hand the same message to two workers at once (declared delivery)
+  Scenario actual [Actual]: synthesis satisfied — COUNTEREXAMPLE_FOUND (9 states, violates `one-payout-per-transition`)
+  Scenario distinct-key [Control]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (20 states)
+  Status: MODEL_COUNTEREXAMPLE
+  MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `one-payout-per-transition` (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). That the application requires this property has NOT been established; this is not a confirmed defect.
+
+Candidate CR-SYNTH-199193  [MODEL_COUNTEREXAMPLE]
+  concurrent check-then-insert on `invitations` (orgId = $member.orgId, email = $data.email, status = "pending")
+  Entry:
+    src/app/invitations.ts#inviteMember/arg[1] (server-action, wrapper-awaited-when-guards-pass)
+  Conflict:
+    [check] SELECT invitations WHERE orgId = $member.orgId AND email = $data.email AND status = "pending"  src/repositories/invitation-repository.ts:7:28
+    [act] INSERT invitations  src/repositories/invitation-repository.ts:22:9
+  Resource: invitations(orgId = $member.orgId, email = $data.email, status = "pending")
+  Property: at most one `invitations` row per (orgId = $member.orgId, email = $data.email, status = "pending")
+    origin: HEURISTIC_HYPOTHESIS
+    why: the code inserts only after a read finds no row with this key (src/app/invitations.ts:21:7); that suggests, but does not establish, that the application intends one row per key. No supported UNIQUE constraint on these columns was found in the analyzed schema
+  Assumption (concurrency, framework): two requests can run the Server Action at the same time (double submit, two tabs, client retry)
+  Assumption (precondition, source-derived): `withMember` runs the callback only when its guards pass; the scenario assumes they do: `const member = await currentMember();` may reject before the call (src/lib/auth.ts:29:5); `if (!member)` → throw (src/lib/auth.ts:30:5); `if (!parsed.success)` → return (src/lib/auth.ts:34:5)
+  Scenario actual [Actual]: synthesis satisfied — COUNTEREXAMPLE_FOUND (7 states, violates `at-most-one-invitations-per-key`)
+  Scenario distinct-key [Control]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (10 states)
+  Status: MODEL_COUNTEREXAMPLE
+  MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `at-most-one-invitations-per-key` (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). That the application requires this property has NOT been established; this is not a confirmed defect.
+
+Candidate CR-SYNTH-05E13A  [MODEL_COUNTEREXAMPLE]
+  read-modify-write of `products.stock` (id = $input.productId)
+  Entry:
+    src/app/inventory.ts#reserveItem (exported-function, direct)
+  Conflict:
+    [read] SELECT products WHERE id = $input.productId  src/repositories/inventory-repository.ts:7:27
+    [write] UPDATE products WHERE id = read#0.id  src/repositories/inventory-repository.ts:12:9
+  Resource: products.stock(id = $input.productId)
+  Property: `products.stock` of the row (id = $input.productId) ends with a value some serial execution of the same requests produces
+    origin: HEURISTIC_HYPOTHESIS
+    why: `stock` is written as `(product.stock - input.quantity)`, computed from the value read at src/repositories/inventory-repository.ts:7:27; a concurrent update between the read and the write would be overwritten. Whether the application requires serial outcomes is not established
+  Assumption (concurrency, discovery-default): the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)
+  Scenario actual [Actual]: synthesis satisfied — COUNTEREXAMPLE_FOUND (16 states, violates `serial-products-stock`)
+  Scenario distinct-key [Control]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (17 states)
+  Status: MODEL_COUNTEREXAMPLE
+  MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `serial-products-stock` (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). That the application requires this property has NOT been established; this is not a confirmed defect.
+
+Candidate CR-SYNTH-2551DF  [MODEL_COUNTEREXAMPLE]
+  concurrent transition of `tasks`.status (id = $input.taskId)
+  Entry:
+    src/services/orders.ts#claimTask (exported-function, direct)
+  Conflict:
+    [check] SELECT tasks WHERE id = $input.taskId  src/services/orders.ts:15:24
+    [transition] UPDATE tasks WHERE id = read#0.id  src/services/orders.ts:19:9
+    [consequence] INSERT task_assignments  src/services/orders.ts:20:9
+  Resource: tasks(id = $input.taskId)
+  Property: at most one `task_assignments` row per (taskId = $input.taskId, assignee = $input.assignee) — the transition of `tasks` happens once
+    origin: HEURISTIC_HYPOTHESIS
+    why: the insert runs only after the guard `!(!_row1 or (_row1.status != "open"))` (src/services/orders.ts:16:7) saw the row in its old state; that suggests one insert per transition, which the source does not establish
+  Assumption (concurrency, discovery-default): the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)
+  Scenario actual [Actual]: synthesis satisfied — COUNTEREXAMPLE_FOUND (11 states, violates `one-task_assignments-per-transition`)
+  Scenario distinct-key [Control]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (17 states)
+  Status: MODEL_COUNTEREXAMPLE
+  MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `one-task_assignments-per-transition` (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). That the application requires this property has NOT been established; this is not a confirmed defect.
+
+Candidate CR-SYNTH-4A9542  [MODEL_COUNTEREXAMPLE]
+  write to `payments` repeated after an unknown outcome
+  Entry:
+    src/services/orders.ts#recordPayment (exported-function, direct)
+  Conflict:
+    [first-write] INSERT payments  src/repositories/payment-repository.ts:5:9
+    [retried-write] INSERT payments  src/repositories/payment-repository.ts:5:9
+  Resource: payments(orderId, reference, amount)
+  Property: one call records at most one `payments` row per (orderId, reference, amount)
+    origin: HEURISTIC_HYPOTHESIS
+    why: the handler repeats the same insert; that one call should record one row is a hypothesis
+  Assumption (fault, discovery-default): the acknowledgment of an autocommit write can be lost after the server committed it (a broken connection); the driver then raises an error
+  Scenario actual [Actual]: synthesis satisfied — COUNTEREXAMPLE_FOUND (5 states, violates `one-payments-per-call`)
+  Status: MODEL_COUNTEREXAMPLE
+  MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `one-payments-per-call`. That the application requires this property has NOT been established; this is not a confirmed defect.
+
+Candidate CR-SYNTH-A563E2  [MODEL_COUNTEREXAMPLE]
+  rows of `bins` locked in argument order ($input.from then $input.to)
+  Entry:
+    src/app/inventory.ts#transferStock (exported-function, direct)
+  Conflict:
+    [first-lock] UPDATE bins WHERE id = $input.from  src/app/inventory.ts:72:11
+    [second-lock] UPDATE bins WHERE id = $input.to  src/app/inventory.ts:76:11
+  Resource: bins($input.from / $input.to)
+  Property: no invocation fails (a deadlock victim fails with 40P01)
+    origin: HEURISTIC_HYPOTHESIS
+    why: two invocations with swapped `$input.from` / `$input.to` lock the same rows in opposite orders; PostgreSQL aborts one of them. That the operation should not fail this way is a hypothesis
+  Assumption (concurrency, discovery-default): the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)
+  Scenario actual [Actual]: synthesis satisfied — COUNTEREXAMPLE_FOUND (19 states, violates `no-request-fails`)
+  Status: MODEL_COUNTEREXAMPLE
+  MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `no-request-fails`. That the application requires this property has NOT been established; this is not a confirmed defect.
+
+Candidate CR-SYNTH-9336E1  [MODEL_COUNTEREXAMPLE]
+  read-modify-write of `products.stock` against `reserveItemLocked`
+  same underlying issue as CR-SYNTH-05E13A
+  Entry:
+    src/app/inventory.ts#reserveItem (exported-function, direct)
+    src/app/inventory.ts#reserveItemLocked (exported-function, direct)
+  Conflict:
+    [read] SELECT products WHERE id = $input.productId  src/repositories/inventory-repository.ts:7:27
+    [write] UPDATE products WHERE id = read#0.id  src/repositories/inventory-repository.ts:12:9
+    [write] UPDATE products WHERE id = read#0.id  src/app/inventory.ts:54:11
+  Resource: products.stock(id = $input.productId)
+  Property: `products.stock` of the row (id = $input.productId) ends with a value some serial execution of the same requests produces
+    origin: HEURISTIC_HYPOTHESIS
+    why: `stock` is written as `(product.stock - input.quantity)`, computed from the value read at src/repositories/inventory-repository.ts:7:27; a concurrent update between the read and the write would be overwritten. Whether the application requires serial outcomes is not established The partner `reserveItemLocked` writes `stock` at src/app/inventory.ts:54:11
+  Assumption (concurrency, discovery-default): `reserveItem` and `reserveItemLocked` can run at the same time on the same row
+  Assumption (concurrency, discovery-default): the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)
+  Scenario actual [Actual]: synthesis satisfied — COUNTEREXAMPLE_FOUND (24 states, violates `serial-products-stock`)
+  Scenario distinct-key [Control]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (26 states)
+  Status: MODEL_COUNTEREXAMPLE
+  MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `serial-products-stock` (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). That the application requires this property has NOT been established; this is not a confirmed defect.
+
+Candidate CR-SYNTH-E3399F  [NO_VIOLATION_WITHIN_BOUNDS]
+  concurrent check-then-insert on `seat_invites` (orgId = $member.orgId, email = $data.email)
+  Entry:
+    src/app/invitations.ts#inviteSeat/arg[1] (server-action, wrapper-awaited-when-guards-pass)
+  Conflict:
+    [check] SELECT seat_invites WHERE orgId = $member.orgId AND email = $data.email  src/repositories/invitation-repository.ts:26:28
+    [act] INSERT seat_invites  src/repositories/invitation-repository.ts:35:9
+  Resource: seat_invites(orgId = $member.orgId, email = $data.email)
+  Property: at most one `seat_invites` row per (orgId, email) — enforced by the database
+    origin: SCHEMA_ENFORCED
+    why: UNIQUE(orgId, email) in the analyzed schema covers the key the code checks
+  Protection: UNIQUE(orgId, email) on `seat_invites` (schema): a second insert of the same key fails with SQLSTATE 23505
+  Assumption (concurrency, framework): two requests can run the Server Action at the same time (double submit, two tabs, client retry)
+  Assumption (precondition, source-derived): `withMember` runs the callback only when its guards pass; the scenario assumes they do: `const member = await currentMember();` may reject before the call (src/lib/auth.ts:29:5); `if (!member)` → throw (src/lib/auth.ts:30:5); `if (!parsed.success)` → return (src/lib/auth.ts:34:5)
+  Scenario actual [Actual]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (12 states)
+  Scenario distinct-key [Control]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (10 states)
+  Status: NO_VIOLATION_WITHIN_BOUNDS
+  No violation found within the modeled bounds (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). This is not a proof that the application is safe.
+
+Candidate CR-SYNTH-E1DD49  [NO_VIOLATION_WITHIN_BOUNDS]
+  write to `settled_payments` repeated after an unknown outcome
+  Entry:
+    src/services/orders.ts#recordPaymentIdempotent (exported-function, direct)
+  Conflict:
+    [first-write] INSERT settled_payments ON CONFLICT DO NOTHING  src/repositories/payment-repository.ts:9:9
+    [retried-write] INSERT settled_payments ON CONFLICT DO NOTHING  src/repositories/payment-repository.ts:9:9
+  Resource: settled_payments(reference)
+  Property: one call records at most one `settled_payments` row per (reference)
+    origin: SCHEMA_ENFORCED
+    why: UNIQUE(reference) in the analyzed schema
+  Protection: UNIQUE(reference) on `settled_payments` with ON CONFLICT DO NOTHING
+  Assumption (fault, discovery-default): the acknowledgment of an autocommit write can be lost after the server committed it (a broken connection); the driver then raises an error
+  Scenario actual [Actual]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (8 states)
+  Status: NO_VIOLATION_WITHIN_BOUNDS
+  No violation found within the modeled bounds. This is not a proof that the application is safe.
+
+Candidate CR-SYNTH-279C7C  [NO_VIOLATION_WITHIN_BOUNDS]
+  write skew on `shifts` (read storeId = $change.storeId AND onDuty = true, write another row)
+  Entry:
+    src/services/orders.ts#endShiftSerializable (exported-function, direct)
+  Conflict:
+    [read] SELECT count(*) shifts WHERE storeId = $change.storeId AND onDuty = true  src/services/orders.ts:91:30
+    [write] UPDATE shifts WHERE id = $change.shiftId  src/services/orders.ts:98:13
+  Resource: shifts WHERE storeId = $change.storeId AND onDuty = true
+  Property: Every store keeps at least one manager on duty (operations policy).
+    origin: USER_DECLARED
+    why: declared in commitrift-contracts.json
+  Protection: read and write run in one SERIALIZABLE transaction
+  Assumption (concurrency, discovery-default): the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)
+  Scenario actual [Actual]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (30 states)
+  Status: NO_VIOLATION_WITHIN_BOUNDS
+  No violation found within the modeled bounds. This is not a proof that the application is safe.
+
+Candidate CR-SYNTH-FD660D  [NO_VIOLATION_WITHIN_BOUNDS]
+  redelivered message repeats `payout`
+  Entry:
+    src/services/jobs.ts#processRefundOnce (exported-function, direct)
+  Conflict:
+    [external] external effect on `payout`  src/services/jobs.ts:46:9
+  Resource: payout
+  Property: a message causes at most one effect on `payout`, however often it is delivered
+    origin: FRAMEWORK_CONTRACT
+    why: the declared delivery is at-least-once: a consumer must tolerate redelivery
+  Protection: the insert into `job_effects` is keyed by a unique constraint (ON CONFLICT DO NOTHING)
+  Assumption (concurrency, declared): an at-least-once queue can hand the same message to two workers at once (declared delivery)
+  Assumption (delivery, declared): at-least-once: a message is redelivered after a crash or a lost acknowledgement, and two deliveries can overlap
+  Scenario actual [Actual]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (192 states)
+  Status: NO_VIOLATION_WITHIN_BOUNDS
+  No violation found within the modeled bounds. This is not a proof that the application is safe.
+
+Candidate CR-SYNTH-3117B4  [NO_VIOLATION_WITHIN_BOUNDS]
+  crash between `card-charge` and the database writes, then a retry
+  Entry:
+    src/app/checkout.ts#checkoutIdempotent (exported-function, direct)
+  Conflict:
+    [external] external effect on `card-charge`  src/app/checkout.ts:35:9
+    [write-after] INSERT charges  src/repositories/order-repository.ts:12:9
+    [write-after] UPDATE orders WHERE id = read#0.id  src/repositories/order-repository.ts:16:9
+  Resource: card-charge
+  Property: one request causes at most one effective `card-charge` effect, retries included
+    origin: HEURISTIC_HYPOTHESIS
+    why: the effect at src/app/checkout.ts:35:9 is not atomic with the writes after it; a retried request repeats it. That one request should cause one effect is a hypothesis
+  Protection: the effect carries an idempotency key ($input.requestId) and `card-charge` deduplicates by key (declared)
+  Assumption (retry, declared): the caller retries the request (on-crash)
+  Scenario actual [Actual]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (23 states)
+  Status: NO_VIOLATION_WITHIN_BOUNDS
+  No violation found within the modeled bounds. This is not a proof that the application is safe.
+
+Candidate CR-SYNTH-BA6A32  [NO_VIOLATION_WITHIN_BOUNDS]
+  concurrent transition of `refund_jobs`.status (id = $delivery.jobId)
+  Entry:
+    src/services/jobs.ts#processRefundOnce (exported-function, direct)
+  Conflict:
+    [check] SELECT refund_jobs WHERE id = $delivery.jobId  src/services/jobs.ts:30:23
+    [transition] UPDATE refund_jobs WHERE id = read#0.id  src/services/jobs.ts:47:9
+    [consequence] INSERT job_effects ON CONFLICT DO NOTHING  src/services/jobs.ts:38:25
+    [consequence] external effect on `payout`  src/services/jobs.ts:46:9
+  Resource: refund_jobs(id = $delivery.jobId)
+  Property: at most one `job_effects` row per (jobId = $delivery.jobId) — the transition of `refund_jobs` happens once
+    origin: HEURISTIC_HYPOTHESIS
+    why: the insert runs only after the guard `!(!_row1 or (_row1.status = "done"))` (src/services/jobs.ts:35:7) saw the row in its old state; that suggests one insert per transition, which the source does not establish
+  Property: at most one effect on `payout` — the transition of `refund_jobs` happens once
+    origin: HEURISTIC_HYPOTHESIS
+    why: the effect runs only after the guard `!(!_row1 or (_row1.status = "done"))` (src/services/jobs.ts:35:7) saw the row in its old state
+  Assumption (concurrency, declared): an at-least-once queue can hand the same message to two workers at once (declared delivery)
+  Scenario actual [Actual]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (24 states)
+  Scenario distinct-key [Control]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (42 states)
+  Status: NO_VIOLATION_WITHIN_BOUNDS
+  No violation found within the modeled bounds (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). This is not a proof that the application is safe.
+
+Candidate CR-SYNTH-B0B1D6  [NO_VIOLATION_WITHIN_BOUNDS]
+  read-modify-write of `products.stock` (id = $input.productId)
+  Entry:
+    src/app/inventory.ts#reserveItemLocked (exported-function, direct)
+  Conflict:
+    [read] SELECT products WHERE id = $input.productId FOR UPDATE  src/app/inventory.ts:45:29
+    [write] UPDATE products WHERE id = read#0.id  src/app/inventory.ts:54:11
+  Resource: products.stock(id = $input.productId)
+  Property: `products.stock` of the row (id = $input.productId) ends with a value some serial execution of the same requests produces
+    origin: HEURISTIC_HYPOTHESIS
+    why: `stock` is written as `(_row2.stock - input.quantity)`, computed from the value read at src/app/inventory.ts:45:29; a concurrent update between the read and the write would be overwritten. Whether the application requires serial outcomes is not established
+  Protection: the row is read FOR UPDATE in the transaction that writes it
+  Assumption (concurrency, discovery-default): the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)
+  Scenario actual [Actual]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (36 states)
+  Scenario distinct-key [Control]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (40 states)
+  Status: NO_VIOLATION_WITHIN_BOUNDS
+  No violation found within the modeled bounds (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). This is not a proof that the application is safe.
+
+Candidate CR-SYNTH-B4D4A9  [NO_VIOLATION_WITHIN_BOUNDS]
+  rows of `bins` locked in argument order ($input.from then $input.to)
+  Entry:
+    src/app/inventory.ts#transferStockOrdered (exported-function, direct)
+  Conflict:
+    [first-lock] UPDATE bins WHERE id = $input.from  src/app/inventory.ts:88:13
+    [second-lock] UPDATE bins WHERE id = $input.to  src/app/inventory.ts:92:13
+  Resource: bins($input.from / $input.to)
+  Property: no invocation fails (a deadlock victim fails with 40P01)
+    origin: HEURISTIC_HYPOTHESIS
+    why: two invocations with swapped `$input.from` / `$input.to` lock the same rows in opposite orders; PostgreSQL aborts one of them. That the operation should not fail this way is a hypothesis
+  Assumption (concurrency, discovery-default): the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)
+  Scenario actual [Actual]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (28 states)
+  Status: NO_VIOLATION_WITHIN_BOUNDS
+  No violation found within the modeled bounds. This is not a proof that the application is safe.
+
+Candidate CR-SYNTH-7450CE  [UNSUPPORTED]
+  read-modify-write of `products.stock` against `reserveItemAtomic`
+  same underlying issue as CR-SYNTH-B0B1D6
+  Entry:
+    src/app/inventory.ts#reserveItemLocked (exported-function, direct)
+    src/app/inventory.ts#reserveItemAtomic (exported-function, direct)
+  Conflict:
+    [read] SELECT products WHERE id = $input.productId FOR UPDATE  src/app/inventory.ts:45:29
+    [write] UPDATE products WHERE id = read#0.id  src/app/inventory.ts:54:11
+    [write] UPDATE products WHERE id = $input.productId AND (@stock >= h1$quantity)  src/repositories/inventory-repository.ts:22:10
+  Resource: products.stock(id = $input.productId)
+  Property: `products.stock` of the row (id = $input.productId) ends with a value some serial execution of the same requests produces
+    origin: HEURISTIC_HYPOTHESIS
+    why: `stock` is written as `(_row2.stock - input.quantity)`, computed from the value read at src/app/inventory.ts:45:29; a concurrent update between the read and the write would be overwritten. Whether the application requires serial outcomes is not established The partner `reserveItemAtomic` writes `stock` at src/repositories/inventory-repository.ts:22:10
+  Protection: the row is read FOR UPDATE in the transaction that writes it
+  Unsupported: an array of rows used as a value (src/repositories/inventory-repository.ts:22:3)
+  Assumption (concurrency, discovery-default): `reserveItemLocked` and `reserveItemAtomic` can run at the same time on the same row
+  Assumption (concurrency, discovery-default): the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)
+  Scenario actual [Actual]: synthesis unsupported — not model-checked
+    actor `reserveItemAtomic-2` reaches an operation the model does not support at src/repositories/inventory-repository.ts:22:3: an array of rows used as a value
+  Scenario distinct-key [Control]: synthesis unsupported — not model-checked
+    actor `reserveItemAtomic-2` reaches an operation the model does not support at src/repositories/inventory-repository.ts:22:3: an array of rows used as a value
+  Status: UNSUPPORTED
+  UNSUPPORTED: actor `reserveItemAtomic-2` reaches an operation the model does not support at src/repositories/inventory-repository.ts:22:3: an array of rows used as a value
+
+Candidate CR-SYNTH-FF9C79  [UNSUPPORTED]
+  read-modify-write of `products.stock` against `reserveItemAtomic`
+  same underlying issue as CR-SYNTH-05E13A
+  Entry:
+    src/app/inventory.ts#reserveItem (exported-function, direct)
+    src/app/inventory.ts#reserveItemAtomic (exported-function, direct)
+  Conflict:
+    [read] SELECT products WHERE id = $input.productId  src/repositories/inventory-repository.ts:7:27
+    [write] UPDATE products WHERE id = read#0.id  src/repositories/inventory-repository.ts:12:9
+    [write] UPDATE products WHERE id = $input.productId AND (@stock >= h1$quantity)  src/repositories/inventory-repository.ts:22:10
+  Resource: products.stock(id = $input.productId)
+  Property: `products.stock` of the row (id = $input.productId) ends with a value some serial execution of the same requests produces
+    origin: HEURISTIC_HYPOTHESIS
+    why: `stock` is written as `(product.stock - input.quantity)`, computed from the value read at src/repositories/inventory-repository.ts:7:27; a concurrent update between the read and the write would be overwritten. Whether the application requires serial outcomes is not established The partner `reserveItemAtomic` writes `stock` at src/repositories/inventory-repository.ts:22:10
+  Unsupported: an array of rows used as a value (src/repositories/inventory-repository.ts:22:3)
+  Assumption (concurrency, discovery-default): `reserveItem` and `reserveItemAtomic` can run at the same time on the same row
+  Assumption (concurrency, discovery-default): the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)
+  Scenario actual [Actual]: synthesis unsupported — not model-checked
+    actor `reserveItemAtomic-2` reaches an operation the model does not support at src/repositories/inventory-repository.ts:22:3: an array of rows used as a value
+  Scenario distinct-key [Control]: synthesis unsupported — not model-checked
+    actor `reserveItemAtomic-2` reaches an operation the model does not support at src/repositories/inventory-repository.ts:22:3: an array of rows used as a value
+  Status: UNSUPPORTED
+  UNSUPPORTED: actor `reserveItemAtomic-2` reaches an operation the model does not support at src/repositories/inventory-repository.ts:22:3: an array of rows used as a value
+
+Rejected combinations:
+  [external-effect-gap] src/app/api/checkout/route.ts#POST — `card-charge` is followed by database writes, but no retry or redelivery of the entry is declared (a crash alone repeats nothing) (src/app/checkout.ts:20:9)
+  [external-effect-gap] src/services/jobs.ts#processRefund — `payout` is followed by database writes, but no retry or redelivery of the entry is declared (a crash alone repeats nothing) (src/services/jobs.ts:23:9)
+  [external-effect-gap] src/services/jobs.ts#processRefundOnce — `payout` is followed by database writes, but no retry or redelivery of the entry is declared (a crash alone repeats nothing) (src/services/jobs.ts:46:9)
+
+Important: a model counterexample against a HEURISTIC_HYPOTHESIS is not a confirmed defect; a bounded run without counterexample is not a proof.

@@ -1,0 +1,70 @@
+{
+ "candidates": [],
+ "index": {
+  "cacheHits": 0,
+  "cacheMisses": 0,
+  "effectfulEntries": 0,
+  "entriesByKind": {
+   "class-method": 361,
+   "exported-function": 2194,
+   "object-property": 157,
+   "route-handler": 10,
+   "server-action": 16,
+   "wrapped-callback": 126
+  },
+  "entriesExtracted": 1168,
+  "entriesWithUnknownOperations": 1017,
+  "entriesWithoutDatabaseReach": 1696,
+  "entryCandidates": 2864,
+  "extractionFailures": 26,
+  "readOnlyEntries": 0,
+  "resources": 0,
+  "tablesModeled": 8,
+  "transactionHelpers": [],
+  "unknownOperations": 15382
+ },
+ "peakRss": 75841536,
+ "project": "midday",
+ "public": true,
+ "summary": {
+  "byClass": {},
+  "byPropertyOrigin": {},
+  "byStatus": {},
+  "candidates": 0,
+  "counterexamplesAgainstHypotheses": 0,
+  "deduplicatedFindings": 0,
+  "modelCheckable": 0,
+  "modelCounterexamples": 0,
+  "requiringAssumptions": 0,
+  "unknownOperationBreakdown": {
+   "call into an unanalyzed package": 4136,
+   "inline depth limit": 25,
+   "loop over a collection of unknown length": 133,
+   "other": 588,
+   "re-export not followed": 82,
+   "unresolved call": 538,
+   "unresolved identifier": 659,
+   "unresolved import": 1132,
+   "unresolved method call": 5433,
+   "unsupported binding pattern": 706,
+   "unsupported expression": 1631,
+   "unsupported query shape": 1,
+   "unsupported transaction shape": 318
+  },
+  "unsupportedBreakdown": {},
+  "withDeclaredProperty": 0
+ },
+ "tablesRefused": 42,
+ "tablesRefusedReasons": [
+  "database.tables[0]: primary key column X of X is not modeled"
+ ],
+ "timings": {
+  "detectionMs": 1,
+  "extractionMs": 28162,
+  "indexMs": 377,
+  "modelCheckingMs": 0,
+  "synthesisMs": 0,
+  "totalMs": 28543
+ },
+ "wallSeconds": 28.58
+}
