@@ -244,6 +244,29 @@ Evidence: OriginalCodeReproduced — the actors' original application code ran u
 needs `--allow-execution`. Details:
 [`docs/phase7/FINAL-REPORT.md`](docs/phase7/FINAL-REPORT.md).
 
+## Scenario discovery (Phase 11, static)
+
+`commitrift discover <project>` finds concurrency and failure candidates in
+the original TypeScript without a hand-written scenario: check-then-act,
+status transitions, read-modify-write, write skew, duplicate processing,
+external-effect gaps, ambiguous commits and lock order. Each candidate
+names the entries, the conflicting operations, the shared resource, and a
+property whose origin is always stated (`SCHEMA_ENFORCED`,
+`USER_DECLARED`, `FRAMEWORK_CONTRACT`, or `HEURISTIC_HYPOTHESIS` — a
+hypothesis is never reported as a confirmed bug). It never executes
+application code.
+
+```bash
+commitrift discover . --model-check --emit-scenarios ./commitrift-scenarios
+commitrift model-check ./commitrift-scenarios/<id>-actual.json --verify-source --allow-execution
+```
+
+`--model-check` explores the synthesized scenarios within budgets;
+`--emit-scenarios` writes them in the `model-check` format. What source
+cannot say (external effects, delivery, retries, business invariants,
+harness inputs) goes in an optional `commitrift-contracts.json`. Details:
+[`docs/phase11/FINAL-REPORT.md`](docs/phase11/FINAL-REPORT.md).
+
 ## What CommitRift does not do
 
 * It does **not** prove business consistency. It knows nothing about your

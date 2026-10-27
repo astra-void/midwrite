@@ -2,6 +2,7 @@
 //! executable and the legacy `crashproof` executable).
 
 mod baseline;
+mod discover;
 mod html;
 #[cfg(feature = "replay")]
 mod init_replay;
@@ -79,6 +80,12 @@ enum Command {
     /// report a counterexample to a declared invariant, and optionally replay
     /// it on a real PostgreSQL. Opt-in; `commitrift check` never does this.
     ModelCheck(model_check::ModelCheckArgs),
+    /// Discover concurrency and failure-verification candidates in the
+    /// original TypeScript: an entry and effect index, conflicting effects,
+    /// property candidates with their origin, synthesized initial states and
+    /// scenarios. Static: application code is never executed; model
+    /// checking only with --model-check.
+    Discover(discover::DiscoverArgs),
     /// Print the PostgreSQL schema facts read statically from a Drizzle
     /// schema module; with --migrations and --allow-execution, compare them
     /// with the catalog of a disposable database (schema drift).
@@ -349,6 +356,7 @@ pub fn run(invocation: Invocation) -> ExitCode {
         Command::Trace(args) => trace(&args),
         Command::Report(args) => report(&args),
         Command::ModelCheck(args) => model_check::model_check(&args),
+        Command::Discover(args) => discover::discover(&args),
         Command::Schema(args) => schema::schema(&args),
         #[cfg(feature = "replay")]
         Command::Replay(args) => replay::replay(&args),

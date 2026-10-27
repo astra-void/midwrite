@@ -31,6 +31,7 @@ replay = ["dep:commitrift-replay", "commitrift-model/postgres"]
 commitrift-core.workspace = true
 commitrift-analyzer.workspace = true
 commitrift-model.workspace = true
+commitrift-discover.workspace = true
 commitrift-replay = { workspace = true, optional = true }
 clap.workspace = true
 serde.workspace = true
