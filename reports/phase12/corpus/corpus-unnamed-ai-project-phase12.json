@@ -1,0 +1,41 @@
+{
+ "candidates": 0,
+ "counterexamples": 0,
+ "effectfulEntries": 3,
+ "entriesExtracted": 33,
+ "entryCandidates": 74,
+ "generatedColumns": 2,
+ "modelCheckable": 0,
+ "modules": 104,
+ "peakRss": 12812288,
+ "phase": "phase12",
+ "project": "unnamed-ai-project",
+ "public": false,
+ "refusedReasons": [],
+ "statuses": {},
+ "tablesModeled": 9,
+ "tablesRefused": 0,
+ "timings": {
+  "detectionMs": 0,
+  "extractionMs": 12,
+  "indexMs": 9,
+  "modelCheckingMs": 0,
+  "synthesisMs": 0,
+  "totalMs": 22
+ },
+ "unknownBreakdown": {
+  "call into an unanalyzed package": 67,
+  "column not modeled (schema)": 9,
+  "inline depth limit": 20,
+  "loop over a collection of unknown length": 54,
+  "other": 77,
+  "table not modeled (schema)": 13,
+  "unresolved identifier": 7,
+  "unresolved method call": 625,
+  "unsupported binding pattern": 16,
+  "unsupported expression": 119,
+  "unsupported query shape": 2
+ },
+ "unknownOperations": 1009,
+ "wallSeconds": 0.03
+}

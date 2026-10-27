@@ -1,0 +1,59 @@
+{
+ "candidateList": [
+  {
+   "class": "check-then-act",
+   "entries": [
+    "app/(login)/actions.ts#inviteTeamMember/arg[1]"
+   ],
+   "id": "CR-SYNTH-BCC056",
+   "status": "MODEL_COUNTEREXAMPLE"
+  },
+  {
+   "class": "check-then-act",
+   "entries": [
+    "app/(login)/actions.ts#signUp/arg[1]"
+   ],
+   "id": "CR-SYNTH-B86123",
+   "status": "UNSUPPORTED"
+  }
+ ],
+ "candidates": 2,
+ "counterexamples": 1,
+ "effectfulEntries": 8,
+ "entriesExtracted": 37,
+ "entryCandidates": 44,
+ "generatedColumns": 0,
+ "modelCheckable": 1,
+ "modules": 41,
+ "peakRss": 11665408,
+ "phase": "phase12",
+ "project": "saas-starter",
+ "public": true,
+ "refusedReasons": [],
+ "statuses": {
+  "MODEL_COUNTEREXAMPLE": 1,
+  "UNSUPPORTED": 1
+ },
+ "tablesModeled": 5,
+ "tablesRefused": 0,
+ "timings": {
+  "detectionMs": 0,
+  "extractionMs": 8,
+  "indexMs": 13,
+  "modelCheckingMs": 4,
+  "synthesisMs": 3,
+  "totalMs": 33
+ },
+ "unknownBreakdown": {
+  "call into an unanalyzed package": 55,
+  "column not modeled (schema)": 12,
+  "other": 17,
+  "unresolved call": 4,
+  "unresolved method call": 133,
+  "unsupported binding pattern": 4,
+  "unsupported expression": 42,
+  "unsupported query shape": 17
+ },
+ "unknownOperations": 284,
+ "wallSeconds": 0.03
+}

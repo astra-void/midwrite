@@ -1,0 +1,1 @@
+{"probe":"failingInsert","error":null,"calls":{"noteId":0,"stamp":1},"sent":[{"sql":"insert into \"notes\" (\"id\", \"body\", \"stamp\") values ($1, null, $2)","params":["a4d80f2d-4fb3-457d-a976-1039cf1cc2f0","stamp-1"]}],"tables":{"people":[],"profiles":[],"notes":[],"counters":[],"tickets":[]}}

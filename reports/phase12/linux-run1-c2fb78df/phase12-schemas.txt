@@ -1,0 +1,25 @@
+model-check-report.v3 (builtin validator): runtime-cr-synth-0ee307-actual.json: 2 actors, 3 schema errors; corrupted copy rejected: True
+  at schemaFacts/0: additional property 'module'
+  at schemaFacts/1: additional property 'module'
+  at schemaFacts/2: additional property 'module'
+model-check-report.v3 (builtin validator): runtime-cr-synth-4796f3-actual.json: 2 actors, 3 schema errors; corrupted copy rejected: True
+  at schemaFacts/0: additional property 'module'
+  at schemaFacts/1: additional property 'module'
+  at schemaFacts/2: additional property 'module'
+model-check-report.v3 (builtin validator): runtime-cr-synth-6c9b41-actual.json: 2 actors, 3 schema errors; corrupted copy rejected: True
+  at schemaFacts/0: additional property 'module'
+  at schemaFacts/1: additional property 'module'
+  at schemaFacts/2: additional property 'module'
+model-check-report.v3 (builtin validator): runtime-cr-synth-95906b-actual.json: 2 actors, 3 schema errors; corrupted copy rejected: True
+  at schemaFacts/0: additional property 'module'
+  at schemaFacts/1: additional property 'module'
+  at schemaFacts/2: additional property 'module'
+model-check-report.v3 (builtin validator): runtime-cr-synth-c2de56-actual.json: 1 actors, 3 schema errors; corrupted copy rejected: True
+  at schemaFacts/0: additional property 'module'
+  at schemaFacts/1: additional property 'module'
+  at schemaFacts/2: additional property 'module'
+model-check-report.v3 (builtin validator): runtime-cr-synth-c57a1a-actual.json: 2 actors, 3 schema errors; corrupted copy rejected: True
+  at schemaFacts/0: additional property 'module'
+  at schemaFacts/1: additional property 'module'
+  at schemaFacts/2: additional property 'module'
+exit 1

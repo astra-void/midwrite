@@ -1,0 +1,43 @@
+{
+ "candidates": 0,
+ "counterexamples": 0,
+ "effectfulEntries": 1,
+ "entriesExtracted": 33,
+ "entryCandidates": 74,
+ "generatedColumns": 0,
+ "modelCheckable": 0,
+ "modules": 104,
+ "peakRss": 12009472,
+ "phase": "phase11",
+ "project": "unnamed-ai-project",
+ "public": false,
+ "refusedReasons": [
+  "database.tables[0]: primary key column X of X is not modeled"
+ ],
+ "statuses": {},
+ "tablesModeled": 7,
+ "tablesRefused": 2,
+ "timings": {
+  "detectionMs": 0,
+  "extractionMs": 53,
+  "indexMs": 17,
+  "modelCheckingMs": 0,
+  "synthesisMs": 0,
+  "totalMs": 71
+ },
+ "unknownBreakdown": {
+  "call into an unanalyzed package": 67,
+  "column not modeled (schema)": 6,
+  "inline depth limit": 20,
+  "loop over a collection of unknown length": 54,
+  "other": 30,
+  "table not modeled (schema)": 43,
+  "unresolved identifier": 7,
+  "unresolved method call": 625,
+  "unsupported binding pattern": 16,
+  "unsupported expression": 139,
+  "unsupported query shape": 2
+ },
+ "unknownOperations": 1009,
+ "wallSeconds": 0.07
+}

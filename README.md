@@ -267,6 +267,16 @@ cannot say (external effects, delivery, retries, business invariants,
 harness inputs) goes in an optional `commitrift-contracts.json`. Details:
 [`docs/phase11/FINAL-REPORT.md`](docs/phase11/FINAL-REPORT.md).
 
+Phase 12 extends what discovery and extraction understand: generated keys
+(`uuid().defaultRandom()`, `$defaultFn` with a recognized generator such as
+`crypto.randomUUID()`) are modeled as values whose identity is the
+generation event, carried through `returning({ id: t.id })` into foreign
+keys; schemas split over several modules (scenarios may list several
+`extraction.schema` modules and name tables `module#binding`); barrel
+re-exports, repository objects and classes, and `getDb()`-style database
+factories are resolved; one shared project context serves every extraction.
+Details: [`docs/phase12/FINAL-REPORT.md`](docs/phase12/FINAL-REPORT.md).
+
 ## What CommitRift does not do
 
 * It does **not** prove business consistency. It knows nothing about your

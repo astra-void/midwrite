@@ -1,0 +1,7 @@
+model-check-report.v3 (builtin validator): runtime-cr-synth-0ee307-actual.json: 2 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v3 (builtin validator): runtime-cr-synth-4796f3-actual.json: 2 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v3 (builtin validator): runtime-cr-synth-6c9b41-actual.json: 2 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v3 (builtin validator): runtime-cr-synth-95906b-actual.json: 2 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v3 (builtin validator): runtime-cr-synth-c2de56-actual.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v3 (builtin validator): runtime-cr-synth-c57a1a-actual.json: 2 actors, 0 schema errors; corrupted copy rejected: True
+exit 0

@@ -1,0 +1,1 @@
+{"probe":"explicitNote","error":null,"calls":{"noteId":0,"stamp":1},"sent":[{"sql":"insert into \"notes\" (\"id\", \"body\", \"stamp\") values ($1, $2, $3)","params":["fixed-id","explicit","stamp-1"]}],"tables":{"people":[],"profiles":[],"notes":[{"id":"fixed-id","body":"explicit","stamp":"stamp-1"}],"counters":[],"tickets":[]}}
