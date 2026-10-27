@@ -876,3 +876,48 @@ export async function unlimited(id: string) {
         "{ops:#?}"
     );
 }
+
+#[test]
+fn source_excerpts_never_split_a_multi_byte_character() {
+    // Phase 11: inlining a helper emits its return slot with the CALLER's
+    // call span resolved in the CALLEE's source (a pre-existing location
+    // defect kept for report identity); when that offset fell inside a
+    // multi-byte character of the callee, the excerpt panicked.
+    use commitrift_model::provider::{ActorProvider, ExtractRequest};
+    let dir = std::env::temp_dir().join(format!("commitrift-utf8-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    // Callee: 3-byte characters from byte 3 on.
+    let comment: String = std::iter::repeat_n('\u{2019}', 60).collect();
+    std::fs::write(
+        dir.join("b.ts"),
+        format!("// {comment}\nexport async function helper() {{\n  return 1;\n}}\n"),
+    )
+    .unwrap();
+    // Caller: the call starts at byte 79, inside a character of the callee
+    // ((79 - 3) % 3 == 1).
+    let head = "import { helper } from \"./b\";\n";
+    let mut caller = String::from(head);
+    caller.push_str("export async function run() {\n");
+    while caller.len() < 79 - "  await ".len() {
+        caller.push(' ');
+    }
+    caller.push_str("  await helper();\n}\n");
+    assert_eq!(caller.find("helper();").unwrap(), 79);
+    std::fs::write(dir.join("a.ts"), caller).unwrap();
+    let provider = commitrift_analyzer::TsActorProvider::new(&dir);
+    let request = ExtractRequest {
+        root: dir.clone(),
+        file: "a.ts".to_owned(),
+        function: String::new(),
+        arguments: Vec::new(),
+        tables: Vec::new(),
+        externals: Vec::new(),
+        transaction_retries: Vec::new(),
+        max_inline_depth: 3,
+        selector: Some("a.ts#run".to_owned()),
+        contract: None,
+    };
+    let extracted = provider.extract(&request).expect("extracts");
+    assert!(!extracted.codes[0].is_empty());
+    let _ = std::fs::remove_dir_all(&dir);
+}

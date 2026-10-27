@@ -712,9 +712,19 @@ impl<'r> Lowerer<'r> {
         let (end_line, _) = module
             .lines
             .position(span.end.saturating_sub(1).max(span.start));
-        let end = (span.end as usize).min(module.source.len());
-        let start = (span.start as usize).min(end);
-        let mut text: String = module.source[start..end]
+        // Spans made by offset arithmetic (`end - 1`) can fall inside a
+        // multi-byte character: widen to character boundaries (Phase 11; a
+        // non-ASCII comment or string used to panic here).
+        let source = module.source;
+        let mut end = (span.end as usize).min(source.len());
+        while !source.is_char_boundary(end) {
+            end += 1;
+        }
+        let mut start = (span.start as usize).min(end);
+        while !source.is_char_boundary(start) {
+            start -= 1;
+        }
+        let mut text: String = source[start..end]
             .split_whitespace()
             .collect::<Vec<_>>()
             .join(" ");
