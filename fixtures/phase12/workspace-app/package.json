@@ -1,0 +1,21 @@
+{
+  "name": "commitrift-fixture-workspace-app",
+  "private": true,
+  "version": "0.0.0",
+  "description": "CommitRift Phase 12 first-party application: generated identifiers (PostgreSQL gen_random_uuid() and Drizzle $defaultFn), a schema split over several modules behind a barrel, repository objects and classes, INSERT ... RETURNING feeding foreign keys. Drizzle ORM on node-postgres.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@commitrift/replay": "file:../../../runtime/node",
+    "drizzle-orm": "0.45.4",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/pg": "8.23.1",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "commitrift-fixture-eval-app",
+  "private": true,
+  "version": "0.0.0",
+  "description": "CommitRift Phase 12 evaluation application (labels frozen before discovery ran on it): accounts, projects, tasks, credits and events behind repositories.",
+  "type": "module",
+  "dependencies": {
+    "drizzle-orm": "0.45.4",
+    "nanoid": "5.1.6",
+    "pg": "8.23.1"
+  }
+}

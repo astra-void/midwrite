@@ -31,3 +31,5 @@ node_modules/
 /fixtures/phase10/**/dist/
 /fixtures/phase11/**/dist/
 /reports/phase11/baseline/commitrift-phase10
+/reports/phase12/baseline/commitrift-phase11
+/fixtures/phase12/**/dist/
