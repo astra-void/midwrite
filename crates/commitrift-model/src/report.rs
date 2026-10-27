@@ -365,7 +365,7 @@ fn extraction_reports(
                 | Op::External { .. }
                 | Op::AppRead { .. }
                 | Op::AppWrite { .. } => coverage.represented_operations += 1,
-                Op::Unknown { detail } => {
+                Op::Unknown { detail, .. } => {
                     coverage.unsupported_operations += 1;
                     coverage
                         .unsupported

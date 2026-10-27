@@ -159,6 +159,11 @@ pub enum StmtKind {
         /// and default values, or `null` when nothing was inserted.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         returning: Option<String>,
+        /// Phase 12: `RETURNING col, ...` (a projection, as Drizzle sends
+        /// `returning({ alias: table.col })`): the columns of the returned
+        /// row. Absent: every column.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        returning_columns: Option<Vec<String>>,
     },
     /// `DELETE FROM table WHERE pred`.
     Delete {
@@ -274,6 +279,13 @@ pub enum Op {
     /// Behavior the extractor did not understand.
     Unknown {
         detail: String,
+        /// Phase 12: locals the unsupported operation would have assigned
+        /// (`const [row] = await <unsupported query>`). They count as
+        /// assigned for the loader's checks, but no value is produced:
+        /// reaching this operation makes the path unsupported, so nothing
+        /// after it on that path is explored.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        defines: Vec<String>,
     },
 }
 
@@ -412,7 +424,7 @@ impl ActorSpec {
         let mut out = Vec::new();
         for code in &self.codes {
             for step in code {
-                if let Op::Unknown { detail } = &step.op {
+                if let Op::Unknown { detail, .. } = &step.op {
                     out.push((detail.clone(), step.src.clone()));
                 }
             }

@@ -254,6 +254,20 @@ impl Model {
         out
     }
 
+    /// Phase 12: generated-default columns `(table, column, spec)`, in schema
+    /// order: the index is the `generator` of a [`crate::value::GenId`].
+    pub fn generators(&self) -> Vec<(u16, String, crate::db::GeneratedSpec)> {
+        let mut out = Vec::new();
+        for (ti, t) in self.schema.tables.iter().enumerate() {
+            for c in &t.columns {
+                if let Some(crate::db::ColumnDefault::Generated(spec)) = &c.default {
+                    out.push((ti as u16, c.name.clone(), spec.clone()));
+                }
+            }
+        }
+        out
+    }
+
     /// Row ids of the initial state, in table order.
     pub fn initial_row_ids(&self) -> Vec<(RowId, Row)> {
         let mut out = Vec::new();

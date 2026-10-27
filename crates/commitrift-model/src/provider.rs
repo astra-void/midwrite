@@ -22,6 +22,12 @@ pub struct TableBinding {
     pub table: String,
     /// The columns of the table; property names in source must equal these.
     pub columns: Vec<String>,
+    /// Phase 12: the declaration the table was read from (schema module
+    /// relative to the project root, binding). When set, an identifier in
+    /// source denotes this table only if it resolves (through imports and
+    /// re-exports) to this declaration, whatever its local name; a
+    /// different declaration with the same name is not this table.
+    pub source: Option<(String, String)>,
 }
 
 /// A call in source that is an externally visible effect.
@@ -159,6 +165,19 @@ pub struct Extracted {
 
 pub trait ActorProvider {
     fn extract(&self, request: &ExtractRequest) -> Result<Extracted, String>;
+
+    /// Phase 12: the declaration (module, binding) the name `local` of
+    /// module `file` resolves to through imports and re-exports, if the
+    /// frontend can tell.
+    fn resolve_reference(
+        &self,
+        root: &std::path::Path,
+        file: &str,
+        local: &str,
+    ) -> Option<(String, String)> {
+        let _ = (root, file, local);
+        None
+    }
 
     /// Phase 8: the Drizzle schema facts of `file` (relative to `root`),
     /// read statically.

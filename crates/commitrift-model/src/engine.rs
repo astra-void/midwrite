@@ -232,6 +232,7 @@ pub fn initial_state(model: &Model) -> State {
             attempt: 0,
             txn_seq: 0,
             insert_seq: 0,
+            gen_seq: 0,
             touched: false,
             ambiguous: Vec::new(),
         })
@@ -968,7 +969,7 @@ fn step_thread(
                 Err(e) => fail_thread(model, s, a, th, e.to_string(), foot, rec),
             }
         }
-        Op::Unknown { detail } => {
+        Op::Unknown { detail, .. } => {
             return Err(Unsupported {
                 actor: a,
                 detail: detail.clone(),
@@ -1056,6 +1057,7 @@ fn close_stmt(model: &Model, locals: &Locals, stmt: &Stmt) -> Result<ClosedStmt,
             values,
             on_conflict,
             returning,
+            returning_columns,
             ..
         } => {
             let mut row = Row::new();
@@ -1077,6 +1079,7 @@ fn close_stmt(model: &Model, locals: &Locals, stmt: &Stmt) -> Result<ClosedStmt,
                 values: row,
                 on_conflict: *on_conflict,
                 returning: returning.is_some(),
+                returning_columns: returning_columns.clone(),
             }
         }
         StmtKind::Delete { table: t, pred, .. } => ClosedStmt::Delete {

@@ -158,12 +158,29 @@ struct RawExtraction {
     #[serde(default)]
     externals: Vec<RawExternal>,
     /// Phase 8: the Drizzle schema module (relative to `root`) that tables
-    /// with `from` are read from.
-    schema: Option<String>,
+    /// with `from` are read from. Phase 12: or a list of modules; a table's
+    /// `from` is then `binding` (unique across them) or `module#binding`.
+    schema: Option<SchemaModules>,
     /// Phase 8: helpers that re-run a transaction after 40001/40P01.
     #[serde(default)]
     transaction_retries: Vec<RawTransactionRetry>,
     max_inline_depth: Option<usize>,
+}
+
+#[derive(Deserialize, Clone)]
+#[serde(untagged)]
+enum SchemaModules {
+    One(String),
+    Many(Vec<String>),
+}
+
+impl SchemaModules {
+    fn files(&self) -> Vec<String> {
+        match self {
+            Self::One(f) => vec![f.clone()],
+            Self::Many(v) => v.clone(),
+        }
+    }
 }
 
 #[derive(Deserialize, Clone)]
@@ -359,8 +376,15 @@ fn build(
                 "an actor needs `function` or `entry`",
             );
         }
-        let (params, mut codes, arguments, assumptions, entry) =
-            actor_program(a, &path, extraction, &schema, base_dir, provider)?;
+        let (params, mut codes, arguments, assumptions, entry) = actor_program(
+            a,
+            &path,
+            extraction,
+            &schema,
+            &report.schema,
+            base_dir,
+            provider,
+        )?;
         seal_unknowns(&mut codes);
         if !assumptions.is_empty() {
             report.assumptions.push((name.clone(), assumptions));
@@ -528,38 +552,126 @@ fn link_source_schema(
         }
         return Ok((raw.to_vec(), Vec::new(), None));
     }
-    let Some(file) = &extraction.schema else {
+    let Some(modules) = &extraction.schema else {
         return bad(
             "extraction.schema",
             "tables with `from` need `extraction.schema` (the Drizzle schema module)",
         );
     };
+    let files = modules.files();
+    if files.is_empty() {
+        return bad("extraction.schema", "the list of schema modules is empty");
+    }
     let root = base_dir.join(extraction.root.as_deref().unwrap_or("."));
-    let extracted = provider
-        .extract_schema(&root, file)
-        .map_err(|e| ScenarioError {
-            path: "extraction.schema".into(),
-            message: e,
-        })?;
+    let mut modules: Vec<(String, crate::schema_facts::ExtractedSchema)> = Vec::new();
+    for file in &files {
+        if modules.iter().any(|(f, _)| f == file) {
+            return bad("extraction.schema", format!("`{file}` is listed twice"));
+        }
+        let extracted = provider
+            .extract_schema(&root, file)
+            .map_err(|e| ScenarioError {
+                path: "extraction.schema".into(),
+                message: e,
+            })?;
+        modules.push((file.clone(), extracted));
+    }
     let mut tables = Vec::new();
     let mut facts = Vec::new();
+    let mut used: Vec<(String, String)> = Vec::new();
     for (i, t) in raw.iter().enumerate() {
         match &t.from {
             None => tables.push(t.clone()),
-            Some(binding) => {
-                let Some(x) = extracted.table(binding) else {
+            Some(from) => {
+                // `module#binding`, or a binding (or SQL name) that exactly
+                // one listed module declares.
+                let (wanted_file, binding) = match from.rsplit_once('#') {
+                    Some((f, b)) => (Some(f), b),
+                    None => (None, from.as_str()),
+                };
+                let found: Vec<(&String, &crate::schema_facts::SchemaTable)> = modules
+                    .iter()
+                    .filter(|(f, _)| wanted_file.is_none_or(|w| w == f))
+                    .filter_map(|(f, x)| x.table(binding).map(|t| (f, t)))
+                    .collect();
+                let (file, x) = match found.as_slice() {
+                    [one] => *one,
+                    [] => {
+                        return bad(
+                            format!("database.tables[{i}].from"),
+                            match wanted_file {
+                                Some(f) if !files.iter().any(|x| x == f) => {
+                                    format!("`{f}` is not listed in `extraction.schema`")
+                                }
+                                _ => format!(
+                                    "`{}` declares no table `{binding}` the extractor understood",
+                                    wanted_file.map_or_else(|| files.join("`, `"), str::to_owned)
+                                ),
+                            },
+                        );
+                    }
+                    many => {
+                        return bad(
+                            format!("database.tables[{i}].from"),
+                            format!(
+                                "`{binding}` is declared by several schema modules ({}); write `module#binding`",
+                                many.iter()
+                                    .map(|(f, _)| f.as_str())
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            ),
+                        );
+                    }
+                };
+                let key = (file.clone(), x.binding.clone());
+                if used.contains(&key) {
                     return bad(
                         format!("database.tables[{i}].from"),
-                        format!("`{file}` declares no table `{binding}` the extractor understood"),
+                        format!(
+                            "`{}#{}` is read twice (two references to one declaration are one table)",
+                            key.0, key.1
+                        ),
                     );
-                };
-                let (table, table_facts) = link_table(t, i, x, file)?;
+                }
+                used.push(key);
+                let (table, mut table_facts) = link_table(t, i, x, file)?;
+                // Reported for a list of modules only: single-module reports
+                // stay as they were.
+                if matches!(extraction.schema, Some(SchemaModules::Many(_))) {
+                    table_facts.module = Some(file.clone());
+                }
                 tables.push(table);
                 facts.push(table_facts);
             }
         }
     }
-    Ok((tables, facts, Some(extracted)))
+    // Two declarations with the same SQL name in one schema are a conflict
+    // the model cannot represent (they would be one table).
+    let mut names: BTreeMap<(Option<String>, String), String> = BTreeMap::new();
+    for (file, x) in &modules {
+        for t in &x.tables {
+            let key = (t.schema.clone(), t.name.clone());
+            let here = format!("{file}#{}", t.binding);
+            if let Some(other) = names.insert(key, here.clone())
+                && facts.iter().any(|f| f.table == t.name)
+            {
+                return bad(
+                    "extraction.schema",
+                    format!(
+                        "the SQL table `{}` is declared twice ({other} and {here})",
+                        t.name
+                    ),
+                );
+            }
+        }
+    }
+    let mut merged = crate::schema_facts::ExtractedSchema::default();
+    for (_, x) in modules {
+        merged.tables.extend(x.tables);
+        merged.enums.extend(x.enums);
+        merged.unsupported.extend(x.unsupported);
+    }
+    Ok((tables, facts, Some(merged)))
 }
 
 #[allow(clippy::too_many_lines)]
@@ -679,7 +791,26 @@ fn link_table(
             }
             continue;
         };
+        let generated = c
+            .generation
+            .as_ref()
+            .and_then(|g| g.fresh_identifier().map(|id| (g, id)));
         let default = match &c.default {
+            // Phase 12: a recognized identifier generator, database side
+            // (`defaultRandom()`) or application side (`$defaultFn` with a
+            // recognized callback). Other defaults keep their earlier
+            // treatment.
+            Some(_) if generated.is_some() => {
+                let (g, id) = generated.expect("checked");
+                Some(ColumnDefault::Generated(crate::db::GeneratedSpec {
+                    side: if g.class == crate::schema_facts::GeneratorClass::ApplicationGenerated {
+                        crate::db::GeneratedSide::Application
+                    } else {
+                        crate::db::GeneratedSide::Database
+                    },
+                    generator: id.to_owned(),
+                }))
+            }
             None => None,
             Some(SchemaDefault::Constant { value }) => {
                 Some(ColumnDefault::Value(literal_value(value)))
@@ -784,6 +915,14 @@ fn link_table(
                 match &default {
                     Some(ColumnDefault::Value(v)) => format!(" DEFAULT {}", v.render()),
                     Some(ColumnDefault::Sequence(_)) => " generated (sequence)".to_owned(),
+                    Some(ColumnDefault::Generated(g)) => format!(
+                        " generated by the {} (`{}`)",
+                        match g.side {
+                            crate::db::GeneratedSide::Database => "database",
+                            crate::db::GeneratedSide::Application => "application",
+                        },
+                        g.generator
+                    ),
                     None => String::new(),
                 }
             ),
@@ -985,6 +1124,7 @@ fn link_table(
         TableFacts {
             table: x.name.clone(),
             binding: Some(x.binding.clone()),
+            module: None,
             facts,
         },
     ))
@@ -1088,6 +1228,14 @@ fn build_schema(raw: &[RawTable]) -> Result<Schema, ScenarioError> {
     Ok(Schema { tables })
 }
 
+fn contains_generated(v: &Value) -> bool {
+    match v {
+        Value::Gen(_) => true,
+        Value::Row(r) => r.values().any(contains_generated),
+        _ => false,
+    }
+}
+
 fn build_initial(
     schema: &Schema,
     raw: &BTreeMap<String, Vec<Row>>,
@@ -1111,9 +1259,20 @@ fn build_initial(
             .enumerate()
         {
             let path = format!("database.initialState.{}[{ri}]", table.name);
-            for k in row.keys() {
+            for (k, v) in &row {
                 if !table.has_column(k) {
                     return bad(&path, format!("unknown column `{k}`"));
+                }
+                // Phase 12: a generated value is produced by an insert of
+                // the explored execution; it is not data of the initial
+                // state (which holds concrete values only).
+                if contains_generated(v) {
+                    return bad(
+                        &path,
+                        format!(
+                            "column `{k}`: a generated value cannot be part of the initial state"
+                        ),
+                    );
                 }
             }
             let mut full = row;
@@ -1157,6 +1316,7 @@ fn actor_program(
     path: &str,
     extraction: &RawExtraction,
     schema: &Schema,
+    facts: &[crate::schema_facts::TableFacts],
     base_dir: &Path,
     provider: &dyn ActorProvider,
 ) -> Result<ActorBuild, ScenarioError> {
@@ -1232,6 +1392,14 @@ fn actor_program(
                 .unwrap_or_else(|| t.name.clone()),
             table: t.name.clone(),
             columns: t.columns.iter().map(|c| c.name.clone()).collect(),
+            // Phase 12: a table read from a schema module of a list is
+            // bound by declaration identity. With a single module (Phase
+            // 8–11 scenarios) binding stays by name, unchanged.
+            source: facts
+                .iter()
+                .find(|f| f.table == t.name)
+                .filter(|_| matches!(extraction.schema, Some(SchemaModules::Many(_))))
+                .and_then(|f| Some((f.module.clone()?, f.binding.clone()?))),
         })
         .collect();
     let externals = extraction
@@ -1337,8 +1505,27 @@ pub fn seal_unknowns(codes: &mut [Vec<Step>]) {
                 _ => {}
             }
             if let Some(detail) = exprs.iter().find_map(|e| e.unknown_detail()) {
+                // Phase 12: what the operation would have assigned.
+                let defines: Vec<String> = match &step.op {
+                    Op::Let { local, .. } => vec![local.clone()],
+                    Op::Db { stmt } => match &stmt.kind {
+                        StmtKind::Select { into, .. } | StmtKind::SelectCount { into, .. } => {
+                            vec![into.clone()]
+                        }
+                        StmtKind::Update { affected, .. } | StmtKind::Delete { affected, .. } => {
+                            affected.iter().cloned().collect()
+                        }
+                        StmtKind::Insert {
+                            affected,
+                            returning,
+                            ..
+                        } => affected.iter().chain(returning.iter()).cloned().collect(),
+                    },
+                    _ => Vec::new(),
+                };
                 step.op = Op::Unknown {
                     detail: detail.to_owned(),
+                    defines,
                 };
             }
         }
@@ -1362,6 +1549,11 @@ pub fn validate(model: &Model) -> Result<(), ScenarioError> {
                     }
                     Op::AppRead { into, .. } => {
                         defined.insert(into.clone());
+                    }
+                    // Phase 12: assigned by an unsupported operation (no
+                    // value: the path ends there as unsupported).
+                    Op::Unknown { defines, .. } => {
+                        defined.extend(defines.iter().cloned());
                     }
                     Op::Try {
                         error: Some(local), ..
@@ -1642,6 +1834,28 @@ fn standard_assumptions(model: &Model, report: &LoadReport) -> Vec<String> {
     }
     if model.bounds.max_context_switches.is_some() {
         v.push("partial-order reduction is disabled because maxContextSwitches is set".into());
+    }
+    let generators = model.generators();
+    if !generators.is_empty() {
+        let names: Vec<String> = generators
+            .iter()
+            .map(|(t, c, g)| {
+                format!(
+                    "{}.{c} ({}, {})",
+                    model.schema.table(*t).name,
+                    g.generator,
+                    match g.side {
+                        crate::db::GeneratedSide::Database => "database",
+                        crate::db::GeneratedSide::Application => "application",
+                    }
+                )
+            })
+            .collect();
+        v.push(format!(
+            "generated-values-distinct: every execution of an insert that omits a generated column produces a new value, distinct from every other value (random identifiers are assumed not to collide): {}",
+            names.join(", ")
+        ));
+        v.push("generated values have no known order: rows with generated keys are ordered by generation event where a LIMIT 1 read needs an order (PostgreSQL orders them by their random value)".into());
     }
     for a in &model.actors {
         if a.codes

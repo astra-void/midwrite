@@ -42,6 +42,8 @@ pub enum ClosedStmt {
         values: Row,
         on_conflict: OnConflict,
         returning: bool,
+        /// Phase 12: the columns `RETURNING` lists (all when `None`).
+        returning_columns: Option<Vec<String>>,
     },
     Delete {
         table: u16,
@@ -162,6 +164,10 @@ pub struct ActorState {
     pub attempt: u32,
     pub txn_seq: u32,
     pub insert_seq: u32,
+    /// Phase 12: generation events of this actor so far (column defaults
+    /// that generate identifiers). Never reset: a retried or rolled-back
+    /// insert generates a new value.
+    pub gen_seq: u32,
     /// Whether the current attempt has performed a visible operation.
     pub touched: bool,
     /// Phase 9: operations of this actor whose acknowledgment was lost
@@ -604,6 +610,14 @@ impl State {
                 e.value(&Value::Int(*n));
             }
         }
+        // Phase 12: generation counters, written only when an actor has
+        // generated a value, so encodings of other models are unchanged.
+        if self.actors.iter().any(|a| a.gen_seq != 0) {
+            e.u8(0xC2);
+            for a in &self.actors {
+                e.u32(a.gen_seq);
+            }
+        }
         if model.bounds.max_context_switches.is_some() {
             let (a, t) = self.last_thread.unwrap_or((u16::MAX, u16::MAX));
             e.u16(a);
@@ -758,6 +772,12 @@ impl Enc {
             Value::Row(r) => {
                 self.u8(4);
                 self.row(r);
+            }
+            Value::Gen(g) => {
+                self.u8(5);
+                self.u16(g.generator);
+                self.u16(g.actor);
+                self.u32(g.n);
             }
         }
     }

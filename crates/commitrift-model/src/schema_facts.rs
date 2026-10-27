@@ -34,6 +34,63 @@ pub enum SchemaDefault {
     Application { text: String },
 }
 
+/// How a column's default value comes into existence (Phase 12). The
+/// categories are kept apart: a value PostgreSQL computes while executing
+/// the INSERT is not one Drizzle computes before sending it, and neither is
+/// a sequence (non-transactional, ordered) or a constant.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum GeneratorClass {
+    /// Computed by the application when Drizzle builds the INSERT
+    /// (`$defaultFn`/`$default` with a recognized generator).
+    ApplicationGenerated,
+    /// Computed by PostgreSQL while executing the INSERT
+    /// (`defaultRandom()`, `default(sql\`gen_random_uuid()\`)`,
+    /// `defaultNow()`).
+    DatabaseGenerated,
+    /// `serial`, `bigserial`, `smallserial`.
+    SequenceGenerated,
+    /// `generatedAlwaysAsIdentity()`, `generatedByDefaultAsIdentity()`.
+    IdentityGenerated,
+    /// `.default(<literal>)`.
+    ConstantDefault,
+    /// Anything else: an unrecognized callback or SQL expression. Never
+    /// executed and never given a value.
+    UnknownDefault,
+}
+
+/// Phase 12: the classified default of a column.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Generation {
+    pub class: GeneratorClass,
+    /// The recognized identifier generator (`gen_random_uuid()`,
+    /// `crypto.randomUUID()`, `@paralleldrive/cuid2 createId()`), when the
+    /// default produces a fresh identifier the model can represent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generator: Option<String>,
+    /// The default as written, or why it is not recognized.
+    pub detail: String,
+    /// An application callback imported from another project module
+    /// (specifier, imported name): resolved when schema modules are composed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub callback_import: Option<(String, String)>,
+}
+
+impl Generation {
+    /// A fresh-identifier generator the model represents
+    /// ([`GeneratorClass::DatabaseGenerated`] or
+    /// [`GeneratorClass::ApplicationGenerated`] with a recognized generator).
+    pub fn fresh_identifier(&self) -> Option<&str> {
+        match self.class {
+            GeneratorClass::ApplicationGenerated | GeneratorClass::DatabaseGenerated => {
+                self.generator.as_deref()
+            }
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SchemaColumn {
@@ -56,6 +113,9 @@ pub struct SchemaColumn {
     /// `.references(() => table.column)`: (table binding, column property).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub references: Option<(String, String)>,
+    /// Phase 12: how the default is produced.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generation: Option<Generation>,
     pub line: u32,
 }
 
@@ -141,6 +201,11 @@ pub struct ExtractedSchema {
     /// understood (dynamic table names, spread columns, helpers).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub unsupported: Vec<String>,
+    /// Phase 12: the module's imports, local name → (specifier, imported
+    /// name; `default` or `*` for default and namespace imports), so that
+    /// references to tables of other modules can be resolved.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub imports: BTreeMap<String, (String, String)>,
 }
 
 impl ExtractedSchema {
@@ -188,5 +253,10 @@ pub struct TableFacts {
     /// The Drizzle binding it was read from (`from`), if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub binding: Option<String>,
+    /// Phase 12: the schema module that declares the binding (scenarios
+    /// with a list of modules). Not serialized: model-check report schemas
+    /// do not admit it, and the scenario's `from: "module#binding"` says it.
+    #[serde(default, skip_serializing)]
+    pub module: Option<String>,
     pub facts: Vec<SchemaFact>,
 }

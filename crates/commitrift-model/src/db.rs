@@ -75,6 +75,34 @@ pub enum ColumnDefault {
     /// default: one more than the largest initial value, else 1); they say
     /// nothing about identifiers in another database.
     Sequence(SequenceSpec),
+    /// Phase 12: a generated identifier (`uuid().defaultRandom()`,
+    /// `$defaultFn(() => crypto.randomUUID())`): every execution of an
+    /// insert that omits the column produces a new value, a
+    /// [`crate::value::Value::Gen`] whose identity is the generation event.
+    /// Unlike a sequence, generation reads and writes no shared state, so
+    /// inserts of different actors stay independent.
+    Generated(GeneratedSpec),
+}
+
+/// Who computes a generated default (Phase 12).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum GeneratedSide {
+    /// PostgreSQL, while executing the INSERT (`DEFAULT gen_random_uuid()`):
+    /// the application sees the value only through `RETURNING`.
+    Database,
+    /// The application, when Drizzle builds the INSERT (`$defaultFn`): the
+    /// value is a bound parameter of the statement.
+    Application,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct GeneratedSpec {
+    pub side: GeneratedSide,
+    /// The recognized generator: `gen_random_uuid()`, `crypto.randomUUID()`,
+    /// `@paralleldrive/cuid2 createId()`.
+    pub generator: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

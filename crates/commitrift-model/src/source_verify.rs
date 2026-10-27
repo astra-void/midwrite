@@ -22,7 +22,7 @@
 //! of them agree, nothing unexpected happened, and the invariant is violated
 //! on the observed database is `original-code-reproduced`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
 use serde_json::Value as Json;
@@ -184,6 +184,7 @@ fn value_json(v: &Value) -> Json {
         Value::Bool(b) => Json::Bool(*b),
         Value::Int(n) => Json::from(*n),
         Value::Str(s) => Json::String(s.clone()),
+        Value::Gen(g) => serde_json::to_value(g).unwrap_or(Json::Null),
         Value::Row(r) => Json::Object(r.iter().map(|(k, v)| (k.clone(), value_json(v))).collect()),
     }
 }
@@ -861,6 +862,7 @@ fn literal(v: &Value) -> Result<String, String> {
         Value::Bool(b) => b.to_string().to_uppercase(),
         Value::Int(n) => n.to_string(),
         Value::Str(s) => format!("'{}'", s.replace('\'', "''")),
+        Value::Gen(_) => return Err("a generated value in the initial state".to_owned()),
         Value::Row(_) => return Err("a row value in the initial state".to_owned()),
     })
 }
@@ -1018,6 +1020,20 @@ fn expected_cells(model: &Model, stmt: &ClosedStmt, row: &Row) -> Vec<(String, V
                 }
             }
         }
+        // Phase 12: `RETURNING col, ...` asserts the listed columns only.
+        ClosedStmt::Insert {
+            table,
+            returning_columns: Some(cols),
+            ..
+        } => {
+            let schema = model.schema.table(*table);
+            for c in cols {
+                out.push((
+                    format!("{}.{}", schema.name, column_sql(schema, c)),
+                    row.get(c).cloned().unwrap_or(Value::Null),
+                ));
+            }
+        }
         ClosedStmt::Insert { table, .. } => table_cells(*table, &Value::Row(row.clone()), &mut out),
         _ => {}
     }
@@ -1032,7 +1048,120 @@ fn render_rows(rows: &[Json]) -> String {
     }
 }
 
-fn compare_statement(model: &Model, p: &Prediction, o: Option<&Observed>) -> StatementComparison {
+/// Phase 12: the correspondence between the model's generated values
+/// ([`Value::Gen`]) and the concrete values one runtime run produced. A
+/// generated value matches the first concrete text it is compared with and
+/// only that text afterwards; two generated values never match one text
+/// (the model assumes distinct values, and a run that contradicts that is
+/// reported as a difference, not absorbed).
+#[derive(Default)]
+struct GenMatch {
+    forward: BTreeMap<crate::value::GenId, String>,
+    backward: BTreeMap<String, crate::value::GenId>,
+}
+
+impl GenMatch {
+    fn matches(&mut self, expected: &Value, observed: &Json) -> bool {
+        match (expected, observed) {
+            (Value::Gen(g), Json::String(text)) => {
+                match (self.forward.get(g), self.backward.get(text)) {
+                    (Some(t), _) => t == text,
+                    (None, Some(_)) => false,
+                    (None, None) => {
+                        self.forward.insert(*g, text.clone());
+                        self.backward.insert(text.clone(), *g);
+                        true
+                    }
+                }
+            }
+            (Value::Gen(_), _) => false,
+            (Value::Row(row), Json::Object(o)) => {
+                row.len() == o.len()
+                    && row
+                        .iter()
+                        .all(|(k, v)| o.get(k).is_some_and(|x| self.matches(v, x)))
+            }
+            (other, observed) => json_to_value(observed) == *other,
+        }
+    }
+}
+
+fn row_has_generated(row: &Row) -> bool {
+    row.values().any(|v| match v {
+        Value::Gen(_) => true,
+        Value::Row(r) => row_has_generated(r),
+        _ => false,
+    })
+}
+
+/// Phase 12: whether the runtime's final rows are the model's, generated
+/// values matched through `generated` (extended on success only).
+fn tables_match(
+    generated: &mut GenMatch,
+    model: &BTreeMap<String, Vec<Row>>,
+    runtime: &BTreeMap<String, Vec<Json>>,
+) -> bool {
+    fn assign(
+        g: &GenMatch,
+        model: &[Row],
+        runtime: &[&Json],
+        used: &mut Vec<bool>,
+        i: usize,
+    ) -> Option<GenMatch> {
+        let Some(row) = model.get(i) else {
+            return Some(GenMatch {
+                forward: g.forward.clone(),
+                backward: g.backward.clone(),
+            });
+        };
+        for (j, candidate) in runtime.iter().enumerate() {
+            if used[j] {
+                continue;
+            }
+            let mut trial = GenMatch {
+                forward: g.forward.clone(),
+                backward: g.backward.clone(),
+            };
+            if trial.matches(&Value::Row(row.clone()), candidate) {
+                used[j] = true;
+                if let Some(done) = assign(&trial, model, runtime, used, i + 1) {
+                    return Some(done);
+                }
+                used[j] = false;
+            }
+        }
+        None
+    }
+    let names: BTreeSet<&String> = model.keys().chain(runtime.keys()).collect();
+    let mut current = GenMatch {
+        forward: generated.forward.clone(),
+        backward: generated.backward.clone(),
+    };
+    for name in names {
+        let m = model.get(name).map(Vec::as_slice).unwrap_or_default();
+        let r: Vec<&Json> = runtime
+            .get(name)
+            .map(|v| v.iter().collect())
+            .unwrap_or_default();
+        if m.len() != r.len() {
+            return false;
+        }
+        let mut used = vec![false; r.len()];
+        match assign(&current, m, &r, &mut used, 0) {
+            Some(next) => current = next,
+            None => return false,
+        }
+    }
+    *generated = current;
+    true
+}
+
+fn compare_statement(
+    model: &Model,
+    p: &Prediction,
+    o: Option<&Observed>,
+    generated: &mut GenMatch,
+) -> StatementComparison {
     let predicted = match &p.expect {
         Expect::Done(StmtResult::Row(None)) => "no row".to_owned(),
         Expect::Done(StmtResult::Row(Some(r))) => Value::Row(r.clone()).render(),
@@ -1095,7 +1224,7 @@ fn compare_statement(model: &Model, p: &Prediction, o: Option<&Observed>) -> Sta
         let runtime_payload = &o.params["payload"];
         for (k, v) in payload {
             match runtime_payload.get(k) {
-                Some(r) if json_to_value(r) == *v => {}
+                Some(r) if generated.matches(v, r) => {}
                 Some(r) => c
                     .differences
                     .push(format!("payload.{k}: model {}, runtime {r}", v.render())),
@@ -1206,7 +1335,7 @@ fn compare_statement(model: &Model, p: &Prediction, o: Option<&Observed>) -> Sta
                     {
                         for (key, value) in expected_cells(model, stmt, row) {
                             match observed.get(&key) {
-                                Some(v) if json_to_value(v) == value => {}
+                                Some(v) if generated.matches(&value, v) => {}
                                 Some(v) => {
                                     diff(format!("{key}: model {}, PostgreSQL {v}", value.render()))
                                 }
@@ -1560,13 +1689,16 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
             .map(|(i, _)| i)
             .collect();
         let mut statements = Vec::new();
+        // Phase 12: generated values of this run, matched to what the
+        // application observed (one bijection per run).
+        let mut generated = GenMatch::default();
         for (k, p) in plan.predictions.iter().enumerate() {
             let step_index = releases.get(k).copied();
             let observed = run
                 .statements
                 .iter()
                 .find(|o| o.plan.is_some() && o.plan == step_index);
-            statements.push(compare_statement(model, p, observed));
+            statements.push(compare_statement(model, p, observed, &mut generated));
         }
         let statements_agree = statements.iter().all(|s| s.status == "agree");
         let mut outside = Vec::new();
@@ -1597,7 +1729,14 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
         }
         // Final rows.
         let runtime_tables = rows_of(&run.tables);
-        let tables_agree = runtime_tables == model_tables;
+        let tables_agree = if model_tables.values().flatten().any(row_has_generated) {
+            // Phase 12: generated values match this run's concrete values
+            // consistently with the statements (one bijection per run);
+            // rows are matched as multisets (their order differs).
+            tables_match(&mut generated, &model_tables, &run.tables)
+        } else {
+            runtime_tables == model_tables
+        };
         // Outcomes (of each actor's last execution).
         let final_outcomes: Vec<(String, String, String)> = model
             .actors
@@ -1732,7 +1871,23 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
                         physical_outcome: physical.to_owned(),
                     });
                 }
-                if check.runtime_tables != check.model_tables {
+                // Phase 12: generated values match this run's values.
+                let differ = if check.model_tables.values().flatten().any(row_has_generated) {
+                    let runtime: BTreeMap<String, Vec<Json>> = check
+                        .runtime_tables
+                        .iter()
+                        .map(|(t, rows)| {
+                            (
+                                t.clone(),
+                                rows.iter().map(|r| value_json(&Value::Row(r.clone()))).collect(),
+                            )
+                        })
+                        .collect();
+                    !tables_match(&mut generated, &check.model_tables, &runtime)
+                } else {
+                    check.runtime_tables != check.model_tables
+                };
+                if differ {
                     check.differences.push(
                         "the committed rows after the crash differ from the model's".to_owned(),
                     );

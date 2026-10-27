@@ -623,6 +623,7 @@ fn parse_stmt(
                 on_conflict,
                 affected,
                 returning,
+                returning_columns: None,
             };
             push(
                 b,
@@ -785,7 +786,15 @@ fn parse_stmt(
                 _ => return err(line.no, "`unknown` needs a quoted description"),
             };
             done(&c)?;
-            push(b, code, line, Op::Unknown { detail });
+            push(
+                b,
+                code,
+                line,
+                Op::Unknown {
+                    detail,
+                    defines: Vec::new(),
+                },
+            );
         }
         other => return err(line.no, format!("unknown statement `{other}`")),
     }

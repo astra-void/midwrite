@@ -433,9 +433,19 @@ pub fn project(
 /// constants, and the next value of each sequence. Sequences are advanced
 /// before any constraint is checked (as PostgreSQL evaluates defaults before
 /// inserting), so a failing or conflicting insert still consumes its value.
+///
+/// Phase 12: a generated default produces a new value for this execution of
+/// the statement, identified by the inserting actor's generation counter. A
+/// database default (`gen_random_uuid()`) is computed by PostgreSQL while it
+/// executes the INSERT; an application default (`$defaultFn`) by Drizzle
+/// when it builds the statement, just before sending it. Both happen once per
+/// execution, here, where the statement starts: a statement that waits for a
+/// lock and resumes keeps its values, a retried one (a new execution) gets
+/// new ones.
 fn apply_defaults(
     model: &Model,
     s: &mut State,
+    p_actor: u16,
     table: u16,
     values: &mut Row,
     foot: &mut Footprint,
@@ -459,6 +469,22 @@ fn apply_defaults(
                 s.seqs[index] = n.saturating_add(1);
                 foot.push(Access::Seq(index as u16));
                 values.insert(c.name.clone(), Value::Int(n));
+            }
+            Some(crate::db::ColumnDefault::Generated(_)) => {
+                let generator = model
+                    .generators()
+                    .iter()
+                    .position(|(t, col, _)| *t == table && *col == c.name)
+                    .expect("every generated column is listed");
+                let actor = p_actor;
+                let a = &mut s.actors[actor as usize];
+                let id = crate::value::GenId {
+                    generator: generator as u16,
+                    actor,
+                    n: a.gen_seq,
+                };
+                a.gen_seq += 1;
+                values.insert(c.name.clone(), Value::Gen(id));
             }
             None => {}
         }
@@ -500,10 +526,11 @@ fn run_stmt_inner(model: &Model, s: &mut State, p: &mut Pending, foot: &mut Foot
             mut values,
             on_conflict,
             returning,
+            returning_columns,
         } => {
             if !p.started {
                 p.started = true;
-                apply_defaults(model, s, table, &mut values, foot);
+                apply_defaults(model, s, p.txn.actor(), table, &mut values, foot);
                 if let ClosedStmt::Insert { values: v, .. } = &mut p.stmt {
                     v.clone_from(&values);
                 }
@@ -511,7 +538,17 @@ fn run_stmt_inner(model: &Model, s: &mut State, p: &mut Pending, foot: &mut Foot
             let step = run_insert(model, s, p, foot, table, values, on_conflict, iso);
             match step {
                 StmtStep::Done(StmtResult::Affected(n)) if returning => {
-                    StmtStep::Done(StmtResult::Row(if n > 0 { p.found.take() } else { None }))
+                    let row = if n > 0 { p.found.take() } else { None };
+                    // Phase 12: `RETURNING col, ...` returns those columns.
+                    let row = match (&returning_columns, row) {
+                        (Some(cols), Some(r)) => Some(
+                            cols.iter()
+                                .map(|c| (c.clone(), r.get(c).cloned().unwrap_or(Value::Null)))
+                                .collect(),
+                        ),
+                        (_, r) => r,
+                    };
+                    StmtStep::Done(StmtResult::Row(row))
                 }
                 other => other,
             }

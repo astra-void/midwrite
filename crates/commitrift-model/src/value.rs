@@ -22,7 +22,27 @@ pub enum Value {
     Bool(bool),
     Int(i64),
     Str(String),
+    /// Phase 12: a value generated at run time by a column default (a
+    /// random UUID from PostgreSQL, an id from an application generator).
+    /// It is not a string the model knows: it equals only itself, and its
+    /// order relative to other values is not determined.
+    Gen(GenId),
     Row(Row),
+}
+
+/// The identity of one generation event (Phase 12): which generator
+/// (`Model::generators` index), which actor, and that actor's generation
+/// counter. The counter is per actor and never reset (not by a retry or a
+/// rollback), so every event has its own identity and the identity does not
+/// depend on how other actors are scheduled. Two events are assumed to
+/// produce different values (the `generated-values-distinct` assumption).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GenId {
+    #[serde(rename = "$generated")]
+    pub generator: u16,
+    pub actor: u16,
+    pub n: u32,
 }
 
 impl Value {
@@ -37,7 +57,7 @@ impl Value {
             Self::Bool(b) => *b,
             Self::Int(n) => *n != 0,
             Self::Str(s) => !s.is_empty(),
-            Self::Row(_) => true,
+            Self::Gen(_) | Self::Row(_) => true,
         }
     }
 
@@ -52,6 +72,7 @@ impl Value {
             Self::Bool(b) => b.to_string(),
             Self::Int(n) => n.to_string(),
             Self::Str(s) => format!("{s:?}"),
+            Self::Gen(g) => format!("gen#{}:{}.{}", g.generator, g.actor, g.n),
             Self::Row(row) => {
                 let fields: Vec<String> = row
                     .iter()
@@ -401,6 +422,16 @@ fn eval_bin(
                             _ => false,
                         }));
                     }
+                    if matches!(l, Value::Gen(_)) || matches!(r, Value::Gen(_)) {
+                        // Equality of a generated value is identity: it
+                        // equals itself and nothing else (distinct events
+                        // are assumed to produce distinct values).
+                        match op {
+                            BinOp::Eq => return Ok(Value::Bool(l == r)),
+                            BinOp::Ne => return Ok(Value::Bool(l != r)),
+                            _ => {}
+                        }
+                    }
                     let ord = compare(&l, &r)?;
                     Ok(Value::Bool(match op {
                         BinOp::Eq => ord == std::cmp::Ordering::Equal,
@@ -425,6 +456,11 @@ fn tri(v: &Value) -> Option<bool> {
 
 fn compare(l: &Value, r: &Value) -> Result<std::cmp::Ordering, EvalError> {
     match (l, r) {
+        (Value::Gen(_), _) | (_, Value::Gen(_)) => Err(EvalError::Unknown(format!(
+            "the order of generated values is not determined ({} and {})",
+            l.render(),
+            r.render()
+        ))),
         (Value::Int(x), Value::Int(y)) => Ok(x.cmp(y)),
         (Value::Str(x), Value::Str(y)) => Ok(x.cmp(y)),
         (Value::Bool(x), Value::Bool(y)) => Ok(x.cmp(y)),
