@@ -1,6 +1,10 @@
 //! Workloads shared by the semantic, reduction and PostgreSQL tests.
 #![allow(dead_code)]
 
+pub mod adversarial;
+pub mod minimize;
+pub mod por_diff;
+pub mod por_workloads;
 pub mod scenarios_gen;
 
 use commitrift_model::model::Model;

@@ -1,0 +1,190 @@
+{
+  "algorithm": "sdpor[stateless,no-edges]",
+  "defect": "pool-claim-without-pool-access",
+  "minimizedSize": 320,
+  "origin": {
+    "generator": "phase9 dpor.rs",
+    "seed": null
+  },
+  "original": {
+    "actors": [
+      {
+        "arguments": {
+          "rid": "r0"
+        },
+        "function": "pay",
+        "name": "C0",
+        "process": "P",
+        "program": "begin\ninsert payments set @req = rid on conflict do nothing\ncommit\n"
+      },
+      {
+        "arguments": {
+          "rid": "r1"
+        },
+        "function": "pay",
+        "name": "C1",
+        "process": "P",
+        "program": "begin\ninsert payments set @req = rid on conflict do nothing\ncommit\n"
+      },
+      {
+        "arguments": {
+          "rid": "r0"
+        },
+        "function": "pay",
+        "name": "C2",
+        "process": "P",
+        "program": "begin\ninsert payments set @req = rid on conflict do nothing\ncommit\n"
+      }
+    ],
+    "bounds": {
+      "maxStates": 2000000,
+      "maxSteps": 60
+    },
+    "database": {
+      "initialState": {
+        "payments": []
+      },
+      "isolation": "read-committed",
+      "tables": [
+        {
+          "columns": [
+            {
+              "default": {
+                "sequence": {}
+              },
+              "name": "id",
+              "notNull": true,
+              "type": "int"
+            },
+            {
+              "name": "req",
+              "type": "text"
+            }
+          ],
+          "name": "payments",
+          "primaryKey": [
+            "id"
+          ],
+          "unique": [
+            [
+              "req"
+            ]
+          ]
+        }
+      ]
+    },
+    "invariants": [
+      {
+        "assert": {
+          "le": [
+            {
+              "count": {
+                "table": "payments",
+                "where": {}
+              }
+            },
+            2
+          ]
+        },
+        "name": "once",
+        "when": "final"
+      }
+    ],
+    "name": "pay",
+    "pools": {
+      "P": 2
+    },
+    "schemaVersion": 1
+  },
+  "originalSize": 332,
+  "scenario": {
+    "actors": [
+      {
+        "arguments": {
+          "rid": "r0"
+        },
+        "function": "pay",
+        "name": "C0",
+        "process": "P",
+        "program": "begin\ninsert payments set @req = rid on conflict do nothing\ncommit\n"
+      },
+      {
+        "arguments": {
+          "rid": "r1"
+        },
+        "function": "pay",
+        "name": "C1",
+        "process": "P",
+        "program": "begin\n"
+      },
+      {
+        "arguments": {
+          "rid": "r0"
+        },
+        "function": "pay",
+        "name": "C2",
+        "process": "P",
+        "program": "insert payments set @req = rid on conflict do nothing\n"
+      }
+    ],
+    "bounds": {
+      "maxStates": 2000000,
+      "maxSteps": 60
+    },
+    "database": {
+      "initialState": {
+        "payments": []
+      },
+      "isolation": "read-committed",
+      "tables": [
+        {
+          "columns": [
+            {
+              "default": {
+                "sequence": {}
+              },
+              "name": "id",
+              "notNull": true,
+              "type": "int"
+            },
+            {
+              "name": "req",
+              "type": "text"
+            }
+          ],
+          "name": "payments",
+          "primaryKey": [
+            "id"
+          ],
+          "unique": [
+            [
+              "req"
+            ]
+          ]
+        }
+      ]
+    },
+    "invariants": [
+      {
+        "assert": {
+          "le": [
+            {
+              "count": {
+                "table": "payments",
+                "where": {}
+              }
+            },
+            2
+          ]
+        },
+        "name": "once",
+        "when": "final"
+      }
+    ],
+    "name": "pay",
+    "pools": {
+      "P": 2
+    },
+    "schemaVersion": 1
+  }
+}

@@ -1,0 +1,332 @@
+{
+  "algorithm": "sdpor[stateless]",
+  "defect": "last-race-only",
+  "minimizedSize": 217,
+  "origin": {
+    "generator": "adversarial",
+    "seed": 75
+  },
+  "original": {
+    "actors": [
+      {
+        "arguments": {},
+        "function": "work",
+        "name": "A0",
+        "process": "P",
+        "program": "begin isolation read-committed\nread_app n into c1\nwrite_app n = c1 + 1\ncommit\n",
+        "retry": {
+          "trigger": "onFailure"
+        }
+      },
+      {
+        "arguments": {},
+        "function": "work",
+        "name": "A1",
+        "process": "P",
+        "program": "begin\nupdate p1 where @id == 3 set @v = @v + 3 into a2\nread_app n into c3\nwrite_app n = c3 + 1\nupdate p1 where @id == 1 && @v > 0 set @v = @v - 1 into u4\ncommit\n",
+        "retry": {
+          "trigger": "atLeastOnce"
+        }
+      },
+      {
+        "arguments": {},
+        "function": "work",
+        "name": "A2",
+        "process": "P",
+        "program": "update p2 where @id == 2 set @v = @v + 3 into a5\n",
+        "retry": {
+          "trigger": "onFailure"
+        }
+      }
+    ],
+    "app": {
+      "n": 0
+    },
+    "bounds": {
+      "maxCrashes": 0,
+      "maxInFlight": 0,
+      "maxRetries": 1,
+      "maxStates": 300000,
+      "maxSteps": 60
+    },
+    "channels": {
+      "c0": {
+        "dedup": "none"
+      },
+      "c1": {
+        "dedup": "none"
+      },
+      "c2": {
+        "dedup": "none"
+      },
+      "ch": {
+        "dedup": "none"
+      }
+    },
+    "database": {
+      "initialState": {
+        "p0": [
+          {
+            "id": 1,
+            "v": 1,
+            "w": 11
+          },
+          {
+            "id": 2,
+            "v": 2,
+            "w": 12
+          },
+          {
+            "id": 3,
+            "v": 0,
+            "w": 13
+          }
+        ],
+        "p1": [
+          {
+            "id": 1,
+            "v": 1,
+            "w": 21
+          },
+          {
+            "id": 2,
+            "v": 2,
+            "w": 22
+          },
+          {
+            "id": 3,
+            "v": 0,
+            "w": 23
+          }
+        ],
+        "p2": [
+          {
+            "id": 1,
+            "v": 1,
+            "w": 31
+          },
+          {
+            "id": 2,
+            "v": 2,
+            "w": 32
+          },
+          {
+            "id": 3,
+            "v": 0,
+            "w": 33
+          }
+        ]
+      },
+      "isolation": "read-committed",
+      "tables": [
+        {
+          "columns": [
+            {
+              "name": "id",
+              "notNull": true,
+              "type": "int"
+            },
+            {
+              "name": "v",
+              "type": "int"
+            },
+            {
+              "name": "w",
+              "type": "int"
+            }
+          ],
+          "name": "p0",
+          "primaryKey": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            {
+              "name": "id",
+              "notNull": true,
+              "type": "int"
+            },
+            {
+              "name": "v",
+              "type": "int"
+            },
+            {
+              "name": "w",
+              "type": "int"
+            }
+          ],
+          "name": "p1",
+          "primaryKey": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            {
+              "name": "id",
+              "notNull": true,
+              "type": "int"
+            },
+            {
+              "name": "v",
+              "type": "int"
+            },
+            {
+              "name": "w",
+              "type": "int"
+            }
+          ],
+          "name": "p2",
+          "primaryKey": [
+            "id"
+          ]
+        }
+      ]
+    },
+    "invariants": [
+      {
+        "assert": {
+          "le": [
+            {
+              "externals": {
+                "channel": "c0"
+              }
+            },
+            1
+          ]
+        },
+        "name": "few-effects",
+        "when": "final"
+      },
+      {
+        "assert": {
+          "ge": [
+            {
+              "count": {
+                "table": "p0",
+                "where": {}
+              }
+            },
+            0
+          ]
+        },
+        "name": "app-count",
+        "when": "final"
+      }
+    ],
+    "name": "adv-75-App",
+    "schemaVersion": 1
+  },
+  "originalSize": 357,
+  "scenario": {
+    "actors": [
+      {
+        "arguments": {},
+        "function": "work",
+        "name": "A0",
+        "process": "P",
+        "program": "read_app n into c1\n",
+        "retry": {
+          "trigger": "onFailure"
+        }
+      },
+      {
+        "arguments": {},
+        "function": "work",
+        "name": "A1",
+        "process": "P",
+        "program": "read_app n into c3\nwrite_app n = c3 + 1\ncommit\n",
+        "retry": {
+          "trigger": "atLeastOnce"
+        }
+      }
+    ],
+    "app": {
+      "n": 0
+    },
+    "bounds": {
+      "maxCrashes": 0,
+      "maxInFlight": 0,
+      "maxRetries": 1,
+      "maxStates": 300000,
+      "maxSteps": 60
+    },
+    "channels": {
+      "c0": {
+        "dedup": "none"
+      },
+      "c1": {
+        "dedup": "none"
+      },
+      "c2": {
+        "dedup": "none"
+      },
+      "ch": {
+        "dedup": "none"
+      }
+    },
+    "database": {
+      "initialState": {
+        "p0": []
+      },
+      "isolation": "read-committed",
+      "tables": [
+        {
+          "columns": [
+            {
+              "name": "id",
+              "notNull": true,
+              "type": "int"
+            },
+            {
+              "name": "v",
+              "type": "int"
+            },
+            {
+              "name": "w",
+              "type": "int"
+            }
+          ],
+          "name": "p0",
+          "primaryKey": [
+            "id"
+          ]
+        }
+      ]
+    },
+    "invariants": [
+      {
+        "assert": {
+          "le": [
+            {
+              "externals": {
+                "channel": "c0"
+              }
+            },
+            1
+          ]
+        },
+        "name": "few-effects",
+        "when": "final"
+      },
+      {
+        "assert": {
+          "ge": [
+            {
+              "count": {
+                "table": "p0",
+                "where": {}
+              }
+            },
+            0
+          ]
+        },
+        "name": "app-count",
+        "when": "final"
+      }
+    ],
+    "name": "adv-75-App",
+    "schemaVersion": 1
+  }
+}

@@ -1,0 +1,452 @@
+{
+  "algorithm": "sdpor[cache]",
+  "defect": "enabler-orders-the-enabled",
+  "minimizedSize": 247,
+  "origin": {
+    "generator": "adversarial",
+    "seed": 53
+  },
+  "original": {
+    "actors": [
+      {
+        "arguments": {},
+        "function": "work",
+        "name": "A0",
+        "process": "P",
+        "program": "begin\nspawn {\nlet r1 = select p0 where @id == 2\nif r1 != null {\n  update p0 where @id == 2 set @v = r1.v + 2\n}\nexternal ch key 1 set n = 1\nlet shared = count p0 where @v >= 0\n} {\nupdate t where @id == 1 set @v = @v + 2 into a2\nif 1 == 1 {\n  fail \"generated failure\"\n}\nlet shared = count t where @v >= 0\n}\njoin\ninsert log set @who = 0 into s3\ncommit\n"
+      },
+      {
+        "arguments": {},
+        "function": "work",
+        "name": "A1",
+        "process": "P",
+        "program": "begin\nspawn {\ninsert p1 set @id = 3, @v = 3, @w = 11 into i4\n} {\nlet c5 = count p1 where @v >= 2\n}\njoin\ncommit\n"
+      }
+    ],
+    "bounds": {
+      "maxCrashes": 1,
+      "maxInFlight": 0,
+      "maxRetries": 0,
+      "maxStates": 300000,
+      "maxSteps": 60
+    },
+    "channels": {
+      "c0": {
+        "dedup": "none"
+      },
+      "c1": {
+        "dedup": "none"
+      },
+      "c2": {
+        "dedup": "none"
+      },
+      "ch": {
+        "dedup": "byKey"
+      }
+    },
+    "database": {
+      "initialState": {
+        "log": [],
+        "p0": [
+          {
+            "id": 1,
+            "v": 1,
+            "w": 21
+          },
+          {
+            "id": 2,
+            "v": 2,
+            "w": 22
+          },
+          {
+            "id": 3,
+            "v": 0,
+            "w": 23
+          }
+        ],
+        "p1": [
+          {
+            "id": 1,
+            "v": 1,
+            "w": 31
+          },
+          {
+            "id": 2,
+            "v": 2,
+            "w": 32
+          },
+          {
+            "id": 3,
+            "v": 0,
+            "w": 33
+          }
+        ],
+        "t": [
+          {
+            "id": 1,
+            "v": 1,
+            "w": 11
+          },
+          {
+            "id": 2,
+            "v": 2,
+            "w": 12
+          },
+          {
+            "id": 3,
+            "v": 0,
+            "w": 13
+          }
+        ]
+      },
+      "isolation": "read-committed",
+      "tables": [
+        {
+          "columns": [
+            {
+              "name": "id",
+              "notNull": true,
+              "type": "int"
+            },
+            {
+              "name": "v",
+              "type": "int"
+            },
+            {
+              "name": "w",
+              "type": "int"
+            }
+          ],
+          "name": "t",
+          "primaryKey": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            {
+              "name": "id",
+              "notNull": true,
+              "type": "int"
+            },
+            {
+              "name": "v",
+              "type": "int"
+            },
+            {
+              "name": "w",
+              "type": "int"
+            }
+          ],
+          "name": "p0",
+          "primaryKey": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            {
+              "name": "id",
+              "notNull": true,
+              "type": "int"
+            },
+            {
+              "name": "v",
+              "type": "int"
+            },
+            {
+              "name": "w",
+              "type": "int"
+            }
+          ],
+          "name": "p1",
+          "primaryKey": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            {
+              "default": {
+                "sequence": {}
+              },
+              "name": "id",
+              "notNull": true,
+              "type": "int"
+            },
+            {
+              "name": "who",
+              "type": "int"
+            }
+          ],
+          "name": "log",
+          "primaryKey": [
+            "id"
+          ]
+        }
+      ]
+    },
+    "invariants": [
+      {
+        "assert": {
+          "le": [
+            {
+              "externals": {
+                "channel": "ch"
+              }
+            },
+            1
+          ]
+        },
+        "name": "few-effects",
+        "when": "final"
+      },
+      {
+        "assert": {
+          "ge": [
+            {
+              "count": {
+                "table": "t",
+                "where": {}
+              }
+            },
+            2
+          ]
+        },
+        "name": "rows-kept",
+        "when": "final"
+      },
+      {
+        "assert": {
+          "le": [
+            {
+              "sum": {
+                "column": "v",
+                "table": "t",
+                "where": {}
+              }
+            },
+            8
+          ]
+        },
+        "name": "sum-bound",
+        "when": "final"
+      },
+      {
+        "assert": {
+          "le": [
+            {
+              "count": {
+                "table": "log",
+                "where": {}
+              }
+            },
+            3
+          ]
+        },
+        "name": "log-small",
+        "when": "final"
+      }
+    ],
+    "name": "adv-53-Mixed",
+    "schemaVersion": 1
+  },
+  "originalSize": 307,
+  "scenario": {
+    "actors": [
+      {
+        "arguments": {},
+        "function": "work",
+        "name": "A0",
+        "process": "P",
+        "program": "spawn {\nlet r1 = select p0 where @id == 2\n}\ncommit\n"
+      },
+      {
+        "arguments": {},
+        "function": "work",
+        "name": "A1",
+        "process": "P",
+        "program": "spawn {\nlet c5 = count p1 where @v >= 2\n}\njoin\ncommit\n"
+      }
+    ],
+    "bounds": {
+      "maxCrashes": 1,
+      "maxInFlight": 0,
+      "maxRetries": 0,
+      "maxStates": 300000,
+      "maxSteps": 60
+    },
+    "channels": {
+      "c0": {
+        "dedup": "none"
+      },
+      "c1": {
+        "dedup": "none"
+      },
+      "c2": {
+        "dedup": "none"
+      },
+      "ch": {
+        "dedup": "byKey"
+      }
+    },
+    "database": {
+      "initialState": {
+        "log": [],
+        "p0": [],
+        "p1": [],
+        "t": []
+      },
+      "isolation": "read-committed",
+      "tables": [
+        {
+          "columns": [
+            {
+              "name": "id",
+              "notNull": true,
+              "type": "int"
+            },
+            {
+              "name": "v",
+              "type": "int"
+            },
+            {
+              "name": "w",
+              "type": "int"
+            }
+          ],
+          "name": "t",
+          "primaryKey": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            {
+              "name": "id",
+              "notNull": true,
+              "type": "int"
+            },
+            {
+              "name": "v",
+              "type": "int"
+            },
+            {
+              "name": "w",
+              "type": "int"
+            }
+          ],
+          "name": "p0",
+          "primaryKey": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            {
+              "name": "id",
+              "notNull": true,
+              "type": "int"
+            },
+            {
+              "name": "v",
+              "type": "int"
+            },
+            {
+              "name": "w",
+              "type": "int"
+            }
+          ],
+          "name": "p1",
+          "primaryKey": [
+            "id"
+          ]
+        },
+        {
+          "columns": [
+            {
+              "default": {
+                "sequence": {}
+              },
+              "name": "id",
+              "notNull": true,
+              "type": "int"
+            },
+            {
+              "name": "who",
+              "type": "int"
+            }
+          ],
+          "name": "log",
+          "primaryKey": [
+            "id"
+          ]
+        }
+      ]
+    },
+    "invariants": [
+      {
+        "assert": {
+          "le": [
+            {
+              "externals": {
+                "channel": "ch"
+              }
+            },
+            1
+          ]
+        },
+        "name": "few-effects",
+        "when": "final"
+      },
+      {
+        "assert": {
+          "ge": [
+            {
+              "count": {
+                "table": "t",
+                "where": {}
+              }
+            },
+            2
+          ]
+        },
+        "name": "rows-kept",
+        "when": "final"
+      },
+      {
+        "assert": {
+          "le": [
+            {
+              "sum": {
+                "column": "v",
+                "table": "t",
+                "where": {}
+              }
+            },
+            8
+          ]
+        },
+        "name": "sum-bound",
+        "when": "final"
+      },
+      {
+        "assert": {
+          "le": [
+            {
+              "count": {
+                "table": "log",
+                "where": {}
+              }
+            },
+            3
+          ]
+        },
+        "name": "log-small",
+        "when": "final"
+      }
+    ],
+    "name": "adv-53-Mixed",
+    "schemaVersion": 1
+  }
+}
