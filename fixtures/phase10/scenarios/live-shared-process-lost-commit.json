@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "name": "live-shared-process-lost-commit",
+  "description": "FIRST-PARTY APPLICATION (fixtures/phase10/ledger-live): two request handlers run as tasks of ONE process with a pool of two connections; one handler's COMMIT loses its connection, the process and the other handler go on, the first retries in process.",
+  "extraction": {
+    "root": "../ledger-live",
+    "externals": [],
+    "schema": "src/lib/db/schema.ts"
+  },
+  "channels": {},
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "from": "payments",
+        "columns": [
+          "id",
+          "requestId",
+          "orderId",
+          "amount"
+        ]
+      }
+    ],
+    "initialState": {
+      "payments": []
+    }
+  },
+  "actors": [
+    {
+      "name": "Client",
+      "entry": {
+        "selector": "src/app/payments.ts#recordPaymentRetryInProcess",
+        "invocation": "awaited"
+      },
+      "arguments": [
+        {
+          "requestId": "req-1",
+          "orderId": 1,
+          "amount": 500
+        }
+      ],
+      "description": "a request handler whose process survives a broken database connection and retries once",
+      "process": "P"
+    },
+    {
+      "name": "Other",
+      "entry": {
+        "selector": "src/app/payments.ts#recordPaymentRetryInProcess",
+        "invocation": "awaited"
+      },
+      "arguments": [
+        {
+          "requestId": "req-2",
+          "orderId": 2,
+          "amount": 300
+        }
+      ],
+      "description": "a request handler whose process survives a broken database connection and retries once",
+      "process": "P"
+    }
+  ],
+  "bounds": {
+    "maxSteps": 60,
+    "maxCrashes": 0,
+    "maxRetries": 0,
+    "maxInFlight": 1
+  },
+  "invariants": [
+    {
+      "name": "recorded-at-most-once",
+      "when": "final",
+      "description": "two requests record at most two payments",
+      "assert": {
+        "le": [
+          {
+            "count": {
+              "table": "payments",
+              "where": {}
+            }
+          },
+          2
+        ]
+      }
+    }
+  ],
+  "sourceVerification": {
+    "harness": "../ledger-live/commitrift-source-pool2.json",
+    "actors": {
+      "Client": {
+        "entry": "recordPaymentRetryInProcess",
+        "input": {
+          "requestId": "req-1",
+          "orderId": 1,
+          "amount": 500
+        }
+      },
+      "Other": {
+        "entry": "recordPaymentRetryInProcess",
+        "input": {
+          "requestId": "req-2",
+          "orderId": 2,
+          "amount": 300
+        }
+      }
+    }
+  },
+  "pools": {
+    "P": 2
+  }
+}

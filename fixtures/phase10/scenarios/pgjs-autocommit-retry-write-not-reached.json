@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "name": "pgjs-autocommit-retry-write-not-reached",
+  "description": "FIRST-PARTY APPLICATION (fixtures/phase10/ledger-pgjs (postgres-js 3.4.5)): an autocommit INSERT never reaches PostgreSQL, the connection breaks, the process lives and inserts again.",
+  "extraction": {
+    "root": "../ledger-pgjs",
+    "externals": [],
+    "schema": "src/lib/db/schema.ts"
+  },
+  "channels": {},
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "from": "payments",
+        "columns": [
+          "id",
+          "requestId",
+          "orderId",
+          "amount"
+        ]
+      }
+    ],
+    "initialState": {
+      "payments": []
+    }
+  },
+  "actors": [
+    {
+      "name": "Client",
+      "entry": {
+        "selector": "src/app/payments.ts#recordPaymentAutocommitRetryInProcess",
+        "invocation": "awaited"
+      },
+      "arguments": [
+        {
+          "requestId": "req-1",
+          "orderId": 1,
+          "amount": 500
+        }
+      ],
+      "description": "a request handler whose process survives a broken database connection and retries once"
+    }
+  ],
+  "bounds": {
+    "maxSteps": 60,
+    "maxCrashes": 0,
+    "maxRetries": 0,
+    "maxInFlight": 1
+  },
+  "invariants": [
+    {
+      "name": "recorded-at-least-once",
+      "when": "final",
+      "description": "the request ends up recorded (the retry did its job)",
+      "assert": {
+        "ge": [
+          {
+            "count": {
+              "table": "payments",
+              "where": {}
+            }
+          },
+          1
+        ]
+      }
+    }
+  ],
+  "sourceVerification": {
+    "harness": "../ledger-pgjs/commitrift-source.json",
+    "actors": {
+      "Client": {
+        "entry": "recordPaymentAutocommitRetryInProcess",
+        "input": {
+          "requestId": "req-1",
+          "orderId": 1,
+          "amount": 500
+        }
+      }
+    },
+    "recoveryProbe": {
+      "require": [
+        "lost-not-committed:Client"
+      ]
+    }
+  }
+}

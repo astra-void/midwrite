@@ -1,0 +1,219 @@
+// Recording a payment. A client that gets no answer (the server crashed, the
+// connection dropped while the COMMIT was in flight) submits the same request
+// again, so each function must cope with a COMMIT whose outcome it never
+// learned. They differ in how.
+import { eq } from "drizzle-orm";
+
+import { db } from "../lib/db/drizzle.js";
+import { auditLog, ledger, orders, payments } from "../lib/db/schema.js";
+import { publishConfirmation } from "../lib/messaging/confirmations.js";
+
+export interface PayInput {
+  requestId: string;
+  orderId: number;
+  amount: number;
+}
+
+/** Blind: every submission records a payment, then confirms. */
+export async function recordPayment(input: PayInput) {
+  await db.transaction(async (tx) => {
+    await tx.insert(payments).values({
+      requestId: input.requestId,
+      orderId: input.orderId,
+      amount: input.amount,
+    });
+  });
+  await publishConfirmation({ orderId: input.orderId, requestId: input.requestId });
+  return { status: "recorded" };
+}
+
+/**
+ * Idempotency key: the database allows one ledger row per request id, and a
+ * repeated insert does nothing.
+ */
+export async function recordPaymentIdempotent(input: PayInput) {
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(ledger)
+      .values({ requestId: input.requestId, orderId: input.orderId, amount: input.amount })
+      .onConflictDoNothing();
+  });
+  await publishConfirmation({ orderId: input.orderId, requestId: input.requestId });
+  return { status: "recorded" };
+}
+
+/**
+ * Reconciliation: look for the request in the table first and record the
+ * payment only when it is not there. The read happens before the insert,
+ * and nothing makes the two atomic.
+ */
+export async function recordPaymentReconciled(input: PayInput) {
+  const [existing] = await db
+    .select()
+    .from(payments)
+    .where(eq(payments.requestId, input.requestId))
+    .limit(1);
+  if (existing) {
+    return { status: "already-recorded" };
+  }
+  await db.transaction(async (tx) => {
+    await tx.insert(payments).values({
+      requestId: input.requestId,
+      orderId: input.orderId,
+      amount: input.amount,
+    });
+  });
+  return { status: "recorded" };
+}
+
+/**
+ * Outside a transaction: record the payment in the ledger, then mark the
+ * order paid. Each write commits by itself, so the acknowledgment of the
+ * second one can be lost while the write itself is durable.
+ */
+export async function settleOrder(input: PayInput) {
+  await db
+    .insert(ledger)
+    .values({ requestId: input.requestId, orderId: input.orderId, amount: input.amount })
+    .onConflictDoNothing();
+  await db.update(orders).set({ status: "paid" }).where(eq(orders.id, input.orderId));
+  return { status: "settled" };
+}
+
+/** Blind autocommit: every submission records a payment. */
+export async function recordPaymentAutocommit(input: PayInput) {
+  await db.insert(payments).values({
+    requestId: input.requestId,
+    orderId: input.orderId,
+    amount: input.amount,
+  });
+  return { status: "recorded" };
+}
+
+/**
+ * Settle a payment in a transaction and write the audit row through the pool
+ * "because it does not need the transaction". With a pool of one connection
+ * the audit insert waits for a connection that the open transaction holds,
+ * and the transaction waits for the audit insert.
+ */
+export async function settleWithAudit(input: PayInput) {
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(ledger)
+      .values({ requestId: input.requestId, orderId: input.orderId, amount: input.amount })
+      .onConflictDoNothing();
+    await Promise.all([db.insert(auditLog).values({ requestId: input.requestId, event: "settled" })]);
+  });
+  return { status: "settled" };
+}
+
+/** Tell the customer about a payment that another request recorded. */
+export async function notifyPayment(input: PayInput) {
+  await publishConfirmation({ orderId: input.orderId, requestId: input.requestId });
+  return { status: "notified" };
+}
+
+// ---------------------------------------------------------------------------
+// Phase 10: recovery inside the process that sees the failure. The process
+// survives a broken connection; the application decides, from the error it
+// gets, what to do. Each function retries ONCE after any error, the way a
+// service wrapper (or an impatient developer) typically does, and differs only
+// in what the retry does.
+// ---------------------------------------------------------------------------
+
+/** Blind: on any error, record the payment again. */
+export async function recordPaymentRetryInProcess(input: PayInput) {
+  try {
+    await db.transaction(async (tx) => {
+      await tx.insert(payments).values({
+        requestId: input.requestId,
+        orderId: input.orderId,
+        amount: input.amount,
+      });
+    });
+  } catch (error) {
+    await db.transaction(async (tx) => {
+      await tx.insert(payments).values({
+        requestId: input.requestId,
+        orderId: input.orderId,
+        amount: input.amount,
+      });
+    });
+  }
+  return { status: "recorded" };
+}
+
+/**
+ * Idempotency key: one ledger row per request id; the retry repeats the same
+ * insert, which does nothing when the first one is durable.
+ */
+export async function recordPaymentIdempotentRetryInProcess(input: PayInput) {
+  try {
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(ledger)
+        .values({ requestId: input.requestId, orderId: input.orderId, amount: input.amount })
+        .onConflictDoNothing();
+    });
+  } catch (error) {
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(ledger)
+        .values({ requestId: input.requestId, orderId: input.orderId, amount: input.amount })
+        .onConflictDoNothing();
+    });
+  }
+  return { status: "recorded" };
+}
+
+/**
+ * Reconciliation: after an error, look for the request and record the payment
+ * only when it is not there. Nothing makes the look and the insert atomic with
+ * the first attempt's COMMIT, which the server may still complete.
+ */
+export async function recordPaymentReconciledRetryInProcess(input: PayInput) {
+  try {
+    await db.transaction(async (tx) => {
+      await tx.insert(payments).values({
+        requestId: input.requestId,
+        orderId: input.orderId,
+        amount: input.amount,
+      });
+    });
+  } catch (error) {
+    const [existing] = await db
+      .select()
+      .from(payments)
+      .where(eq(payments.requestId, input.requestId))
+      .limit(1);
+    if (existing) {
+      return { status: "already-recorded" };
+    }
+    await db.transaction(async (tx) => {
+      await tx.insert(payments).values({
+        requestId: input.requestId,
+        orderId: input.orderId,
+        amount: input.amount,
+      });
+    });
+  }
+  return { status: "recorded" };
+}
+
+/** Blind autocommit: the write commits by itself, so does the retry. */
+export async function recordPaymentAutocommitRetryInProcess(input: PayInput) {
+  try {
+    await db.insert(payments).values({
+      requestId: input.requestId,
+      orderId: input.orderId,
+      amount: input.amount,
+    });
+  } catch (error) {
+    await db.insert(payments).values({
+      requestId: input.requestId,
+      orderId: input.orderId,
+      amount: input.amount,
+    });
+  }
+  return { status: "recorded" };
+}

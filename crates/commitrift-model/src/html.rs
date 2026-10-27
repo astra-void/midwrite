@@ -92,6 +92,7 @@ fn evidence_class(l: EvidenceLevel) -> &'static str {
         | EvidenceLevel::OriginalCodeReproduced
         | EvidenceLevel::OriginalCodeCrashReproduced
         | EvidenceLevel::OriginalCodeInFlightFailureReproduced
+        | EvidenceLevel::OriginalCodeConnectionLossReproduced
         | EvidenceLevel::OriginalCodeRecoveryReproduced
         | EvidenceLevel::OriginalCodeInvariantHeld => "ev-pg",
         _ => "ev-none",
@@ -110,6 +111,9 @@ fn evidence_label(l: EvidenceLevel) -> &'static str {
         }
         EvidenceLevel::OriginalCodeCrashReproduced => {
             "ORIGINAL CODE CRASH REPRODUCED (workers killed and retried on PostgreSQL)"
+        }
+        EvidenceLevel::OriginalCodeConnectionLossReproduced => {
+            "ORIGINAL CODE CONNECTION LOSS REPRODUCED (a connection broke under a live process; bounded)"
         }
         EvidenceLevel::OriginalCodeInFlightFailureReproduced => {
             "ORIGINAL CODE IN-FLIGHT FAILURE REPRODUCED (operation in flight when the worker was killed; wire and PostgreSQL state observed)"
@@ -137,7 +141,9 @@ pub fn model_check_html(r: &ModelCheckReport) -> String {
         r.actors.len(),
         r.exploration.metrics.states,
         r.exploration.metrics.transitions,
-        if r.bounds.reduction.as_deref() == Some("dpor") {
+        if r.bounds.reduction.as_deref() == Some("source-dpor") {
+            " · source-set dynamic partial-order reduction"
+        } else if r.bounds.reduction.as_deref() == Some("dpor") {
             " · dynamic partial-order reduction"
         } else if r.bounds.partial_order_reduction {
             " · sleep-set reduction"
@@ -689,8 +695,11 @@ fn recovery_timeline(
     for c in &rec.crashes {
         add(format!("{}#{}", c.actor, c.attempt));
     }
+    for l in &rec.losses {
+        add(format!("{}#{}", l.actor, l.attempt));
+    }
     lanes.sort();
-    let has_proxy = rec.crashes.iter().any(|c| c.in_flight.is_some());
+    let has_proxy = rec.crashes.iter().any(|c| c.in_flight.is_some()) || !rec.losses.is_empty();
     let columns: Vec<String> = lanes
         .iter()
         .cloned()
@@ -712,6 +721,7 @@ fn recovery_timeline(
     transitions.extend(rec.crashes.iter().map(|c| c.transition));
     transitions.extend(rec.restarts.iter().map(|r| r.transition));
     transitions.extend(rec.completions.iter().map(|c| c.transition));
+    transitions.extend(rec.losses.iter().map(|l| l.transition));
     let row = |b: &mut String, t: usize, cells: Vec<(usize, String, &str)>| {
         let _ = write!(b, "<tr><td class=\"t\">{t}</td>");
         for (i, _) in columns.iter().enumerate() {
@@ -850,6 +860,88 @@ fn recovery_timeline(
                             c.sessions_ended,
                             c.sessions_ended_ms,
                             if c.status == "agree" {
+                                "agree with"
+                            } else {
+                                "DIFFER from"
+                            }
+                        ),
+                        "lane-db",
+                    ),
+                ],
+            );
+        }
+        for l in rec.losses.iter().filter(|l| l.transition == t) {
+            // Phase 10: the connection broke; the process lived.
+            let lane = lane_of(&format!("{}#{}", l.actor, l.attempt));
+            let proxy = lane_of("Protocol proxy (wire)");
+            let wire = l
+                .wire_events
+                .iter()
+                .map(|e| escape(e))
+                .collect::<Vec<_>>()
+                .join("<br>");
+            let dead = l
+                .dead_connection_statements
+                .iter()
+                .map(|d| escape(d))
+                .collect::<Vec<_>>()
+                .join("<br>");
+            row(
+                b,
+                t,
+                vec![
+                    (
+                        lane,
+                        format!(
+                            "{} sent <span class=\"tag-observed\">observed</span><br>⚡ CONNECTION BROKEN — process pid {} {}<br>driver error: <code>{}</code>{}<br><span class=\"tag-inferred\">inferred</span> {}",
+                            escape(&l.operation),
+                            l.worker_pid,
+                            if l.worker_alive_after {
+                                "alive afterwards (operating system)"
+                            } else {
+                                "NOT alive afterwards"
+                            },
+                            escape(&l.driver_error),
+                            if dead.is_empty() {
+                                String::new()
+                            } else {
+                                format!(
+                                    "<br><span class=\"muted\">on the broken client: {dead}</span>"
+                                )
+                            },
+                            escape(&l.application_knowledge)
+                        ),
+                        "lane-crash",
+                    ),
+                    (
+                        proxy,
+                        format!(
+                            "<span class=\"tag-observed\">observed</span> {}<br><span class=\"muted\">{}</span>{}",
+                            escape(&l.mechanism),
+                            wire,
+                            if l.server_answer.is_empty() {
+                                String::new()
+                            } else {
+                                format!(
+                                    "<br>server answer: <code>{}</code>",
+                                    escape(&l.server_answer)
+                                )
+                            }
+                        ),
+                        "lane-proxy",
+                    ),
+                    (
+                        db,
+                        format!(
+                            "<span class=\"tag-observed\">observed by PostgreSQL</span> backend <code>{}</code> before the break; session {}; physical outcome: {}; committed rows {} the model",
+                            escape(&l.backend_state_before),
+                            if l.session_open {
+                                "still open (held)"
+                            } else {
+                                "ended"
+                            },
+                            escape(&l.physical_outcome),
+                            if l.status == "agree" {
                                 "agree with"
                             } else {
                                 "DIFFER from"

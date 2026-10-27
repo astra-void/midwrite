@@ -28,8 +28,9 @@ use std::time::Duration;
 use serde_json::Value as Json;
 
 use commitrift_replay::source::{
-    self, ActorLaunch, CrashStep, Expected, Fate, InFlightStep, LoadedSource, Observed, PlanStep,
-    Region, RestartStep, RunRequest, ServerCompleteStep, SourceRun, SqlKind, StuckStep,
+    self, ActorLaunch, ConnectionLossStep, CrashStep, Expected, Fate, InFlightStep, LoadedSource,
+    Observed, PlanStep, Region, RestartStep, RunRequest, ServerCompleteStep, SourceRun, SqlKind,
+    StuckStep,
 };
 
 use crate::db::{ColumnDefault, INITIAL_TXN, RowId, TableSchema, Version};
@@ -40,7 +41,7 @@ use crate::ir::{Conn, Op, Origin, ProjItem, SourceRef, StmtKind};
 use crate::model::Model;
 use crate::provider::EntryInfo;
 pub use crate::source_types::{
-    CompletionCheck, CrashCheck, EffectComparison, InFlightCheck, RecoveryVerification,
+    CompletionCheck, CrashCheck, EffectComparison, InFlightCheck, LossCheck, RecoveryVerification,
     RestartCheck, RunSummary, SourceActor, SourceSpec, SourceVerification, StatementComparison,
 };
 use crate::state::{ClosedStmt, ExternalEvent, State, TKind, TStatus, Transition};
@@ -121,6 +122,20 @@ struct RestartPrediction {
     mechanism: String,
 }
 
+/// Phase 10: what the model predicts when a connection breaks under a live
+/// worker.
+#[derive(Clone, Debug)]
+struct LossPrediction {
+    transition: usize,
+    actor: usize,
+    attempt: u32,
+    fate: Fate,
+    label: String,
+    /// Committed rows once the server side of the loss has settled: with the
+    /// server's completion for an answered operation, without it otherwise.
+    tables: BTreeMap<String, Vec<Row>>,
+}
+
 #[derive(Default)]
 struct Plan {
     steps: Vec<PlanStep>,
@@ -128,6 +143,7 @@ struct Plan {
     crashes: Vec<CrashPrediction>,
     restarts: Vec<RestartPrediction>,
     completions: Vec<CompletionPrediction>,
+    losses: Vec<LossPrediction>,
 }
 
 fn region(src: &SourceRef) -> Option<Region> {
@@ -328,7 +344,93 @@ fn plan(model: &Model, schedule: &[Transition]) -> Result<Plan, String> {
         match t.kind {
             TKind::Deadlock => return Err("the counterexample picks a deadlock victim: victim steering is not done against original code".to_owned()),
             TKind::LostCommitted | TKind::LostNotCommitted => {
-                return Err("a lost acknowledgment with a live process (a broken connection) is not planned against original code: only a process crash with the operation in flight is".to_owned());
+                // A broken connection with the process alive (Phase 10): the
+                // proxy closes the client's connection; the worker is not
+                // touched and its application code goes on.
+                let a = t.actor as usize;
+                let reached = t.kind == TKind::LostCommitted;
+                let (next, waiting, _) = checkpoint(model, &state, a, i + 1)?;
+                let Some(operation) = next.filter(|_| !waiting) else {
+                    return Err(format!(
+                        "{} has no operation whose connection can be broken at runtime",
+                        model.actors[a].name
+                    ));
+                };
+                if !matches!(
+                    operation.kind,
+                    SqlKind::Commit | SqlKind::Insert | SqlKind::Update | SqlKind::Delete
+                ) {
+                    return Err(format!(
+                        "{}: only a COMMIT or an autocommit write can have its connection broken at runtime (the model breaks {})",
+                        model.actors[a].name, operation.label
+                    ));
+                }
+                let applied = apply(model, &state, *t, &mut Recorder::off())
+                    .map_err(|u| format!("the schedule reaches unsupported behavior: {}", u.detail))?;
+                let mut immediate = None;
+                let fate = if !reached {
+                    Fate::NotReached
+                } else {
+                    let orphan = applied
+                        .state
+                        .orphans
+                        .iter()
+                        .find(|o| {
+                            o.actor as usize == a
+                                && !state.orphans.iter().any(|p| p.actor == o.actor && p.seq == o.seq)
+                        })
+                        .ok_or("the model holds no operation for an actor whose connection broke after the server received it")?;
+                    // The server completing the operation right away is one
+                    // observable fact (its answer, withheld); completing it
+                    // after the application has done something else is another
+                    // (the operation held until then).
+                    match schedule.get(i + 1) {
+                        Some(n)
+                            if n.kind == TKind::ServerComplete
+                                && n.actor == orphan.actor
+                                && u32::from(n.thread) == orphan.seq =>
+                        {
+                            immediate = Some(*n);
+                            Fate::AnsweredAndWithheld
+                        }
+                        _ => Fate::HeldForLaterDelivery,
+                    }
+                };
+                let mut settled = applied.state.clone();
+                if let Some(n) = immediate {
+                    settled = apply(model, &settled, n, &mut Recorder::off())
+                        .map_err(|u| format!("the schedule reaches unsupported behavior: {}", u.detail))?
+                        .state;
+                    skip_completion.insert(i + 1);
+                }
+                let label = format!(
+                    "{} with its connection broken, {}",
+                    operation.label,
+                    match fate {
+                        Fate::NotReached => "never received by the server",
+                        Fate::AnsweredAndWithheld =>
+                            "completed by the server, answer lost with the connection",
+                        Fate::HeldForLaterDelivery =>
+                            "received by the server only later (after the application has gone on)",
+                    }
+                );
+                out.steps.push(PlanStep::ConnectionLoss(ConnectionLossStep {
+                    actor: a,
+                    transition: i + 1,
+                    operation,
+                    fate,
+                    label: label.clone(),
+                }));
+                out.losses.push(LossPrediction {
+                    transition: i + 1,
+                    actor: a,
+                    attempt: state.actors[a].attempt + 1,
+                    fate,
+                    label,
+                    tables: committed(model, &settled),
+                });
+                state = applied.state;
+                continue;
             }
             TKind::ServerComplete => {
                 let orphan = state
@@ -1387,6 +1489,7 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
     assumptions.push("Only the columns the scenario models are compared; other columns of the application's tables keep their database defaults.".to_owned());
     let names: Vec<String> = model.actors.iter().map(|a| a.name.clone()).collect();
     let has_recovery = !plan.crashes.is_empty()
+        || !plan.losses.is_empty()
         || !plan.restarts.is_empty()
         || !plan.completions.is_empty()
         || plan.predictions.iter().any(|p| p.effect.is_some());
@@ -1431,7 +1534,9 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
         let run: SourceRun = source::run(&RunRequest {
             harness: req.harness,
             allow_execution: req.allow_execution,
-            keep_artifacts: false,
+            // A debugging aid: keep the private run directory (worker logs)
+            // when asked; never the default.
+            keep_artifacts: std::env::var_os("COMMITRIFT_KEEP_ARTIFACTS").is_some(),
             actors: &launches,
             plan: &plan.steps,
             seed_sql: &seed,
@@ -1711,6 +1816,126 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
                 check
             })
             .collect();
+        let loss_checks: Vec<LossCheck> = plan
+            .losses
+            .iter()
+            .map(|l| {
+                let name = |f: &Fate| match f {
+                    Fate::NotReached => "not-reached",
+                    Fate::AnsweredAndWithheld => "answered-and-withheld",
+                    Fate::HeldForLaterDelivery => "held-for-later-delivery",
+                };
+                let mut check = LossCheck {
+                    transition: l.transition,
+                    actor: names[l.actor].clone(),
+                    attempt: l.attempt,
+                    operation: l.label.clone(),
+                    model_fate: name(&l.fate).to_owned(),
+                    model_tables: l.tables.clone(),
+                    status: "not-observed".to_owned(),
+                    application_knowledge: "ambiguous: the application received a driver error for the operation; the error is the same whether or not PostgreSQL executed it".to_owned(),
+                    physical_outcome: match l.fate {
+                        Fate::NotReached => "not committed (the server never received the operation; PostgreSQL rolled the transaction back)",
+                        Fate::AnsweredAndWithheld => "completed by the server (its answer was observed on the wire before the connection was closed)",
+                        Fate::HeldForLaterDelivery => "pending on the server: the operation reaches PostgreSQL only later",
+                    }
+                    .to_owned(),
+                    ..LossCheck::default()
+                };
+                let Some(e) = run
+                    .connection_losses
+                    .iter()
+                    .find(|e| e.transition == l.transition && e.actor == l.actor)
+                else {
+                    return check;
+                };
+                check.observed_fate.clone_from(&e.fate);
+                check.mechanism.clone_from(&e.mechanism);
+                check.forwarded_to_server = e.forwarded_to_server;
+                check.withheld_from_server = e.withheld_from_server;
+                check.server_answer.clone_from(&e.server_answer);
+                check.client_severed = e.client_severed;
+                check.worker_pid = e.worker_pid;
+                check.worker_alive_after = e.worker_alive_after;
+                check.worker_connected_after = e.worker_connected_after;
+                check.driver_error.clone_from(&e.driver_error);
+                check.driver_sqlstate.clone_from(&e.driver_sqlstate);
+                check.backend_state_before.clone_from(&e.backend_state_before);
+                check.backend_pid = e.backend_pid;
+                check.session_ended = e.session_ended;
+                check.session_open = e.session_open;
+                check.dead_connection_statements.clone_from(&e.dead_connection_statements);
+                check.later_backend_pids.clone_from(&e.later_backend_pids);
+                check.wire_events.clone_from(&e.proxy_events);
+                check.runtime_tables = rows_of(&e.tables);
+                if e.attempt != l.attempt {
+                    check.differences.push(format!(
+                        "execution: model #{}, observed #{}",
+                        l.attempt, e.attempt
+                    ));
+                }
+                if e.fate != check.model_fate {
+                    check
+                        .differences
+                        .push(format!("fate: model {}, run {}", check.model_fate, e.fate));
+                }
+                if !e.client_severed {
+                    check
+                        .differences
+                        .push("the proxy did not close the client connection".to_owned());
+                }
+                if !e.worker_alive_after {
+                    check.differences.push(
+                        "the worker process did not survive the broken connection (the fault was a kill, not a connection loss)".to_owned(),
+                    );
+                }
+                if e.driver_error.is_empty() {
+                    check.differences.push(
+                        "the driver reported no error to the application".to_owned(),
+                    );
+                }
+                match l.fate {
+                    Fate::AnsweredAndWithheld if e.server_answer.is_empty() => check
+                        .differences
+                        .push("PostgreSQL's answer to the operation was not observed".to_owned()),
+                    Fate::HeldForLaterDelivery if !e.session_open => check.differences.push(
+                        "the server session did not survive although the operation was to be delivered later".to_owned(),
+                    ),
+                    Fate::NotReached | Fate::AnsweredAndWithheld if !e.session_ended => check
+                        .differences
+                        .push("the backend session did not end after the loss".to_owned()),
+                    _ => {}
+                }
+                if c_is_commit(&check.operation)
+                    && !matches!(l.fate, Fate::AnsweredAndWithheld)
+                    && e.backend_state_before != "idle in transaction"
+                {
+                    check.differences.push(format!(
+                        "the backend was `{}` instead of `idle in transaction` while the COMMIT was withheld",
+                        e.backend_state_before
+                    ));
+                }
+                if let Some(old) = e.backend_pid
+                    && e.later_backend_pids.contains(&old)
+                {
+                    check.differences.push(
+                        "the application kept using the broken connection's backend".to_owned(),
+                    );
+                }
+                if check.runtime_tables != check.model_tables {
+                    check.differences.push(
+                        "the committed rows after the loss differ from the model's".to_owned(),
+                    );
+                }
+                check.status = if check.differences.is_empty() {
+                    "agree"
+                } else {
+                    "differ"
+                }
+                .to_owned();
+                check
+            })
+            .collect();
         let model_effects: Vec<String> = req
             .final_state
             .externals
@@ -1780,6 +2005,7 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
         let attempts_agree = attempts.iter().all(|(_, m, r)| m == r);
         let recovery_agrees = has_recovery.then(|| {
             crash_checks.iter().all(|c| c.status == "agree")
+                && loss_checks.iter().all(|c| c.status == "agree")
                 && restart_checks.iter().all(|r| r.status == "agree")
                 && completion_checks.iter().all(|c| c.status == "agree")
                 && effects_agree
@@ -1913,6 +2139,7 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
                     crashes: crash_checks,
                     restarts: restart_checks,
                     completions: completion_checks,
+                    losses: loss_checks,
                     effects: EffectComparison {
                         model: model_effects,
                         runtime: runtime_effects,
@@ -1928,7 +2155,8 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
     }
     let all = |f: &dyn Fn(&RunSummary) -> bool| out.runs.iter().all(f);
     let any = |f: &dyn Fn(&RunSummary) -> bool| out.runs.iter().any(f);
-    let crash_or_retry = !plan.crashes.is_empty() || !plan.restarts.is_empty();
+    let crash_or_retry =
+        !plan.crashes.is_empty() || !plan.restarts.is_empty() || !plan.losses.is_empty();
     out.status = if req.probe {
         if all(&|r| r.recovery_reproduced == Some(true)) {
             if crash_or_retry {
@@ -1967,6 +2195,16 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
             .any(|s| matches!(s, PlanStep::InFlight(_)));
         if in_flight && out.evidence == "ORIGINAL_CODE_CRASH_REPRODUCED" {
             out.evidence = "ORIGINAL_CODE_IN_FLIGHT_FAILURE_REPRODUCED".to_owned();
+        }
+        // Phase 10: a connection that broke while the worker lived is a
+        // different failure from a process that died; it gets its own label.
+        if !plan.losses.is_empty()
+            && matches!(
+                out.evidence.as_str(),
+                "ORIGINAL_CODE_CRASH_REPRODUCED" | "ORIGINAL_CODE_IN_FLIGHT_FAILURE_REPRODUCED"
+            )
+        {
+            out.evidence = "ORIGINAL_CODE_CONNECTION_LOSS_REPRODUCED".to_owned();
         }
     }
     out

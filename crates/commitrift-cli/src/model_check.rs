@@ -27,6 +27,16 @@ pub enum FaultMode {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub enum SourceDporArg {
+    /// Sleep sets and a state cache with per-state summaries.
+    StatefulSleep,
+    /// A state cache with per-state summaries.
+    Stateful,
+    /// Sleep sets without a state cache.
+    StatelessSleep,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 pub enum StrategyArg {
     Bfs,
     Dfs,
@@ -56,6 +66,21 @@ pub struct ModelCheckArgs {
     /// an `always` invariant.
     #[arg(long, conflicts_with = "no_por")]
     pub dpor: bool,
+    /// Use source-set dynamic partial-order reduction (Phase 10) instead of
+    /// sleep sets: the same properties as `--dpor` (final invariants,
+    /// deadlocks and stuck states; refused with an `always` invariant or a
+    /// context-switch bound), with sleep sets and/or a state cache so that
+    /// equivalent executions are not explored again. Experimental; sleep
+    /// sets stay the default.
+    #[arg(
+        long,
+        value_enum,
+        value_name = "MODE",
+        num_args = 0..=1,
+        default_missing_value = "stateful-sleep",
+        conflicts_with_all = ["no_por", "dpor"]
+    )]
+    pub source_dpor: Option<SourceDporArg>,
     /// Search strategy when reduction is off (reduction implies depth-first).
     #[arg(long, value_enum)]
     pub strategy: Option<StrategyArg>,
@@ -213,6 +238,14 @@ pub fn model_check(args: &ModelCheckArgs) -> Result<u8, String> {
     }
     if args.dpor {
         model.options.dpor = true;
+    }
+    if let Some(m) = args.source_dpor {
+        use commitrift_model::model::SourceDpor as M;
+        model.options.source_dpor = Some(match m {
+            SourceDporArg::StatefulSleep => M::StatefulSleep,
+            SourceDporArg::Stateful => M::Stateful,
+            SourceDporArg::StatelessSleep => M::StatelessSleep,
+        });
     }
     if let Some(s) = args.strategy {
         model.options.strategy = match s {

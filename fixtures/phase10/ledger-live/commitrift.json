@@ -1,0 +1,6 @@
+{
+  "databaseReceivers": ["db", "tx"],
+  "externalEffects": [
+    { "function": "publishConfirmation", "category": "message-publish" }
+  ]
+}

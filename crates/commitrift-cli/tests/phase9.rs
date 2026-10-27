@@ -462,9 +462,15 @@ fn the_in_flight_fault_mode_needs_a_budget_for_it() {
 }
 
 #[test]
-fn a_lost_acknowledgment_with_a_live_process_is_refused_not_faked() {
-    // Connection loss while the process lives has no runtime realization yet:
-    // the schedule is refused (UNSUPPORTED), never approximated by a crash.
+fn a_lost_acknowledgment_with_a_live_process_is_a_broken_connection_not_a_kill() {
+    // Phase 9 refused this schedule (UNSUPPORTED). Phase 10 realizes it: the
+    // proxy closes the client's connection and the worker is not touched.
+    // The Phase 9 harness attaches no error handler to checked-out clients,
+    // so node-postgres's `error` event is unhandled and the process ends: the
+    // run DIVERGES from the model (which predicts a live process), and says
+    // why. It is never approximated by a kill, and never reported as a
+    // reproduction.
+    require_source_run!();
     let file = temp_scenario("ledger-blind-commit-in-flight.json", |doc| {
         doc["bounds"]["maxCrashes"] = 0.into();
         doc["bounds"].as_object_mut().unwrap().remove("crashPolicy");
@@ -473,9 +479,18 @@ fn a_lost_acknowledgment_with_a_live_process_is_refused_not_faked() {
     let (_, r) = model_check_json(&file, &["--verify-source", "--allow-execution"]);
     remove_temp(&file);
     let sv = &r["sourceVerification"];
-    assert_eq!(sv["status"], "unsupported", "{sv:#}");
-    assert_eq!(sv["evidence"], "UNSUPPORTED");
-    assert!(sv["problems"][0].as_str().unwrap().contains("live process"));
+    assert_eq!(sv["status"], "diverged", "{sv:#}");
+    assert_eq!(sv["evidence"], "DIVERGED");
+    let problem = sv["problems"][0].as_str().unwrap();
+    assert!(
+        problem.contains("did not survive its broken connection"),
+        "{problem}"
+    );
+    assert!(problem.contains("Unhandled 'error' event"), "{problem}");
+    assert_ne!(
+        r["evidence"]["level"],
+        "original-code-connection-loss-reproduced"
+    );
 }
 
 #[test]

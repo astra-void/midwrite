@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "kind": "commitrift.source-harness",
+  "harness": "ledger-live-pool2",
+  "description": "Phase 10 variant of the Phase 9 ledger harness: the same original payment functions plus four that recover from a failed COMMIT inside the process that saw the failure; actors that share a process run as its tasks, with a pool of TWO connections, through the CommitRift fault proxy when a connection is to be broken.",
+  "command": [
+    "node",
+    "--enable-source-maps",
+    "dist/verify/harness-pool2.js"
+  ],
+  "runtime": {
+    "node": ">=22"
+  },
+  "schema": [
+    "drizzle/0000_init.sql"
+  ],
+  "network": "deny",
+  "timeoutMs": 30000,
+  "entries": {
+    "recordPayment": {
+      "selector": "src/app/payments.ts#recordPayment",
+      "description": "Blind: record, then confirm."
+    },
+    "recordPaymentIdempotent": {
+      "selector": "src/app/payments.ts#recordPaymentIdempotent",
+      "description": "UNIQUE(request_id) with ON CONFLICT DO NOTHING, then confirm."
+    },
+    "recordPaymentReconciled": {
+      "selector": "src/app/payments.ts#recordPaymentReconciled",
+      "description": "Look for the request first, record only when absent."
+    },
+    "settleOrder": {
+      "selector": "src/app/payments.ts#settleOrder",
+      "description": "Two autocommit writes: ledger row (idempotent), then the order status."
+    },
+    "recordPaymentAutocommit": {
+      "selector": "src/app/payments.ts#recordPaymentAutocommit",
+      "description": "Blind autocommit insert."
+    },
+    "settleWithAudit": {
+      "selector": "src/app/payments.ts#settleWithAudit",
+      "description": "Transaction; the audit row is written through the pool."
+    },
+    "notifyPayment": {
+      "selector": "src/app/payments.ts#notifyPayment",
+      "description": "Publish a confirmation only."
+    },
+    "recordPaymentRetryInProcess": {
+      "selector": "src/app/payments.ts#recordPaymentRetryInProcess",
+      "description": "Blind: retry the whole transaction once after any error."
+    },
+    "recordPaymentIdempotentRetryInProcess": {
+      "selector": "src/app/payments.ts#recordPaymentIdempotentRetryInProcess",
+      "description": "UNIQUE(request_id) with ON CONFLICT DO NOTHING; retry once after any error."
+    },
+    "recordPaymentReconciledRetryInProcess": {
+      "selector": "src/app/payments.ts#recordPaymentReconciledRetryInProcess",
+      "description": "After an error look for the request first, record only when absent."
+    },
+    "recordPaymentAutocommitRetryInProcess": {
+      "selector": "src/app/payments.ts#recordPaymentAutocommitRetryInProcess",
+      "description": "Blind autocommit insert, retried once after any error."
+    }
+  }
+}

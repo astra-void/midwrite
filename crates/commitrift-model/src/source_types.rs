@@ -180,6 +180,60 @@ pub struct CompletionCheck {
     pub differences: Vec<String>,
 }
 
+/// Phase 10: one connection that broke under a live worker, as the model
+/// predicts it and as it was observed.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LossCheck {
+    pub transition: usize,
+    pub actor: String,
+    pub attempt: u32,
+    pub operation: String,
+    pub model_fate: String,
+    pub observed_fate: String,
+    pub mechanism: String,
+    pub forwarded_to_server: bool,
+    pub withheld_from_server: bool,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub server_answer: String,
+    pub client_severed: bool,
+    /// The worker's operating-system process id, and the operating system's
+    /// answer that it was alive after the loss.
+    pub worker_pid: u32,
+    pub worker_alive_after: bool,
+    pub worker_connected_after: bool,
+    /// The driver's error for the operation, quoted as reported.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub driver_error: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub driver_sqlstate: Option<String>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub backend_state_before: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backend_pid: Option<i64>,
+    pub session_ended: bool,
+    pub session_open: bool,
+    /// Statements issued on the broken client afterwards (rejected by the
+    /// driver without reaching the wire), and the backends of the connections
+    /// the application used instead.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dead_connection_statements: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub later_backend_pids: Vec<i64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub wire_events: Vec<String>,
+    /// The application's knowledge and the physical outcome, kept apart.
+    pub application_knowledge: String,
+    pub physical_outcome: String,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub model_tables: BTreeMap<String, Vec<Row>>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub runtime_tables: BTreeMap<String, Vec<Row>>,
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub differences: Vec<String>,
+}
+
 /// Phase 8: one planned crash, as the model describes it and as it
 /// happened.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -257,6 +311,9 @@ pub struct RecoveryVerification {
     /// Phase 9: held operations the server completed.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub completions: Vec<CompletionCheck>,
+    /// Phase 10: connections that broke under a live worker.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub losses: Vec<LossCheck>,
     pub effects: EffectComparison,
     /// (actor, executions in the model, executions observed).
     pub attempts: Vec<(String, u32, u32)>,
@@ -386,6 +443,11 @@ impl SourceVerification {
             || self.recovery.as_ref().is_some_and(|r| {
                 !r.completions.is_empty() || r.crashes.iter().any(|c| c.in_flight.is_some())
             })
+    }
+
+    /// Whether any Phase 10 field is present (the report is then schema 5).
+    pub fn has_phase10_fields(&self) -> bool {
+        self.recovery.as_ref().is_some_and(|r| !r.losses.is_empty())
     }
 
     /// Whether any Phase 8 field is present (the report is then schema 3).

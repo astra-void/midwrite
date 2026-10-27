@@ -482,6 +482,75 @@ pub struct InFlightStep {
     pub label: String,
 }
 
+/// Phase 10: the connection of an operation breaks while the worker lives.
+/// The operation is released and the proxy applies the fate on the wire (as
+/// for [`InFlightStep`]); then the proxy closes the *client's* connection
+/// and nothing else: the worker process is not touched. The driver reports
+/// an error to the application, which carries on.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionLossStep {
+    pub actor: usize,
+    pub transition: usize,
+    pub operation: Expected,
+    pub fate: Fate,
+    pub label: String,
+}
+
+/// Phase 10: what was observed when a connection broke under a live worker.
+/// Facts come from the proxy's frame-level view, PostgreSQL itself or the
+/// operating system; the driver's error is quoted as the worker reported it,
+/// never replaced by a code of the model's own.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionLossEvidence {
+    pub actor: usize,
+    pub attempt: u32,
+    pub plan: usize,
+    pub transition: usize,
+    pub operation: String,
+    /// `not-reached`, `answered-and-withheld`, `held-for-later-delivery`.
+    pub fate: String,
+    pub mechanism: String,
+    pub forwarded_to_server: bool,
+    pub withheld_from_server: bool,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub server_answer: String,
+    /// The proxy closed the client connection (its own event).
+    pub client_severed: bool,
+    /// The worker process before and after, and whether it was alive
+    /// afterwards (the operating system's answer, not the worker's).
+    pub worker_pid: u32,
+    pub worker_alive_after: bool,
+    /// The worker still reported to the coordinator after the loss.
+    pub worker_connected_after: bool,
+    /// The driver's error for the operation, as reported; empty if none.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub driver_error: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub driver_sqlstate: Option<String>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub backend_state_before: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backend_pid: Option<i64>,
+    /// The backend session ended after the loss (answered and discarded
+    /// fates), or is still open holding the operation (held fate).
+    pub session_ended: bool,
+    pub session_open: bool,
+    /// Rows of the modeled tables after the sessions ended: what is durable.
+    #[serde(default)]
+    pub tables: BTreeMap<String, Vec<Value>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub proxy_events: Vec<String>,
+    /// Filled when the run ends: statements the worker issued on the broken
+    /// client afterwards (rejected by the driver without reaching the wire),
+    /// and the backend pids of connections it used afterwards.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dead_connection_statements: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub later_backend_pids: Vec<i64>,
+}
+
 /// Phase 9: the server completes an operation it held for a dead client.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -541,6 +610,8 @@ pub enum PlanStep {
     InFlight(InFlightStep),
     /// Phase 9: the server completes a held operation.
     ServerComplete(ServerCompleteStep),
+    /// Phase 10: the connection of an operation breaks; the worker lives.
+    ConnectionLoss(ConnectionLossStep),
     /// Phase 9: nothing can proceed any more (observed, then the process is
     /// killed to end the run).
     Stuck(StuckStep),
@@ -554,6 +625,7 @@ impl PlanStep {
                 | Self::Restart(_)
                 | Self::InFlight(_)
                 | Self::ServerComplete(_)
+                | Self::ConnectionLoss(_)
                 | Self::Stuck(_)
         )
     }
@@ -804,6 +876,9 @@ pub struct SourceRun {
     /// Phase 9: held operations the server completed.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub completions: Vec<CompletionEvidence>,
+    /// Phase 10: connections that broke under a live worker.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub connection_losses: Vec<ConnectionLossEvidence>,
     /// Phase 9: the stuck state observed at the end of the plan.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stuck: Option<StuckEvidence>,
@@ -1138,11 +1213,16 @@ struct Coordinator<'r> {
     crashes: Vec<CrashEvidence>,
     restarts: Vec<RestartEvidence>,
     completions: Vec<CompletionEvidence>,
+    connection_losses: Vec<ConnectionLossEvidence>,
     stuck: Option<StuckEvidence>,
     /// Phase 9: the fault proxy (only when the plan has in-flight steps).
     proxy: Option<FaultProxy>,
     /// Phase 9: (actor, attempt) → proxy connection holding its operation.
     held_ops: BTreeMap<(usize, u32), u64>,
+    /// The backend that holds each held operation (Phase 10: with a live
+    /// worker the actor has other sessions, so the held one is waited for by
+    /// its own pid).
+    held_backends: BTreeMap<(usize, u32), i64>,
     released: usize,
     problems: Vec<String>,
     /// Statements a driver issued for itself (not held; reported).
@@ -1351,7 +1431,11 @@ impl Coordinator<'_> {
                             slot: w,
                             ..Observed::default()
                         });
-                        self.tasks[a].held.push(index);
+                        if v["deadConnection"] == true && v["type"] == "query" {
+                            self.release_dead(index, w);
+                        } else {
+                            self.tasks[a].held.push(index);
+                        }
                     }
                     "result" | "error" => {
                         let seq = v["seq"].as_u64().unwrap_or_default();
@@ -1479,6 +1563,21 @@ impl Coordinator<'_> {
             frames: s.frames.clone(),
         });
         json!({"id": id, "deduplicated": deduplicated})
+    }
+
+    /// A statement on a client whose connection already broke (the driver
+    /// rejects it without sending): released at once, recorded as
+    /// `dead-connection`, outside the plan. It cannot reach the server, so
+    /// there is nothing to order.
+    fn release_dead(&mut self, index: usize, w: usize) {
+        self.released += 1;
+        let s = &mut self.statements[index];
+        s.role = "dead-connection".to_owned();
+        s.released = Some(self.released);
+        let seq = s.seq;
+        if let Some(stream) = self.workers[w].stream.as_mut() {
+            let _ = send(stream, &json!({"type": "go", "seq": seq}));
+        }
     }
 
     fn release(&mut self, index: usize, role: &str, plan: Option<usize>) -> bool {
@@ -1934,6 +2033,20 @@ impl Coordinator<'_> {
         }
     }
 
+    /// Phase 10: wait (up to 10 s) until one backend has ended.
+    fn wait_backend_gone(&self, pid: i64) -> bool {
+        let limit = (Instant::now() + Duration::from_secs(10)).min(self.deadline);
+        loop {
+            if self.backend_state(pid) == "gone" {
+                return true;
+            }
+            if Instant::now() >= limit {
+                return false;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
     fn wait_sessions_ended(&self, actor: usize, attempt: u32) -> (bool, u64) {
         let started = Instant::now();
         let until = (Instant::now() + Duration::from_secs(10)).min(self.deadline);
@@ -2195,6 +2308,9 @@ impl Coordinator<'_> {
                                 self.inconclusive = true;
                             }
                             self.held_ops.insert((a, attempt), conn);
+                            if let Some(p) = backend_pid {
+                                self.held_backends.insert((a, attempt), p);
+                            }
                             (false, 0, open)
                         }
                     };
@@ -2244,6 +2360,237 @@ impl Coordinator<'_> {
         }
     }
 
+    /// Phase 10: break the connection of an operation while its worker lives.
+    ///
+    /// The operation is released and the proxy applies the fate on the wire;
+    /// the coordinator waits for the proxy's own event, reads PostgreSQL's
+    /// view, then has the proxy close the *client's* connection. Nothing is
+    /// sent to the worker and the process is not signalled. The coordinator
+    /// then waits for the driver's error for that operation, checks with the
+    /// operating system that the worker is still alive, and observes what is
+    /// durable once the server side has ended (or is being held).
+    fn connection_loss_step(&mut self, k: usize, s: &ConnectionLossStep) {
+        let a = s.actor;
+        let as_in_flight = InFlightStep {
+            actor: a,
+            transition: s.transition,
+            operation: s.operation.clone(),
+            fate: s.fate,
+            label: s.label.clone(),
+        };
+        let Some(Prepared::InFlight {
+            fault,
+            conn,
+            backend_pid,
+            backend_state,
+            server_answer,
+            wire,
+            ..
+        }) = self.in_flight_prepare(k, &as_in_flight)
+        else {
+            return;
+        };
+        let name = self.req.actors[a].name.clone();
+        let w = self.slot(a);
+        let attempt = self.workers[w].attempt;
+        let pid = self.workers[w].pid;
+        let Some(index) = self
+            .statements
+            .iter()
+            .rposition(|st| st.plan == Some(k) && st.actor == a)
+        else {
+            self.problems.push(format!(
+                "plan step {k}: the released statement is not recorded"
+            ));
+            self.inconclusive = true;
+            return;
+        };
+        // The break: only the client's connection is closed.
+        let severed = match self.proxy.as_ref() {
+            Some(px) => px.sever_client(conn),
+            None => Err("no fault proxy".to_owned()),
+        };
+        if let Err(e) = severed {
+            self.problems.push(format!(
+                "plan step {k}: cannot break {name}'s connection: {e}"
+            ));
+            self.inconclusive = true;
+            return;
+        }
+        match s.fate {
+            Fate::NotReached => {
+                if let Some(px) = &self.proxy {
+                    px.discard(conn);
+                }
+            }
+            Fate::AnsweredAndWithheld | Fate::HeldForLaterDelivery => {}
+        }
+        // The driver must report the failure of the operation (waiting for
+        // the worker's own message, not for a delay).
+        let until = (Instant::now() + Duration::from_secs(10)).min(self.deadline);
+        while !self.statements[index].completed && Instant::now() < until {
+            self.pump(Duration::from_millis(10));
+        }
+        let (driver_error, driver_sqlstate) = (
+            // Quoted as reported, with the private run directory redacted
+            // (postgres-js names the socket path in its message).
+            safety::redact(
+                &self.statements[index].error.clone().unwrap_or_default(),
+                &self.launcher.root,
+            ),
+            self.statements[index].sqlstate.clone(),
+        );
+        if (!self.statements[index].completed || driver_error.is_empty()) && !leader_exited(pid) {
+            self.problems.push(format!(
+                "plan step {k}: {name}'s driver reported no error for {} after its connection broke: the loss was not observed by the application",
+                s.label
+            ));
+            self.inconclusive = true;
+        }
+        // The worker is the process it was, and alive: the operating system's
+        // answer, then its own continued reporting.
+        let alive = !leader_exited(pid) && !self.workers[w].killed;
+        let connected = self.workers[w].stream.is_some() && self.workers[w].done.is_none();
+        if !alive {
+            // What the worker said as it went: the driver's behavior, quoted.
+            let said = std::fs::read_to_string(&self.workers[w].stderr_path).unwrap_or_default();
+            let harness = self.launcher.harness_dir.display().to_string();
+            let said: String = safety::redact(said.trim(), &self.launcher.root)
+                .replace(&harness, "<harness>")
+                .lines()
+                .take(6)
+                .collect::<Vec<_>>()
+                .join(" | ");
+            self.problems.push(format!(
+                "plan step {k}: {name}'s worker process {pid} did not survive its broken connection (the model predicts that it does): the failure was a process death, not a connection loss (stderr: {})",
+                if said.is_empty() { "empty" } else { &said }
+            ));
+            // The run is not inconclusive: it established that the original
+            // code behaves differently from the model's prediction.
+            self.diverged = true;
+        }
+        // The server side.
+        let (session_ended, session_open) = match s.fate {
+            Fate::NotReached | Fate::AnsweredAndWithheld => {
+                let ended = match backend_pid {
+                    Some(p) => self.wait_backend_gone(p),
+                    None => false,
+                };
+                if !ended {
+                    self.problems.push(format!(
+                        "plan step {k}: PostgreSQL still had {name}'s backend after the connection broke: the outcome is not established"
+                    ));
+                    self.inconclusive = true;
+                }
+                (ended, !ended)
+            }
+            Fate::HeldForLaterDelivery => {
+                std::thread::sleep(Duration::from_millis(100));
+                let open = backend_pid
+                    .map(|p| self.backend_state(p) == "idle in transaction")
+                    .unwrap_or(false);
+                if !open {
+                    self.problems.push(format!(
+                        "plan step {k}: the held operation's backend is no longer waiting in its transaction"
+                    ));
+                    self.inconclusive = true;
+                }
+                self.held_ops.insert((a, attempt), conn);
+                if let Some(p) = backend_pid {
+                    self.held_backends.insert((a, attempt), p);
+                }
+                (false, open)
+            }
+        };
+        let tables = self.read_tables();
+        self.connection_losses.push(ConnectionLossEvidence {
+            actor: a,
+            attempt,
+            plan: k,
+            transition: s.transition,
+            operation: s.operation.label.clone(),
+            fate: match s.fate {
+                Fate::NotReached => "not-reached",
+                Fate::AnsweredAndWithheld => "answered-and-withheld",
+                Fate::HeldForLaterDelivery => "held-for-later-delivery",
+            }
+            .to_owned(),
+            mechanism: match s.fate {
+                Fate::NotReached => "the proxy withheld the operation from the server, closed the client connection and ended the server connection".to_owned(),
+                Fate::AnsweredAndWithheld => "the proxy forwarded the operation, saw the server's answer, withheld it and closed the client connection (the server's session ended with it)".to_owned(),
+                Fate::HeldForLaterDelivery => "the proxy withheld the operation from the server, closed the client connection and kept the server connection open for a later delivery".to_owned(),
+            },
+            forwarded_to_server: fault == proxy::Fault::DropResponse,
+            withheld_from_server: fault == proxy::Fault::HoldRequest,
+            server_answer,
+            client_severed: true,
+            worker_pid: pid,
+            worker_alive_after: alive,
+            worker_connected_after: connected,
+            driver_error,
+            driver_sqlstate,
+            backend_state_before: backend_state,
+            backend_pid,
+            session_ended,
+            session_open,
+            tables,
+            proxy_events: wire,
+            dead_connection_statements: Vec::new(),
+            later_backend_pids: Vec::new(),
+        });
+    }
+
+    /// Phase 10: complete the loss evidence at the end of a run with what the
+    /// worker did afterwards: statements on the broken client and the
+    /// connections it used instead.
+    fn finish_connection_losses(&mut self) {
+        for i in 0..self.connection_losses.len() {
+            let (a, attempt, plan) = {
+                let l = &self.connection_losses[i];
+                (l.actor, l.attempt, l.plan)
+            };
+            let after: Vec<usize> = (0..self.statements.len())
+                .filter(|j| {
+                    let st = &self.statements[*j];
+                    st.actor == a
+                        && st.attempt == attempt
+                        && st.plan != Some(plan)
+                        && self.statements[*j].seq
+                            > self
+                                .statements
+                                .iter()
+                                .find(|x| x.plan == Some(plan) && x.actor == a)
+                                .map_or(0, |x| x.seq)
+                })
+                .collect();
+            let dead: Vec<String> = after
+                .iter()
+                .filter(|j| self.statements[**j].role == "dead-connection")
+                .map(|j| {
+                    let st = &self.statements[*j];
+                    format!(
+                        "{}{}",
+                        short(&st.sql),
+                        st.error
+                            .as_ref()
+                            .map(|e| format!(" → {e}"))
+                            .unwrap_or_default()
+                    )
+                })
+                .collect();
+            let mut later: Vec<i64> = after
+                .iter()
+                .filter(|j| self.statements[**j].role != "dead-connection")
+                .filter_map(|j| self.statements[*j].backend_pid)
+                .collect();
+            later.sort_unstable();
+            later.dedup();
+            let l = &mut self.connection_losses[i];
+            l.dead_connection_statements = dead;
+            l.later_backend_pids = later;
+        }
+    }
+
     /// Phase 9: deliver the operation the proxy held for a dead client; the
     /// server completes it now.
     fn server_complete_step(&mut self, k: usize, s: &ServerCompleteStep) {
@@ -2280,7 +2627,12 @@ impl Coordinator<'_> {
             self.inconclusive = true;
             return;
         };
-        let (session_ended, _) = self.wait_sessions_ended(a, s.attempt);
+        let session_ended = match self.held_backends.remove(&(a, s.attempt)) {
+            // The held operation's own backend (the worker may be alive and
+            // have other sessions).
+            Some(pid) => self.wait_backend_gone(pid),
+            None => self.wait_sessions_ended(a, s.attempt).0,
+        };
         let tables = self.read_tables();
         self.completions.push(CompletionEvidence {
             actor: a,
@@ -2541,6 +2893,7 @@ impl Coordinator<'_> {
                 PlanStep::Restart(r) => self.restart_step(k, r),
                 PlanStep::Stuck(st) => self.stuck_step(k, st),
                 PlanStep::ServerComplete(c) => self.server_complete_step(k, c),
+                PlanStep::ConnectionLoss(c) => self.connection_loss_step(k, c),
             }
         }
     }
@@ -2635,10 +2988,12 @@ fn blocked(reason: impl Into<String>) -> SourceRun {
 /// socket, holding its locks until then): `client_connection_check_interval`
 /// (PostgreSQL 14+).
 pub fn server_settings(plan: &[PlanStep], server_major: u32) -> Result<Vec<String>, String> {
-    if !plan
-        .iter()
-        .any(|s| matches!(s, PlanStep::Crash(_) | PlanStep::InFlight(_)))
-    {
+    if !plan.iter().any(|s| {
+        matches!(
+            s,
+            PlanStep::Crash(_) | PlanStep::InFlight(_) | PlanStep::ConnectionLoss(_)
+        )
+    }) {
         return Ok(Vec::new());
     }
     if server_major < 14 {
@@ -2728,7 +3083,11 @@ pub fn run(req: &RunRequest<'_>) -> SourceRun {
     // plan has an in-flight step; the proxy is the only thing that talks to
     // the cluster on their behalf.
     let mut worker_socket = cluster.socket_path();
-    let proxy = if req.plan.iter().any(|s| matches!(s, PlanStep::InFlight(_))) {
+    let proxy = if req
+        .plan
+        .iter()
+        .any(|s| matches!(s, PlanStep::InFlight(_) | PlanStep::ConnectionLoss(_)))
+    {
         let name = worker_socket
             .file_name()
             .map(std::ffi::OsStr::to_os_string)
@@ -2811,9 +3170,11 @@ pub fn run(req: &RunRequest<'_>) -> SourceRun {
         crashes: Vec::new(),
         restarts: Vec::new(),
         completions: Vec::new(),
+        connection_losses: Vec::new(),
         stuck: None,
         proxy,
         held_ops: BTreeMap::new(),
+        held_backends: BTreeMap::new(),
         released: 0,
         problems: Vec::new(),
         driver_internal: Vec::new(),
@@ -2909,6 +3270,7 @@ pub fn run(req: &RunRequest<'_>) -> SourceRun {
     let actors: Vec<ActorResult> = last.iter().map(|&i| attempts[i].clone()).collect();
     let _ = cluster.wait_for_idle(DATABASE, Duration::from_secs(5));
     let tables = co.read_tables();
+    co.finish_connection_losses();
     // Name result columns by their table (PostgreSQL's catalog).
     let oids: BTreeMap<i64, String> = match cluster.query_value(
         DATABASE,
@@ -2968,6 +3330,7 @@ pub fn run(req: &RunRequest<'_>) -> SourceRun {
         crashes: std::mem::take(&mut co.crashes),
         restarts: std::mem::take(&mut co.restarts),
         completions: std::mem::take(&mut co.completions),
+        connection_losses: std::mem::take(&mut co.connection_losses),
         stuck: co.stuck.take(),
         proxy_log: co
             .proxy

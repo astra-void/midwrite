@@ -433,7 +433,21 @@ function resultShape(result) {
   return { fields, rows };
 }
 
-async function hold(client, text, params) {
+/**
+ * Whether a node-postgres client has lost its connection: the driver marks
+ * such a client itself (`_queryable`, `_connectionError`, `_ending`; verified
+ * on pg 8.23.1, see docs/phase10/LIVE-CONNECTION-FAILURES.md) and rejects every
+ * further query without sending it. A statement on such a client never
+ * reaches the wire, so the coordinator is told and does not hold it. When the
+ * driver does not have these fields (another version) nothing is detected and
+ * the statement is held as usual: the run then fails to match its plan and is
+ * reported as such, never silently accepted.
+ */
+function deadClient(client) {
+  return client._queryable === false || client._connectionError === true || client._ending === true;
+}
+
+async function hold(client, text, params, dead = false) {
   if (!channel) throw new Error("source coordination is not connected");
   seq += 1;
   const id = seq;
@@ -449,6 +463,7 @@ async function hold(client, text, params) {
     sql: text ?? null,
     params: jsonable(params),
     site,
+    ...(dead ? { deadConnection: true } : {}),
   });
   const answer = JSON.parse(await reply);
   if (answer.type === "go") return id;
@@ -540,7 +555,7 @@ function coordinateClient(client) {
     const text = statementText(args);
     const params = statementParams(args);
     const run = (async () => {
-      const id = await hold(client, text, params);
+      const id = await hold(client, text, params, deadClient(client));
       let result;
       try {
         result = await original.apply(client, args);

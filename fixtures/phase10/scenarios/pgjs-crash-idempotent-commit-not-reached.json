@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "name": "pgjs-crash-idempotent-commit-not-reached",
+  "description": "FIRST-PARTY APPLICATION: the COMMIT never reaches the server; the transaction rolls back and the idempotent retry records the payment once.",
+  "extraction": {
+    "root": "../ledger-pgjs",
+    "externals": [
+      {
+        "callee": "publishConfirmation",
+        "channel": "confirmation"
+      }
+    ],
+    "schema": "src/lib/db/schema.ts"
+  },
+  "channels": {
+    "confirmation": {
+      "dedup": "none"
+    }
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "from": "ledger",
+        "columns": [
+          "id",
+          "requestId",
+          "orderId",
+          "amount"
+        ]
+      }
+    ],
+    "initialState": {
+      "ledger": []
+    }
+  },
+  "actors": [
+    {
+      "name": "Client",
+      "entry": {
+        "selector": "src/app/payments.ts#recordPaymentIdempotent",
+        "invocation": "awaited"
+      },
+      "arguments": [
+        {
+          "requestId": "req-1",
+          "orderId": 1,
+          "amount": 500
+        }
+      ],
+      "retry": {
+        "trigger": "onCrash"
+      },
+      "description": "a client that submits the same payment again when it gets no answer"
+    }
+  ],
+  "bounds": {
+    "maxSteps": 40,
+    "maxCrashes": 1,
+    "maxRetries": 1,
+    "maxInFlight": 1,
+    "crashPolicy": "in-flight-only"
+  },
+  "invariants": [
+    {
+      "name": "recorded-at-most-once",
+      "when": "final",
+      "description": "one logical payment (one request id) is recorded at most once",
+      "assert": {
+        "le": [
+          {
+            "count": {
+              "table": "ledger",
+              "where": {}
+            }
+          },
+          1
+        ]
+      }
+    }
+  ],
+  "sourceVerification": {
+    "harness": "../ledger-pgjs/commitrift-source.json",
+    "actors": {
+      "Client": {
+        "entry": "recordPaymentIdempotent",
+        "input": {
+          "requestId": "req-1",
+          "orderId": 1,
+          "amount": 500
+        }
+      }
+    },
+    "recoveryProbe": {
+      "require": [
+        "crash:Client",
+        "retry:Client"
+      ]
+    }
+  }
+}

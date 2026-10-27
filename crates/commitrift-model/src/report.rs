@@ -94,6 +94,10 @@ pub struct BoundsInfo {
     /// sets did not); absent otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reduction: Option<String>,
+    /// Phase 10: the mechanisms of `source-dpor` (`stateful-sleep`,
+    /// `stateful`, `stateless-sleep`); absent otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_dpor_mode: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -135,6 +139,28 @@ pub struct ExplorationInfo {
     /// structures goes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub storage: Option<crate::explore::StorageProfile>,
+    /// Phase 10 (`source-dpor` only): what the reduction did.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reduction_metrics: Option<ReductionMetrics>,
+}
+
+/// Phase 10: counters of the source-set DPOR search.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReductionMetrics {
+    /// Reversible races found, and backtrack points added for them.
+    pub races: u64,
+    pub backtrack_points: u64,
+    /// Event summaries of cached states checked against the current trace.
+    pub summary_checks: u64,
+    /// Distinct summaries and event descriptors held, and an estimate of
+    /// their memory (the process's peak RSS is the measured figure).
+    pub summaries: u64,
+    pub descriptors: u64,
+    pub summary_bytes: u64,
+    /// Transitions not taken because they sleep.
+    pub sleep_pruned_transitions: u64,
+    pub max_frames: u64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -191,6 +217,8 @@ pub enum EvidenceLevel {
     /// server received, PostgreSQL's own state confirmed the outcome, and the
     /// application never received an answer.
     OriginalCodeInFlightFailureReproduced,
+    /// Phase 10: a connection broke under a live worker (not a kill).
+    OriginalCodeConnectionLossReproduced,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -667,7 +695,12 @@ fn database_info(model: &Model) -> DatabaseInfo {
     }
 }
 
-fn exploration_info(model: &Model, r: &ExploreResult, profile: bool) -> ExplorationInfo {
+fn exploration_info(
+    model: &Model,
+    r: &ExploreResult,
+    profile: bool,
+    source_dpor: bool,
+) -> ExplorationInfo {
     let unsupported = r
         .unsupported
         .iter()
@@ -698,6 +731,16 @@ fn exploration_info(model: &Model, r: &ExploreResult, profile: bool) -> Explorat
         } else {
             None
         },
+        reduction_metrics: source_dpor.then_some(ReductionMetrics {
+            races: r.metrics.dpor_races,
+            backtrack_points: r.metrics.dpor_backtracks,
+            summary_checks: r.metrics.dpor_summary_checks,
+            summaries: r.metrics.dpor_summaries,
+            descriptors: r.metrics.dpor_descriptors,
+            summary_bytes: r.metrics.dpor_summary_bytes,
+            sleep_pruned_transitions: r.metrics.sleep_pruned_transitions,
+            max_frames: r.metrics.dpor_max_frames,
+        }),
         stuck_states: r.stuck.len(),
         stuck: {
             let mut kinds: Vec<String> = r
@@ -826,13 +869,38 @@ fn validate_on_postgres(_: &Model, _: &Witness) -> (RuntimeVerification, Evidenc
 /// Explore the model and assemble the report.
 pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
     let explore_opts = ExploreOptions::from_model(model);
-    let dpor_refusal = if model.options.dpor {
+    let wants_dpor = model.options.dpor || model.options.source_dpor.is_some();
+    let dpor_refusal = if wants_dpor {
         crate::explore::dpor_inapplicable(model)
     } else {
         None
     };
-    let use_dpor = model.options.dpor && dpor_refusal.is_none();
-    let result = if use_dpor {
+    let source_dpor = if dpor_refusal.is_none() {
+        model.options.source_dpor
+    } else {
+        None
+    };
+    let use_dpor = wants_dpor && dpor_refusal.is_none();
+    let result = if let Some(mode) = source_dpor {
+        use crate::model::SourceDpor as M;
+        crate::explore::explore_sdpor(
+            model,
+            &explore_opts,
+            match mode {
+                M::StatefulSleep => crate::explore::SdporConfig::STATEFUL_SLEEP,
+                M::Stateful => crate::explore::SdporConfig::STATEFUL,
+                M::StatelessSleep => crate::explore::SdporConfig::STATELESS_SLEEP,
+            },
+        )
+    } else if use_dpor && std::env::var_os("COMMITRIFT_DPOR_PROFILE").is_some() {
+        // Phase 10 profiling hook: the classic search with its side tables.
+        let (r, prof) = crate::explore::explore_dpor_profiled(model, &explore_opts);
+        eprintln!(
+            "dpor-profile {}",
+            serde_json::to_string(&prof).unwrap_or_default()
+        );
+        r
+    } else if use_dpor {
         crate::explore::explore_dpor(model, &explore_opts)
     } else {
         explore_with(model, &explore_opts)
@@ -913,6 +981,19 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
         },
     });
     let (level, summary) = match &source_verification {
+        Some(sv)
+            if sv.status == "reproduced"
+                && sv.evidence == "ORIGINAL_CODE_CONNECTION_LOSS_REPRODUCED" =>
+        {
+            (
+                EvidenceLevel::OriginalCodeConnectionLossReproduced,
+                format!(
+                    "the actors' original application code ran under this schedule against PostgreSQL in {} of {} run(s) while a connection BROKE under a live process (the proxy closed the client's connection, the worker was not signalled and was alive afterwards): the proxy established on the wire what the server received, PostgreSQL's own state confirmed the outcome, the driver reported an error to the application, which went on; every statement, effect and outcome matched the model, and the invariant is violated on the observed state",
+                    sv.runs.iter().filter(|r| r.reproduced).count(),
+                    sv.runs.len()
+                ),
+            )
+        }
         Some(sv)
             if sv.status == "reproduced"
                 && sv.evidence == "ORIGINAL_CODE_IN_FLIGHT_FAILURE_REPRODUCED" =>
@@ -1059,7 +1140,13 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
     };
     ModelCheckReport {
         kind: REPORT_KIND.into(),
-        schema_version: if epistemic.is_some()
+        schema_version: if source_dpor.is_some()
+            || source_verification
+                .as_ref()
+                .is_some_and(crate::source_types::SourceVerification::has_phase10_fields)
+        {
+            5
+        } else if epistemic.is_some()
             || model.bounds.max_in_flight > 0
             || model.bounds.crash_policy != crate::model::CrashPolicy::Any
             || model.has_pools()
@@ -1097,7 +1184,12 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
         database: database_info(model),
         actors: actor_infos(model),
         bounds: BoundsInfo {
-            reduction: use_dpor.then(|| "dpor".to_owned()),
+            reduction: if source_dpor.is_some() {
+                Some("source-dpor".to_owned())
+            } else {
+                use_dpor.then(|| "dpor".to_owned())
+            },
+            source_dpor_mode: source_dpor.map(|m| m.as_str().to_owned()),
             declared: model.bounds.clone(),
             partial_order_reduction: use_dpor
                 || (explore_opts.por && model.bounds.max_context_switches.is_none()),
@@ -1111,7 +1203,7 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
             }
             .to_owned(),
         },
-        exploration: exploration_info(model, &result, opts.profile_storage),
+        exploration: exploration_info(model, &result, opts.profile_storage, source_dpor.is_some()),
         invariants,
         counterexample: witness,
         evidence: Evidence { level, summary },
