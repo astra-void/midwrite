@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "kind": "commitrift.contracts",
+  "description": "Contracts for fixtures/phase7/team-app: none of its Phase 7/8 scenarios declared externals, retries or invariants beyond their properties; nothing is declared."
+}

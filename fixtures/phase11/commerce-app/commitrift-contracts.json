@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "kind": "commitrift.contracts",
+  "description": "What the commerce application's source cannot say: which calls are external effects and what the providers promise, how the worker and the checkout are invoked, one business rule, and how the authorized harness calls each entry.",
+  "externals": [
+    {
+      "callee": "chargeCard",
+      "channel": "card-charge",
+      "keyArgument": 1,
+      "dedup": "byKey",
+      "description": "The payment provider deduplicates charges that carry the same idempotency key (provider documentation; not verified here)."
+    },
+    {
+      "callee": "sendPayout",
+      "channel": "payout",
+      "dedup": "none",
+      "description": "Payouts are not deduplicated."
+    }
+  ],
+  "entries": {
+    "src/app/invitations.ts#inviteMember/arg[1]": {
+      "values": { "data.role": "member" },
+      "description": "inviteSchema accepts the roles `member` and `admin` (validation runs in the wrapper, which the model does not execute)."
+    },
+    "src/services/jobs.ts#processRefund": {
+      "delivery": "at-least-once",
+      "description": "Consumer of the refund queue (redelivers until acknowledged)."
+    },
+    "src/services/jobs.ts#processRefundOnce": {
+      "delivery": "at-least-once",
+      "description": "Consumer of the refund queue (redelivers until acknowledged)."
+    },
+    "src/app/checkout.ts#checkout": {
+      "retry": "on-crash",
+      "description": "Called by POST /api/checkout; the client resubmits when it gets no response."
+    },
+    "src/app/checkout.ts#checkoutIdempotent": {
+      "retry": "on-crash",
+      "description": "As checkout."
+    }
+  },
+  "invariants": [
+    {
+      "name": "manager-on-duty",
+      "description": "Every store keeps at least one manager on duty (operations policy).",
+      "entries": [
+        "src/services/orders.ts#endShift",
+        "src/services/orders.ts#endShiftSerializable"
+      ],
+      "property": {
+        "template": "atLeast",
+        "table": "shifts",
+        "groupBy": ["storeId"],
+        "where": { "onDuty": true },
+        "min": 1
+      }
+    }
+  ],
+  "harness": {
+    "manifest": "commitrift-source.json",
+    "entries": {
+      "src/app/invitations.ts#inviteMember/arg[1]": {
+        "entry": "inviteMember",
+        "input": { "userId": "$arg1.id", "form": { "email": "$arg0.email", "role": "$arg0.role" } }
+      },
+      "src/app/invitations.ts#inviteSeat/arg[1]": {
+        "entry": "inviteSeat",
+        "input": { "userId": "$arg1.id", "form": { "email": "$arg0.email" } }
+      },
+      "src/app/inventory.ts#reserveItem": { "entry": "reserveItem", "input": "$arg0" },
+      "src/app/inventory.ts#reserveItemAtomic": { "entry": "reserveItemAtomic", "input": "$arg0" },
+      "src/app/inventory.ts#reserveItemLocked": { "entry": "reserveItemLocked", "input": "$arg0" },
+      "src/app/checkout.ts#checkout": { "entry": "checkout", "input": "$arg0" },
+      "src/app/checkout.ts#checkoutIdempotent": { "entry": "checkoutIdempotent", "input": "$arg0" },
+      "src/services/jobs.ts#processRefund": { "entry": "processRefund", "input": "$arg0" },
+      "src/services/jobs.ts#processRefundOnce": { "entry": "processRefundOnce", "input": "$arg0" },
+      "src/services/orders.ts#claimTask": { "entry": "claimTask", "input": "$arg0" },
+      "src/services/orders.ts#claimTaskConditional": { "entry": "claimTaskConditional", "input": "$arg0" }
+    }
+  }
+}

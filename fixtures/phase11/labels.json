@@ -1,0 +1,176 @@
+{
+  "$comment": "Ground truth for the Phase 11 discovery benchmark, written together with the fixture and BEFORE the discovery engine existed (2026-10-27). Labels are by the same author as the engine (not independent). A label says whether the entry, run concurrently with itself under the stated environment, can violate the stated property; `class` is the hazard family a correct discovery should report. Do not edit labels to improve metrics; corrections go into `corrections` with a reason.",
+  "schemaVersion": 1,
+  "project": "fixtures/phase11/commerce-app",
+  "cases": [
+    {
+      "entry": "src/app/invitations.ts#inviteMember/arg[1]",
+      "class": "check-then-act",
+      "label": "positive",
+      "property": "at most one pending invitation per (org, email)",
+      "environment": "two concurrent submissions with the same email, READ COMMITTED",
+      "why": "SELECT pending invitation then INSERT, no unique constraint on (org_id, email)"
+    },
+    {
+      "entry": "src/app/invitations.ts#inviteSeat/arg[1]",
+      "class": "check-then-act",
+      "label": "negative",
+      "property": "at most one seat invitation per (org, email)",
+      "environment": "two concurrent submissions with the same email, READ COMMITTED",
+      "why": "UNIQUE(org_id, email) makes the second INSERT fail with 23505"
+    },
+    {
+      "entry": "src/app/inventory.ts#reserveItem",
+      "class": "read-modify-write",
+      "label": "positive",
+      "property": "stock decreases by the quantity of every successful reservation",
+      "environment": "two concurrent reservations of one product, READ COMMITTED",
+      "why": "stock is read, then written as read-value minus quantity (lost update)"
+    },
+    {
+      "entry": "src/app/inventory.ts#reserveItemAtomic",
+      "class": "read-modify-write",
+      "label": "negative",
+      "property": "stock decreases by the quantity of every successful reservation",
+      "environment": "two concurrent reservations of one product, READ COMMITTED",
+      "why": "single conditional UPDATE stock = stock - q WHERE stock >= q, row count checked"
+    },
+    {
+      "entry": "src/app/inventory.ts#reserveItemLocked",
+      "class": "read-modify-write",
+      "label": "negative",
+      "property": "stock decreases by the quantity of every successful reservation",
+      "environment": "two concurrent reservations of one product, READ COMMITTED",
+      "why": "SELECT ... FOR UPDATE in the same transaction as the UPDATE"
+    },
+    {
+      "entry": "src/services/orders.ts#claimTask",
+      "class": "check-then-act",
+      "label": "positive",
+      "property": "at most one assignment per task",
+      "environment": "two concurrent claims of one open task, READ COMMITTED",
+      "why": "status read then updated without condition; both claimants insert an assignment"
+    },
+    {
+      "entry": "src/services/orders.ts#claimTaskConditional",
+      "class": "check-then-act",
+      "label": "negative",
+      "property": "at most one assignment per task",
+      "environment": "two concurrent claims of one open task, READ COMMITTED",
+      "why": "UPDATE ... WHERE status = 'open' RETURNING, only the claimant whose update changed a row inserts"
+    },
+    {
+      "entry": "src/services/orders.ts#endShift",
+      "class": "write-skew",
+      "label": "positive",
+      "property": "USER-DECLARED: every store keeps at least one manager on duty",
+      "environment": "two managers of a store with two on duty end their shifts concurrently, REPEATABLE READ",
+      "why": "both count 2 on duty in their snapshots and update different rows"
+    },
+    {
+      "entry": "src/services/orders.ts#endShiftSerializable",
+      "class": "write-skew",
+      "label": "negative",
+      "property": "USER-DECLARED: every store keeps at least one manager on duty",
+      "environment": "as endShift, SERIALIZABLE",
+      "why": "SERIALIZABLE aborts one of the two transactions"
+    },
+    {
+      "entry": "src/services/jobs.ts#processRefund",
+      "class": "duplicate-processing",
+      "label": "positive",
+      "property": "at most one payout per refund job",
+      "environment": "DECLARED at-least-once delivery: a delivery is redelivered after its acknowledgement is lost, and two deliveries can run concurrently",
+      "why": "status checked and set non-atomically around the payout"
+    },
+    {
+      "entry": "src/services/jobs.ts#processRefundOnce",
+      "class": "duplicate-processing",
+      "label": "negative",
+      "property": "at most one payout per refund job",
+      "environment": "as processRefund",
+      "why": "the payout is claimed with a unique (job_id, effect) row inserted ON CONFLICT DO NOTHING"
+    },
+    {
+      "entry": "src/app/checkout.ts#checkout",
+      "class": "external-effect-gap",
+      "label": "positive",
+      "property": "at most one effective card charge per order",
+      "environment": "DECLARED: the process can crash after the charge and the client retries the request; the provider deduplicates by idempotency key only",
+      "why": "the charge carries no idempotency key and the order is marked paid after it"
+    },
+    {
+      "entry": "src/app/checkout.ts#checkoutIdempotent",
+      "class": "external-effect-gap",
+      "label": "negative",
+      "property": "at most one effective card charge per order",
+      "environment": "as checkout",
+      "why": "the retried request sends the same key and the DECLARED provider contract deduplicates it"
+    },
+    {
+      "entry": "src/services/orders.ts#recordPayment",
+      "class": "ambiguous-commit",
+      "label": "positive",
+      "property": "at most one payment row per transfer reference",
+      "environment": "the acknowledgment of an autocommit INSERT can be lost after the server committed it",
+      "why": "the catch block inserts again without knowing whether the first insert committed"
+    },
+    {
+      "entry": "src/services/orders.ts#recordPaymentIdempotent",
+      "class": "ambiguous-commit",
+      "label": "negative",
+      "property": "at most one payment row per transfer reference",
+      "environment": "as recordPayment",
+      "why": "UNIQUE(reference) and ON CONFLICT DO NOTHING"
+    },
+    {
+      "entry": "src/app/inventory.ts#transferStock",
+      "class": "lock-order",
+      "label": "positive",
+      "property": "no transfer fails with a deadlock",
+      "environment": "two concurrent transfers in opposite directions between the same two bins, READ COMMITTED",
+      "why": "each transaction locks its source bin first"
+    },
+    {
+      "entry": "src/app/inventory.ts#transferStockOrdered",
+      "class": "lock-order",
+      "label": "negative",
+      "property": "no transfer fails with a deadlock",
+      "environment": "as transferStock",
+      "why": "both directions lock the lower bin id first"
+    },
+    {
+      "entry": "src/services/reports.ts#stockLevel",
+      "class": "none",
+      "label": "negative",
+      "property": "-",
+      "environment": "-",
+      "why": "read-only"
+    },
+    {
+      "entry": "src/services/reports.ts#archiveOrder",
+      "class": "unsupported",
+      "label": "unsupported",
+      "property": "-",
+      "environment": "-",
+      "why": "db.execute with a dynamic SQL string; must be reported as unsupported, never as safe"
+    },
+    {
+      "entry": "src/services/reports.ts#notifyCustomer",
+      "class": "unsupported",
+      "label": "unsupported",
+      "property": "-",
+      "environment": "-",
+      "why": "calls an undeclared client; must be reported as an unknown external effect"
+    },
+    {
+      "entry": "src/app/api/checkout/route.ts#POST",
+      "class": "unsupported",
+      "label": "unsupported",
+      "property": "-",
+      "environment": "-",
+      "why": "request.json() is not modeled; the checkout service is analyzed as its own entry"
+    }
+  ],
+  "corrections": []
+}

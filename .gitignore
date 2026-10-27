@@ -29,3 +29,5 @@ node_modules/
 # Phase 10: the saved Phase 9 release binary used for comparisons.
 /reports/phase10/baseline/commitrift-phase9
 /fixtures/phase10/**/dist/
+/fixtures/phase11/**/dist/
+/reports/phase11/baseline/commitrift-phase10
