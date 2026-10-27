@@ -2021,15 +2021,34 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
             } else {
                 "holds".to_owned()
             }
-        } else if !formula.reads_only_database_and_externals() {
-            "not-evaluated".to_owned()
-        } else if req.invariant.holds(
-            model,
-            &state_with(model, &runtime_tables, runtime_externals),
-        ) {
-            "holds".to_owned()
+        } else if formula.reads_only_database_and_externals() {
+            if req.invariant.holds(
+                model,
+                &state_with(model, &runtime_tables, runtime_externals),
+            ) {
+                "holds".to_owned()
+            } else {
+                "violated".to_owned()
+            }
+        } else if !has_recovery
+            && outcomes_agree
+            && formula.reads_only_database_externals_and_outcomes()
+        {
+            // Phase 11: without crashes or retries every actor ran once and
+            // its observed outcome equals the model's (checked above), so
+            // the outcome terms read the observed outcomes.
+            let mut observed = state_with(model, &runtime_tables, runtime_externals);
+            for (i, a) in observed.actors.iter_mut().enumerate() {
+                a.outcome = req.final_state.actors[i].outcome.clone();
+                a.completions = req.final_state.actors[i].completions;
+            }
+            if req.invariant.holds(model, &observed) {
+                "holds".to_owned()
+            } else {
+                "violated".to_owned()
+            }
         } else {
-            "violated".to_owned()
+            "not-evaluated".to_owned()
         };
         let agreed = run.status == "followed"
             && statements_agree

@@ -250,6 +250,19 @@ impl Formula {
         only
     }
 
+    /// Whether the formula reads only committed rows, the external effect
+    /// log and actor outcomes (Phase 11: outcomes are observable after an
+    /// original-code run without crashes or retries).
+    pub fn reads_only_database_externals_and_outcomes(&self) -> bool {
+        let mut only = true;
+        self.walk_terms(&mut |t| {
+            if let Term::Op(TermOp::App(_) | TermOp::Stuck(())) = t {
+                only = false;
+            }
+        });
+        only
+    }
+
     /// Visit the non-literal comparison operands (for reports).
     pub fn visit_terms(&self, f: &mut dyn FnMut(&Term)) {
         match self {
