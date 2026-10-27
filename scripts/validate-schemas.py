@@ -34,6 +34,7 @@ SCHEMAS = {
     ("commitrift.model-check", 2): ROOT / "docs/phase7/schemas/model-check-report.v2.schema.json",
     ("commitrift.model-check", 3): ROOT / "docs/phase8/schemas/model-check-report.v3.schema.json",
     ("commitrift.model-check", 4): ROOT / "docs/phase9/schemas/model-check-report.v4.schema.json",
+    ("commitrift.model-check", 5): ROOT / "docs/phase10/schemas/model-check-report.v5.schema.json",
 }
 
 
