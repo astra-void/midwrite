@@ -39,6 +39,7 @@ mod builtins;
 mod classes;
 mod concurrency;
 mod discover;
+pub mod entries;
 mod error;
 mod exports;
 mod functions;
