@@ -37,6 +37,9 @@ pub enum Class {
     AmbiguousCommit,
     /// Rows are locked in an order that depends on the arguments.
     LockOrder,
+    /// Phase 12: an insert committed before a crash is repeated by the
+    /// caller's declared retry (with a generated key it cannot collide).
+    ResubmittedWrite,
 }
 
 impl Class {
@@ -50,6 +53,7 @@ impl Class {
             Self::ExternalEffectGap => "external-effect-gap",
             Self::AmbiguousCommit => "ambiguous-commit",
             Self::LockOrder => "lock-order",
+            Self::ResubmittedWrite => "resubmitted-write",
         }
     }
 }

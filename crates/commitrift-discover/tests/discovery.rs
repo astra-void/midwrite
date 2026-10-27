@@ -809,3 +809,43 @@ fn the_extraction_cache_is_invalidated_by_what_extraction_reads() {
     let sixth = discover(&tree.0, &o).unwrap();
     assert_eq!(sixth.index.cache_hits, 0);
 }
+
+#[test]
+fn a_change_to_one_schema_module_invalidates_only_the_entries_that_reach_it() {
+    let app =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/phase12/workspace-app");
+    let tree = TempTree::copy(&app, "cache-p12");
+    let cache = tree.0.join("cache.json");
+    let mut o = options(false);
+    o.cache = Some(cache.clone());
+    let first = discover(&tree.0, &o).unwrap();
+    let n = first.index.cache_misses;
+    let second = discover(&tree.0, &o).unwrap();
+    assert_eq!((second.index.cache_hits, second.index.cache_misses), (n, 0));
+    assert_eq!(normalized(&first), normalized(&second));
+    // The invites schema changes: entries that reach it (the invite
+    // service, everything importing the schema barrel) miss; entries that
+    // do not (the id helper, the session helpers) still hit.
+    tree.edit("src/db/schema/invites.ts", |t| {
+        t.replace(
+            "status: text(\"status\")",
+            "status: text(\"invite_status\")",
+        )
+    });
+    let third = discover(&tree.0, &o).unwrap();
+    assert!(
+        third.index.cache_misses > 0,
+        "the change must invalidate its readers"
+    );
+    assert!(
+        third.index.cache_hits > 0,
+        "an unrelated entry must not be invalidated"
+    );
+    assert_eq!(third.index.cache_hits + third.index.cache_misses, n);
+    // Nothing is reused under changed schema semantics: the result equals a
+    // run without a cache.
+    let mut fresh = options(false);
+    fresh.cache = None;
+    let uncached = discover(&tree.0, &fresh).unwrap();
+    assert_eq!(normalized(&third), normalized(&uncached));
+}

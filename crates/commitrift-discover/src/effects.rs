@@ -798,7 +798,7 @@ pub fn summarize(extracted: &Extracted) -> EffectSummary {
                         });
                     }
                 }
-                Op::Unknown { detail } => summary.unknown.push(UnknownOp {
+                Op::Unknown { detail, .. } => summary.unknown.push(UnknownOp {
                     detail: detail.clone(),
                     at: (ci, pc),
                     src: step.src.clone(),
@@ -949,6 +949,7 @@ mod tests {
                         on_conflict: OnConflict::Error,
                         affected: None,
                         returning: None,
+                        returning_columns: None,
                     },
                 },
             }),

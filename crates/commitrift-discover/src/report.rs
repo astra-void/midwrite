@@ -49,6 +49,10 @@ pub struct IndexStats {
     pub unknown_operations: usize,
     pub tables_modeled: usize,
     pub tables_refused: Vec<(String, String)>,
+    /// Phase 12: modeled columns whose default generates a fresh identifier
+    /// (`table.column`, `database`/`application`, generator).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub generated_columns: Vec<(String, String, String)>,
     /// Distinct written (table, column) pairs and external channels.
     pub resources: usize,
     pub transaction_helpers: Vec<HelperNote>,

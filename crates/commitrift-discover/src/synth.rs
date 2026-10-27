@@ -170,7 +170,10 @@ pub struct Plan {
     pub name: String,
     pub description: String,
     pub schema_file: String,
-    /// Table bindings to read with `from`.
+    /// Phase 12: every schema module the tables come from.
+    pub schema_files: Vec<String>,
+    /// Table bindings to read with `from` (`module#binding` when the
+    /// project has several schema modules).
     pub tables: Vec<String>,
     pub unique_override: Option<(String, Vec<String>, String)>,
     pub isolation: String,
@@ -195,10 +198,7 @@ impl Plan {
         for binding in &self.tables {
             let mut t = json!({ "from": binding });
             if let Some((table, cols, reason)) = &self.unique_override
-                && index
-                    .tables
-                    .iter()
-                    .any(|m| &m.binding == binding && &m.name == table)
+                && index.by_from(binding).is_some_and(|m| &m.name == table)
             {
                 let source = index.source_table(table);
                 let mut unique: Vec<Vec<String>> = source
@@ -296,7 +296,15 @@ impl Plan {
         if let Some(b) = self.max_memory_bytes {
             bounds["maxMemoryBytes"] = json!(b);
         }
-        let mut extraction = json!({ "root": root, "schema": self.schema_file });
+        // Phase 12: a project with several schema modules gets the list
+        // (tables are then bound by declaration); otherwise the single
+        // module, as in Phase 11.
+        let schema = if index.schema_files.len() > 1 {
+            json!(self.schema_files)
+        } else {
+            json!(self.schema_file)
+        };
+        let mut extraction = json!({ "root": root, "schema": schema });
         if !externals.is_empty() {
             extraction["externals"] = json!(externals);
         }
@@ -357,6 +365,8 @@ enum Ty {
     Int,
     Text,
     Bool,
+    /// Phase 12: a `uuid` column: the runtime database accepts only UUIDs.
+    Uuid,
 }
 
 /// Parameter paths the code reads, each with a type and whether it is a key.
@@ -388,6 +398,7 @@ fn param_paths(a: &Analyzed, index: &ProjectIndex) -> BTreeMap<String, (Ty, bool
         let ty = match c.builder.as_str() {
             "serial" | "bigserial" | "smallserial" | "integer" | "smallint" | "bigint" => Ty::Int,
             "boolean" => Ty::Bool,
+            "uuid" => Ty::Uuid,
             _ => Ty::Text,
         };
         let key = c.primary_key
@@ -610,11 +621,32 @@ fn varied_paths(c: &Candidate, a: &Analyzed, relation: Relation) -> Vec<String> 
         }
     }
     let mut out: Vec<String> = Vec::new();
-    for v in vals {
-        if let Val::Param { path } = v
-            && !out.contains(&path)
-        {
-            out.push(path);
+    // Phase 12: a key read from a row (`owner.id` of the user found by
+    // email) varies with the parameters that select that row; without
+    // following them, a "distinct key" control kept the same key and
+    // silently repeated the actual scenario.
+    let mut seen = BTreeSet::new();
+    let mut i = 0;
+    while i < vals.len() {
+        let v = vals[i].clone();
+        i += 1;
+        match v {
+            Val::Param { path } => {
+                if !out.contains(&path) {
+                    out.push(path);
+                }
+            }
+            Val::Read { effect, .. } | Val::ReadRow { effect } => {
+                if seen.insert(effect)
+                    && let Some(e) = a.summary.db.get(effect)
+                {
+                    vals.extend(
+                        e.eq.iter()
+                            .map(|(_, v)| crate::detect::canon(v, &a.summary)),
+                    );
+                }
+            }
+            _ => {}
         }
     }
     out
@@ -648,6 +680,7 @@ fn arguments(
             }
             Ty::Int => Value::Int(3),
             Ty::Bool => Value::Bool(true),
+            Ty::Uuid => uuid_literal(last, 1),
             Ty::Text if last.to_ascii_lowercase().contains("email") => {
                 Value::Str("alice@example.test".to_owned())
             }
@@ -667,6 +700,10 @@ fn arguments(
                 for path in &varied {
                     let new = match get_path(&args, params, path) {
                         Some(Value::Int(n)) => Value::Int(n + 100),
+                        // Phase 12: another valid UUID.
+                        Some(Value::Str(s)) if s.len() == 36 && s.matches('-').count() == 4 => {
+                            Value::Str(format!("{}b{}", &s[..24], &s[25..]))
+                        }
                         Some(Value::Str(s)) if s.contains("alice") => {
                             Value::Str(s.replace("alice", "bob"))
                         }
@@ -771,11 +808,11 @@ impl Rows<'_> {
             .unwrap_or_default()
     }
 
-    fn table_of_binding(&self, binding: &str) -> Option<String> {
+    /// The table a foreign key written as `binding` in `module` references
+    /// (Phase 12: resolved by declaration).
+    fn table_of_binding(&self, module: &str, binding: &str) -> Option<String> {
         self.index
-            .tables
-            .iter()
-            .find(|t| t.binding == binding)
+            .referenced_table(module, binding)
             .map(|t| t.name.clone())
     }
 
@@ -796,6 +833,14 @@ impl Rows<'_> {
     /// Add a row with the given values, completing keys, not-null columns,
     /// defaults and foreign-key parents. Returns false if impossible.
     fn add(&mut self, table: &str, given: Row, depth: u32) -> Result<(), String> {
+        // Phase 12: a value generated during the run (the key an actor's own
+        // insert produced) cannot be required of the initial state: the row
+        // it belongs to is created by the execution itself.
+        if given.values().any(|v| matches!(v, Value::Gen(_))) {
+            return Err(format!(
+                "a `{table}` row would need a value generated during the execution"
+            ));
+        }
         if depth > 6 {
             return Err(format!("foreign-key chain from `{table}` is too deep"));
         }
@@ -820,6 +865,9 @@ impl Rows<'_> {
             } else if col.primary_key || source.primary_key.contains(&col.sql_name) {
                 match model_ty(&col.builder) {
                     Ty::Int => Value::Int(self.next_int(table, &col.property)),
+                    // Phase 12: a `uuid` column needs a valid UUID in the
+                    // runtime database.
+                    _ if col.builder == "uuid" => uuid_literal(table, n),
                     _ => Value::Str(format!("{table}-{n}")),
                 }
             } else if let Some(d) = &col.default {
@@ -857,7 +905,11 @@ impl Rows<'_> {
             }
         }
         for (pbinding, pcol, v) in parents {
-            let Some(ptable) = self.table_of_binding(&pbinding) else {
+            // Phase 12: a generated parent key is created by the execution.
+            if matches!(v, Value::Gen(_)) {
+                continue;
+            }
+            let Some(ptable) = self.table_of_binding(&source.file, &pbinding) else {
                 self.notes.push(format!(
                     "foreign key of `{table}` to `{pbinding}`: the parent table is not modeled"
                 ));
@@ -921,11 +973,16 @@ impl Rows<'_> {
                 let Some((pb, pc)) = &col.references else {
                     continue;
                 };
-                let Some(pt) = self.table_of_binding(pb) else {
+                let Some(pt) = self.table_of_binding(&source.file, pb) else {
                     continue;
                 };
                 for r in rows {
-                    let Some(v) = r.get(&col.property).filter(|v| !v.is_null()) else {
+                    // Phase 12: a generated key references a row the
+                    // execution itself inserted.
+                    let Some(v) = r
+                        .get(&col.property)
+                        .filter(|v| !v.is_null() && !matches!(v, Value::Gen(_)))
+                    else {
                         continue;
                     };
                     if !all(&pt).iter().any(|p| p.get(pc) == Some(v)) {
@@ -950,11 +1007,25 @@ fn model_ty(builder: &str) -> Ty {
     }
 }
 
+/// A valid, readable UUID for the `n`-th synthesized row of `name`: the
+/// first group is a stable hash of the name, the last the row number.
+fn uuid_literal(name: &str, n: usize) -> Value {
+    let h = commitrift_core::diagnostic::stable_hash(&[name]);
+    Value::Str(format!(
+        "{:08x}-0000-4000-a000-{:012}",
+        h & 0xffff_ffff,
+        n % 1_000_000_000_000
+    ))
+}
+
 fn fill(builder: &str, property: &str, n: usize) -> Value {
+    if builder == "uuid" {
+        return uuid_literal(property, n);
+    }
     match model_ty(builder) {
         Ty::Int => Value::Int(10),
         Ty::Bool => Value::Bool(true),
-        Ty::Text => Value::Str(format!("{property}-{n}")),
+        Ty::Text | Ty::Uuid => Value::Str(format!("{property}-{n}")),
     }
 }
 
@@ -1068,7 +1139,7 @@ pub struct Built {
 fn table_closure(
     index: &ProjectIndex,
     tables: &BTreeSet<String>,
-) -> Result<(Vec<String>, String), String> {
+) -> Result<(Vec<String>, Vec<String>), String> {
     let mut names: BTreeSet<String> = tables.clone();
     let mut todo: Vec<String> = names.iter().cloned().collect();
     while let Some(t) = todo.pop() {
@@ -1082,30 +1153,54 @@ fn table_closure(
             .collect();
         parents.extend(source.foreign_keys.iter().map(|f| f.table.clone()));
         for b in parents {
-            if let Some(m) = index.tables.iter().find(|m| m.binding == b)
+            if let Some(m) = index.referenced_table(&source.file, &b)
                 && names.insert(m.name.clone())
             {
                 todo.push(m.name.clone());
             }
         }
     }
+    // Phase 12: the closure may span several schema modules; every one is
+    // listed in the scenario.
     let mut files = BTreeSet::new();
-    let mut bindings = Vec::new();
+    let mut refs = Vec::new();
     for n in &names {
         let Some(m) = index.table_by_name(n) else {
             return Err(format!("table `{n}` is not modeled"));
         };
         files.insert(m.schema_file.clone());
-        bindings.push(m.binding.clone());
+        refs.push(index.from_ref(m));
     }
-    if files.len() > 1 {
-        return Err(format!(
-            "the tables are declared in several schema modules ({}); a scenario reads one",
-            files.into_iter().collect::<Vec<_>>().join(", ")
-        ));
+    if files.is_empty() {
+        return Err("no table".to_owned());
     }
-    let file = files.into_iter().next().ok_or("no table")?;
-    Ok((parents_first(index, bindings), file))
+    Ok((parents_first(index, refs), files.into_iter().collect()))
+}
+
+/// Phase 12: synthesized rows may reach a table the scenario does not list
+/// yet (a parent found while satisfying a read); extend the tables by the
+/// closure of every table with rows, so the scenario loads.
+fn cover_rows(index: &ProjectIndex, plan: &mut Plan) {
+    let mut names: BTreeSet<String> = plan
+        .tables
+        .iter()
+        .filter_map(|r| index.by_from(r).map(|t| t.name.clone()))
+        .collect();
+    let before = names.len();
+    names.extend(
+        plan.rows
+            .iter()
+            .filter(|(_, rows)| !rows.is_empty())
+            .map(|(t, _)| t.clone()),
+    );
+    if names.len() == before {
+        return;
+    }
+    if let Ok((tables, files)) = table_closure(index, &names) {
+        plan.tables = tables;
+        plan.schema_file = files[0].clone();
+        plan.schema_files = files;
+    }
 }
 
 /// Order table bindings so that every table comes after the tables its
@@ -1115,15 +1210,15 @@ fn parents_first(index: &ProjectIndex, mut bindings: Vec<String>) -> Vec<String>
     bindings.sort();
     let parents = |b: &str| -> BTreeSet<String> {
         index
-            .tables
-            .iter()
-            .find(|t| t.binding == b)
+            .by_from(b)
             .and_then(|t| index.source_table(&t.name))
             .map(|st| {
                 st.columns
                     .iter()
                     .filter_map(|c| c.references.as_ref().map(|(pb, _)| pb.clone()))
                     .chain(st.foreign_keys.iter().map(|f| f.table.clone()))
+                    .filter_map(|pb| index.referenced_table(&st.file, &pb))
+                    .map(|t| index.from_ref(t))
                     .filter(|pb| pb != b)
                     .collect()
             })
@@ -1183,7 +1278,7 @@ pub fn build(
         // An actor without database effects (externals only) still needs a
         // table for the scenario to load: none is required by the loader.
     }
-    let (tables, schema_file) = match table_closure(index, &touched) {
+    let (tables, schema_files) = match table_closure(index, &touched) {
         Ok(x) => x,
         Err(e) => return Err(fail("unsupported", e)),
     };
@@ -1237,6 +1332,10 @@ pub fn build(
             c.conflict
                 .iter()
                 .filter(|o| c.actor_entries.get(k).is_some_and(|e| *e == o.entry))
+                // Phase 12: the write a handler repeats after an unknown
+                // outcome runs only under the fault the scenario explores;
+                // a fault-free run alone cannot reach it.
+                .filter(|o| o.role != "retried-write")
                 .map(|o| o.location.clone())
                 .collect()
         };
@@ -1267,7 +1366,8 @@ pub fn build(
     let mut plan = Plan {
         name: String::new(),
         description: String::new(),
-        schema_file,
+        schema_file: schema_files[0].clone(),
+        schema_files,
         tables,
         unique_override: variant.unique_override.as_ref().map(|(t, cols)| {
             (
@@ -1327,6 +1427,7 @@ pub fn build(
         for _ in 0..MAX_SEED_ITERATIONS {
             iterations += 1;
             solo.rows = rows.rows.clone();
+            cover_rows(index, &mut solo);
             let (model, _) = match solo.load(index, provider) {
                 Ok(m) => m,
                 Err(e) => {
@@ -1385,16 +1486,24 @@ pub fn build(
                             let Some((pb, pc)) = &col.references else {
                                 continue;
                             };
-                            let Some(pt) = rows.table_of_binding(pb) else {
+                            let Some(pt) = rows.table_of_binding(&source.file, pb) else {
                                 continue;
                             };
                             let Some(v) = r.get(&col.property).filter(|v| !v.is_null()) else {
                                 continue;
                             };
-                            if !rows
-                                .rows
+                            // Phase 12: a parent the execution inserts
+                            // itself (its key generated, or taken from the
+                            // request) is not initial data.
+                            let inserted_parent = inserted
                                 .get(&pt)
-                                .is_some_and(|rs| rs.iter().any(|p| p.get(pc) == Some(v)))
+                                .is_some_and(|rs| rs.iter().any(|p| p.get(pc) == Some(v)));
+                            if !inserted_parent
+                                && !matches!(v, Value::Gen(_))
+                                && !rows
+                                    .rows
+                                    .get(&pt)
+                                    .is_some_and(|rs| rs.iter().any(|p| p.get(pc) == Some(v)))
                             {
                                 let mut g = Row::new();
                                 g.insert(pc.clone(), v.clone());
@@ -1465,6 +1574,7 @@ pub fn build(
         }
     }
     plan.rows = rows.rows.clone();
+    cover_rows(index, &mut plan);
     let synthesis = SynthesisReport {
         status: "satisfied".to_owned(),
         detail: format!(

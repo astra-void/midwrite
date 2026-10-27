@@ -33,6 +33,14 @@ pub struct MemoProvider {
 }
 
 impl MemoProvider {
+    /// Phase 12: the shared analysis context of the project.
+    pub fn context(
+        &self,
+        root: &Path,
+    ) -> std::sync::Arc<commitrift_analyzer::context::ProjectContext> {
+        self.inner.context(root)
+    }
+
     pub fn new(root: &Path) -> Self {
         Self {
             inner: TsActorProvider::new(root.to_path_buf()),
@@ -74,12 +82,18 @@ impl ActorProvider for MemoProvider {
         result
     }
 
+    fn resolve_reference(&self, root: &Path, file: &str, local: &str) -> Option<(String, String)> {
+        self.inner.resolve_reference(root, file, local)
+    }
+
     fn extract_schema(&self, root: &Path, file: &str) -> Result<ExtractedSchema, String> {
         let key = format!("{}\u{1f}{file}", root.display());
         if let Some(hit) = self.schemas.borrow().get(&key) {
             return hit.clone();
         }
-        let result = commitrift_analyzer::schema::extract_schema(root, file);
+        // Phase 12: through the provider, which resolves default callbacks
+        // imported from other project modules.
+        let result = self.inner.extract_schema(root, file);
         self.schemas.borrow_mut().insert(key, result.clone());
         result
     }

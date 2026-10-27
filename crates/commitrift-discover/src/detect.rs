@@ -292,6 +292,7 @@ pub fn detect(
         d.retried_effect(i, a);
         d.ambiguous_commit(i, a);
         d.lock_order(i, a);
+        d.resubmitted_write(i, a);
     }
     let truncated = d.pair(max_partners);
     (d.out, d.rejected, truncated)
@@ -1484,6 +1485,113 @@ impl Detector<'_> {
         }
     }
 
+    // -- Phase 12: a committed insert repeated by a declared retry --------
+
+    /// An entry the caller re-submits after a crash (declared `retry`)
+    /// performs an INSERT: when the crash comes after the insert committed,
+    /// the retry inserts again. Whether that is a duplicate depends on the
+    /// key: a generated key is new on every execution (no collision); a key
+    /// from the request collides with the first insert. A candidate is made
+    /// only with a property to check: a declared invariant on the table, or
+    /// a unique constraint on the written columns (schema-enforced).
+    fn resubmitted_write(&mut self, _i: usize, a: &Analyzed) {
+        let Some(retry) = a.contract.as_ref().and_then(|c| c.retry.clone()) else {
+            return;
+        };
+        if !retry.contains("crash") {
+            return;
+        }
+        let s = &a.summary;
+        if !s.externals.is_empty() {
+            // `external_gap` covers entries with external effects.
+            return;
+        }
+        for e in
+            s.db.iter()
+                .filter(|e| e.access == Access::Insert && e.at.0 == 0)
+        {
+            let cols: Vec<String> = e.writes.iter().map(|(c, _)| c.clone()).collect();
+            let mut properties = self.declared_properties(a, Some(&e.table), None, &e.writes);
+            let mut protections = Vec::new();
+            if let Some((set, _)) = unique_sets(self.index, &e.table)
+                .into_iter()
+                .find(|(set, p)| p.is_none() && set.iter().all(|c| cols.contains(c)))
+            {
+                protections.push(format!(
+                    "UNIQUE({}) on `{}`: a repeated insert with the same values fails",
+                    set.join(", "),
+                    e.table
+                ));
+                properties.push(Property {
+                    name: format!("unique-{}-{}", e.table, set.join("-")),
+                    description: format!("at most one `{}` row per ({})", e.table, set.join(", ")),
+                    origin: Origin::SchemaEnforced,
+                    strength: Strength::DatabaseIntegrity,
+                    spec: Spec::AtMostOne {
+                        table: e.table.clone(),
+                        key: set
+                            .iter()
+                            .map(|c| {
+                                (
+                                    c.clone(),
+                                    e.write_val(c)
+                                        .cloned()
+                                        .unwrap_or(Val::Unknown { text: c.clone() }),
+                                )
+                            })
+                            .collect(),
+                        filter: BTreeMap::new(),
+                    },
+                    rationale: format!("UNIQUE({}) in the analyzed schema", set.join(", ")),
+                    evidence: Vec::new(),
+                });
+            }
+            if properties.is_empty() {
+                self.reject(
+                    Class::ResubmittedWrite,
+                    &[a],
+                    format!(
+                        "the insert into `{}` is repeated by the declared retry, but no invariant is declared for the table and no unique constraint covers its columns",
+                        e.table
+                    ),
+                    &e.src.label(),
+                );
+                continue;
+            }
+            let env = Environment {
+                actors: 1,
+                relation: Relation::Same,
+                retry: Some(retry.clone()),
+                max_crashes: 1,
+                max_retries: 1,
+                max_in_flight: 0,
+            };
+            self.push(
+                Class::ResubmittedWrite,
+                format!("crash after the insert into `{}`, then a retry", e.table),
+                vec![a],
+                Resource {
+                    kind: "table".to_owned(),
+                    table: e.table.clone(),
+                    columns: cols.clone(),
+                    text: e.table.clone(),
+                },
+                vec![op(0, "insert", e)],
+                properties,
+                protections,
+                vec![Assumption::new(
+                    "retry",
+                    "declared",
+                    format!("the caller retries the request ({retry})"),
+                )],
+                env,
+                Vec::new(),
+                &[vec![e]],
+            );
+            return;
+        }
+    }
+
     // -- G: ambiguous COMMIT ---------------------------------------------
 
     fn ambiguous_commit(&mut self, _i: usize, a: &Analyzed) {
@@ -1567,7 +1675,14 @@ impl Detector<'_> {
                     second.src.label()
                 )],
             }];
-            properties.extend(self.declared_properties(a, Some(&first.table), None, &key));
+            // A declared invariant picks its own key columns: every written
+            // value (literals included) is available to it.
+            let written: Vec<(String, Val)> = first
+                .writes
+                .iter()
+                .map(|(c, v)| (c.clone(), canon(v, s)))
+                .collect();
+            properties.extend(self.declared_properties(a, Some(&first.table), None, &written));
             self.push(
                 Class::AmbiguousCommit,
                 format!(

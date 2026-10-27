@@ -86,7 +86,7 @@ fn ms(start: Instant) -> u64 {
 // ---------------------------------------------------------------------------
 
 /// Bumped whenever extraction or this cache's format changes.
-const CACHE_VERSION: &str = "commitrift-discover-cache-1";
+const CACHE_VERSION: &str = "commitrift-discover-cache-2";
 
 #[derive(Clone, Serialize, Deserialize)]
 struct CachedExtraction {
@@ -113,20 +113,51 @@ fn file_digest(root: &Path, rel: &str) -> String {
 /// Everything an extraction of `selector` can read: the files of its import
 /// closure, project configuration that changes resolution or receivers,
 /// the table and external bindings, transaction helpers, the contract.
+/// Per-run memo of what cache keys read (Phase 12): each file is digested
+/// once, each module's import closure computed once — before, every entry
+/// re-read and re-hashed its whole closure, which on large projects cost
+/// more than the extraction the cache saves.
+#[derive(Default)]
+struct KeyMemo {
+    digests: BTreeMap<String, String>,
+    closures: BTreeMap<String, BTreeSet<String>>,
+}
+
 fn cache_key(
     index: &ProjectIndex,
     selector: &str,
     contract: &Option<InvocationContract>,
     config_digest: &str,
     tool: &str,
+    memo: &mut KeyMemo,
 ) -> String {
     let file = selector.split('#').next().unwrap_or_default();
-    let closure: Vec<String> = index
-        .import_closure(file)
-        .into_iter()
-        .map(|f| format!("{f}={}", file_digest(&index.root, &f)))
+    let reachable = memo
+        .closures
+        .entry(file.to_owned())
+        .or_insert_with(|| index.import_closure(file))
+        .clone();
+    let closure: Vec<String> = reachable
+        .iter()
+        .map(|f| {
+            let digest = memo
+                .digests
+                .entry(f.clone())
+                .or_insert_with(|| file_digest(&index.root, f));
+            format!("{f}={digest}")
+        })
         .collect();
-    let bindings = format!("{:?}", index.bindings.tables)
+    // Phase 12: tables bound by declaration can only be reached through the
+    // entry's imports, so the key covers those (a change to another schema
+    // module does not invalidate this entry). Name-bound tables (one schema
+    // module) keep the Phase 11 key: every binding.
+    let tables: Vec<_> = index
+        .bindings
+        .tables
+        .iter()
+        .filter(|t| t.source.as_ref().is_none_or(|(f, _)| reachable.contains(f)))
+        .collect();
+    let bindings = format!("{tables:?}")
         + &format!("{:?}", index.bindings.externals)
         + &format!("{:?}", index.bindings.transaction_retries);
     format!(
@@ -222,9 +253,32 @@ pub fn discover(root: &Path, opts: &Options) -> Result<DiscoveryReport, String> 
     } else {
         String::new()
     };
+    let generated_columns = index
+        .tables
+        .iter()
+        .flat_map(|t| {
+            let source = index.source_table(&t.name);
+            t.columns.iter().filter_map(move |c| {
+                let g = source?.column(c)?.generation.as_ref()?;
+                let generator = g.fresh_identifier()?;
+                let side = match g.class {
+                    commitrift_model::schema_facts::GeneratorClass::ApplicationGenerated => {
+                        "application"
+                    }
+                    _ => "database",
+                };
+                Some((
+                    format!("{}.{c}", t.name),
+                    side.to_owned(),
+                    generator.to_owned(),
+                ))
+            })
+        })
+        .collect();
     let mut stats = IndexStats {
         tables_modeled: index.tables.len(),
         tables_refused: index.refused_tables.clone(),
+        generated_columns,
         transaction_helpers: index.helpers.clone(),
         ..IndexStats::default()
     };
@@ -249,6 +303,7 @@ pub fn discover(root: &Path, opts: &Options) -> Result<DiscoveryReport, String> 
     let mut analyzed: Vec<Analyzed> = Vec::new();
     let mut entry_reports = Vec::new();
     let mut used_keys = BTreeSet::new();
+    let mut key_memo = KeyMemo::default();
     for (module, fact) in index.entries() {
         stats.entry_candidates += 1;
         *stats
@@ -294,6 +349,7 @@ pub fn discover(root: &Path, opts: &Options) -> Result<DiscoveryReport, String> 
                 &invocation,
                 &cfg,
                 &opts.tool_version,
+                &mut key_memo,
             )
         });
         let cached = key.as_ref().and_then(|k| cache.entries.get(k).cloned());
@@ -416,6 +472,44 @@ pub fn discover(root: &Path, opts: &Options) -> Result<DiscoveryReport, String> 
     // -- candidates -----------------------------------------------------------
     let t = Instant::now();
     let (mut candidates, rejected, truncated) = detect(&index, &analyzed, opts.max_partners);
+    // Phase 12: PostgreSQL's foreign-key check locks the referenced row
+    // (FOR KEY SHARE); the model has no foreign-key locks. When one actor
+    // locks rows of a table (FOR UPDATE) that another actor's write
+    // references, a schedule of the model may not be realizable (the write
+    // waits in PostgreSQL): stated with the candidate.
+    for c in &mut candidates {
+        let effects: Vec<&crate::effects::DbEffect> = c
+            .entries
+            .iter()
+            .filter_map(|e| analyzed.iter().find(|a| a.fact.selector == e.selector))
+            .flat_map(|a| a.summary.db.iter())
+            .collect();
+        let locked: BTreeSet<&str> = effects
+            .iter()
+            .filter(|e| e.lock != commitrift_model::ir::LockMode::None)
+            .map(|e| e.table.as_str())
+            .collect();
+        let referencing = effects.iter().filter(|e| e.access.writes()).find_map(|e| {
+            let source = index.source_table(&e.table)?;
+            source
+                .columns
+                .iter()
+                .filter_map(|col| col.references.as_ref().map(|(b, _)| b.clone()))
+                .chain(source.foreign_keys.iter().map(|f| f.table.clone()))
+                .filter_map(|b| index.referenced_table(&source.file, &b))
+                .find(|parent| locked.contains(parent.name.as_str()))
+                .map(|parent| (e.table.clone(), parent.name.clone()))
+        });
+        if let Some((child, parent)) = referencing {
+            c.assumptions.push(crate::candidate::Assumption::new(
+                "foreign-key-locks",
+                "model-limitation",
+                format!(
+                    "a write to `{child}` references `{parent}`, whose rows another operation locks FOR UPDATE: PostgreSQL's foreign-key check waits for that lock (FOR KEY SHARE), the model has no foreign-key locks, so a model schedule may not be realizable as such"
+                ),
+            ));
+        }
+    }
     for c in &mut candidates {
         // Idempotency keys the conflict's effects take from the arguments.
         for op in c.conflict.iter().filter(|o| o.is_external) {
@@ -1146,6 +1240,10 @@ fn unknown_category(detail: &str) -> &'static str {
             "call into an unanalyzed package",
         ),
         ("is not bound to a table", "table not modeled (schema)"),
+        (
+            "database handle of an unresolved type",
+            "database handle of an unresolved type",
+        ),
         ("is not a column of table", "column not modeled (schema)"),
         ("raw SQL", "unsupported query (raw SQL)"),
         ("select predicate", "unsupported query shape"),

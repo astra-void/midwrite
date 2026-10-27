@@ -53,6 +53,9 @@ pub struct ProjectIndex {
     /// Tables the loader refused, with the reason.
     pub refused_tables: Vec<(String, String)>,
     pub bindings: Bindings,
+    /// Phase 12: foreign-key targets as written in a schema module (module,
+    /// name) → the declaration they resolve to (module, binding).
+    pub references: BTreeMap<(String, String), (String, String)>,
     pub helpers: Vec<HelperNote>,
     pub receivers: Vec<String>,
     pub contracts: Contracts,
@@ -69,6 +72,50 @@ impl ProjectIndex {
 
     pub fn table_by_name(&self, name: &str) -> Option<&ModeledTable> {
         self.tables.iter().find(|t| t.name == name)
+    }
+
+    /// Phase 12: how a scenario names a modeled table in `from`: the binding,
+    /// or `module#binding` when the project has several schema modules.
+    pub fn from_ref(&self, t: &ModeledTable) -> String {
+        if self.schema_files.len() > 1 {
+            format!("{}#{}", t.schema_file, t.binding)
+        } else {
+            t.binding.clone()
+        }
+    }
+
+    /// The modeled table a scenario's `from` names.
+    pub fn by_from(&self, from: &str) -> Option<&ModeledTable> {
+        match from.rsplit_once('#') {
+            Some((file, binding)) => self
+                .tables
+                .iter()
+                .find(|t| t.schema_file == file && t.binding == binding),
+            None => self.tables.iter().find(|t| t.binding == from),
+        }
+    }
+
+    /// Phase 12: the modeled table a foreign key of `module` written as
+    /// `name` references: by resolved declaration when known, else the
+    /// binding of that name in the same module, else the only binding of
+    /// that name.
+    pub fn referenced_table(&self, module: &str, name: &str) -> Option<&ModeledTable> {
+        if let Some((file, binding)) = self.references.get(&(module.to_owned(), name.to_owned())) {
+            return self
+                .tables
+                .iter()
+                .find(|t| t.schema_file == *file && t.binding == *binding);
+        }
+        if let Some(t) = self
+            .tables
+            .iter()
+            .find(|t| t.schema_file == module && t.binding == name)
+        {
+            return Some(t);
+        }
+        let mut found = self.tables.iter().filter(|t| t.binding == name);
+        let first = found.next()?;
+        found.next().is_none().then_some(first)
     }
 
     pub fn source_table(&self, name: &str) -> Option<&SchemaTable> {
@@ -152,14 +199,55 @@ pub fn index(
         refused.extend(bad);
         schema.insert(file.clone(), extracted);
     }
-    tables.sort_by(|a, b| a.name.cmp(&b.name));
+    tables.sort_by(|a, b| a.name.cmp(&b.name).then(a.schema_file.cmp(&b.schema_file)));
+    // Phase 12: one SQL name, one model table. A second declaration of the
+    // same name (another module, or another PostgreSQL schema) is refused
+    // rather than merged.
+    let mut kept: Vec<ModeledTable> = Vec::new();
+    for t in tables {
+        if let Some(first) = kept.iter().find(|k| k.name == t.name) {
+            refused.push((
+                format!("{}#{}", t.schema_file, t.binding),
+                format!(
+                    "the SQL table name `{}` is already declared by `{}#{}`; the model does not represent two tables with one name",
+                    t.name, first.schema_file, first.binding
+                ),
+            ));
+            continue;
+        }
+        kept.push(t);
+    }
+    let tables = kept;
+    // Phase 12: resolve every foreign-key target by declaration.
+    let mut references = BTreeMap::new();
+    for (file, extracted) in &schema {
+        for t in &extracted.tables {
+            let written = t
+                .columns
+                .iter()
+                .filter_map(|c| c.references.as_ref().map(|(b, _)| b.clone()))
+                .chain(t.foreign_keys.iter().map(|f| f.table.clone()));
+            for name in written {
+                if let Some(target) = commitrift_model::provider::ActorProvider::resolve_reference(
+                    provider, root, file, &name,
+                ) {
+                    references.insert((file.clone(), name), target);
+                }
+            }
+        }
+    }
 
+    // Phase 12: with several schema modules, tables are bound by their
+    // declaration (module, binding), as the scenarios built for them will
+    // be (their `extraction.schema` is then a list).
+    let identity = schema_files.len() > 1;
     let table_bindings: Vec<TableBinding> = tables
         .iter()
         .map(|t| TableBinding {
             identifier: t.binding.clone(),
             table: t.name.clone(),
             columns: t.columns.clone(),
+            source: identity.then(|| (t.schema_file.clone(), t.binding.clone())),
         })
         .collect();
     let externals = contracts
@@ -228,6 +316,7 @@ pub fn index(
         schema,
         tables,
         refused_tables: refused,
+        references,
         bindings: Bindings {
             root: root.to_path_buf(),
             tables: table_bindings,
