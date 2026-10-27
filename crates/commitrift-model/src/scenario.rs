@@ -140,6 +140,9 @@ struct RawOptions {
     minimize: Option<bool>,
     /// Phase 9: dynamic partial-order reduction instead of sleep sets.
     dpor: Option<bool>,
+    /// Phase 10: source-set DPOR (`stateful-sleep`, `stateful`,
+    /// `stateless-sleep`).
+    source_dpor: Option<crate::model::SourceDpor>,
     /// Phase 9: report states in which tasks wait forever.
     termination: Option<bool>,
 }
@@ -407,6 +410,9 @@ fn build(
     }
     if let Some(d) = raw.options.dpor {
         options.dpor = d;
+    }
+    if let Some(d) = raw.options.source_dpor {
+        options.source_dpor = Some(d);
     }
     if let Some(t) = raw.options.termination {
         options.termination = t;

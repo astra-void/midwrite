@@ -192,6 +192,7 @@ dependencies = [
 name = "commitrift-model"
 version = "0.1.0"
 dependencies = [
+ "commitrift-model",
  "commitrift-replay",
  "libc",
  "serde",

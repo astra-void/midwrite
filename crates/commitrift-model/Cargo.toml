@@ -12,6 +12,13 @@ default = ["postgres"]
 # Differential validation against a real PostgreSQL (`commitrift model-check
 # --validate-postgres`). The engine itself does not need it.
 postgres = ["dep:commitrift-replay", "dep:libc"]
+# Phase 10: lets a test delete one kind of access from every footprint, to
+# measure whether the differential tests notice a missing dependency
+# (`tests/por_mutation.rs`). Never enabled in a release build.
+mutation-testing = []
+
+[dev-dependencies]
+commitrift-model = { path = ".", features = ["mutation-testing"] }
 
 [dependencies]
 commitrift-replay = { workspace = true, optional = true }

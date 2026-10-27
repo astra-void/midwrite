@@ -15,6 +15,12 @@
 //! Exploration order is deterministic: transitions are tried in
 //! `(kind, actor, thread)` order.
 
+mod sdpor;
+pub use sdpor::{
+    DEFECT_ENABLER_ORDERS, DEFECT_LAST_RACE_ONLY, DEFECT_SLEEPING_CHOICE, SdporConfig,
+    explore_sdpor,
+};
+
 use std::collections::{BTreeSet, HashMap};
 use std::time::Instant;
 
@@ -83,6 +89,21 @@ pub struct Metrics {
     /// DPOR only: deepest stack of frames held at once (the search keeps no
     /// visited-state table).
     pub dpor_max_frames: u64,
+    /// Source-set DPOR only (Phase 10): summaries checked against the trace
+    /// on a state-cache hit, distinct summaries and event descriptors held,
+    /// and the memory of both.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub dpor_summary_checks: u64,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub dpor_summaries: u64,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub dpor_descriptors: u64,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub dpor_summary_bytes: u64,
+}
+
+fn is_zero(n: &u64) -> bool {
+    *n == 0
 }
 
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
@@ -660,7 +681,7 @@ fn open_frame(
             ctx.terminal[node as usize] = true;
             ctx.metrics.terminal_states += 1;
             if let Some(t) = &mut ctx.terminals {
-                t.insert(state.canonical(model));
+                t.insert(state.canonical_observable(model));
             }
             if state.is_finished() {
                 ctx.check_invariants(&state, true, path);
@@ -739,7 +760,7 @@ fn bfs(ctx: &mut Ctx<'_>, opts: &ExploreOptions) {
             ctx.terminal[node as usize] = true;
             ctx.metrics.terminal_states += 1;
             if let Some(t) = &mut ctx.terminals {
-                t.insert(state.canonical(model));
+                t.insert(state.canonical_observable(model));
             }
             if state.is_finished() {
                 ctx.check_invariants(&state, true, &|| path_to(&parents, node));
@@ -845,7 +866,9 @@ pub fn audit_independence(model: &Model, max_states: usize) -> Vec<IndependenceV
                 let ba_state = apply(model, &ab.state, *ta, &mut Recorder::off());
                 match (ab_state, ba_state) {
                     (Ok(x), Ok(y)) => {
-                        if x.state.canonical(model) != y.state.canonical(model) {
+                        if x.state.canonical_observable(model)
+                            != y.state.canonical_observable(model)
+                        {
                             report("the two orders reach different states");
                         }
                     }
@@ -944,6 +967,7 @@ fn choice_class(t: &Transition) -> Option<(u8, u16, u16)> {
 }
 
 struct TraceEvent {
+    t: Transition,
     /// The task (actor, thread) whose program order the event belongs to.
     program: Option<(u16, u16)>,
     foot: Footprint,
@@ -982,6 +1006,77 @@ struct DFrame {
 /// Not used when [`dpor_inapplicable`] says so; the caller falls back to the
 /// sleep-set search and reports why.
 pub fn explore_dpor(model: &Model, opts: &ExploreOptions) -> ExploreResult {
+    dpor_impl(model, opts, None)
+}
+
+/// What the classic DPOR search spends its transitions on (Phase 10
+/// profiling): collected only by [`explore_dpor_profiled`], which keeps a
+/// side table of every state and trace signature it meets (so it needs more
+/// memory than [`explore_dpor`]).
+#[derive(Clone, Debug, Default, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DporProfile {
+    /// Distinct canonical states among the nodes the search visited.
+    pub distinct_states: u64,
+    /// Frames opened at a state some earlier frame already opened.
+    pub revisited_frames: u64,
+    /// Transitions executed while at least one frame on the stack is a
+    /// revisit of an earlier state: work a visited-state table would skip.
+    pub transitions_below_revisit: u64,
+    /// Terminal (quiescent) nodes, and the distinct Mazurkiewicz traces
+    /// among them (identical happens-before graphs over identical events).
+    pub terminal_nodes: u64,
+    pub distinct_traces: u64,
+    /// Distinct canonical terminal states.
+    pub distinct_terminal_states: u64,
+    /// Backtrack points added, by origin.
+    pub adds_precise: u64,
+    pub adds_fallback_all: u64,
+    pub adds_choice_siblings: u64,
+    pub adds_disabled_alternatives: u64,
+    /// Races whose backtrack point was already present.
+    pub redundant_race_requests: u64,
+    /// Race requests that fell back to "every enabled transition".
+    pub fallback_requests: u64,
+}
+
+pub fn explore_dpor_profiled(model: &Model, opts: &ExploreOptions) -> (ExploreResult, DporProfile) {
+    let mut prof = DporProfile::default();
+    let r = dpor_impl(model, opts, Some(&mut prof));
+    (r, prof)
+}
+
+struct ProfileTables {
+    states: crate::keytable::KeyTable,
+    terminals: crate::keytable::KeyTable,
+    interner: crate::state::Interner,
+    key_buf: Vec<u32>,
+    traces: std::collections::HashSet<u64>,
+    /// Number of open frames that are revisits.
+    revisit_depth: Vec<bool>,
+    below_revisit: u32,
+}
+
+impl ProfileTables {
+    fn new() -> Self {
+        Self {
+            states: crate::keytable::KeyTable::new(),
+            terminals: crate::keytable::KeyTable::new(),
+            interner: crate::state::Interner::default(),
+            key_buf: Vec::new(),
+            traces: std::collections::HashSet::new(),
+            revisit_depth: Vec::new(),
+            below_revisit: 0,
+        }
+    }
+}
+
+fn dpor_impl(
+    model: &Model,
+    opts: &ExploreOptions,
+    mut prof: Option<&mut DporProfile>,
+) -> ExploreResult {
+    let mut pt = prof.is_some().then(ProfileTables::new);
     let mut ctx = Ctx {
         model,
         started: Instant::now(),
@@ -1010,6 +1105,10 @@ pub fn explore_dpor(model: &Model, opts: &ExploreOptions) -> ExploreResult {
         stack.push(f);
     }
     ctx.metrics.dpor_max_frames = ctx.metrics.dpor_max_frames.max(stack.len() as u64);
+    if let Some(pt) = &mut pt {
+        pt.revisit_depth.push(false);
+        profile_state(pt, model, &init);
+    }
     while !stack.is_empty() {
         if ctx.limits_hit() || (ctx.counterexample.is_some() && opts.stop_at_first) {
             break;
@@ -1017,7 +1116,7 @@ pub fn explore_dpor(model: &Model, opts: &ExploreOptions) -> ExploreResult {
         let depth = stack.len() - 1;
         if stack[depth].fresh {
             stack[depth].fresh = false;
-            dpor_races(&mut ctx, &mut stack, &trace);
+            dpor_races(&mut ctx, &mut stack, &trace, prof.as_deref_mut());
             let f = &mut stack[depth];
             if f.backtrack.is_empty()
                 && let Some(first) = f.succ.first()
@@ -1034,10 +1133,18 @@ pub fn explore_dpor(model: &Model, opts: &ExploreOptions) -> ExploreResult {
                 && f.backtrack.insert(s.t)
             {
                 ctx.metrics.dpor_backtracks += 1;
+                if let Some(p) = prof.as_deref_mut() {
+                    p.adds_choice_siblings += 1;
+                }
             }
         }
         let Some(t) = f.backtrack.iter().find(|t| !f.done.contains(t)).copied() else {
             stack.pop();
+            if let Some(pt) = &mut pt
+                && pt.revisit_depth.pop() == Some(true)
+            {
+                pt.below_revisit -= 1;
+            }
             if depth > 0 {
                 trace.pop();
                 path.pop();
@@ -1054,6 +1161,11 @@ pub fn explore_dpor(model: &Model, opts: &ExploreOptions) -> ExploreResult {
         };
         ctx.metrics.transitions += 1;
         ctx.metrics.max_depth = ctx.metrics.max_depth.max(depth as u32 + 1);
+        if let (Some(pt), Some(p)) = (&pt, prof.as_deref_mut())
+            && pt.below_revisit > 0
+        {
+            p.transitions_below_revisit += 1;
+        }
         // Happens-before of the new event.
         let mut before = Bits::default();
         for (k, e) in trace.iter().enumerate() {
@@ -1063,6 +1175,7 @@ pub fn explore_dpor(model: &Model, opts: &ExploreOptions) -> ExploreResult {
             }
         }
         trace.push(TraceEvent {
+            t,
             program: program_actor(&t),
             foot,
             before,
@@ -1082,12 +1195,33 @@ pub fn explore_dpor(model: &Model, opts: &ExploreOptions) -> ExploreResult {
         for u in disabled {
             if !frame.done.contains(&u) && frame.backtrack.insert(u) {
                 ctx.metrics.dpor_backtracks += 1;
+                if let Some(p) = prof.as_deref_mut() {
+                    p.adds_disabled_alternatives += 1;
+                }
             }
+        }
+        let revisit = match &mut pt {
+            Some(pt) => profile_state(pt, model, &child),
+            None => false,
+        };
+        if revisit && let Some(p) = prof.as_deref_mut() {
+            p.revisited_frames += 1;
+        }
+        if let (Some(pt), Some(p)) = (&mut pt, prof.as_deref_mut())
+            && is_quiescent(model, &child_enabled)
+        {
+            profile_terminal(pt, p, model, &child, &trace);
         }
         match dpor_open(&mut ctx, &child, &child_enabled, &path) {
             Some(frame) => {
                 stack.push(frame);
                 ctx.metrics.dpor_max_frames = ctx.metrics.dpor_max_frames.max(stack.len() as u64);
+                if let Some(pt) = &mut pt {
+                    pt.revisit_depth.push(revisit);
+                    if revisit {
+                        pt.below_revisit += 1;
+                    }
+                }
             }
             None => {
                 trace.pop();
@@ -1095,7 +1229,58 @@ pub fn explore_dpor(model: &Model, opts: &ExploreOptions) -> ExploreResult {
             }
         }
     }
+    if let (Some(pt), Some(p)) = (&pt, prof) {
+        p.distinct_states = pt.states.len() as u64;
+        p.distinct_terminal_states = pt.terminals.len() as u64;
+        p.distinct_traces = pt.traces.len() as u64;
+    }
     ctx.finish(true)
+}
+
+/// Record `state` in the profile tables; `true` when it was seen before.
+fn profile_state(pt: &mut ProfileTables, model: &Model, state: &State) -> bool {
+    state.canonical_key(model, &mut pt.interner, &mut pt.key_buf);
+    let (_, new) = pt.states.intern(&pt.key_buf);
+    !new
+}
+
+/// A terminal node: count it, its canonical state and its trace signature
+/// (the happens-before closure of every event, labelled by transition and
+/// occurrence, combined commutatively).
+fn profile_terminal(
+    pt: &mut ProfileTables,
+    p: &mut DporProfile,
+    model: &Model,
+    state: &State,
+    trace: &[TraceEvent],
+) {
+    use std::hash::{Hash, Hasher};
+    p.terminal_nodes += 1;
+    state.canonical_key(model, &mut pt.interner, &mut pt.key_buf);
+    pt.terminals.intern(&pt.key_buf);
+    let mut occurrence: HashMap<Transition, u32> = HashMap::new();
+    let ids: Vec<(Transition, u32)> = trace
+        .iter()
+        .map(|e| {
+            let o = occurrence.entry(e.t).or_insert(0);
+            let id = (e.t, *o);
+            *o += 1;
+            id
+        })
+        .collect();
+    let mut sig: u64 = 0;
+    for (k, e) in trace.iter().enumerate() {
+        let mut preds: Vec<(Transition, u32)> = (0..k)
+            .filter(|&j| e.before.get(j))
+            .map(|j| ids[j])
+            .collect();
+        preds.sort();
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        ids[k].hash(&mut h);
+        preds.hash(&mut h);
+        sig = sig.wrapping_add(h.finish());
+    }
+    pt.traces.insert(sig);
 }
 
 /// Create the frame for `state`, or `None` for a leaf. Terminal states have
@@ -1111,7 +1296,7 @@ fn dpor_open(
     if is_quiescent(model, en) {
         ctx.metrics.terminal_states += 1;
         if let Some(t) = &mut ctx.terminals {
-            t.insert(state.canonical(model));
+            t.insert(state.canonical_observable(model));
         }
         if state.is_finished() {
             ctx.check_invariants(state, true, &|| path.to_vec());
@@ -1159,7 +1344,12 @@ fn dpor_open(
 
 /// Race detection at the top frame: for every enabled transition, find the
 /// last reversible race with the trace and add backtrack points.
-fn dpor_races(ctx: &mut Ctx<'_>, stack: &mut [DFrame], trace: &[TraceEvent]) {
+fn dpor_races(
+    ctx: &mut Ctx<'_>,
+    stack: &mut [DFrame],
+    trace: &[TraceEvent],
+    mut prof: Option<&mut DporProfile>,
+) {
     let model = ctx.model;
     let top = stack.len() - 1;
     debug_assert_eq!(trace.len(), top);
@@ -1182,16 +1372,20 @@ fn dpor_races(ctx: &mut Ctx<'_>, stack: &mut [DFrame], trace: &[TraceEvent]) {
                 ordered.set(k);
             }
         }
-        // The last dependent event not ordered before another dependent one.
-        let Some(&i) = deps.iter().rev().find(|&&k| !ordered.get(k)) else {
-            continue;
-        };
-        ctx.metrics.dpor_races += 1;
-        // Frame `i` holds the state before event `i`.
-        if stack[i].succ.iter().any(|s| s.t == u.t) {
-            adds.push((i, Some(u.t)));
-        } else {
-            adds.push((i, None));
+        // Every dependent event not ordered before another dependent one is
+        // a race. The Phase 9 search handled only the last one, which loses
+        // terminal states when a transition is enabled conditionally (found
+        // in Phase 10 on a shared process with one crash and no pool: `Crash`
+        // is enabled only once a task has started, so the earlier race is the
+        // one whose reversal runs the other task first).
+        for &i in deps.iter().filter(|&&k| !ordered.get(k)) {
+            ctx.metrics.dpor_races += 1;
+            // Frame `i` holds the state before event `i`.
+            if stack[i].succ.iter().any(|s| s.t == u.t) {
+                adds.push((i, Some(u.t)));
+            } else {
+                adds.push((i, None));
+            }
         }
     }
     for (i, t) in adds {
@@ -1200,9 +1394,27 @@ fn dpor_races(ctx: &mut Ctx<'_>, stack: &mut [DFrame], trace: &[TraceEvent]) {
             Some(t) => vec![t],
             None => frame.succ.iter().map(|s| s.t).collect(),
         };
+        let fallback = t.is_none();
+        let mut any_new = false;
         for c in candidates {
             if !frame.done.contains(&c) && frame.backtrack.insert(c) {
                 ctx.metrics.dpor_backtracks += 1;
+                any_new = true;
+                if let Some(p) = prof.as_deref_mut() {
+                    if fallback {
+                        p.adds_fallback_all += 1;
+                    } else {
+                        p.adds_precise += 1;
+                    }
+                }
+            }
+        }
+        if let Some(p) = prof.as_deref_mut() {
+            if fallback {
+                p.fallback_requests += 1;
+            }
+            if !any_new {
+                p.redundant_race_requests += 1;
             }
         }
     }

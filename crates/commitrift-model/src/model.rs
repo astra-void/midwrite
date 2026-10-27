@@ -114,6 +114,29 @@ pub enum Strategy {
     Dfs,
 }
 
+/// Phase 10: source-set dynamic partial-order reduction and which of its
+/// mechanisms are on (`docs/phase10/SOURCE-DPOR.md`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SourceDpor {
+    /// Sleep sets and a state cache with per-state summaries.
+    StatefulSleep,
+    /// A state cache with per-state summaries (no sleep sets).
+    Stateful,
+    /// Sleep sets, no state cache.
+    StatelessSleep,
+}
+
+impl SourceDpor {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::StatefulSleep => "stateful-sleep",
+            Self::Stateful => "stateful",
+            Self::StatelessSleep => "stateless-sleep",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Options {
@@ -124,6 +147,10 @@ pub struct Options {
     /// search runs and the report says why).
     #[serde(default)]
     pub dpor: bool,
+    /// Phase 10: source-set DPOR (same applicability as `dpor`; takes
+    /// precedence over it).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_dpor: Option<SourceDpor>,
     /// Phase 9: report states in which tasks wait forever (a pool without
     /// idle connections, a lock the application itself holds) as violations
     /// of the implicit invariant `termination`. Always on with a bounded
@@ -140,6 +167,7 @@ impl Default for Options {
         Self {
             por: true,
             dpor: false,
+            source_dpor: None,
             termination: false,
             strategy: Strategy::Dfs,
             minimize: true,

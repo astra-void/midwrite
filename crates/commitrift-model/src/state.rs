@@ -347,6 +347,29 @@ impl State {
         e.finish()
     }
 
+    /// The canonical encoding with the external-effect log reordered stably
+    /// by channel (Phase 10): the equivalence the reductions preserve.
+    ///
+    /// Effects on one channel conflict (their order is kept); effects on
+    /// different channels are independent, so a reduction explores one of
+    /// their interleavings and does not distinguish the others. No invariant
+    /// can tell them apart (`externals` counts per channel), no program reads
+    /// the log, and it never influences a later transition. The unreduced
+    /// search's visited-state identity stays the exact [`Self::canonical`];
+    /// this is for comparing sets of terminal states between searches.
+    pub fn canonical_observable(&self, model: &Model) -> Vec<u8> {
+        if self
+            .externals
+            .windows(2)
+            .all(|w| w[0].channel <= w[1].channel)
+        {
+            return self.canonical(model);
+        }
+        let mut s = self.clone();
+        s.externals.sort_by(|a, b| a.channel.cmp(&b.channel));
+        s.canonical(model)
+    }
+
     /// The canonical encoding as a sequence of interned fragments (Phase 9):
     /// the same bytes as [`Self::canonical`], cut into units (one per row
     /// chain, lock, transaction, task, ...) that [`Interner`] replaces by

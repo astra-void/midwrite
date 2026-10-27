@@ -368,7 +368,13 @@ fn claim_lease(model: &Model, s: &mut State, a: usize, th: usize, foot: &mut Foo
     if model.pool_of(a).is_none() {
         return false;
     }
-    foot.push(Access::Pool(model.process_of[a]));
+    #[cfg(feature = "mutation-testing")]
+    let record = !crate::footprint::mutation::claim_pool_muted();
+    #[cfg(not(feature = "mutation-testing"))]
+    let record = true;
+    if record {
+        foot.push(Access::Pool(model.process_of[a]));
+    }
     let t = &mut s.actors[a].threads[th];
     let held = t.lease == Lease::Held;
     t.lease = Lease::None;

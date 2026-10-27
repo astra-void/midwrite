@@ -3,6 +3,7 @@
 //!
 //! See `docs/phase6/` for the semantics, what is modeled and what is not.
 
+pub mod audit;
 pub mod db;
 pub mod dsl;
 pub mod engine;

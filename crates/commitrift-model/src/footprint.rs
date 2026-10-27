@@ -64,8 +64,92 @@ pub struct Footprint {
     pub acc: Vec<Access>,
 }
 
+impl Access {
+    /// The kind of access as a bit (for [`mutation::mute`]).
+    pub fn kind_bit(&self) -> u32 {
+        match self {
+            Access::Actor(_) => 1 << 0,
+            Access::Pred { .. } => 1 << 1,
+            Access::RowRead(_) => 1 << 2,
+            Access::RowWrite { .. } => 1 << 3,
+            Access::LockCheck(_) => 1 << 4,
+            Access::LockChange(_) => 1 << 5,
+            Access::Snapshot => 1 << 6,
+            Access::CommitWrite => 1 << 7,
+            Access::Ser => 1 << 8,
+            Access::Wait => 1 << 9,
+            Access::Ext(_) => 1 << 10,
+            Access::App(..) => 1 << 11,
+            Access::Seq(_) => 1 << 12,
+            Access::Pool(_) => 1 << 13,
+            Access::Budget => 1 << 14,
+            Access::Global => 1 << 15,
+        }
+    }
+
+    /// The kinds, in `kind_bit` order, with their names.
+    pub const KINDS: [(&'static str, u32); 16] = [
+        ("Actor", 1 << 0),
+        ("Pred", 1 << 1),
+        ("RowRead", 1 << 2),
+        ("RowWrite", 1 << 3),
+        ("LockCheck", 1 << 4),
+        ("LockChange", 1 << 5),
+        ("Snapshot", 1 << 6),
+        ("CommitWrite", 1 << 7),
+        ("Ser", 1 << 8),
+        ("Wait", 1 << 9),
+        ("Ext", 1 << 10),
+        ("App", 1 << 11),
+        ("Seq", 1 << 12),
+        ("Pool", 1 << 13),
+        ("Budget", 1 << 14),
+        ("Global", 1 << 15),
+    ];
+}
+
+/// Mutation testing of the dependence relation (Phase 10): with the
+/// `mutation-testing` feature, the calling thread can delete every access of
+/// some kinds from the footprints it records. An explorer then believes
+/// transitions independent that are not; a differential test that notices is
+/// sensitive to that kind of dependency.
+#[cfg(feature = "mutation-testing")]
+pub mod mutation {
+    use std::cell::Cell;
+
+    thread_local! {
+        static MUTED: Cell<u32> = const { Cell::new(0) };
+        static CLAIM_POOL: Cell<bool> = const { Cell::new(false) };
+    }
+
+    /// Delete only the pool access of a task that takes over a connection
+    /// (`claim_lease`): the defect Phase 9 found and fixed. The arrival and
+    /// release accesses stay.
+    pub fn mute_claim_pool(on: bool) {
+        CLAIM_POOL.with(|m| m.set(on));
+    }
+
+    pub(crate) fn claim_pool_muted() -> bool {
+        CLAIM_POOL.with(Cell::get)
+    }
+
+    /// Delete accesses whose `kind_bit` is in `mask` from footprints
+    /// recorded by this thread from now on (0 restores them).
+    pub fn mute(mask: u32) {
+        MUTED.with(|m| m.set(mask));
+    }
+
+    pub(super) fn muted() -> u32 {
+        MUTED.with(Cell::get)
+    }
+}
+
 impl Footprint {
     pub fn push(&mut self, a: Access) {
+        #[cfg(feature = "mutation-testing")]
+        if mutation::muted() & a.kind_bit() != 0 {
+            return;
+        }
         if !self.acc.contains(&a) {
             self.acc.push(a);
         }
