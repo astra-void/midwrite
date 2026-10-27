@@ -150,6 +150,7 @@ dependencies = [
  "oxc_semantic",
  "oxc_span",
  "oxc_syntax",
+ "serde",
  "serde_json",
  "thiserror",
  "walkdir",
@@ -162,6 +163,7 @@ dependencies = [
  "clap",
  "commitrift-analyzer",
  "commitrift-core",
+ "commitrift-discover",
  "commitrift-model",
  "commitrift-replay",
  "serde",
@@ -184,6 +186,17 @@ dependencies = [
  "clap",
  "commitrift-analyzer",
  "commitrift-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "commitrift-discover"
+version = "0.1.0"
+dependencies = [
+ "commitrift-analyzer",
+ "commitrift-core",
+ "commitrift-model",
  "serde",
  "serde_json",
 ]

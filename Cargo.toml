@@ -12,6 +12,7 @@ authors = ["CommitRift contributors"]
 [workspace.dependencies]
 commitrift-core = { path = "crates/commitrift-core", version = "0.1.0" }
 commitrift-analyzer = { path = "crates/commitrift-analyzer", version = "0.1.0" }
+commitrift-discover = { path = "crates/commitrift-discover", version = "0.1.0" }
 commitrift-replay = { path = "crates/commitrift-replay", version = "0.1.0" }
 commitrift-model = { path = "crates/commitrift-model", version = "0.1.0", default-features = false }
 oxc_allocator = "0.155.0"
