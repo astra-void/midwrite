@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "name": "handles-normalized",
+  "description": "Phase 14: `Ann Lee` and ` ann`/`lee ` normalize (trim, template literal, toLowerCase) to the same handle; both check-then-insert it.",
+  "features": [
+    "js-values"
+  ],
+  "extraction": {
+    "root": "..",
+    "schema": "src/db/schema.ts"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "from": "handles"
+      }
+    ],
+    "initialState": {
+      "handles": []
+    }
+  },
+  "actors": [
+    {
+      "name": "alice",
+      "entry": {
+        "selector": "src/services/handles.ts#reserveHandle"
+      },
+      "arguments": [
+        1,
+        "Ann",
+        "Lee"
+      ]
+    },
+    {
+      "name": "bob",
+      "entry": {
+        "selector": "src/services/handles.ts#reserveHandle"
+      },
+      "arguments": [
+        2,
+        " ann",
+        "lee "
+      ]
+    }
+  ],
+  "invariants": [
+    {
+      "name": "one-row-per-handle",
+      "description": "[USER_DECLARED] A handle is reserved at most once.",
+      "assert": {
+        "le": [
+          {
+            "count": {
+              "table": "handles",
+              "where": {
+                "handle": "ann.lee"
+              }
+            }
+          },
+          1
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "name": "claim-race",
+  "description": "Phase 13 vertical slice 2: two concurrent claims of one unassigned task; the property is what the callers are told.",
+  "extraction": {
+    "root": "..",
+    "schema": "src/db/schema.ts"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "from": "tasks"
+      }
+    ],
+    "initialState": {
+      "tasks": [
+        {
+          "id": 7,
+          "title": "write the report",
+          "assignee": null
+        }
+      ]
+    }
+  },
+  "actors": [
+    {
+      "name": "alice",
+      "entry": {
+        "selector": "src/services/tasks.ts#claimTask"
+      },
+      "arguments": [
+        7,
+        "alice"
+      ]
+    },
+    {
+      "name": "bob",
+      "entry": {
+        "selector": "src/services/tasks.ts#claimTask"
+      },
+      "arguments": [
+        7,
+        "bob"
+      ]
+    }
+  ],
+  "invariants": [
+    {
+      "name": "at-most-one-caller-told-it-claimed",
+      "description": "[USER_DECLARED] At most one caller is told it claimed the task (the callers' observed outcome, not the database state).",
+      "assert": {
+        "le": [
+          {
+            "actors": {
+              "outcome": "ok",
+              "returned": true
+            }
+          },
+          1
+        ]
+      }
+    }
+  ],
+  "sourceVerification": {
+    "harness": "../commitrift-source.json",
+    "actors": {
+      "alice": {
+        "entry": "claimTask",
+        "input": {
+          "taskId": 7,
+          "who": "alice"
+        }
+      },
+      "bob": {
+        "entry": "claimTask",
+        "input": {
+          "taskId": 7,
+          "who": "bob"
+        }
+      }
+    }
+  }
+}

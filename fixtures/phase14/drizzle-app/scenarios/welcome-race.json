@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "name": "welcome-race",
+  "description": "Phase 14 Track D: a job handler reads `welcomedAt` (a nullable timestamptz), and sets it with `new Date()` when it is null; two deliveries of the job can both welcome the user.",
+  "features": ["timestamps"],
+  "extraction": { "root": "..", "schema": "src/db/schema.ts" },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [{ "from": "users" }],
+    "initialState": { "users": [{ "id": 9, "email": "u@x", "welcomedAt": null, "updatedAt": null }] }
+  },
+  "actors": [
+    { "name": "job1", "entry": { "selector": "src/services/users.ts#welcome" }, "arguments": [9] },
+    { "name": "job2", "entry": { "selector": "src/services/users.ts#welcome" }, "arguments": [9] }
+  ],
+  "invariants": [
+    {
+      "name": "welcomed-at-most-once",
+      "description": "[USER_DECLARED] At most one delivery reports that it welcomed the user.",
+      "assert": { "le": [{ "actors": { "outcome": "ok", "returned": true } }, 1] }
+    }
+  ]
+}

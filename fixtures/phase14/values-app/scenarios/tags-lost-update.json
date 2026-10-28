@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "name": "tags-lost-update",
+  "description": "Phase 14: two concurrent addTag calls read the tag list, split it, test includes, and write the joined list back; one tag can be lost.",
+  "features": [
+    "js-values"
+  ],
+  "extraction": {
+    "root": "..",
+    "schema": "src/db/schema.ts"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "from": "posts"
+      }
+    ],
+    "initialState": {
+      "posts": [
+        {
+          "id": 1,
+          "tags": "news"
+        }
+      ]
+    }
+  },
+  "actors": [
+    {
+      "name": "alice",
+      "entry": {
+        "selector": "src/services/tags.ts#addTag"
+      },
+      "arguments": [
+        1,
+        "a"
+      ]
+    },
+    {
+      "name": "bob",
+      "entry": {
+        "selector": "src/services/tags.ts#addTag"
+      },
+      "arguments": [
+        1,
+        "b"
+      ]
+    }
+  ],
+  "invariants": [
+    {
+      "name": "no-tag-lost",
+      "description": "[USER_DECLARED] Both tags end up in the post's tag list.",
+      "assert": {
+        "and": [
+          {
+            "eq": [
+              {
+                "count": {
+                  "table": "posts",
+                  "where": {
+                    "tags": "news,a"
+                  }
+                }
+              },
+              0
+            ]
+          },
+          {
+            "eq": [
+              {
+                "count": {
+                  "table": "posts",
+                  "where": {
+                    "tags": "news,b"
+                  }
+                }
+              },
+              0
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

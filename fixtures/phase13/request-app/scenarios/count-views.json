@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "name": "count-views",
+  "description": "Phase 13 Track E, safe: concurrent first views of a page, counted by an upsert.",
+  "extraction": {
+    "root": "..",
+    "schema": "src/db/schema.ts"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "from": "views"
+      }
+    ],
+    "initialState": {}
+  },
+  "actors": [
+    {
+      "name": "alice",
+      "entry": {
+        "selector": "src/services/upserts.ts#recordView"
+      },
+      "arguments": [
+        1
+      ]
+    },
+    {
+      "name": "bob",
+      "entry": {
+        "selector": "src/services/upserts.ts#recordView"
+      },
+      "arguments": [
+        1
+      ]
+    }
+  ],
+  "invariants": [
+    {
+      "name": "no-view-lost",
+      "description": "[USER_DECLARED] Every view is counted.",
+      "assert": {
+        "eq": [
+          {
+            "row": {
+              "table": "views",
+              "where": {
+                "id": 1
+              },
+              "column": "hits"
+            }
+          },
+          2
+        ]
+      }
+    }
+  ],
+  "sourceVerification": {
+    "harness": "../commitrift-source.json",
+    "actors": {
+      "alice": {
+        "entry": "recordView",
+        "input": {
+          "id": 1
+        }
+      },
+      "bob": {
+        "entry": "recordView",
+        "input": {
+          "id": 1
+        }
+      }
+    }
+  }
+}

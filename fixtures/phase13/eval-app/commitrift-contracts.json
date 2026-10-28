@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "kind": "commitrift.contracts",
+  "description": "Phase 13 evaluation application: what the source cannot say. Checkout clients resubmit when they get no response; the welcome queue delivers at least once; four business rules. Only the Phase 11/12 contract vocabulary is used.",
+  "entries": {
+    "src/services/orders.ts#placeOrder": {
+      "retry": "on-crash",
+      "description": "POST /checkout; the client resubmits the same request when it gets no response."
+    },
+    "src/services/orders.ts#placeOrderIdempotent": {
+      "retry": "on-crash",
+      "description": "As placeOrder, with the client's checkout id."
+    },
+    "src/workers/welcome.ts#handleWelcomeJob": {
+      "delivery": "at-least-once",
+      "description": "The queue redelivers a job whose acknowledgment it did not receive."
+    },
+    "src/workers/welcome.ts#handleWelcomeJobOnce": {
+      "delivery": "at-least-once",
+      "description": "As handleWelcomeJob."
+    }
+  },
+  "invariants": [
+    {
+      "name": "one-order-per-cart",
+      "description": "A cart is checked out into at most one order.",
+      "entries": ["src/services/orders.ts#placeOrder", "src/services/orders.ts#placeOrderIdempotent"],
+      "property": { "template": "atMostOne", "table": "orders", "key": ["cartId"] }
+    },
+    {
+      "name": "one-payment-per-order",
+      "description": "An order is paid at most once.",
+      "entries": ["src/services/orders.ts#settleOrder", "src/services/orders.ts#settleOrderOnce"],
+      "property": { "template": "atMostOne", "table": "payments", "key": ["orderId"] }
+    },
+    {
+      "name": "one-welcome-per-user",
+      "description": "A user receives at most one welcome notification.",
+      "entries": ["src/workers/welcome.ts#handleWelcomeJob", "src/workers/welcome.ts#handleWelcomeJobOnce"],
+      "property": { "template": "atMostOne", "table": "notifications", "key": ["userId", "kind"] }
+    },
+    {
+      "name": "one-team-per-owner",
+      "description": "A user owns at most one team (product rule).",
+      "entries": [
+        "src/services/teams.ts#createTeam",
+        "src/services/teams.ts#createTeamLocked",
+        "src/services/teams.ts#createTeamShared",
+        "src/api/teams.ts#createTeamRoute/arg[0]"
+      ],
+      "property": { "template": "atMostOne", "table": "teams", "key": ["ownerId"] }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "kind": "commitrift.contracts",
+  "description": "Phase 13 discovery contracts for midday 51587319 (pass with `commitrift discover --contracts`). Only the replica factory is declared; nothing else about midday is assumed.",
+  "replicaFactories": [
+    {
+      "factory": "packages/db/src/replicas.ts#withReplicas",
+      "primaryArgument": 0,
+      "primaryOnlyMethods": ["usePrimaryOnly"],
+      "primaryProperties": ["$primary"],
+      "reason": "Read from packages/db/src/replicas.ts at 51587319: the returned object spreads `primary`, defines getters select/selectDistinct/selectDistinctOn/$count/with/$with/query that use getDbForRead() (getReplica(replicas) unless created by usePrimaryOnly), getters insert/update/delete/execute/transaction/refreshMaterializedView bound to `primary`, `$primary: primary`, and `usePrimaryOnly = () => createDatabase(true)`: drizzle-orm 0.45.4 withReplicas routing. Its additional executeOnReplica and transactionOnReplica are not declared and stay unknown."
+    }
+  ]
+}

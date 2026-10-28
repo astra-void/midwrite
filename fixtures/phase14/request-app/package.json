@@ -1,0 +1,21 @@
+{
+  "name": "commitrift-fixture-phase14-request-app",
+  "private": true,
+  "version": "0.0.0",
+  "description": "CommitRift Phase 14 first-party application: a multi-row INSERT whose response can be lost (the client resubmits) and a payment written inside the application's own retry wrapper. Drizzle ORM on node-postgres.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@commitrift/replay": "file:../../../runtime/node",
+    "drizzle-orm": "0.45.4",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/pg": "8.23.1",
+    "typescript": "5.9.3"
+  }
+}

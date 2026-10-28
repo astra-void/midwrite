@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "name": "replica-read-your-writes",
+  "description": "Phase 13 vertical slice 4 (model only): write through the primary, read back through a lagging read replica. The replica is the model's abstraction of asynchronous streaming replication (commits replayed in commit order, unbounded lag); no PostgreSQL replication was run.",
+  "features": ["replicas"],
+  "database": {
+    "tables": [{ "name": "profiles", "columns": [
+      {"name": "id", "notNull": true, "type": "int"},
+      {"name": "name", "type": "text"}
+    ], "primaryKey": ["id"] }],
+    "initialState": { "profiles": [{"id": 1, "name": "old"}] }
+  },
+  "actors": [{ "name": "A", "function": "renameAndRead", "arguments": {}, "program": "update profiles where @id == 1 set @name = \"new\"\nlet p = replica select profiles where @id == 1\nreturn p.name\n" }],
+  "invariants": [{ "name": "the-caller-sees-its-write", "description": "[USER_DECLARED] read-your-writes", "assert": { "eq": [
+    { "actors": { "function": "renameAndRead", "outcome": "ok", "returned": "new" } },
+    { "actors": { "function": "renameAndRead", "outcome": "ok" } }
+  ] } }]
+}

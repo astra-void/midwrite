@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "kind": "commitrift.contracts",
+  "description": "Phase 14 evaluation application: what the source cannot say. Project-setup clients resubmit when they get no response; the invoice finalizer runs from a single cron worker whose runs never overlap; three business rules; and, for the DECLARED return-value variants only (reserveSlot, reserveSlotAtomic, saveDisplayName), what callers may be told. The undeclared return-value variants (claimShift, saveTimezone) are deliberately absent.",
+  "entries": {
+    "src/services/project-setup.ts#createDefaultStages": {
+      "retry": "on-crash",
+      "description": "POST /projects/:id/setup; the client resubmits the same request when it gets no response."
+    },
+    "src/services/project-setup.ts#createDefaultPriorities": {
+      "retry": "on-crash",
+      "description": "POST /projects/:id/priorities; the client resubmits the same request when it gets no response."
+    },
+    "src/services/invoices.ts#finalizeInvoice": {
+      "concurrent": false,
+      "description": "Called only by the billing cron worker (a single process); two runs never overlap, but a run may start right after the previous one returned."
+    },
+    "src/services/invoices.ts#finalizeInvoicePrimary": {
+      "concurrent": false,
+      "description": "As finalizeInvoice."
+    }
+  },
+  "invariants": [
+    {
+      "name": "one-signup-credit",
+      "description": "An account receives the signup credit at most once.",
+      "entries": ["src/services/credits.ts#grantSignupCredit", "src/services/credits.ts#grantSignupCreditOnce"],
+      "property": { "template": "atMostOne", "table": "credits", "key": ["accountId", "reason"] }
+    },
+    {
+      "name": "one-stage-per-name",
+      "description": "A project has at most one board column with a given name.",
+      "entries": ["src/services/project-setup.ts#createDefaultStages"],
+      "property": { "template": "atMostOne", "table": "stages", "key": ["projectId", "name"] }
+    },
+    {
+      "name": "one-priority-per-name",
+      "description": "A project has at most one priority level with a given name.",
+      "entries": ["src/services/project-setup.ts#createDefaultPriorities"],
+      "property": { "template": "atMostOne", "table": "priorities", "key": ["projectId", "name"] }
+    },
+    {
+      "name": "one-caller-told-reserved",
+      "description": "At most one caller is told it reserved the slot.",
+      "entries": ["src/services/slots.ts#reserveSlot"],
+      "property": {
+        "template": "formula",
+        "assert": { "le": [{ "actors": { "function": "reserveSlot", "outcome": "ok", "returned": true } }, 1] }
+      }
+    },
+    {
+      "name": "one-caller-told-reserved-atomic",
+      "description": "At most one caller is told it reserved the slot.",
+      "entries": ["src/services/slots.ts#reserveSlotAtomic"],
+      "property": {
+        "template": "formula",
+        "assert": { "le": [{ "actors": { "function": "reserveSlotAtomic", "outcome": "ok", "returned": true } }, 1] }
+      }
+    },
+    {
+      "name": "display-name-read-your-writes",
+      "description": "The profile page is never told that a saved display name was not saved: the read-back sees the caller's own write.",
+      "entries": ["src/services/profile.ts#saveDisplayName"],
+      "property": {
+        "template": "formula",
+        "assert": { "le": [{ "actors": { "function": "saveDisplayName", "outcome": "ok", "returned": false } }, 0] }
+      }
+    }
+  ]
+}

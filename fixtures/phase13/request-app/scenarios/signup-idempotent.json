@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "name": "signup-idempotent",
+  "description": "Phase 13 vertical slice 3, safe counterpart: the request id is the key, ON CONFLICT DO NOTHING.",
+  "extraction": {
+    "root": "..",
+    "schema": "src/db/schema.ts"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "from": "signup_requests"
+      }
+    ],
+    "initialState": {}
+  },
+  "actors": [
+    {
+      "name": "client",
+      "entry": {
+        "selector": "src/handlers/signup.ts#recordSignupIdempotent"
+      },
+      "arguments": [
+        {
+          "accountId": 1,
+          "requestId": "req-1"
+        }
+      ],
+      "retry": {
+        "trigger": "onCrash"
+      },
+      "response": true
+    }
+  ],
+  "bounds": {
+    "maxCrashes": 1,
+    "maxRetries": 1
+  },
+  "invariants": [
+    {
+      "name": "one-signup-per-request",
+      "description": "[USER_DECLARED] One signup request records at most one signup for the account.",
+      "assert": {
+        "le": [
+          {
+            "count": {
+              "table": "signup_requests",
+              "where": {
+                "accountId": 1
+              }
+            }
+          },
+          1
+        ]
+      }
+    }
+  ],
+  "sourceVerification": {
+    "harness": "../commitrift-source.json",
+    "actors": {
+      "client": {
+        "entry": "recordSignupIdempotent",
+        "input": {
+          "accountId": 1,
+          "requestId": "req-1"
+        }
+      }
+    }
+  }
+}

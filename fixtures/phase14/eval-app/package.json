@@ -1,0 +1,12 @@
+{
+  "name": "commitrift-fixture-phase14-eval-app",
+  "private": true,
+  "version": "0.0.0",
+  "description": "CommitRift Phase 14 evaluation application (labels frozen before any Phase 14 scoring): bounded literal arrays, string predicates, multi-row inserts, zod-validated inputs, retry and auth wrappers, a read replica, return-value properties, parent/child writes, lease timestamps, a jsonb settings document, atomic updates and unique constraints. Static source: never executed.",
+  "type": "module",
+  "dependencies": {
+    "drizzle-orm": "0.45.4",
+    "pg": "8.23.1",
+    "zod": "3.24.2"
+  }
+}

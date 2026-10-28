@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "name": "handles-raw",
+  "description": "Phase 14: without normalization the same inputs are two different handles.",
+  "features": [
+    "js-values"
+  ],
+  "extraction": {
+    "root": "..",
+    "schema": "src/db/schema.ts"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "from": "handles"
+      }
+    ],
+    "initialState": {
+      "handles": []
+    }
+  },
+  "actors": [
+    {
+      "name": "alice",
+      "entry": {
+        "selector": "src/services/handles.ts#reserveHandleRaw"
+      },
+      "arguments": [
+        1,
+        "Ann",
+        "Lee"
+      ]
+    },
+    {
+      "name": "bob",
+      "entry": {
+        "selector": "src/services/handles.ts#reserveHandleRaw"
+      },
+      "arguments": [
+        2,
+        "ann",
+        "lee"
+      ]
+    }
+  ],
+  "invariants": [
+    {
+      "name": "one-row-per-handle",
+      "description": "[USER_DECLARED] A handle is reserved at most once.",
+      "assert": {
+        "and": [
+          {
+            "le": [
+              {
+                "count": {
+                  "table": "handles",
+                  "where": {
+                    "handle": "Ann.Lee"
+                  }
+                }
+              },
+              1
+            ]
+          },
+          {
+            "le": [
+              {
+                "count": {
+                  "table": "handles",
+                  "where": {
+                    "handle": "ann.lee"
+                  }
+                }
+              },
+              1
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

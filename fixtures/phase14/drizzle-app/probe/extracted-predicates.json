@@ -1,0 +1,279 @@
+{
+  "and with an undefined operand": {
+    "bin": [
+      "and",
+      {
+        "bin": [
+          "eq",
+          {
+            "col": "id"
+          },
+          {
+            "lit": 1
+          }
+        ]
+      },
+      {
+        "lit": true
+      }
+    ]
+  },
+  "and() of nothing": {
+    "lit": true
+  },
+  "conditional predicate (parentId === 4)": {
+    "bin": [
+      "and",
+      {
+        "bin": [
+          "or",
+          {
+            "bin": [
+              "and",
+              {
+                "lit": false
+              },
+              {
+                "isNull": {
+                  "col": "parentId"
+                }
+              }
+            ]
+          },
+          {
+            "bin": [
+              "and",
+              {
+                "lit": true
+              },
+              {
+                "bin": [
+                  "eq",
+                  {
+                    "col": "parentId"
+                  },
+                  {
+                    "lit": 4
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "not": {
+          "call": {
+            "args": [
+              {
+                "col": "id"
+              },
+              {
+                "lit": [
+                  5
+                ]
+              }
+            ],
+            "func": "inList"
+          }
+        }
+      }
+    ]
+  },
+  "conditional predicate (parentId === null)": {
+    "bin": [
+      "and",
+      {
+        "bin": [
+          "or",
+          {
+            "bin": [
+              "and",
+              {
+                "lit": true
+              },
+              {
+                "isNull": {
+                  "col": "parentId"
+                }
+              }
+            ]
+          },
+          {
+            "bin": [
+              "and",
+              {
+                "lit": false
+              },
+              {
+                "bin": [
+                  "eq",
+                  {
+                    "col": "parentId"
+                  },
+                  {
+                    "lit": null
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "not": {
+          "call": {
+            "args": [
+              {
+                "col": "id"
+              },
+              {
+                "lit": [
+                  5
+                ]
+              }
+            ],
+            "func": "inList"
+          }
+        }
+      }
+    ]
+  },
+  "inArray, empty": {
+    "call": {
+      "args": [
+        {
+          "col": "id"
+        },
+        {
+          "lit": []
+        }
+      ],
+      "func": "inList"
+    }
+  },
+  "inArray, non-empty with a null": {
+    "call": {
+      "args": [
+        {
+          "col": "id"
+        },
+        {
+          "lit": [
+            1,
+            null,
+            3
+          ]
+        }
+      ],
+      "func": "inList"
+    }
+  },
+  "isNull / or / eq": {
+    "bin": [
+      "and",
+      {
+        "call": {
+          "args": [
+            {
+              "col": "id"
+            },
+            {
+              "lit": [
+                1,
+                2
+              ]
+            }
+          ],
+          "func": "inList"
+        }
+      },
+      {
+        "bin": [
+          "or",
+          {
+            "isNull": {
+              "col": "status"
+            }
+          },
+          {
+            "bin": [
+              "eq",
+              {
+                "col": "status"
+              },
+              {
+                "lit": "visible"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "not(eq)": {
+    "not": {
+      "bin": [
+        "eq",
+        {
+          "col": "status"
+        },
+        {
+          "lit": "hidden"
+        }
+      ]
+    }
+  },
+  "notInArray, empty": {
+    "not": {
+      "call": {
+        "args": [
+          {
+            "col": "id"
+          },
+          {
+            "lit": []
+          }
+        ],
+        "func": "inList"
+      }
+    }
+  },
+  "notInArray, non-empty": {
+    "not": {
+      "call": {
+        "args": [
+          {
+            "col": "id"
+          },
+          {
+            "lit": [
+              1,
+              2
+            ]
+          }
+        ],
+        "func": "inList"
+      }
+    }
+  },
+  "or with an undefined operand": {
+    "bin": [
+      "or",
+      {
+        "lit": false
+      },
+      {
+        "bin": [
+          "eq",
+          {
+            "col": "id"
+          },
+          {
+            "lit": 1
+          }
+        ]
+      }
+    ]
+  }
+}

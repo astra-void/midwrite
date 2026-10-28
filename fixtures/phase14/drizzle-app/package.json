@@ -1,0 +1,21 @@
+{
+  "name": "commitrift-fixture-drizzle-app",
+  "private": true,
+  "version": "0.0.0",
+  "description": "CommitRift Phase 14 Track D first-party application: multi-row inserts, inArray/not/or/isNull predicates with NULLs, conditional predicates, timestamp columns (defaultNow, $onUpdate, new Date()) and jsonb columns. Drizzle ORM on node-postgres. probe/ prints the SQL the pinned drizzle-orm generates (no database).",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "probe": "node probe/sql-probe.mjs"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.4",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/pg": "8.23.1",
+    "typescript": "5.9.3"
+  }
+}

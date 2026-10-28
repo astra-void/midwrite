@@ -1,0 +1,15 @@
+{
+  "name": "commitrift-fixture-values-app",
+  "private": true,
+  "version": "0.0.0",
+  "description": "CommitRift Phase 14 first-party static fixture: Drizzle writes guarded by JavaScript strings, arrays, null/undefined, Map and Set. Analyzed statically; not executed.",
+  "type": "module",
+  "dependencies": {
+    "drizzle-orm": "0.45.4",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "kind": "commitrift.source-harness",
+  "harness": "request-app",
+  "description": "Runs the request application's original services and request handlers against a disposable PostgreSQL database, one process per actor; the coordinator plays the HTTP client.",
+  "command": [
+    "node",
+    "--enable-source-maps",
+    "dist/verify/harness.js"
+  ],
+  "runtime": {
+    "node": ">=22"
+  },
+  "schema": [
+    "drizzle/0000_init.sql"
+  ],
+  "network": "deny",
+  "timeoutMs": 30000,
+  "entries": {
+    "claimTask": {
+      "selector": "src/services/tasks.ts#claimTask",
+      "description": "Read the assignee, then assign unconditionally; returns whether the caller claimed the task."
+    },
+    "claimTaskAtomic": {
+      "selector": "src/services/tasks.ts#claimTaskAtomic",
+      "description": "UPDATE ... WHERE assignee IS NULL RETURNING; returns whether a row changed."
+    },
+    "recordSignup": {
+      "selector": "src/handlers/signup.ts#recordSignup",
+      "description": "One INSERT with a database-generated key, then the 201 response."
+    },
+    "recordSignupIdempotent": {
+      "selector": "src/handlers/signup.ts#recordSignupIdempotent",
+      "description": "One INSERT keyed by the request id, ON CONFLICT DO NOTHING, then the 201 response."
+    },
+    "recordView": {
+      "selector": "src/services/upserts.ts#recordView",
+      "description": "INSERT ... ON CONFLICT (id) DO UPDATE SET hits = hits + 1."
+    },
+    "reserveHandle": {
+      "selector": "src/services/upserts.ts#reserveHandle",
+      "description": "INSERT ... ON CONFLICT (handle) DO UPDATE SET owner = excluded.owner RETURNING *; returns whether a row came back."
+    },
+    "reserveHandleIfFree": {
+      "selector": "src/services/upserts.ts#reserveHandleIfFree",
+      "description": "The same with DO UPDATE ... WHERE owner IS NULL."
+    }
+  }
+}

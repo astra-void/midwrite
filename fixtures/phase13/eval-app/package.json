@@ -1,0 +1,12 @@
+{
+  "name": "commitrift-fixture-phase13-eval-app",
+  "private": true,
+  "version": "0.0.0",
+  "description": "CommitRift Phase 13 evaluation application (labels frozen before any Phase 13 scoring): teams with foreign keys, posts, seats, orders and payments, a read replica, request wrappers, validated inputs, upserts and an at-least-once job worker.",
+  "type": "module",
+  "dependencies": {
+    "drizzle-orm": "0.45.4",
+    "pg": "8.23.1",
+    "zod": "3.24.2"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "commitrift-fixture-replica-app",
+  "private": true,
+  "version": "0.0.0",
+  "description": "CommitRift Phase 13 first-party application for replica-aware handle provenance: drizzle-orm's own withReplicas (drizzle-orm/pg-core) and a project-defined replica factory in the style of a production code base, typed through Awaited<ReturnType<typeof connectDb>>. Static analysis only: no dependencies are installed and nothing is executed.",
+  "type": "module",
+  "dependencies": {
+    "drizzle-orm": "0.45.4",
+    "pg": "8.23.1"
+  }
+}

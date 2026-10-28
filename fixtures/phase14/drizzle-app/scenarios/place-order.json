@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "name": "place-order",
+  "description": "Phase 14 Track D: an order and its two lines (one multi-row INSERT with a serial key and two foreign keys per row) in a transaction, while the product of a line is deleted.",
+  "features": ["foreign-keys", "timestamps"],
+  "extraction": { "root": "..", "schema": "src/db/schema.ts" },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [{ "from": "products" }, { "from": "orders" }, { "from": "orderItems" }],
+    "initialState": {
+      "products": [{ "sku": "a", "name": "A", "stock": 1 }, { "sku": "b", "name": "B", "stock": 1 }]
+    }
+  },
+  "actors": [
+    { "name": "buyer", "entry": { "selector": "src/services/orders.ts#placeOrder" }, "arguments": [1, "c", "a", "b"] },
+    { "name": "buyer2", "entry": { "selector": "src/services/orders.ts#placeOrder" }, "arguments": [1, "d", "b", "a"] }
+  ],
+  "invariants": [
+    {
+      "name": "lines-of-one-order",
+      "description": "[USER_DECLARED] Order 1 has two lines or none (the multi-row INSERT is atomic with its transaction).",
+      "when": "final",
+      "assert": { "le": [{ "count": { "table": "order_items", "where": {} } }, 2] }
+    }
+  ]
+}

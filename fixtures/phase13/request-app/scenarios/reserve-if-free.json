@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "name": "reserve-if-free",
+  "description": "Phase 13 Track E, safe counterpart: DO UPDATE ... WHERE owner IS NULL.",
+  "extraction": {
+    "root": "..",
+    "schema": "src/db/schema.ts"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "from": "handles"
+      }
+    ],
+    "initialState": {
+      "handles": [
+        {
+          "handle": "x",
+          "owner": null
+        }
+      ]
+    }
+  },
+  "actors": [
+    {
+      "name": "alice",
+      "entry": {
+        "selector": "src/services/upserts.ts#reserveHandleIfFree"
+      },
+      "arguments": [
+        "x",
+        "alice"
+      ]
+    },
+    {
+      "name": "bob",
+      "entry": {
+        "selector": "src/services/upserts.ts#reserveHandleIfFree"
+      },
+      "arguments": [
+        "x",
+        "bob"
+      ]
+    }
+  ],
+  "invariants": [
+    {
+      "name": "at-most-one-caller-told-it-got-the-handle",
+      "description": "[USER_DECLARED] At most one caller is told it reserved the handle.",
+      "assert": {
+        "le": [
+          {
+            "actors": {
+              "outcome": "ok",
+              "returned": true
+            }
+          },
+          1
+        ]
+      }
+    }
+  ],
+  "sourceVerification": {
+    "harness": "../commitrift-source.json",
+    "actors": {
+      "alice": {
+        "entry": "reserveHandleIfFree",
+        "input": {
+          "handle": "x",
+          "owner": "alice"
+        }
+      },
+      "bob": {
+        "entry": "reserveHandleIfFree",
+        "input": {
+          "handle": "x",
+          "owner": "bob"
+        }
+      }
+    }
+  }
+}

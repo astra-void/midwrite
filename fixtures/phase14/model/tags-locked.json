@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "name": "dsl-tags-locked",
+  "description": "Phase 14 (declared program): the same read-modify-write under FOR UPDATE in a transaction.",
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "name": "posts",
+        "columns": [
+          {
+            "name": "id",
+            "notNull": true
+          },
+          {
+            "name": "tags",
+            "notNull": true
+          }
+        ],
+        "primaryKey": [
+          "id"
+        ]
+      }
+    ],
+    "initialState": {
+      "posts": [
+        {
+          "id": 1,
+          "tags": "news"
+        }
+      ]
+    }
+  },
+  "actors": [
+    {
+      "name": "alice",
+      "function": "addTag",
+      "program": "begin\nlet p = select posts where @id == 1 for update\nlet tags = p.tags.split(\",\")\nif !tags.includes(tag) {\n    update posts where @id == 1 set @tags = concat(tags.join(\",\"), \",\", tag)\n}\ncommit\n",
+      "arguments": {
+        "tag": "a"
+      }
+    },
+    {
+      "name": "bob",
+      "function": "addTag",
+      "program": "begin\nlet p = select posts where @id == 1 for update\nlet tags = p.tags.split(\",\")\nif !tags.includes(tag) {\n    update posts where @id == 1 set @tags = concat(tags.join(\",\"), \",\", tag)\n}\ncommit\n",
+      "arguments": {
+        "tag": "b"
+      }
+    }
+  ],
+  "invariants": [
+    {
+      "name": "no-tag-lost",
+      "description": "[USER_DECLARED] Both tags end up in the post's tag list.",
+      "assert": {
+        "and": [
+          {
+            "eq": [
+              {
+                "count": {
+                  "table": "posts",
+                  "where": {
+                    "tags": "news,a"
+                  }
+                }
+              },
+              0
+            ]
+          },
+          {
+            "eq": [
+              {
+                "count": {
+                  "table": "posts",
+                  "where": {
+                    "tags": "news,b"
+                  }
+                }
+              },
+              0
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

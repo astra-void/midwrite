@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "name": "signup-crash",
+  "description": "Phase 13 vertical slice 3: one INSERT, the process crashes after it committed and before the response; the client resubmits.",
+  "extraction": {
+    "root": "..",
+    "schema": "src/db/schema.ts"
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "from": "signups"
+      }
+    ],
+    "initialState": {}
+  },
+  "actors": [
+    {
+      "name": "client",
+      "entry": {
+        "selector": "src/handlers/signup.ts#recordSignup"
+      },
+      "arguments": [
+        {
+          "accountId": 1,
+          "requestId": "req-1"
+        }
+      ],
+      "retry": {
+        "trigger": "onCrash"
+      },
+      "response": true
+    }
+  ],
+  "bounds": {
+    "maxCrashes": 1,
+    "maxRetries": 1
+  },
+  "invariants": [
+    {
+      "name": "one-signup-per-request",
+      "description": "[USER_DECLARED] One signup request records at most one signup for the account.",
+      "assert": {
+        "le": [
+          {
+            "count": {
+              "table": "signups",
+              "where": {
+                "accountId": 1
+              }
+            }
+          },
+          1
+        ]
+      }
+    }
+  ],
+  "sourceVerification": {
+    "harness": "../commitrift-source.json",
+    "actors": {
+      "client": {
+        "entry": "recordSignup",
+        "input": {
+          "accountId": 1,
+          "requestId": "req-1"
+        }
+      }
+    }
+  }
+}

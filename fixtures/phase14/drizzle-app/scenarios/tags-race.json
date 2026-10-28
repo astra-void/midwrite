@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "name": "tags-race",
+  "description": "Phase 14 Track D: two requests add overlapping tags with one multi-row INSERT ... ON CONFLICT DO NOTHING RETURNING each; together they report three added tags while the table holds three.",
+  "extraction": { "root": "..", "schema": "src/db/schema.ts" },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [{ "from": "postTags" }]
+  },
+  "actors": [
+    { "name": "A", "entry": { "selector": "src/services/orders.ts#addTags" }, "arguments": [1, "x", "y"] },
+    { "name": "B", "entry": { "selector": "src/services/orders.ts#addTags" }, "arguments": [1, "y", "z"] }
+  ],
+  "invariants": [
+    {
+      "name": "three-tags",
+      "description": "[USER_DECLARED] The post ends with tags x, y and z exactly once each.",
+      "when": "final",
+      "assert": { "eq": [{ "count": { "table": "post_tags", "where": {} } }, 3] }
+    }
+  ]
+}
