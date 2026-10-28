@@ -293,6 +293,8 @@ pub fn detect(
         d.ambiguous_commit(i, a);
         d.lock_order(i, a);
         d.resubmitted_write(i, a);
+        d.parent_child(i, a);
+        d.declared_outcome(i, a);
     }
     let truncated = d.pair(max_partners);
     (d.out, d.rejected, truncated)
@@ -324,7 +326,10 @@ impl Detector<'_> {
                     | Template::AtLeast { table: t, .. }
                     | Template::NonNegative { table: t, .. } => table == Some(t.as_str()),
                     Template::MaxExternal { channel: c, .. } => channel == Some(c.as_str()),
-                    Template::Formula { .. } => !inv.entries.is_empty(),
+                    Template::Formula { .. }
+                    | Template::AtMostOneSuccess { .. }
+                    | Template::ExactlyOneSuccess { .. }
+                    | Template::EverySuccessReturns { .. } => !inv.entries.is_empty(),
                 };
                 applies && names
             })
@@ -393,6 +398,22 @@ impl Detector<'_> {
                     },
                     Template::Formula { assert } => Spec::Formula {
                         formula: assert.clone(),
+                    },
+                    Template::EverySuccessReturns {
+                        function,
+                        argument: Some(path),
+                        ..
+                    } => Spec::ReturnsArgument {
+                        function: function.clone(),
+                        argument: Val::Param { path: path.clone() },
+                    },
+                    t @ (Template::AtMostOneSuccess { .. }
+                    | Template::ExactlyOneSuccess { .. }
+                    | Template::EverySuccessReturns { .. }) => Spec::Formula {
+                        // `Contracts::parse` refuses the other forms.
+                        formula: t
+                            .returned_formula()
+                            .expect("a validated return-value template"),
                     },
                 },
                 rationale: "declared in commitrift-contracts.json".to_owned(),
@@ -776,8 +797,7 @@ impl Detector<'_> {
                     );
                     continue;
                 }
-                let locked =
-                    read.lock != LockMode::None && read.tx.is_some() && read.tx == write.tx;
+                let locked = read.lock.is_exclusive() && read.tx.is_some() && read.tx == write.tx;
                 // Consequences: other effects the same guard decides.
                 let code = &s.codes[0];
                 let side = |pc: usize| {
@@ -992,7 +1012,7 @@ impl Detector<'_> {
         let s = &a.summary;
         for (read, upd, column) in Self::rmw_sites(s) {
             let mut protections = Vec::new();
-            if read.lock != LockMode::None && read.tx.is_some() && read.tx == upd.tx {
+            if read.lock.is_exclusive() && read.tx.is_some() && read.tx == upd.tx {
                 protections.push(
                     "the row is read FOR UPDATE in the transaction that writes it".to_owned(),
                 );
@@ -1231,6 +1251,18 @@ impl Detector<'_> {
             });
         }
         for ins in s.db.iter().filter(|e| e.access == Access::Insert) {
+            // Phase 14: a redelivered message repeats its database writes
+            // too; a property over them must be declared (none is inferred).
+            let written: Vec<(String, Val)> = ins
+                .writes
+                .iter()
+                .map(|(c, v)| (c.clone(), canon(v, s)))
+                .collect();
+            let declared = self.declared_properties(a, Some(&ins.table), None, &written);
+            if !declared.is_empty() {
+                conflict.push(op(0, "redelivered-write", ins));
+                properties.extend(declared);
+            }
             let cols: Vec<String> = ins.writes.iter().map(|(c, _)| c.clone()).collect();
             let unique = unique_sets(self.index, &ins.table)
                 .into_iter()
@@ -1261,14 +1293,33 @@ impl Detector<'_> {
             Class::DuplicateProcessing,
             format!(
                 "redelivered message repeats `{}`",
-                channels.join("`, `")
+                if channels.is_empty() {
+                    conflict
+                        .iter()
+                        .map(|o| o.operation.clone())
+                        .collect::<Vec<_>>()
+                        .join("`, `")
+                } else {
+                    channels.join("`, `")
+                }
             ),
             vec![a, a],
-            Resource {
-                kind: "external-channel".to_owned(),
-                table: String::new(),
-                columns: channels.clone(),
-                text: channels.join(","),
+            match (channels.is_empty(), conflict.iter().find(|o| o.role == "redelivered-write")) {
+                (true, Some(w)) => {
+                    let table = s.db[w.effect].table.clone();
+                    Resource {
+                        kind: "table".to_owned(),
+                        text: table.clone(),
+                        table,
+                        columns: Vec::new(),
+                    }
+                }
+                _ => Resource {
+                    kind: "external-channel".to_owned(),
+                    table: String::new(),
+                    columns: channels.clone(),
+                    text: channels.join(","),
+                },
             },
             conflict,
             properties,
@@ -1596,12 +1647,17 @@ impl Detector<'_> {
 
     fn ambiguous_commit(&mut self, _i: usize, a: &Analyzed) {
         let s = &a.summary;
-        for first in
-            s.db.iter()
-                .filter(|e| e.access.writes() && e.in_try && e.conn == Conn::Pool)
-        {
+        // Phase 14: also a write inside a transaction whose COMMIT is in the
+        // `try` block (the acknowledgment of the COMMIT can be lost), as a
+        // retry wrapper's callback produces.
+        for first in s.db.iter().filter(|e| {
+            e.access.writes()
+                && e.in_try
+                && (e.conn == Conn::Pool || (e.conn == Conn::Tx && e.tx.is_some()))
+        }) {
             let Some(second) = s.db.iter().find(|e| {
                 e.in_handler
+                    && e.conn == first.conn
                     && e.access == first.access
                     && e.table == first.table
                     && e.writes.len() == first.writes.len()
@@ -1702,7 +1758,11 @@ impl Detector<'_> {
                 vec![Assumption::new(
                     "fault",
                     "discovery-default",
-                    "the acknowledgment of an autocommit write can be lost after the server committed it (a broken connection); the driver then raises an error",
+                    if first.conn == Conn::Pool {
+                        "the acknowledgment of an autocommit write can be lost after the server committed it (a broken connection); the driver then raises an error"
+                    } else {
+                        "the acknowledgment of the transaction's COMMIT can be lost after the server committed it (a broken connection); the driver then raises an error"
+                    },
                 )],
                 Environment {
                     actors: 1,
@@ -1719,6 +1779,278 @@ impl Detector<'_> {
         }
     }
 
+    // -- Phase 14: declared return-value properties -----------------------------
+
+    /// A property over what callers are told, DECLARED for this entry
+    /// (`atMostOneSuccess`, `exactlyOneSuccess`, `everySuccessReturns`):
+    /// the entry's own database effects, two concurrent calls with the same
+    /// arguments (one call for `everySuccessReturns`, whose violation needs
+    /// no partner), and the declared retry. Nothing here is inferred: an
+    /// entry without such a declaration gets no candidate of this class.
+    fn declared_outcome(&mut self, _i: usize, a: &Analyzed) {
+        let s = &a.summary;
+        let declared: Vec<&crate::contracts::DeclaredInvariant> = self
+            .contracts
+            .invariants
+            .iter()
+            .filter(|inv| {
+                inv.entries.iter().any(|e| e == &a.fact.selector)
+                    && match &inv.property {
+                        Template::AtMostOneSuccess { .. }
+                        | Template::ExactlyOneSuccess { .. }
+                        | Template::EverySuccessReturns { .. } => true,
+                        // A declared formula over return values.
+                        Template::Formula { assert } => assert.reads_returned(),
+                        _ => false,
+                    }
+            })
+            .collect();
+        if declared.is_empty() || s.db.is_empty() {
+            return;
+        }
+        let single = declared
+            .iter()
+            .all(|inv| matches!(inv.property, Template::EverySuccessReturns { .. }));
+        let properties: Vec<Property> = self
+            .declared_properties(a, None, None, &[])
+            .into_iter()
+            .filter(|p| declared.iter().any(|d| d.name == p.name))
+            .collect();
+        let conflict: Vec<ConflictOp> =
+            s.db.iter()
+                .filter(|e| e.at.0 == 0)
+                .map(|e| op(0, if e.access.writes() { "act" } else { "check" }, e))
+                .collect();
+        let tables: BTreeSet<String> = s.db.iter().map(|e| e.table.clone()).collect();
+        let table = tables.iter().next().cloned().unwrap_or_default();
+        let mut env = if single {
+            Environment {
+                actors: 1,
+                relation: Relation::Same,
+                retry: None,
+                max_crashes: 0,
+                max_retries: 0,
+                max_in_flight: 0,
+            }
+        } else {
+            Self::two(Relation::Same)
+        };
+        if let Some(retry) = a.contract.as_ref().and_then(|c| c.retry.clone()) {
+            env.retry = Some(retry);
+            env.max_crashes = 1;
+            env.max_retries = 1;
+        }
+        let ops: Vec<&DbEffect> = s.db.iter().collect();
+        let actors = if single { vec![a] } else { vec![a, a] };
+        let ops_of = if single {
+            vec![ops]
+        } else {
+            vec![ops.clone(), ops]
+        };
+        self.push(
+            Class::ReturnValue,
+            format!("declared property over what `{}` returns", a.fact.name),
+            actors,
+            Resource {
+                kind: "return-value".to_owned(),
+                table,
+                columns: Vec::new(),
+                text: format!(
+                    "{}(): {}",
+                    a.fact.name,
+                    tables.into_iter().collect::<Vec<_>>().join(", ")
+                ),
+            },
+            conflict,
+            properties,
+            Vec::new(),
+            Vec::new(),
+            env,
+            Vec::new(),
+            &ops_of,
+        );
+    }
+
+    // -- Phase 14: parent DELETE x child INSERT ---------------------------------
+
+    /// A read that finds the parent row (by a unique key of the parent
+    /// table) guards an insert of a child row whose column holds that key;
+    /// another entry deletes parent rows by that key. With a foreign key
+    /// (`NO ACTION`/`RESTRICT`) the database enforces the reference and the
+    /// property is schema-enforced (a 23503 for one of them is not an
+    /// application defect); without one, that the reference must hold is a
+    /// hypothesis the existence check suggests.
+    fn parent_child(&mut self, _i: usize, a: &Analyzed) {
+        let s = &a.summary;
+        for read in s.db.iter().filter(|e| {
+            matches!(e.access, Access::Read | Access::Count)
+                && !e.opaque_predicate
+                && e.joins.is_empty()
+                && e.eq.len() == 1
+        }) {
+            let (pcol, pval) = &read.eq[0];
+            if !matches!(canon(pval, s), Val::Param { .. }) {
+                continue;
+            }
+            let unique = unique_sets(self.index, &read.table)
+                .into_iter()
+                .any(|(set, p)| p.is_none() && set == [pcol.clone()]);
+            if !unique {
+                continue;
+            }
+            for insert in s.db.iter().filter(|e| {
+                e.access == Access::Insert
+                    && e.table != read.table
+                    && s.reaches(read.index, e.index)
+                    && s.deciding_guard(read.index, e.at).is_some()
+            }) {
+                let Some((ccol, _)) = insert.writes.iter().find(|(_, v)| same_value(v, pval, s))
+                else {
+                    continue;
+                };
+                let deleters: Vec<(usize, usize)> = self
+                    .entries
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, b)| b.fact.selector != a.fact.selector)
+                    .flat_map(|(j, b)| {
+                        b.summary
+                            .db
+                            .iter()
+                            .filter(|e| {
+                                e.access == Access::Delete
+                                    && e.table == read.table
+                                    && matches!(
+                                        e.eq_val(pcol).map(|v| canon(v, &b.summary)),
+                                        Some(Val::Param { .. })
+                                    )
+                            })
+                            .map(move |e| (j, e.index))
+                    })
+                    .collect();
+                let fk = self.foreign_key(&insert.table, ccol);
+                for (j, d) in deleters {
+                    let b = &self.entries[j];
+                    let delete = &b.summary.db[d];
+                    let enforced = fk
+                        .as_ref()
+                        .is_some_and(|(t, c, _)| t == &read.table && c == pcol);
+                    let mut protections = Vec::new();
+                    let (origin, strength, rationale) = if enforced {
+                        let action = fk
+                            .as_ref()
+                            .map(|(_, _, a)| a.as_str())
+                            .unwrap_or("no action");
+                        protections.push(format!(
+                            "FOREIGN KEY `{}`({ccol}) REFERENCES `{}`({pcol}) ON DELETE {action}",
+                            insert.table, read.table
+                        ));
+                        (
+                            Origin::SchemaEnforced,
+                            Strength::DatabaseIntegrity,
+                            format!(
+                                "the foreign key `{}`({ccol}) → `{}`({pcol}) in the analyzed schema: the database rejects one of the two (SQLSTATE 23503), which is not by itself an application defect",
+                                insert.table, read.table
+                            ),
+                        )
+                    } else {
+                        (
+                            Origin::HeuristicHypothesis,
+                            Strength::DatabaseIntegrity,
+                            format!(
+                                "`{}` checks that the `{}` row exists before inserting a `{}` row that holds its key; no foreign key enforces the reference, so that it must hold is a hypothesis",
+                                a.fact.name, read.table, insert.table
+                            ),
+                        )
+                    };
+                    let mut properties = vec![Property {
+                        name: format!("no-orphan-{}", insert.table),
+                        description: format!(
+                            "every `{}` row's `{ccol}` names an existing `{}` row",
+                            insert.table, read.table
+                        ),
+                        origin,
+                        strength,
+                        spec: Spec::NoOrphan {
+                            child: insert.table.clone(),
+                            column: ccol.clone(),
+                            parent: read.table.clone(),
+                            parent_column: pcol.clone(),
+                            key: canon(pval, s),
+                        },
+                        rationale,
+                        evidence: vec![format!(
+                            "existence check at {}, insert at {}, delete in `{}` at {}",
+                            read.src.label(),
+                            insert.src.label(),
+                            b.fact.name,
+                            delete.src.label()
+                        )],
+                    }];
+                    let written: Vec<(String, Val)> = insert
+                        .writes
+                        .iter()
+                        .map(|(c, v)| (c.clone(), canon(v, s)))
+                        .collect();
+                    properties.extend(self.declared_properties(
+                        a,
+                        Some(&insert.table),
+                        None,
+                        &written,
+                    ));
+                    self.push(
+                        Class::ParentChild,
+                        format!(
+                            "insert into `{}` after finding its `{}` row, against `{}` deleting it",
+                            insert.table, read.table, b.fact.name
+                        ),
+                        vec![a, b],
+                        Resource {
+                            kind: "row".to_owned(),
+                            table: read.table.clone(),
+                            columns: vec![pcol.clone()],
+                            text: format!("{}({pcol})", read.table),
+                        },
+                        vec![
+                            op(0, "check", read),
+                            op(0, "act", insert),
+                            op(1, "act", delete),
+                        ],
+                        properties,
+                        protections,
+                        vec![Assumption::new(
+                            "concurrency",
+                            "discovery-default",
+                            format!(
+                                "`{}` and `{}` can run at the same time on the same `{}` row",
+                                a.fact.name, b.fact.name, read.table
+                            ),
+                        )],
+                        Self::two(Relation::Same),
+                        Vec::new(),
+                        &[vec![read, insert], vec![delete]],
+                    );
+                }
+            }
+        }
+    }
+
+    /// Phase 14: the foreign key of `table.column` in the analyzed schema:
+    /// (referenced table, referenced column property, ON DELETE action).
+    fn foreign_key(&self, table: &str, column: &str) -> Option<(String, String, String)> {
+        let t = self.index.source_table(table)?;
+        let c = t.columns.iter().find(|c| c.property == column)?;
+        let (binding, col) = c.references.as_ref()?;
+        let parent = self.index.referenced_table(&t.file, binding)?;
+        let action = t
+            .foreign_keys
+            .iter()
+            .find(|f| f.columns.iter().any(|x| x == &c.sql_name))
+            .and_then(|f| f.on_delete.clone())
+            .unwrap_or_else(|| "no action".to_owned());
+        Some((parent.name.clone(), col.clone(), action))
+    }
+
     // -- H: lock order ------------------------------------------------------
 
     fn lock_order(&mut self, _i: usize, a: &Analyzed) {
@@ -1728,6 +2060,7 @@ impl Detector<'_> {
                 .filter(|e| {
                     e.tx.is_some()
                         && (matches!(e.access, Access::Update | Access::Delete)
+                            // Any row lock can be part of a wait cycle.
                             || (e.access == Access::Read && e.lock != LockMode::None))
                 })
                 .collect();

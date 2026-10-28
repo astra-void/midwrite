@@ -86,7 +86,7 @@ fn ms(start: Instant) -> u64 {
 // ---------------------------------------------------------------------------
 
 /// Bumped whenever extraction or this cache's format changes.
-const CACHE_VERSION: &str = "commitrift-discover-cache-2";
+const CACHE_VERSION: &str = "commitrift-discover-cache-4";
 
 #[derive(Clone, Serialize, Deserialize)]
 struct CachedExtraction {
@@ -157,9 +157,15 @@ fn cache_key(
         .iter()
         .filter(|t| t.source.as_ref().is_none_or(|(f, _)| reachable.contains(f)))
         .collect();
+    // Phase 13: whether the project builds a replicated database depends on
+    // every module (not only the closure), so the flag itself is keyed.
     let bindings = format!("{tables:?}")
         + &format!("{:?}", index.bindings.externals)
-        + &format!("{:?}", index.bindings.transaction_retries);
+        + &format!("{:?}", index.bindings.transaction_retries)
+        + &format!(
+            "replicas={} {:?} js-values={}",
+            index.bindings.replicas, index.bindings.replica_factories, index.bindings.js_values
+        );
     format!(
         "{:016x}",
         commitrift_core::diagnostic::stable_hash(&[
@@ -472,44 +478,9 @@ pub fn discover(root: &Path, opts: &Options) -> Result<DiscoveryReport, String> 
     // -- candidates -----------------------------------------------------------
     let t = Instant::now();
     let (mut candidates, rejected, truncated) = detect(&index, &analyzed, opts.max_partners);
-    // Phase 12: PostgreSQL's foreign-key check locks the referenced row
-    // (FOR KEY SHARE); the model has no foreign-key locks. When one actor
-    // locks rows of a table (FOR UPDATE) that another actor's write
-    // references, a schedule of the model may not be realizable (the write
-    // waits in PostgreSQL): stated with the candidate.
-    for c in &mut candidates {
-        let effects: Vec<&crate::effects::DbEffect> = c
-            .entries
-            .iter()
-            .filter_map(|e| analyzed.iter().find(|a| a.fact.selector == e.selector))
-            .flat_map(|a| a.summary.db.iter())
-            .collect();
-        let locked: BTreeSet<&str> = effects
-            .iter()
-            .filter(|e| e.lock != commitrift_model::ir::LockMode::None)
-            .map(|e| e.table.as_str())
-            .collect();
-        let referencing = effects.iter().filter(|e| e.access.writes()).find_map(|e| {
-            let source = index.source_table(&e.table)?;
-            source
-                .columns
-                .iter()
-                .filter_map(|col| col.references.as_ref().map(|(b, _)| b.clone()))
-                .chain(source.foreign_keys.iter().map(|f| f.table.clone()))
-                .filter_map(|b| index.referenced_table(&source.file, &b))
-                .find(|parent| locked.contains(parent.name.as_str()))
-                .map(|parent| (e.table.clone(), parent.name.clone()))
-        });
-        if let Some((child, parent)) = referencing {
-            c.assumptions.push(crate::candidate::Assumption::new(
-                "foreign-key-locks",
-                "model-limitation",
-                format!(
-                    "a write to `{child}` references `{parent}`, whose rows another operation locks FOR UPDATE: PostgreSQL's foreign-key check waits for that lock (FOR KEY SHARE), the model has no foreign-key locks, so a model schedule may not be realizable as such"
-                ),
-            ));
-        }
-    }
+    // Phase 13: foreign keys and their row locks are modeled (scenarios
+    // with foreign keys get the `foreign-keys` feature), so the Phase 12
+    // `foreign-key-locks` model-limitation assumption is no longer stated.
     for c in &mut candidates {
         // Idempotency keys the conflict's effects take from the arguments.
         for op in c.conflict.iter().filter(|o| o.is_external) {
@@ -681,6 +652,7 @@ pub fn discover(root: &Path, opts: &Options) -> Result<DiscoveryReport, String> 
         }
         let (status, finding) =
             status_of(c, &scenarios, opts.model_check, n >= opts.max_candidates);
+        let next_step = crate::report::next_step(c, &status, opts.model_check);
         reports.push(CandidateReport {
             rank: 0,
             candidate: c.clone(),
@@ -690,6 +662,7 @@ pub fn discover(root: &Path, opts: &Options) -> Result<DiscoveryReport, String> 
             duplicate_of: None,
             ranking: ranking_factors(c, &analyzed),
             scenarios,
+            next_step,
         });
     }
 
@@ -1179,6 +1152,21 @@ fn status_of(
     };
     match m.verdict.as_str() {
         "COUNTEREXAMPLE_FOUND" => {
+            // Phase 14: a partial unique index the model does not enforce
+            // may make the violating schedule impossible: the counterexample
+            // is not a finding until such indexes are modeled.
+            if let Some(index) = c
+                .protections
+                .iter()
+                .find(|p| p.starts_with("partial unique"))
+            {
+                return (
+                    "INCONCLUSIVE".to_owned(),
+                    format!(
+                        "INCONCLUSIVE: the model found a violating schedule, but the table has a {index}; PostgreSQL may reject the duplicate the schedule creates, so it is not reported as a counterexample."
+                    ),
+                );
+            }
             let v = m.validation.as_ref();
             let valid = v.is_some_and(|v| v.replayed && v.violates);
             if !valid {
@@ -1234,6 +1222,27 @@ fn status_of(
 /// The category of an extractor's `unknown` detail.
 fn unknown_category(detail: &str) -> &'static str {
     const RULES: &[(&str, &str)] = &[
+        // Phase 13: replica routing.
+        (
+            "read through a read replica (replica modeling not enabled)",
+            "read replica (modeling not enabled)",
+        ),
+        (
+            "read through a read replica or the primary",
+            "read replica or primary (ambiguous handle)",
+        ),
+        (
+            "read through a read replica with a row lock",
+            "row lock through a read replica",
+        ),
+        (
+            "database handle of a replicated database",
+            "replicated database: routing unknown",
+        ),
+        (
+            "package call with a verified built-in contract",
+            "package call with a contract (result not modeled)",
+        ),
         ("method calls are not resolved", "unresolved method call"),
         (
             "imported from the package",

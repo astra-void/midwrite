@@ -169,6 +169,29 @@ pub struct CandidateReport {
     pub duplicate_of: Option<String>,
     pub ranking: Vec<String>,
     pub scenarios: Vec<ScenarioResult>,
+    /// Phase 14: what a developer can do next to verify (or decide) the
+    /// candidate, from its status and its property's origin.
+    pub next_step: String,
+}
+
+/// Phase 14: the next verification step for a candidate.
+pub fn next_step(c: &Candidate, status: &str, model_checked: bool) -> String {
+    use crate::candidate::Origin;
+    let hypothesis = c
+        .properties
+        .first()
+        .is_some_and(|p| p.origin == Origin::HeuristicHypothesis);
+    match status {
+        "BLOCKED" => "declare the property this candidate needs in commitrift-contracts.json (`invariants`), then rerun `commitrift discover --model-check`".to_owned(),
+        "STATIC_CANDIDATE" if !model_checked => "rerun with `--model-check` to explore the synthesized scenario".to_owned(),
+        "STATIC_CANDIDATE" => "raise the candidate or state budgets (`--max-candidates`, `--max-total-states`) to build and check its scenario".to_owned(),
+        "UNSUPPORTED" => "the first operation the model does not support is named above: declare it in commitrift-contracts.json if a contract applies, otherwise this candidate cannot be verified by CommitRift (docs/reference/limitations.md)".to_owned(),
+        "INCONCLUSIVE" => "no valid initial state or property instance was found: declare argument `values` or an `initialState` for the entry in commitrift-contracts.json (docs/user-guide/contracts.md)".to_owned(),
+        "MODEL_COUNTEREXAMPLE" if hypothesis => "decide whether the application requires this property; if it does, declare it in commitrift-contracts.json. Write the scenario with `--emit-scenarios <DIR>` and replay the counterexample with `commitrift model-check <DIR>/<file>`".to_owned(),
+        "MODEL_COUNTEREXAMPLE" => "write the scenario with `--emit-scenarios <DIR>`, read the counterexample with `commitrift model-check <DIR>/<file>`; with an authorized harness, reproduce it on the original code with `--verify-source --allow-execution` (docs/user-guide/source-verification.md)".to_owned(),
+        "NO_VIOLATION_WITHIN_BOUNDS" => "nothing to do within these bounds; a bounded search is not a proof (raise `--max-states` for a larger search)".to_owned(),
+        _ => String::new(),
+    }
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -352,6 +375,9 @@ pub fn render_text(r: &DiscoveryReport, verbose: bool) -> String {
         }
         let _ = writeln!(o, "  Status: {}", c.status);
         let _ = writeln!(o, "  {}", c.finding);
+        if !c.next_step.is_empty() {
+            let _ = writeln!(o, "  Next step: {}", c.next_step);
+        }
     }
     if verbose && !r.rejected.is_empty() {
         let _ = writeln!(o);
@@ -497,7 +523,11 @@ pub fn render_html(r: &DiscoveryReport) -> String {
                 }
             }
         }
-        let _ = write!(o, "</table><p>{}</p></div>", esc(&c.finding));
+        let _ = write!(o, "</table><p>{}</p>", esc(&c.finding));
+        if !c.next_step.is_empty() {
+            let _ = write!(o, "<p><b>Next step:</b> {}</p>", esc(&c.next_step));
+        }
+        let _ = write!(o, "</div>");
     }
     o.push_str("</body></html>\n");
     o

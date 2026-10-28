@@ -176,7 +176,7 @@ impl DbEffect {
             text.push_str(&format!(" WHERE {}", parts.join(" AND ")));
         }
         if self.lock != LockMode::None {
-            text.push_str(" FOR UPDATE");
+            text.push_str(self.lock.sql());
         }
         if self.on_conflict == OnConflict::DoNothing {
             text.push_str(" ON CONFLICT DO NOTHING");
@@ -392,7 +392,7 @@ impl Ctx<'_> {
         // definition is the value it returns.
         let real: Vec<&&Expr> = defs
             .iter()
-            .filter(|e| !matches!(e, Expr::Lit(Value::Null)))
+            .filter(|e| !matches!(e, Expr::Lit(Value::Null | Value::Undefined(_))))
             .collect();
         match real.as_slice() {
             [one] if depth < 16 => self.val(one, depth + 1),
@@ -407,6 +407,12 @@ impl Ctx<'_> {
     fn val(&self, e: &Expr, depth: u32) -> Val {
         if depth > 24 {
             return Val::Unknown { text: e.render() };
+        }
+        // Phase 14: `At(base, "name")` (JavaScript values) reads a property.
+        if !matches!(e, Expr::Field(..))
+            && let Some((base, field)) = e.as_property()
+        {
+            return self.val(&Expr::field(base.clone(), field), depth);
         }
         match e {
             Expr::Lit(v) => Val::Lit { value: v.clone() },
@@ -455,6 +461,24 @@ impl Ctx<'_> {
                 text: e.render(),
                 deps: fields.iter().map(|(_, v)| self.val(v, depth + 1)).collect(),
             },
+            Expr::Array(items) | Expr::Call { args: items, .. } => {
+                let deps = items.iter().map(|v| self.val(v, depth + 1)).collect();
+                if e.mentions_column() {
+                    Val::ColumnRelative {
+                        text: e.render(),
+                        deps,
+                    }
+                } else {
+                    Val::Computed {
+                        text: e.render(),
+                        deps,
+                    }
+                }
+            }
+            Expr::Each { list, .. } => Val::Computed {
+                text: e.render(),
+                deps: vec![self.val(list, depth + 1)],
+            },
             Expr::Unknown(text) => Val::Unknown { text: text.clone() },
         }
     }
@@ -475,6 +499,28 @@ fn conjuncts(pred: &Expr, out: &mut Vec<Expr>) {
 fn column_name(c: &str) -> String {
     // Joined predicates qualify columns (`table.column`).
     c.rsplit('.').next().unwrap_or(c).to_owned()
+}
+
+/// Phase 14: the positions of `code` reachable from `start` (jumps followed;
+/// a return or throw ends a path).
+fn reachable(code: &[Step], start: usize) -> BTreeSet<usize> {
+    let mut seen = BTreeSet::new();
+    let mut todo = vec![start];
+    while let Some(p) = todo.pop() {
+        if p >= code.len() || !seen.insert(p) {
+            continue;
+        }
+        match &code[p].op {
+            Op::Jump { target } => todo.push(*target),
+            Op::JumpIf { target, .. } => {
+                todo.push(*target);
+                todo.push(p + 1);
+            }
+            Op::Return | Op::Throw { .. } | Op::Rethrow { .. } => {}
+            _ => todo.push(p + 1),
+        }
+    }
+    seen
 }
 
 /// Summarize the extracted code of one entry.
@@ -593,23 +639,15 @@ pub fn summarize(extracted: &Extracted) -> EffectSummary {
                 for p in pc + 1..end {
                     in_try.insert((ci, p));
                 }
-                // The handler runs from `handler` to the first jump past it
-                // or the end of the vector.
-                let mut p = *handler;
-                while p < code.len() {
-                    in_handler.insert((ci, p));
-                    if matches!(
-                        code[p].op,
-                        Op::Return | Op::Throw { .. } | Op::Rethrow { .. }
-                    ) {
-                        break;
+                // Phase 14: the handler region is what the handler reaches
+                // and the try block's normal continuation does not (before:
+                // a straight line up to the first forward jump, which a
+                // conditional `return` in the handler cut short).
+                let normal = reachable(code, end + 1);
+                for p in reachable(code, *handler) {
+                    if !normal.contains(&p) {
+                        in_handler.insert((ci, p));
                     }
-                    if let Op::Jump { target } = code[p].op
-                        && target > p
-                    {
-                        break;
-                    }
-                    p += 1;
                 }
             }
         }
@@ -835,7 +873,7 @@ fn state_columns(e: &Expr, ctx: &Ctx<'_>, out: &mut BTreeSet<String>) {
     match e {
         Expr::Bin(BinOp::Eq | BinOp::Ne, a, b) => {
             for (x, y) in [(a, b), (b, a)] {
-                if matches!(y.as_ref(), Expr::Lit(v) if !v.is_null())
+                if matches!(y.as_ref(), Expr::Lit(v) if !v.is_nullish())
                     && let Val::Read { column, .. } = ctx.val(x, 0)
                 {
                     out.insert(column);
@@ -950,6 +988,8 @@ mod tests {
                         affected: None,
                         returning: None,
                         returning_columns: None,
+                        upsert: None,
+                        more_rows: Vec::new(),
                     },
                 },
             }),

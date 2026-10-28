@@ -14,8 +14,8 @@ use std::path::{Path, PathBuf};
 
 use commitrift_analyzer::TsActorProvider;
 use commitrift_model::provider::{
-    ActorProvider, ExternalBinding, ExtractRequest, Extracted, InvocationContract, TableBinding,
-    TransactionRetryBinding,
+    ActorProvider, ExternalBinding, ExtractRequest, Extracted, InvocationContract,
+    ReplicaFactoryBinding, TableBinding, TransactionRetryBinding,
 };
 use commitrift_model::schema_facts::ExtractedSchema;
 
@@ -56,7 +56,7 @@ impl MemoProvider {
 /// values are bound as locals after extraction and are not part of it.
 pub fn request_key(r: &ExtractRequest) -> String {
     format!(
-        "{}\u{1f}{}\u{1f}{}\u{1f}{:?}\u{1f}{:?}\u{1f}{:?}\u{1f}{:?}\u{1f}{:?}\u{1f}{}",
+        "{}\u{1f}{}\u{1f}{}\u{1f}{:?}\u{1f}{:?}\u{1f}{:?}\u{1f}{:?}\u{1f}{:?}\u{1f}{}\u{1f}{}\u{1f}{:?}",
         r.root.display(),
         r.file,
         r.function,
@@ -65,8 +65,10 @@ pub fn request_key(r: &ExtractRequest) -> String {
         r.tables,
         r.externals,
         r.transaction_retries,
-        r.max_inline_depth
-    )
+        r.max_inline_depth,
+        r.replicas,
+        r.replica_factories
+    ) + &format!("\u{1f}{}\u{1f}{}", r.return_values, r.js_values)
 }
 
 impl ActorProvider for MemoProvider {
@@ -106,6 +108,16 @@ pub struct Bindings {
     pub tables: Vec<TableBinding>,
     pub externals: Vec<ExternalBinding>,
     pub transaction_retries: Vec<TransactionRetryBinding>,
+    /// Phase 13: extract reads through a replicated database as replica
+    /// reads (`Conn::Replica`); set when the project builds a replicated
+    /// database (`ProjectIndex::replicated`).
+    pub replicas: bool,
+    /// Phase 13: declared replica factories (`commitrift-contracts.json`
+    /// `replicaFactories`).
+    pub replica_factories: Vec<ReplicaFactoryBinding>,
+    /// Phase 14: extract with JavaScript value semantics (`undefined`,
+    /// arrays, strings, `Map`/`Set`); discovery always does.
+    pub js_values: bool,
 }
 
 /// Extract the entry `selector` as the scenario loader would, with the
@@ -134,6 +146,10 @@ pub fn extract_entry(
         max_inline_depth: INLINE_DEPTH,
         selector: Some(selector.to_owned()),
         contract: Some(contract.unwrap_or_default()),
+        replicas: bindings.replicas,
+        replica_factories: bindings.replica_factories.clone(),
+        return_values: false,
+        js_values: bindings.js_values,
     };
     let mut extracted = provider.extract(&request)?;
     commitrift_model::scenario::seal_unknowns(&mut extracted.codes);

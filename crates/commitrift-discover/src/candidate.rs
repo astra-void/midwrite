@@ -40,6 +40,12 @@ pub enum Class {
     /// Phase 12: an insert committed before a crash is repeated by the
     /// caller's declared retry (with a generated key it cannot collide).
     ResubmittedWrite,
+    /// Phase 14: a read finds a parent row, then a child row referencing it
+    /// is inserted, while another entry deletes the parent.
+    ParentChild,
+    /// Phase 14: a DECLARED property over what callers are told (return
+    /// values); never inferred.
+    ReturnValue,
 }
 
 impl Class {
@@ -54,6 +60,8 @@ impl Class {
             Self::AmbiguousCommit => "ambiguous-commit",
             Self::LockOrder => "lock-order",
             Self::ResubmittedWrite => "resubmitted-write",
+            Self::ParentChild => "parent-child",
+            Self::ReturnValue => "return-value",
         }
     }
 }
@@ -145,6 +153,22 @@ pub enum Spec {
     },
     /// No actor fails.
     NoFailedActors,
+    /// Phase 14: every successful call of `function` returned the value of
+    /// its parameter path `argument` (how the first actor computes it).
+    ReturnsArgument {
+        function: Option<String>,
+        argument: Val,
+    },
+    /// Phase 14: no committed `child` row whose `column` is the key (how
+    /// the first actor computes it) without a `parent` row whose
+    /// `parent_column` is that key.
+    NoOrphan {
+        child: String,
+        column: String,
+        parent: String,
+        parent_column: String,
+        key: Val,
+    },
     Formula {
         formula: Formula,
     },

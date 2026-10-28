@@ -35,7 +35,7 @@ use commitrift_model::model::Model;
 use commitrift_model::provider::ActorProvider;
 use commitrift_model::schema_facts::{SchemaDefault, SchemaTable};
 use commitrift_model::state::{ClosedStmt, State, TKind};
-use commitrift_model::value::{BinOp, Expr, Row, Value};
+use commitrift_model::value::{BinOp, Builtin, Expr, Row, Value};
 
 use crate::candidate::{Candidate, Class, Property, Relation, Spec};
 use crate::detect::Analyzed;
@@ -140,6 +140,11 @@ pub struct ActorPlan {
     pub arguments: Vec<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry: Option<String>,
+    /// Phase 13: the entry's response is a separate step (a crash can
+    /// follow its last statement): actors whose caller retries after a
+    /// crash.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub response: bool,
     /// Source locations of the candidate's operations this actor must reach.
     #[serde(skip)]
     pub targets: Vec<String>,
@@ -188,6 +193,14 @@ pub struct Plan {
     pub max_memory_bytes: Option<u64>,
     pub invariants: Vec<Invariant>,
     pub source_verification: Option<Json>,
+    /// Phase 13: an actor reads through a read replica (the scenario gets
+    /// the `replicas` feature).
+    pub replica_reads: bool,
+    /// Phase 14: an actor's extracted code uses JavaScript value forms (the
+    /// scenario gets the `js-values` feature, so that the loader extracts
+    /// it as discovery did; without such forms both extractions are the
+    /// Phase 13 one).
+    pub js_values: bool,
 }
 
 impl Plan {
@@ -274,6 +287,9 @@ impl Plan {
                 if let Some(r) = &a.retry {
                     x["retry"] = json!({ "trigger": retry_trigger(r) });
                 }
+                if a.response {
+                    x["response"] = json!(true);
+                }
                 x
             })
             .collect();
@@ -311,6 +327,11 @@ impl Plan {
         if !retries.is_empty() {
             extraction["transactionRetries"] = json!(retries);
         }
+        // Phase 13: the declared replicated-database factories, so that the
+        // loader extracts exactly what discovery extracted.
+        if !index.bindings.replica_factories.is_empty() {
+            extraction["replicaFactories"] = json!(index.bindings.replica_factories);
+        }
         let mut doc = json!({
             "schemaVersion": 1,
             "name": self.name,
@@ -331,6 +352,49 @@ impl Plan {
         if let Some(sv) = &self.source_verification {
             doc["sourceVerification"] = sv.clone();
         }
+        // Phase 13: the source schema's foreign keys (and their row locks)
+        // are enforced when the scenario's tables carry any.
+        let has_foreign_keys = self.tables.iter().any(|r| {
+            index
+                .by_from(r)
+                .and_then(|t| index.source_table(&t.name))
+                .is_some_and(|t| {
+                    !t.foreign_keys.is_empty() || t.columns.iter().any(|c| c.references.is_some())
+                })
+        });
+        // Phase 14: time and JSON columns are modeled when the scenario
+        // opts in (the discovery index reads them so).
+        let builders = |names: &[&str]| {
+            self.tables.iter().any(|r| {
+                index
+                    .by_from(r)
+                    .and_then(|t| index.source_table(&t.name))
+                    .is_some_and(|t| {
+                        t.columns
+                            .iter()
+                            .any(|c| names.contains(&c.builder.as_str()))
+                    })
+            })
+        };
+        let mut features = Vec::new();
+        if has_foreign_keys {
+            features.push("foreign-keys");
+        }
+        if builders(&["timestamp", "date"]) {
+            features.push("timestamps");
+        }
+        if builders(&["json", "jsonb"]) {
+            features.push("json");
+        }
+        if self.replica_reads {
+            features.push("replicas");
+        }
+        if self.js_values {
+            features.push("js-values");
+        }
+        if !features.is_empty() {
+            doc["features"] = json!(features);
+        }
         doc
     }
 
@@ -345,6 +409,80 @@ impl Plan {
         commitrift_model::scenario::load_str(&doc.to_string(), &index.root, provider)
             .map_err(|e| e.to_string())
     }
+}
+
+/// Phase 14: the effects of one extraction in a comparable form: every
+/// database statement (source, connection, kind, table, lock), transaction
+/// boundary, external call and unknown operation, per code vector, in code
+/// order. Local computation, jumps and the steps only the loader adds (the
+/// response step and the recorded return value) are not effects.
+fn effect_trace(codes: &[Vec<commitrift_model::ir::Step>]) -> Vec<Vec<String>> {
+    use commitrift_model::ir::{Conn, StmtKind};
+    codes
+        .iter()
+        .map(|code| {
+            code.iter()
+                .filter_map(|s| {
+                    let at = s.src.label();
+                    Some(match &s.op {
+                        Op::Db { stmt } => {
+                            let conn = match stmt.conn {
+                                Conn::Tx => "tx",
+                                Conn::Pool => "pool",
+                                Conn::Replica => "replica",
+                            };
+                            let kind = match &stmt.kind {
+                                StmtKind::Select { lock, .. } => format!("select {}", lock.sql()),
+                                StmtKind::SelectCount { .. } => "count".to_owned(),
+                                StmtKind::Update { .. } => "update".to_owned(),
+                                StmtKind::Insert { upsert, .. } => {
+                                    if upsert.is_some() { "upsert" } else { "insert" }.to_owned()
+                                }
+                                StmtKind::Delete { .. } => "delete".to_owned(),
+                            };
+                            format!("{at} {conn} {} {}", kind.trim(), stmt.kind.table())
+                        }
+                        Op::Begin { .. } => format!("{at} begin"),
+                        Op::Commit => format!("{at} commit"),
+                        Op::Rollback => format!("{at} rollback"),
+                        Op::External { channel, .. } => format!("{at} external {channel}"),
+                        Op::Unknown { .. } => format!("{at} unknown"),
+                        _ => return None,
+                    })
+                })
+                .collect()
+        })
+        .collect()
+}
+
+/// Phase 14: compare discovery's extraction of an entry with the scenario
+/// loader's (the round trip source → discovery → scenario → loader).
+fn round_trip(
+    discovered: &[Vec<commitrift_model::ir::Step>],
+    loaded: &[Vec<commitrift_model::ir::Step>],
+) -> Result<(), String> {
+    let (d, l) = (effect_trace(discovered), effect_trace(loaded));
+    if d == l {
+        return Ok(());
+    }
+    if d.len() != l.len() {
+        return Err(format!(
+            "{} code vector(s) in discovery, {} in the loader",
+            d.len(),
+            l.len()
+        ));
+    }
+    for (i, (dc, lc)) in d.iter().zip(&l).enumerate() {
+        if let Some(j) = (0..dc.len().max(lc.len())).find(|&j| dc.get(j) != lc.get(j)) {
+            let show = |v: Option<&String>| v.map_or("nothing".to_owned(), |s| format!("`{s}`"));
+            return Err(format!(
+                "code {i}, effect {j}: discovery has {}, the loader has {}",
+                show(dc.get(j)),
+                show(lc.get(j))
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn retry_trigger(r: &str) -> &'static str {
@@ -367,7 +505,14 @@ enum Ty {
     Bool,
     /// Phase 12: a `uuid` column: the runtime database accepts only UUIDs.
     Uuid,
+    /// Phase 14: an array (of at most [`MAX_LIST`] strings, or integers).
+    List {
+        ints: bool,
+    },
 }
+
+/// Phase 14: the most elements a synthesized array has.
+pub const MAX_LIST: usize = 3;
 
 /// Parameter paths the code reads, each with a type and whether it is a key.
 fn param_paths(a: &Analyzed, index: &ProjectIndex) -> BTreeMap<String, (Ty, bool)> {
@@ -452,6 +597,28 @@ fn param_paths(a: &Analyzed, index: &ProjectIndex) -> BTreeMap<String, (Ty, bool
     leaves
 }
 
+/// Phase 14: whether extracted code uses a JavaScript value form (an array,
+/// a built-in call, a callback, `undefined`, a list/map/set literal), which
+/// only an extraction with `js_values` produces.
+fn uses_js_values(codes: &[Vec<commitrift_model::ir::Step>]) -> bool {
+    fn js(e: &Expr) -> bool {
+        match e {
+            Expr::Array(_) | Expr::Call { .. } | Expr::Each { .. } => true,
+            Expr::Lit(v) => matches!(
+                v,
+                Value::Undefined(_) | Value::List(_) | Value::Map(_) | Value::Set(_)
+            ),
+            Expr::Local(_) | Expr::Col(_) | Expr::Unknown(_) => false,
+            Expr::Field(e, _) | Expr::Not(e) | Expr::IsNull(e) => js(e),
+            Expr::Bin(_, a, b) => js(a) || js(b),
+            Expr::Object(fields) => fields.iter().any(|(_, e)| js(e)),
+        }
+    }
+    codes.iter().flatten().any(|s| {
+        exprs_of(&s.op).into_iter().any(js) || matches!(&s.op, Op::ReturnValue { expr } if js(expr))
+    })
+}
+
 fn exprs_of(op: &Op) -> Vec<&Expr> {
     use commitrift_model::ir::StmtKind;
     match op {
@@ -468,7 +635,14 @@ fn exprs_of(op: &Op) -> Vec<&Expr> {
             StmtKind::Update { pred, set, .. } => std::iter::once(pred)
                 .chain(set.iter().map(|(_, e)| e))
                 .collect(),
-            StmtKind::Insert { values, .. } => values.iter().map(|(_, e)| e).collect(),
+            // Phase 14: every row of a multi-row INSERT.
+            StmtKind::Insert {
+                values, more_rows, ..
+            } => values
+                .iter()
+                .chain(more_rows.iter().flatten())
+                .map(|(_, e)| e)
+                .collect(),
         },
         _ => Vec::new(),
     }
@@ -477,8 +651,11 @@ fn exprs_of(op: &Op) -> Vec<&Expr> {
 fn path_of(e: &Expr, params: &[String]) -> Option<String> {
     match e {
         Expr::Local(l) if params.contains(l) => Some(l.clone()),
-        Expr::Field(base, f) => path_of(base, params).map(|p| format!("{p}.{f}")),
-        _ => None,
+        // Phase 14: `At(base, "f")` is the property read of JavaScript values.
+        _ => {
+            let (base, f) = e.as_property()?;
+            path_of(base, params).map(|p| format!("{p}.{f}"))
+        }
     }
 }
 
@@ -497,6 +674,18 @@ fn collect_paths(e: &Expr, params: &[String], out: &mut BTreeSet<String>) {
             for (_, v) in fields {
                 collect_paths(v, params, out);
             }
+        }
+        // Phase 14: arguments of JavaScript built-ins and array callbacks
+        // (SQL built-ins are left to their own typing).
+        Expr::Call { func, .. } if func.is_sql() => {}
+        Expr::Array(items) | Expr::Call { args: items, .. } => {
+            for v in items {
+                collect_paths(v, params, out);
+            }
+        }
+        Expr::Each { list, body, .. } => {
+            collect_paths(list, params, out);
+            collect_paths(body, params, out);
         }
         _ => {}
     }
@@ -531,8 +720,293 @@ fn numeric_paths(e: &Expr, params: &[String], f: &mut dyn FnMut(&str)) {
                 numeric_paths(v, params, f);
             }
         }
+        Expr::Call { func, .. } if func.is_sql() => {}
+        Expr::Array(items) | Expr::Call { args: items, .. } => {
+            for v in items {
+                numeric_paths(v, params, f);
+            }
+        }
+        Expr::Each { list, body, .. } => {
+            numeric_paths(list, params, f);
+            numeric_paths(body, params, f);
+        }
         _ => {}
     }
+}
+
+// ---------------------------------------------------------------------------
+// Phase 14: string and array arguments
+// ---------------------------------------------------------------------------
+
+/// How the extracted code uses one parameter path as a JavaScript value.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct Usage {
+    /// Array-only operations (`map`/`filter`/... callbacks, `join`).
+    array: Vec<String>,
+    /// Element access, iteration, destructuring (arrays, also strings).
+    element: Vec<String>,
+    /// String-only operations (`split`, `trim`, `startsWith`, ...).
+    string: Vec<String>,
+    /// Operations of both strings and arrays (`includes`, `indexOf`,
+    /// `length`).
+    shared: Vec<String>,
+    /// Literal arguments of `includes`/`indexOf`: candidate elements.
+    needles: Vec<Value>,
+    /// Elements are read as objects (`x.id` in a callback or a loop).
+    object_elements: bool,
+}
+
+/// Phase 14: the usage of every parameter path the code applies a
+/// JavaScript built-in to. A local defined once from a path (the snapshot
+/// of a `for...of` or of a destructuring) stands for that path.
+fn value_usage(codes: &[Vec<Op>], params: &[String]) -> BTreeMap<String, Usage> {
+    let mut defs: BTreeMap<&str, Vec<&Expr>> = BTreeMap::new();
+    for op in codes.iter().flatten() {
+        if let Op::Let { local, expr } = op {
+            defs.entry(local.as_str()).or_default().push(expr);
+        }
+    }
+    let path = |e: &Expr| -> Option<String> {
+        if let Some(p) = path_of(e, params) {
+            return Some(p);
+        }
+        match e {
+            Expr::Local(l) => match defs.get(l.as_str()).map(Vec::as_slice) {
+                Some([one]) => path_of(one, params),
+                _ => None,
+            },
+            _ => None,
+        }
+    };
+    // Locals holding an element of a path (`x = At(list, i)`).
+    let mut elements: BTreeMap<String, String> = BTreeMap::new();
+    for op in codes.iter().flatten() {
+        if let Op::Let { local, expr } = op
+            && let Expr::Call {
+                func: Builtin::At,
+                args,
+            } = expr
+            && let [recv, index] = args.as_slice()
+            && !matches!(index, Expr::Lit(Value::Str(_)))
+            && let Some(p) = path(recv)
+        {
+            elements.insert(local.clone(), p);
+        }
+    }
+    let mut out: BTreeMap<String, Usage> = BTreeMap::new();
+    fn walk(
+        e: &Expr,
+        path: &dyn Fn(&Expr) -> Option<String>,
+        elements: &BTreeMap<String, String>,
+        out: &mut BTreeMap<String, Usage>,
+    ) {
+        match e {
+            Expr::Call { func, args } => {
+                if let Some(recv) = args.first()
+                    && let Some(p) = path(recv)
+                {
+                    let name = func.name().to_owned();
+                    match func {
+                        Builtin::Join => out.entry(p).or_default().array.push(name),
+                        Builtin::Split
+                        | Builtin::StartsWith
+                        | Builtin::EndsWith
+                        | Builtin::ToLowerCase
+                        | Builtin::ToUpperCase
+                        | Builtin::Trim => out.entry(p).or_default().string.push(name),
+                        Builtin::Includes | Builtin::IndexOf | Builtin::Length => {
+                            let u = out.entry(p).or_default();
+                            u.shared.push(name);
+                            if let Some(Expr::Lit(v)) = args.get(1)
+                                && matches!(v, Value::Str(_) | Value::Int(_))
+                                && !u.needles.contains(v)
+                            {
+                                u.needles.push(v.clone());
+                            }
+                        }
+                        Builtin::At if !matches!(args.get(1), Some(Expr::Lit(Value::Str(_)))) => {
+                            out.entry(p).or_default().element.push("[index]".to_owned())
+                        }
+                        _ => {}
+                    }
+                }
+                // An element read as an object.
+                if let Some((base, _)) = e.as_property()
+                    && let Expr::Local(l) = base
+                    && let Some(p) = elements.get(l)
+                {
+                    out.entry(p.clone()).or_default().object_elements = true;
+                }
+                for a in args {
+                    walk(a, path, elements, out);
+                }
+            }
+            Expr::Each {
+                op,
+                list,
+                var,
+                body,
+            } => {
+                if let Some(p) = path(list) {
+                    let u = out.entry(p).or_default();
+                    u.array.push(format!("{op:?}").to_lowercase());
+                    if reads_property_of(body, var) {
+                        u.object_elements = true;
+                    }
+                }
+                walk(list, path, elements, out);
+                walk(body, path, elements, out);
+            }
+            Expr::Field(b, _) | Expr::Not(b) | Expr::IsNull(b) => {
+                if let Expr::Field(base, _) = e
+                    && let Expr::Local(l) = base.as_ref()
+                    && let Some(p) = elements.get(l)
+                {
+                    out.entry(p.clone()).or_default().object_elements = true;
+                }
+                walk(b, path, elements, out);
+            }
+            Expr::Bin(_, a, b) => {
+                walk(a, path, elements, out);
+                walk(b, path, elements, out);
+            }
+            Expr::Object(fields) => fields
+                .iter()
+                .for_each(|(_, v)| walk(v, path, elements, out)),
+            Expr::Array(items) => items.iter().for_each(|v| walk(v, path, elements, out)),
+            _ => {}
+        }
+    }
+    for op in codes.iter().flatten() {
+        for e in exprs_of(op) {
+            walk(e, &path, &elements, &mut out);
+        }
+    }
+    out
+}
+
+fn reads_property_of(e: &Expr, var: &str) -> bool {
+    if let Some((base, _)) = e.as_property()
+        && matches!(base, Expr::Local(l) if l == var)
+    {
+        return true;
+    }
+    match e {
+        Expr::Field(b, _) | Expr::Not(b) | Expr::IsNull(b) => reads_property_of(b, var),
+        Expr::Bin(_, a, b) => reads_property_of(a, var) || reads_property_of(b, var),
+        Expr::Object(fields) => fields.iter().any(|(_, v)| reads_property_of(v, var)),
+        Expr::Array(items) | Expr::Call { args: items, .. } => {
+            items.iter().any(|v| reads_property_of(v, var))
+        }
+        Expr::Each { list, body, .. } => {
+            reads_property_of(list, var) || reads_property_of(body, var)
+        }
+        _ => false,
+    }
+}
+
+/// The type a written TypeScript annotation gives a value, when it is one
+/// synthesis builds: `string`, `number`, `string[]`, `Array<number>`, ...
+fn annotated_ty(written: &str) -> Option<Ty> {
+    let t = written.trim();
+    let t = t.strip_prefix("readonly ").unwrap_or(t).trim();
+    let element = t
+        .strip_suffix("[]")
+        .or_else(|| t.strip_prefix("Array<").and_then(|r| r.strip_suffix('>')))
+        .or_else(|| {
+            t.strip_prefix("ReadonlyArray<")
+                .and_then(|r| r.strip_suffix('>'))
+        });
+    match element.map(str::trim) {
+        Some("string") => Some(Ty::List { ints: false }),
+        Some("number") => Some(Ty::List { ints: true }),
+        Some(_) => None,
+        None => match t {
+            "string" => Some(Ty::Text),
+            "number" => Some(Ty::Int),
+            "boolean" => Some(Ty::Bool),
+            _ => None,
+        },
+    }
+}
+
+/// Phase 14: the type of a path used as a JavaScript value, or why it is
+/// not synthesized. `Ok(None)`: no decision (the Phase 12 typing stands).
+fn usage_ty(path: &str, u: &Usage, annotation: Option<&str>) -> Result<Option<Ty>, String> {
+    let declared = annotation.and_then(annotated_ty);
+    if u.object_elements {
+        return Err(format!(
+            "the parameter path `{path}` is an array of objects: synthesized arrays hold strings or integers only"
+        ));
+    }
+    let list_ints = declared == Some(Ty::List { ints: true })
+        || (declared.is_none()
+            && u.needles.iter().all(|v| matches!(v, Value::Int(_)))
+            && !u.needles.is_empty());
+    let list = Ty::List { ints: list_ints };
+    if !u.array.is_empty() && !u.string.is_empty() {
+        return Err(format!(
+            "the parameter path `{path}` is used both as an array ({}) and as a string ({})",
+            u.array.join(", "),
+            u.string.join(", ")
+        ));
+    }
+    let used = if !u.array.is_empty() {
+        Some(list)
+    } else if !u.string.is_empty() {
+        Some(Ty::Text)
+    } else if !u.element.is_empty() {
+        Some(list)
+    } else {
+        None
+    };
+    match (used, declared) {
+        // The annotation agrees, or decides between the shared uses.
+        (Some(Ty::List { .. }), Some(Ty::List { .. })) | (None, Some(Ty::List { .. })) => {
+            Ok(declared)
+        }
+        (Some(Ty::Text), Some(Ty::Text)) | (None, Some(Ty::Text)) => Ok(Some(Ty::Text)),
+        // Element access on a declared string indexes the string.
+        (Some(Ty::List { .. }), Some(Ty::Text)) if u.array.is_empty() => Ok(Some(Ty::Text)),
+        (Some(used), Some(declared)) if used != declared => Err(format!(
+            "the parameter path `{path}` is used as {} but declared `{}`",
+            if matches!(used, Ty::List { .. }) {
+                "an array"
+            } else {
+                "a string"
+            },
+            annotation.unwrap_or_default()
+        )),
+        (Some(used), _) => Ok(Some(used)),
+        (None, _) if !u.shared.is_empty() => Err(format!(
+            "the parameter path `{path}` is used only with operations of both strings and arrays ({}), and no `string`/`string[]` annotation says which it is",
+            u.shared.join(", ")
+        )),
+        (None, _) => Ok(None),
+    }
+}
+
+/// A synthesized array: the literal arguments of its `includes`/`indexOf`
+/// (so a membership guard can pass), else one placeholder element.
+fn list_value(last: &str, u: Option<&Usage>, ints: bool) -> Value {
+    let mut items: Vec<Value> = u
+        .map(|u| {
+            u.needles
+                .iter()
+                .filter(|v| matches!(v, Value::Int(_)) == ints)
+                .take(MAX_LIST)
+                .cloned()
+                .collect()
+        })
+        .unwrap_or_default();
+    if items.is_empty() {
+        items.push(if ints {
+            Value::Int(1)
+        } else {
+            Value::Str(format!("{last}-1"))
+        });
+    }
+    Value::List(items)
 }
 
 fn set_path(root: &mut [Value], params: &[String], path: &str, value: Value) {
@@ -652,20 +1126,43 @@ fn varied_paths(c: &Candidate, a: &Analyzed, relation: Relation) -> Vec<String> 
     out
 }
 
-/// Synthesize positional arguments for `a` (actor number `k`).
+/// Synthesize positional arguments for `a` (actor number `k`), or say why
+/// a parameter cannot be synthesized (Phase 14: a value whose type the code
+/// does not determine).
 fn arguments(
     c: &Candidate,
     a: &Analyzed,
     index: &ProjectIndex,
     relation: Relation,
     k: usize,
-) -> Vec<Value> {
+) -> Result<Vec<Value>, String> {
     if let Some(declared) = a.contract.as_ref().and_then(|c| c.arguments.clone()) {
-        return declared;
+        return Ok(declared);
     }
     let params = &a.summary.params;
     let mut args = vec![Value::Null; params.len()];
-    let paths = param_paths(a, index);
+    let mut paths = param_paths(a, index);
+    // Phase 14: strings and arrays, typed by the built-ins applied to them
+    // and the parameters' TypeScript annotations.
+    let ops: Vec<Vec<Op>> = a
+        .summary
+        .codes
+        .iter()
+        .map(|code| code.iter().map(|s| s.op.clone()).collect())
+        .collect();
+    let usage = value_usage(&ops, params);
+    if !usage.is_empty() {
+        let annotations = commitrift_analyzer::TsActorProvider::new(&index.root)
+            .param_annotations(&index.root, &a.fact.selector);
+        for (path, u) in &usage {
+            if let Some(ty) = usage_ty(path, u, annotations.get(path).map(String::as_str))? {
+                paths.entry(path.clone()).or_insert((ty, false)).0 = ty;
+                // An array or string is a leaf: drop paths below it.
+                let below = format!("{path}.");
+                paths.retain(|p, _| !p.starts_with(&below));
+            }
+        }
+    }
     let varied = varied_paths(c, a, relation);
     let mut next_key = 1;
     let mut key_values: BTreeMap<String, i64> = BTreeMap::new();
@@ -685,6 +1182,7 @@ fn arguments(
                 Value::Str("alice@example.test".to_owned())
             }
             Ty::Text => Value::Str(format!("{last}-1")),
+            Ty::List { ints } => list_value(last, usage.get(path), *ints),
         };
         set_path(&mut args, params, path, value);
     }
@@ -725,7 +1223,7 @@ fn arguments(
             }
         }
     }
-    args
+    Ok(args)
 }
 
 // ---------------------------------------------------------------------------
@@ -1022,10 +1520,19 @@ fn fill(builder: &str, property: &str, n: usize) -> Value {
     if builder == "uuid" {
         return uuid_literal(property, n);
     }
+    // Phase 14: time and JSON columns (modeled under the `timestamps` and
+    // `json` features) need values of their type: an explicit canonical
+    // time (the text a Drizzle `Date` serializes to) and an empty object.
+    match builder {
+        "timestamp" => return Value::str("2026-01-01T00:00:00.000Z"),
+        "date" => return Value::str("2026-01-01"),
+        "json" | "jsonb" => return Value::Row(Row::new()),
+        _ => {}
+    }
     match model_ty(builder) {
         Ty::Int => Value::Int(10),
         Ty::Bool => Value::Bool(true),
-        Ty::Text | Ty::Uuid => Value::Str(format!("{property}-{n}")),
+        Ty::Text | Ty::Uuid | Ty::List { .. } => Value::Str(format!("{property}-{n}")),
     }
 }
 
@@ -1352,8 +1859,16 @@ pub fn build(
             selector: a.fact.selector.clone(),
             invocation,
             preconditions,
-            arguments: arguments(c, a, index, variant.relation, k),
+            arguments: match arguments(c, a, index, variant.relation, k) {
+                Ok(args) => args,
+                Err(why) => return Err(fail("unsupported", why)),
+            },
             retry: c.environment.retry.clone(),
+            response: c
+                .environment
+                .retry
+                .as_deref()
+                .is_some_and(|r| matches!(r, "on-crash" | "on-failure-or-crash")),
             targets,
             keep_empty,
             observed: BTreeMap::new(),
@@ -1403,6 +1918,16 @@ pub fn build(
             formula: Formula::Eq([Term::Int(0), Term::Int(0)]),
         }],
         source_verification: None,
+        js_values: c
+            .actor_entries
+            .iter()
+            .any(|&ai| uses_js_values(&analyzed[ai].summary.codes)),
+        replica_reads: c.actor_entries.iter().any(|&ai| {
+            analyzed[ai].summary.codes.iter().flatten().any(|s| {
+                matches!(&s.op, commitrift_model::ir::Op::Db { stmt }
+                    if stmt.conn == commitrift_model::ir::Conn::Replica)
+            })
+        }),
     };
     let mut rows = Rows {
         index,
@@ -1440,6 +1965,24 @@ pub fn build(
                     });
                 }
             };
+            // Phase 14: the loader must extract what discovery extracted
+            // (connections, statements, transactions, sources); a scenario
+            // whose re-extraction differs would check another program.
+            if let Err(e) = round_trip(
+                &analyzed[c.actor_entries[k]].summary.codes,
+                &model.actors[0].codes,
+            ) {
+                return Err(SynthesisReport {
+                    status: "unsupported".to_owned(),
+                    detail: format!(
+                        "scenario round-trip: the loader's extraction of actor `{}` differs from discovery's: {e}",
+                        solo.actors[0].name
+                    ),
+                    iterations,
+                    rows: rows.added.clone(),
+                    notes: rows.notes.clone(),
+                });
+            }
             let run = run_alone(&model, initial_state(&model), 0);
             let (executed, state) = match run {
                 Solo::Unsupported { detail, location } => {
@@ -1598,14 +2141,25 @@ fn inserted_rows(model: &Model, executed: &[Executed]) -> BTreeMap<String, Vec<R
     let mut out: BTreeMap<String, Vec<Row>> = BTreeMap::new();
     for e in executed {
         for a in &e.actions {
-            if let Action::Stmt {
-                stmt: ClosedStmt::Insert { table, values, .. },
-                ..
-            } = a
-            {
-                out.entry(model.schema.table(*table).name.clone())
-                    .or_default()
-                    .push(values.clone());
+            match a {
+                Action::Stmt {
+                    stmt: ClosedStmt::Insert { table, values, .. },
+                    ..
+                } => {
+                    out.entry(model.schema.table(*table).name.clone())
+                        .or_default()
+                        .push(values.clone());
+                }
+                // Phase 14: every row of a multi-row INSERT.
+                Action::Stmt {
+                    stmt: ClosedStmt::InsertMany { table, rows, .. },
+                    ..
+                } => {
+                    out.entry(model.schema.table(*table).name.clone())
+                        .or_default()
+                        .extend(rows.iter().cloned());
+                }
+                _ => {}
             }
         }
     }
@@ -2177,10 +2731,56 @@ pub fn invariants(
                     *max
                 }),
             ]),
+            Spec::NoOrphan {
+                child,
+                column,
+                parent,
+                parent_column,
+                key,
+            } => {
+                let a = analyzed[c.actor_entries[0]];
+                let Some(k) = val_value(key, &plan.actors[0], &a.summary) else {
+                    notes.push(format!(
+                        "`{}`: the key is not computable from the arguments",
+                        p.name
+                    ));
+                    continue;
+                };
+                let count = |table: &str, col: &str| {
+                    Term::Op(TermOp::Count(RowRef {
+                        table: table.to_owned(),
+                        filter: BTreeMap::from([(col.to_owned(), k.clone())]),
+                        column: None,
+                    }))
+                };
+                Formula::Implies(
+                    Box::new(Formula::Gt([count(child, column), Term::Int(0)])),
+                    Box::new(Formula::Gt([count(parent, parent_column), Term::Int(0)])),
+                )
+            }
+            Spec::ReturnsArgument { function, argument } => {
+                let a = analyzed[c.actor_entries[0]];
+                let Some(v) = val_value(argument, &plan.actors[0], &a.summary) else {
+                    notes.push(format!(
+                        "`{}`: the argument is not computable from the arguments",
+                        p.name
+                    ));
+                    continue;
+                };
+                let ok = |returned: Option<Value>| {
+                    Term::Op(TermOp::Actors(ActorsRef {
+                        function: function.clone(),
+                        outcome: OutcomeKind::Ok,
+                        returned,
+                    }))
+                };
+                Formula::Eq([ok(Some(v)), ok(None)])
+            }
             Spec::NoFailedActors => Formula::Eq([
                 Term::Op(TermOp::Actors(ActorsRef {
                     function: None,
                     outcome: OutcomeKind::Failed,
+                    returned: None,
                 })),
                 Term::Int(0),
             ]),
@@ -2206,6 +2806,22 @@ pub fn invariants(
                     continue;
                 }
                 match serial_values(plan, index, provider, table, column, &filter) {
+                    // Phase 14: an outcome an invariant term cannot state (a
+                    // generated value, a boolean, a row) is not turned into
+                    // `null` (which made every such outcome a violation).
+                    Ok(values) if values.values().flatten().any(|v| value_term(v).is_none()) => {
+                        let v = values
+                            .values()
+                            .flatten()
+                            .find(|v| value_term(v).is_none())
+                            .map(Value::render)
+                            .unwrap_or_default();
+                        notes.push(format!(
+                            "`{}`: a serial execution leaves {v} in `{table}.{column}`, which an invariant cannot state",
+                            p.name
+                        ));
+                        continue;
+                    }
                     Ok(values) if !values.is_empty() => {
                         // (completed == k and cell in V_k) for some k.
                         let term = || {
@@ -2220,7 +2836,7 @@ pub fn invariants(
                             .map(|(k, vs)| {
                                 let mut cells: Vec<Formula> = vs
                                     .iter()
-                                    .map(|v| Formula::Eq([term(), value_term(v)]))
+                                    .filter_map(|v| value_term(v).map(|t| Formula::Eq([term(), t])))
                                     .collect();
                                 let cell = if cells.len() == 1 {
                                     cells.pop().expect("one")
@@ -2232,6 +2848,7 @@ pub fn invariants(
                                         Term::Op(TermOp::Actors(ActorsRef {
                                             function: None,
                                             outcome: OutcomeKind::Ok,
+                                            returned: None,
                                         })),
                                         Term::Int(*k),
                                     ]),
@@ -2278,11 +2895,12 @@ pub fn invariants(
     (out, notes)
 }
 
-fn value_term(v: &Value) -> Term {
+fn value_term(v: &Value) -> Option<Term> {
     match v {
-        Value::Int(n) => Term::Int(*n),
-        Value::Str(s) => Term::Str(s.clone()),
-        _ => Term::Null(()),
+        Value::Int(n) => Some(Term::Int(*n)),
+        Value::Str(s) => Some(Term::Str(s.clone())),
+        Value::Null => Some(Term::Null(())),
+        _ => None,
     }
 }
 
@@ -2432,6 +3050,62 @@ pub fn relative_path(from: &Path, to: &Path) -> String {
 mod tests {
     use super::*;
 
+    fn read(conn: commitrift_model::ir::Conn, line: u32) -> commitrift_model::ir::Step {
+        use commitrift_model::ir::{LockMode, Stmt, StmtKind};
+        commitrift_model::ir::Step {
+            op: Op::Db {
+                stmt: Stmt {
+                    conn,
+                    kind: StmtKind::Select {
+                        table: "profiles".into(),
+                        pred: Expr::eq(Expr::col("id"), Expr::local("id")),
+                        lock: LockMode::None,
+                        into: "p".into(),
+                        joins: Vec::new(),
+                        projection: None,
+                    },
+                },
+            },
+            src: SourceRef::declared(line, "db.select()"),
+        }
+    }
+
+    #[test]
+    fn round_trip_detects_a_replica_read_reextracted_as_a_primary_read() {
+        use commitrift_model::ir::{Conn, Step};
+        let local = |line| Step {
+            op: Op::Let {
+                local: "x".into(),
+                expr: Expr::lit(1),
+            },
+            src: SourceRef::declared(line, "x"),
+        };
+        let discovered = vec![vec![local(1), read(Conn::Replica, 2)]];
+        // The loader's extra steps (locals, the response step) are not
+        // effects.
+        let same = vec![vec![
+            local(1),
+            read(Conn::Replica, 2),
+            Step {
+                op: Op::Respond,
+                src: SourceRef::declared(3, "return"),
+            },
+        ]];
+        assert_eq!(round_trip(&discovered, &same), Ok(()));
+        let primary = vec![vec![read(Conn::Pool, 2)]];
+        let err = round_trip(&discovered, &primary).unwrap_err();
+        assert!(
+            err.contains("replica select") && err.contains("pool select"),
+            "{err}"
+        );
+        let missing = vec![Vec::new()];
+        assert!(
+            round_trip(&discovered, &missing)
+                .unwrap_err()
+                .contains("nothing")
+        );
+    }
+
     #[test]
     fn rows_satisfy_closed_predicates_or_say_why() {
         let pred = Expr::bin(
@@ -2474,6 +3148,157 @@ mod tests {
             Some(Value::str("a@b"))
         );
         assert_eq!(get_path(&args, &params, "data.role"), None);
+    }
+
+    fn prop(base: Expr, name: &str) -> Expr {
+        Expr::Call {
+            func: Builtin::At,
+            args: vec![base, Expr::Lit(Value::str(name))],
+        }
+    }
+
+    fn call(func: Builtin, args: Vec<Expr>) -> Expr {
+        Expr::Call { func, args }
+    }
+
+    fn test(cond: Expr) -> Op {
+        Op::JumpIf { cond, target: 0 }
+    }
+
+    #[test]
+    fn phase14_shared_uses_need_an_annotation_and_needles_become_elements() {
+        let params = vec!["input".to_owned()];
+        let roles = prop(Expr::local("input"), "roles");
+        let ops = vec![vec![test(Expr::not(call(
+            Builtin::Includes,
+            vec![roles, Expr::Lit(Value::str("admin"))],
+        )))]];
+        let usage = value_usage(&ops, &params);
+        let u = &usage["input.roles"];
+        let refused = usage_ty("input.roles", u, None).unwrap_err();
+        assert!(refused.contains("both strings and arrays"), "{refused}");
+        assert_eq!(
+            usage_ty("input.roles", u, Some("string[]")),
+            Ok(Some(Ty::List { ints: false }))
+        );
+        assert_eq!(
+            usage_ty("input.roles", u, Some("readonly string[]")),
+            Ok(Some(Ty::List { ints: false }))
+        );
+        assert_eq!(
+            usage_ty("input.roles", u, Some("Array<number>")),
+            Ok(Some(Ty::List { ints: true }))
+        );
+        assert_eq!(
+            usage_ty("input.roles", u, Some("string")),
+            Ok(Some(Ty::Text))
+        );
+        // A union says nothing: still refused.
+        assert!(usage_ty("input.roles", u, Some("string | string[]")).is_err());
+        assert_eq!(
+            list_value("roles", Some(u), false),
+            Value::List(vec![Value::str("admin")])
+        );
+        assert_eq!(
+            list_value("roles", None, false),
+            Value::List(vec![Value::str("roles-1")])
+        );
+    }
+
+    #[test]
+    fn phase14_string_only_and_array_only_uses_decide_and_conflicts_are_refused() {
+        let params = vec!["name".to_owned(), "tags".to_owned()];
+        let ops = vec![vec![
+            Op::Let {
+                local: "n".to_owned(),
+                expr: call(Builtin::Trim, vec![Expr::local("name")]),
+            },
+            Op::Let {
+                local: "k".to_owned(),
+                expr: Expr::Each {
+                    op: commitrift_model::value::EachOp::Some,
+                    list: Box::new(Expr::local("tags")),
+                    var: "t".to_owned(),
+                    body: Box::new(Expr::eq(Expr::local("t"), Expr::Lit(Value::str("x")))),
+                },
+            },
+        ]];
+        let usage = value_usage(&ops, &params);
+        assert_eq!(usage_ty("name", &usage["name"], None), Ok(Some(Ty::Text)));
+        assert_eq!(
+            usage_ty("tags", &usage["tags"], None),
+            Ok(Some(Ty::List { ints: false }))
+        );
+        // Declared as a string but used with an array callback.
+        assert!(usage_ty("tags", &usage["tags"], Some("string")).is_err());
+        let both = vec![vec![
+            Op::Let {
+                local: "a".to_owned(),
+                expr: call(Builtin::Join, vec![Expr::local("tags")]),
+            },
+            Op::Let {
+                local: "b".to_owned(),
+                expr: call(Builtin::ToLowerCase, vec![Expr::local("tags")]),
+            },
+        ]];
+        let usage = value_usage(&both, &params);
+        let refused = usage_ty("tags", &usage["tags"], None).unwrap_err();
+        assert!(refused.contains("both as an array"), "{refused}");
+    }
+
+    #[test]
+    fn phase14_loops_type_their_list_and_object_elements_are_refused() {
+        // `for (const item of items) { item.id }`: a snapshot local, an
+        // element local, a property of the element.
+        let params = vec!["items".to_owned()];
+        let ops = vec![vec![
+            Op::Let {
+                local: "_iter1".to_owned(),
+                expr: Expr::local("items"),
+            },
+            Op::Let {
+                local: "_i2".to_owned(),
+                expr: Expr::lit(0),
+            },
+            test(Expr::not(Expr::bin(
+                BinOp::Lt,
+                Expr::local("_i2"),
+                call(Builtin::Length, vec![Expr::local("_iter1")]),
+            ))),
+            Op::Let {
+                local: "item".to_owned(),
+                expr: call(Builtin::At, vec![Expr::local("_iter1"), Expr::local("_i2")]),
+            },
+            Op::Let {
+                local: "id".to_owned(),
+                expr: prop(Expr::local("item"), "id"),
+            },
+        ]];
+        let usage = value_usage(&ops, &params);
+        let u = &usage["items"];
+        assert!(u.object_elements);
+        assert!(
+            usage_ty("items", u, None)
+                .unwrap_err()
+                .contains("array of objects")
+        );
+        // Without the property read, iteration types an array.
+        let plain: Vec<Vec<Op>> = vec![ops[0][..4].to_vec()];
+        let usage = value_usage(&plain, &params);
+        assert_eq!(
+            usage_ty("items", &usage["items"], None),
+            Ok(Some(Ty::List { ints: false }))
+        );
+        // At most three elements, whatever the code tests.
+        let many = Usage {
+            needles: (1..=5).map(Value::Int).collect(),
+            ..Usage::default()
+        };
+        assert_eq!(
+            list_value("ids", Some(&many), true),
+            Value::List(vec![Value::Int(1), Value::Int(2), Value::Int(3)])
+        );
+        assert_eq!(MAX_LIST, 3);
     }
 
     #[test]

@@ -21,6 +21,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use commitrift_model::invariant::Formula;
+use commitrift_model::provider::ReplicaFactoryBinding;
 use commitrift_model::value::Value;
 
 pub const CONTRACTS_FILE: &str = "commitrift-contracts.json";
@@ -44,6 +45,12 @@ pub struct Contracts {
     pub transaction_helpers: Vec<HelperContract>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub harness: Option<HarnessContract>,
+    /// Phase 13: project functions declared to build a replicated database
+    /// with drizzle-orm `withReplicas` routing (`module#export`). Their
+    /// bodies are not interpreted; each declaration is reported as an
+    /// assumption.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub replica_factories: Vec<ReplicaFactoryBinding>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -139,6 +146,58 @@ pub enum Template {
     MaxExternal { channel: String, max: i64 },
     /// A literal invariant formula (`docs/phase6/INVARIANTS.md`).
     Formula { assert: Formula },
+    /// Phase 14: at most one successful call (of `function`, every actor
+    /// when absent) was told `returned` ("at most one caller is told it
+    /// claimed the task", "a handle is reserved for one caller", "no
+    /// duplicate success after a retry").
+    AtMostOneSuccess {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        function: Option<String>,
+        returned: Value,
+    },
+    /// Phase 14: exactly one successful call (of `function`) at the end:
+    /// one acknowledged logical operation.
+    ExactlyOneSuccess {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        function: Option<String>,
+    },
+    /// Phase 14: every successful call (of `function`) was told `returned`,
+    /// or its own argument number `argument` (read-your-writes: the value
+    /// the caller wrote).
+    EverySuccessReturns {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        function: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        returned: Option<Value>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        argument: Option<String>,
+    },
+}
+
+impl Template {
+    /// Phase 14: the formula of a return-value template.
+    pub fn returned_formula(&self) -> Option<Formula> {
+        use commitrift_model::invariant::{ActorsRef, OutcomeKind, Term, TermOp};
+        let ok = |function: &Option<String>, returned: Option<&Value>| {
+            Term::Op(TermOp::Actors(ActorsRef {
+                function: function.clone(),
+                outcome: OutcomeKind::Ok,
+                returned: returned.cloned(),
+            }))
+        };
+        Some(match self {
+            Self::AtMostOneSuccess { function, returned } => {
+                Formula::Le([ok(function, Some(returned)), Term::Int(1)])
+            }
+            Self::ExactlyOneSuccess { function } => Formula::Eq([ok(function, None), Term::Int(1)]),
+            Self::EverySuccessReturns {
+                function,
+                returned: Some(returned),
+                argument: None,
+            } => Formula::Eq([ok(function, Some(returned)), ok(function, None)]),
+            _ => return None,
+        })
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -192,11 +251,42 @@ impl Contracts {
         if contracts.kind != CONTRACTS_KIND {
             return Err(format!("`kind` must be `{CONTRACTS_KIND}`"));
         }
+        // Phase 14: `everySuccessReturns` names either a value or an
+        // argument, not both and not neither.
+        for inv in &contracts.invariants {
+            if let Template::EverySuccessReturns {
+                returned, argument, ..
+            } = &inv.property
+                && returned.is_some() == argument.is_some()
+            {
+                return Err(format!(
+                    "invariant `{}`: `everySuccessReturns` needs exactly one of `returned` and `argument`",
+                    inv.name
+                ));
+            }
+        }
         for e in &contracts.externals {
             if !matches!(e.dedup.as_str(), "none" | "byKey") {
                 return Err(format!(
                     "external `{}`: dedup `{}` (expected `none` or `byKey`)",
                     e.callee, e.dedup
+                ));
+            }
+        }
+        for f in &contracts.replica_factories {
+            if f.factory
+                .rsplit_once('#')
+                .is_none_or(|(m, e)| m.is_empty() || e.is_empty())
+            {
+                return Err(format!(
+                    "replica factory `{}`: expected `module#export`",
+                    f.factory
+                ));
+            }
+            if f.reason.trim().is_empty() {
+                return Err(format!(
+                    "replica factory `{}`: `reason` is required (why the routing holds)",
+                    f.factory
                 ));
             }
         }
@@ -252,6 +342,28 @@ mod tests {
     use super::*;
 
     #[test]
+    fn return_value_templates_become_formulas_and_need_a_value() {
+        let c = Contracts::parse(
+            r#"{"schemaVersion":1,"kind":"commitrift.contracts","invariants":[
+              {"name":"one-claim","entries":["a.ts#claim"],"property":{"template":"atMostOneSuccess","function":"claim","returned":true}},
+              {"name":"ryw","entries":["a.ts#rename"],"property":{"template":"everySuccessReturns","argument":"name"}}]}"#,
+        )
+        .unwrap();
+        let f = c.invariants[0].property.returned_formula().unwrap();
+        assert_eq!(
+            serde_json::to_value(&f).unwrap(),
+            serde_json::json!({"le": [{"actors": {"function": "claim", "outcome": "ok", "returned": true}}, 1]})
+        );
+        // An argument is instantiated per scenario, not a fixed formula.
+        assert!(c.invariants[1].property.returned_formula().is_none());
+        let bad = Contracts::parse(
+            r#"{"schemaVersion":1,"kind":"commitrift.contracts","invariants":[
+              {"name":"x","entries":["a.ts#f"],"property":{"template":"everySuccessReturns"}}]}"#,
+        );
+        assert!(bad.unwrap_err().contains("exactly one of"));
+    }
+
+    #[test]
     fn contracts_parse_and_reject_unknown_values() {
         let ok = r#"{
             "schemaVersion": 1, "kind": "commitrift.contracts",
@@ -264,6 +376,15 @@ mod tests {
         }"#;
         let c = Contracts::parse(ok).unwrap();
         assert_eq!(c.channel_dedup("card"), Some("byKey"));
+        let replicas = Contracts::parse(
+            r#"{"schemaVersion": 1, "kind": "commitrift.contracts", "replicaFactories": [{"factory": "packages/db/src/replicas.ts#withReplicas", "primaryOnlyMethods": ["usePrimaryOnly"], "primaryProperties": ["$primary"], "reason": "read from source"}]}"#,
+        )
+        .unwrap();
+        assert_eq!(replicas.replica_factories[0].primary_argument, 0);
+        assert_eq!(
+            replicas.replica_factories[0].primary_only_methods,
+            vec!["usePrimaryOnly".to_owned()]
+        );
         assert!(matches!(
             c.invariants[0].property,
             Template::AtLeast { min: 1, .. }
@@ -275,6 +396,9 @@ mod tests {
             r#"{"schemaVersion": 1, "kind": "commitrift.contracts", "entries": {"x#y": {"retry": "always"}}}"#,
             r#"{"schemaVersion": 1, "kind": "commitrift.contracts", "externals": [{"callee": "a", "channel": "b", "dedup": "maybe"}]}"#,
             r#"{"schemaVersion": 1, "kind": "commitrift.contracts", "invariants": [{"name": "x", "property": {"template": "nonNegative", "table": "t", "column": "c", "extra": 1}}]}"#,
+            r#"{"schemaVersion": 1, "kind": "commitrift.contracts", "replicaFactories": [{"factory": "src/db.ts", "reason": "r"}]}"#,
+            r#"{"schemaVersion": 1, "kind": "commitrift.contracts", "replicaFactories": [{"factory": "src/db.ts#make"}]}"#,
+            r#"{"schemaVersion": 1, "kind": "commitrift.contracts", "replicaFactories": [{"factory": "src/db.ts#make", "reason": "r", "routing": "x"}]}"#,
         ] {
             assert!(Contracts::parse(bad).is_err(), "{bad}");
         }

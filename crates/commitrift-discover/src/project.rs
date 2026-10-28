@@ -61,6 +61,10 @@ pub struct ProjectIndex {
     pub contracts: Contracts,
     /// Notes about the index (schema modules not understood, ...).
     pub notes: Vec<String>,
+    /// Phase 13: why the project is taken to build a replicated database
+    /// (`withReplicas` imported, or a declared replica factory); then
+    /// replica reads are extracted as `Conn::Replica`.
+    pub replicated: Option<String>,
 }
 
 impl ProjectIndex {
@@ -309,6 +313,27 @@ pub fn index(
     }
     retries.sort_by(|a, b| a.callee.cmp(&b.callee));
     retries.dedup_by(|a, b| a.callee == b.callee);
+    // Phase 13: a project that builds a replicated database has its reads
+    // through it extracted as replica reads; declared factories that do not
+    // resolve are reported.
+    let provenance = commitrift_analyzer::handles::Provenance::new(
+        provider.context(root),
+        &contracts.replica_factories,
+    );
+    for error in &provenance.errors {
+        notes.push(format!("declared replica factory not applied: {error}"));
+    }
+    let replicated = provenance.replicating();
+    if let Some(why) = &replicated {
+        notes.push(format!(
+            "the project builds a replicated database ({why}): reads through a recognized replicated database are extracted as read-replica reads, and a database known only by its receiver name or by a plain drizzle type is not taken to be the primary for reads"
+        ));
+        if contracts.replica_factories.is_empty() && !why.contains("`drizzle-orm/") {
+            notes.push(
+                "a project-defined `withReplicas` is not interpreted: declare it in `replicaFactories` of commitrift-contracts.json (with the reason its routing holds) to bind its databases".to_owned(),
+            );
+        }
+    }
     Ok(ProjectIndex {
         root: root.to_path_buf(),
         modules,
@@ -322,11 +347,15 @@ pub fn index(
             tables: table_bindings,
             externals,
             transaction_retries: retries,
+            replicas: replicated.is_some(),
+            replica_factories: contracts.replica_factories.clone(),
+            js_values: true,
         },
         helpers,
         receivers,
         contracts,
         notes,
+        replicated,
     })
 }
 
@@ -342,6 +371,9 @@ fn probe_tables(
         let doc = json!({
             "schemaVersion": 1,
             "name": "commitrift-discover-probe",
+            // Phase 14: time and JSON columns are modeled (scenarios with
+            // such tables opt in to the same features).
+            "features": ["timestamps", "json"],
             "extraction": { "root": ".", "schema": file },
             "database": {
                 "tables": bindings.iter().map(|b| json!({ "from": b })).collect::<Vec<_>>(),

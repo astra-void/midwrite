@@ -727,7 +727,12 @@ export async function tag(tenant: string, name: string) {
             .iter()
             .all(|p| p.origin == Origin::HeuristicHypothesis)
     );
-    assert_eq!(c.status, "MODEL_COUNTEREXAMPLE", "{}", c.finding);
+    // Phase 14: the index is still not a protection, but the model does not
+    // enforce it, and here it would reject the duplicate (the inserted rows
+    // have `deleted` null): the schedule the model finds is not a finding.
+    // (Phase 11-13 reported it as MODEL_COUNTEREXAMPLE, a false alarm.)
+    assert_eq!(c.status, "INCONCLUSIVE", "{}", c.finding);
+    assert!(c.finding.contains("partial unique index"), "{}", c.finding);
 }
 
 #[test]
