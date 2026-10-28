@@ -1,0 +1,5004 @@
+{
+ "algorithm": "sleep-set partial-order reduction (default)",
+ "budgets": {
+  "candidatesFound": 19,
+  "candidatesOverBudget": 0,
+  "candidatesReported": 19,
+  "maxCandidates": 64,
+  "maxPartners": 6,
+  "maxStatesPerScenario": 200000,
+  "maxTotalStates": 5000000,
+  "maxWallMsPerScenario": 60000,
+  "partnersTruncated": 0,
+  "scenariosBuilt": 28,
+  "scenariosModelChecked": 28,
+  "scenariosSkippedForBudget": 0,
+  "totalStatesExplored": 635
+ },
+ "candidates": [
+  {
+   "actorEntries": [
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "retry",
+     "origin": "declared",
+     "text": "the caller retries the request (on-crash)"
+    }
+   ],
+   "class": "resubmitted-write",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "workspacesRepository.create",
+     "location": "src/repositories/workspaces.ts:17:29",
+     "operation": "INSERT workspaces",
+     "role": "insert"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/services/workspaces.ts@54:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "addWorkspace",
+     "selector": "src/services/workspaces.ts#addWorkspace"
+    }
+   ],
+   "environment": {
+    "actors": 1,
+    "maxCrashes": 1,
+    "maxInFlight": 0,
+    "maxRetries": 1,
+    "relation": "same",
+    "retry": "on-crash"
+   },
+   "finding": "MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `one-workspace-per-owner` (USER_DECLARED). The property is declared by the user; the counterexample replays in the model.",
+   "fingerprint": "c2de561221603dfc",
+   "group": "b9b4d57eb5c3892b",
+   "id": "CR-SYNTH-C2DE56",
+   "inconclusiveIf": [
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "An owner has at most one workspace (product rule of the free plan).",
+     "name": "one-workspace-per-owner",
+     "origin": "USER_DECLARED",
+     "rationale": "declared in commitrift-contracts.json",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "ownerId",
+        {
+         "kind": "param",
+         "path": "ownerId"
+        }
+       ]
+      ],
+      "table": "workspaces",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 1,
+   "ranking": [
+    "property origin: USER_DECLARED",
+    "no unsupported operation on the path",
+    "entries are request handlers or have declared contracts",
+    "1 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "name",
+     "ownerId"
+    ],
+    "kind": "table",
+    "table": "workspaces",
+    "text": "workspaces"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        "55b64072-0000-4000-a000-000000000001",
+        "name-1"
+       ],
+       "name": "addWorkspace",
+       "response": true,
+       "retry": "on-crash",
+       "selector": "src/services/workspaces.ts#addWorkspace"
+      }
+     ],
+     "file": "cr-synth-c2de56-actual.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "email-1",
+        "id": "55b64072-0000-4000-a000-000000000001",
+        "name": "name-1"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"55b64072-0000-4000-a000-000000000001\")}, column: None })), Int(1)])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "model-counterexample",
+      "finalTerms": [
+       "count(workspaces[ownerId=\"55b64072-0000-4000-a000-000000000001\"]) = 2"
+      ],
+      "schedule": [
+       "addWorkspace write INSERT workspaces {name=\"name-1\", ownerId=\"55b64072-0000-4000-a000-000000000001\"} \u2192 {id=gen#1:0.0}  (src/repositories/workspaces.ts:17:29)",
+       "addWorkspace local h1$_returned4 = null  (src/repositories/workspaces.ts:17:29)",
+       "addWorkspace local CHECK h1$_inserted3 is null \u2192 false  (src/repositories/workspaces.ts:17:29)",
+       "addWorkspace local h1$_returned4 = {id=gen#1:0.0}  (src/repositories/workspaces.ts:17:29)",
+       "addWorkspace local h1$ret = {id=gen#1:0.0}  (src/repositories/workspaces.ts:21:5)",
+       "addWorkspace local created = {id=gen#1:0.0}  (src/services/workspaces.ts:55:9)",
+       "addWorkspace local CHECK !created \u2192 false  (src/services/workspaces.ts:56:7)",
+       "addWorkspace local h5$ret = null  (src/services/workspaces.ts:57:9)",
+       "addWorkspace local h5$workspaceId = gen#1:0.0  (src/repositories/memberships.ts:11:13)",
+       "addWorkspace local h5$userId = \"55b64072-0000-4000-a000-000000000001\"  (src/repositories/memberships.ts:11:34)",
+       "addWorkspace local h5$role = \"owner\"  (src/repositories/memberships.ts:11:50)",
+       "process addWorkspace crash PROCESS CRASH (addWorkspace)",
+       "addWorkspace retry RETRY: the operation is re-executed from the start (attempt 2)",
+       "addWorkspace local h1$ret = null  (src/services/workspaces.ts:55:25)",
+       "addWorkspace local h1$name = \"name-1\"  (src/repositories/workspaces.ts:16:16)",
+       "addWorkspace local h1$ownerId = \"55b64072-0000-4000-a000-000000000001\"  (src/repositories/workspaces.ts:16:30)",
+       "addWorkspace write INSERT workspaces {name=\"name-1\", ownerId=\"55b64072-0000-4000-a000-000000000001\"} \u2192 {id=gen#1:0.1}  (src/repositories/workspaces.ts:17:29)",
+       "addWorkspace local h1$_returned4 = null  (src/repositories/workspaces.ts:17:29)",
+       "addWorkspace local CHECK h1$_inserted3 is null \u2192 false  (src/repositories/workspaces.ts:17:29)",
+       "addWorkspace local h1$_returned4 = {id=gen#1:0.1}  (src/repositories/workspaces.ts:17:29)",
+       "addWorkspace local h1$ret = {id=gen#1:0.1}  (src/repositories/workspaces.ts:21:5)",
+       "addWorkspace local created = {id=gen#1:0.1}  (src/services/workspaces.ts:55:9)",
+       "addWorkspace local CHECK !created \u2192 false  (src/services/workspaces.ts:56:7)",
+       "addWorkspace local h5$ret = null  (src/services/workspaces.ts:57:9)",
+       "addWorkspace local h5$workspaceId = gen#1:0.1  (src/repositories/memberships.ts:11:13)",
+       "addWorkspace local h5$userId = \"55b64072-0000-4000-a000-000000000001\"  (src/repositories/memberships.ts:11:34)",
+       "addWorkspace local h5$role = \"owner\"  (src/repositories/memberships.ts:11:50)",
+       "addWorkspace write INSERT memberships {role=\"owner\", userId=\"55b64072-0000-4000-a000-000000000001\", workspaceId=gen#1:0.1} \u2192 1 row  (src/repositories/memberships.ts:12:11)",
+       "addWorkspace local RESPONSE delivered  (src/services/workspaces.ts:58:3)",
+       "addWorkspace local return (success)"
+      ],
+      "states": 9,
+      "transitions": 8,
+      "validation": {
+       "initialStateValid": true,
+       "minimized": true,
+       "operationsExercised": [
+        "insert src/repositories/workspaces.ts:17:29"
+       ],
+       "operationsNotExercised": [],
+       "replayed": true,
+       "violates": true
+      },
+      "verdict": "COUNTEREXAMPLE_FOUND",
+      "violated": "one-workspace-per-owner"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 1 synthesized row(s)",
+      "iterations": 3,
+      "notes": [],
+      "rows": {
+       "users": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    }
+   ],
+   "status": "MODEL_COUNTEREXAMPLE",
+   "title": "crash after the insert into `workspaces`, then a retry",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "framework",
+     "text": "two requests can run the Server Action at the same time (double submit, two tabs, client retry)"
+    },
+    {
+     "kind": "precondition",
+     "origin": "source-derived",
+     "text": "`withUser` runs the callback only when its guards pass; the scenario assumes they do: `if (!session)` \u2192 throw (src/lib/auth.ts:10:5)"
+    }
+   ],
+   "class": "check-then-act",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "workspacesRepository.findByOwner",
+     "location": "src/repositories/workspaces.ts:8:27",
+     "operation": "SELECT workspaces WHERE ownerId = read#0.id",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "workspacesRepository.create",
+     "location": "src/repositories/workspaces.ts:17:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/app/actions.ts@9:47",
+     "guards": [
+      "`if (!session)` \u2192 throw (src/lib/auth.ts:10:5)"
+     ],
+     "invocation": "wrapper-awaited-when-guards-pass",
+     "kind": "server-action",
+     "name": "createWorkspaceAction(withUser)",
+     "selector": "src/app/actions.ts#createWorkspaceAction/arg[0]",
+     "wrapper": "withUser"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `one-workspace-per-owner` (USER_DECLARED) (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). The property is declared by the user; the counterexample replays in the model.",
+   "fingerprint": "c57a1a6fad57acd1",
+   "group": "9d412081b179237f",
+   "id": "CR-SYNTH-C57A1A",
+   "inconclusiveIf": [
+    "the intended uniqueness of the key is not established by the source",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "An owner has at most one workspace (product rule of the free plan).",
+     "name": "one-workspace-per-owner",
+     "origin": "USER_DECLARED",
+     "rationale": "declared in commitrift-contracts.json",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "ownerId",
+        {
+         "column": "id",
+         "effect": 0,
+         "kind": "read"
+        }
+       ]
+      ],
+      "table": "workspaces",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 2,
+   "ranking": [
+    "property origin: USER_DECLARED",
+    "no unsupported operation on the path",
+    "entries are request handlers or have declared contracts",
+    "2 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "ownerId"
+    ],
+    "kind": "unique-key",
+    "table": "workspaces",
+    "text": "workspaces(ownerId = read#0.id)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "name": "name-1"
+        },
+        {
+         "email": "alice@example.test"
+        }
+       ],
+       "invocation": "awaited",
+       "name": "createWorkspaceAction-1",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `withUser` pass (`if (!session)` \u2192 throw (src/lib/auth.ts:10:5))"
+       ],
+       "selector": "src/app/actions.ts#createWorkspaceAction/arg[0]"
+      },
+      {
+       "arguments": [
+        {
+         "name": "name-1"
+        },
+        {
+         "email": "alice@example.test"
+        }
+       ],
+       "invocation": "awaited",
+       "name": "createWorkspaceAction-2",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `withUser` pass (`if (!session)` \u2192 throw (src/lib/auth.ts:10:5))"
+       ],
+       "selector": "src/app/actions.ts#createWorkspaceAction/arg[0]"
+      }
+     ],
+     "file": "cr-synth-c57a1a-actual.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "model-counterexample",
+      "finalTerms": [
+       "count(workspaces[ownerId=\"743af3c4-0000-4000-a000-000000000001\"]) = 2"
+      ],
+      "schedule": [
+       "createWorkspaceAction-1 read SELECT users WHERE (@email = \"alice@example.test\") \u2192 {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/repositories/users.ts:9:26)",
+       "createWorkspaceAction-1 local h2$ret = {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/repositories/users.ts:10:5)",
+       "createWorkspaceAction-1 local h1$owner = {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/services/workspaces.ts:15:9)",
+       "createWorkspaceAction-1 local CHECK !h1$owner \u2192 false  (src/services/workspaces.ts:16:7)",
+       "createWorkspaceAction-1 local h4$ret = null  (src/services/workspaces.ts:17:26)",
+       "createWorkspaceAction-1 local h4$ownerId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/workspaces.ts:7:21)",
+       "createWorkspaceAction-1 read SELECT workspaces WHERE (@ownerId = \"743af3c4-0000-4000-a000-000000000001\") \u2192 null  (src/repositories/workspaces.ts:8:27)",
+       "createWorkspaceAction-1 local h4$ret = null  (src/repositories/workspaces.ts:13:5)",
+       "createWorkspaceAction-1 local h1$existing = null  (src/services/workspaces.ts:17:9)",
+       "createWorkspaceAction-1 local CHECK h1$existing \u2192 false  (src/services/workspaces.ts:18:7)",
+       "createWorkspaceAction-1 local h6$ret = null  (src/services/workspaces.ts:19:25)",
+       "createWorkspaceAction-1 local h6$name = \"name-1\"  (src/repositories/workspaces.ts:16:16)",
+       "createWorkspaceAction-1 local h6$ownerId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/workspaces.ts:16:30)",
+       "createWorkspaceAction-2 read SELECT users WHERE (@email = \"alice@example.test\") \u2192 {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/repositories/users.ts:9:26)",
+       "createWorkspaceAction-2 local h2$ret = {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/repositories/users.ts:10:5)",
+       "createWorkspaceAction-2 local h1$owner = {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/services/workspaces.ts:15:9)",
+       "createWorkspaceAction-2 local CHECK !h1$owner \u2192 false  (src/services/workspaces.ts:16:7)",
+       "createWorkspaceAction-2 local h4$ret = null  (src/services/workspaces.ts:17:26)",
+       "createWorkspaceAction-2 local h4$ownerId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/workspaces.ts:7:21)",
+       "createWorkspaceAction-2 read SELECT workspaces WHERE (@ownerId = \"743af3c4-0000-4000-a000-000000000001\") \u2192 null  (src/repositories/workspaces.ts:8:27)",
+       "createWorkspaceAction-2 local h4$ret = null  (src/repositories/workspaces.ts:13:5)",
+       "createWorkspaceAction-2 local h1$existing = null  (src/services/workspaces.ts:17:9)",
+       "createWorkspaceAction-2 local CHECK h1$existing \u2192 false  (src/services/workspaces.ts:18:7)",
+       "createWorkspaceAction-2 local h6$ret = null  (src/services/workspaces.ts:19:25)",
+       "createWorkspaceAction-2 local h6$name = \"name-1\"  (src/repositories/workspaces.ts:16:16)",
+       "createWorkspaceAction-2 local h6$ownerId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/workspaces.ts:16:30)",
+       "createWorkspaceAction-1 write INSERT workspaces {name=\"name-1\", ownerId=\"743af3c4-0000-4000-a000-000000000001\"} \u2192 {id=gen#1:0.0}  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspaceAction-1 local h6$_returned9 = null  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspaceAction-1 local CHECK h6$_inserted8 is null \u2192 false  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspaceAction-1 local h6$_returned9 = {id=gen#1:0.0}  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspaceAction-1 local h6$ret = {id=gen#1:0.0}  (src/repositories/workspaces.ts:21:5)",
+       "createWorkspaceAction-1 local h1$created = {id=gen#1:0.0}  (src/services/workspaces.ts:19:9)",
+       "createWorkspaceAction-1 local CHECK !h1$created \u2192 false  (src/services/workspaces.ts:20:7)",
+       "createWorkspaceAction-1 local h10$ret = null  (src/services/workspaces.ts:21:9)",
+       "createWorkspaceAction-1 local h10$workspaceId = gen#1:0.0  (src/repositories/memberships.ts:11:13)",
+       "createWorkspaceAction-1 local h10$userId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/memberships.ts:11:34)",
+       "createWorkspaceAction-1 local h10$role = \"owner\"  (src/repositories/memberships.ts:11:50)",
+       "createWorkspaceAction-1 write INSERT memberships {role=\"owner\", userId=\"743af3c4-0000-4000-a000-000000000001\", workspaceId=gen#1:0.0} \u2192 1 row  (src/repositories/memberships.ts:12:11)",
+       "createWorkspaceAction-1 local h1$ret = gen#1:0.0  (src/services/workspaces.ts:22:3)",
+       "createWorkspaceAction-1 local id = gen#1:0.0  (src/app/actions.ts:10:9)",
+       "createWorkspaceAction-1 local return (success)",
+       "createWorkspaceAction-2 write INSERT workspaces {name=\"name-1\", ownerId=\"743af3c4-0000-4000-a000-000000000001\"} \u2192 {id=gen#1:1.0}  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspaceAction-2 local h6$_returned9 = null  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspaceAction-2 local CHECK h6$_inserted8 is null \u2192 false  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspaceAction-2 local h6$_returned9 = {id=gen#1:1.0}  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspaceAction-2 local h6$ret = {id=gen#1:1.0}  (src/repositories/workspaces.ts:21:5)",
+       "createWorkspaceAction-2 local h1$created = {id=gen#1:1.0}  (src/services/workspaces.ts:19:9)",
+       "createWorkspaceAction-2 local CHECK !h1$created \u2192 false  (src/services/workspaces.ts:20:7)",
+       "createWorkspaceAction-2 local h10$ret = null  (src/services/workspaces.ts:21:9)",
+       "createWorkspaceAction-2 local h10$workspaceId = gen#1:1.0  (src/repositories/memberships.ts:11:13)",
+       "createWorkspaceAction-2 local h10$userId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/memberships.ts:11:34)",
+       "createWorkspaceAction-2 local h10$role = \"owner\"  (src/repositories/memberships.ts:11:50)",
+       "createWorkspaceAction-2 write INSERT memberships {role=\"owner\", userId=\"743af3c4-0000-4000-a000-000000000001\", workspaceId=gen#1:1.0} \u2192 1 row  (src/repositories/memberships.ts:12:11)",
+       "createWorkspaceAction-2 local h1$ret = gen#1:1.0  (src/services/workspaces.ts:22:3)",
+       "createWorkspaceAction-2 local id = gen#1:1.0  (src/app/actions.ts:10:9)",
+       "createWorkspaceAction-2 local return (success)"
+      ],
+      "states": 15,
+      "transitions": 14,
+      "validation": {
+       "initialStateValid": true,
+       "minimized": true,
+       "operationsExercised": [
+        "check src/repositories/workspaces.ts:8:27",
+        "act src/repositories/workspaces.ts:17:29"
+       ],
+       "operationsNotExercised": [],
+       "replayed": true,
+       "violates": true
+      },
+      "verdict": "COUNTEREXAMPLE_FOUND",
+      "violated": "one-workspace-per-owner"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 1 synthesized row(s)",
+      "iterations": 5,
+      "notes": [],
+      "rows": {
+       "users": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "name": "name-1"
+        },
+        {
+         "email": "alice@example.test"
+        }
+       ],
+       "invocation": "awaited",
+       "name": "createWorkspaceAction-1",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `withUser` pass (`if (!session)` \u2192 throw (src/lib/auth.ts:10:5))"
+       ],
+       "selector": "src/app/actions.ts#createWorkspaceAction/arg[0]"
+      },
+      {
+       "arguments": [
+        {
+         "name": "name-1"
+        },
+        {
+         "email": "bob@example.test"
+        }
+       ],
+       "invocation": "awaited",
+       "name": "createWorkspaceAction-2",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `withUser` pass (`if (!session)` \u2192 throw (src/lib/auth.ts:10:5))"
+       ],
+       "selector": "src/app/actions.ts#createWorkspaceAction/arg[0]"
+      }
+     ],
+     "file": "cr-synth-c57a1a-distinct-key.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       },
+       {
+        "email": "bob@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000002",
+        "name": "name-2"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "And([Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)]), Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000002\")}, column: None })), Int(1)])])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 26,
+      "transitions": 27,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 6,
+      "notes": [],
+      "rows": {
+       "users": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "MODEL_COUNTEREXAMPLE",
+   "title": "concurrent check-then-insert on `workspaces` (ownerId = read#0.id)",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "class": "check-then-act",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "workspacesRepository.findByOwner",
+     "location": "src/repositories/workspaces.ts:8:27",
+     "operation": "SELECT workspaces WHERE ownerId = read#0.id",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "workspacesRepository.create",
+     "location": "src/repositories/workspaces.ts:17:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    }
+   ],
+   "duplicateOf": "CR-SYNTH-C57A1A",
+   "entries": [
+    {
+     "anchor": "src/services/workspaces.ts@14:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "createWorkspace",
+     "selector": "src/services/workspaces.ts#createWorkspace"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `one-workspace-per-owner` (USER_DECLARED) (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). The property is declared by the user; the counterexample replays in the model.",
+   "fingerprint": "0ee3073142844a4b",
+   "group": "9d412081b179237f",
+   "id": "CR-SYNTH-0EE307",
+   "inconclusiveIf": [
+    "the intended uniqueness of the key is not established by the source",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "An owner has at most one workspace (product rule of the free plan).",
+     "name": "one-workspace-per-owner",
+     "origin": "USER_DECLARED",
+     "rationale": "declared in commitrift-contracts.json",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "ownerId",
+        {
+         "column": "id",
+         "effect": 0,
+         "kind": "read"
+        }
+       ]
+      ],
+      "table": "workspaces",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 3,
+   "ranking": [
+    "property origin: USER_DECLARED",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "1 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "ownerId"
+    ],
+    "kind": "unique-key",
+    "table": "workspaces",
+    "text": "workspaces(ownerId = read#0.id)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        "alice@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspace-1",
+       "selector": "src/services/workspaces.ts#createWorkspace"
+      },
+      {
+       "arguments": [
+        "alice@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspace-2",
+       "selector": "src/services/workspaces.ts#createWorkspace"
+      }
+     ],
+     "file": "cr-synth-0ee307-actual.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "model-counterexample",
+      "finalTerms": [
+       "count(workspaces[ownerId=\"743af3c4-0000-4000-a000-000000000001\"]) = 2"
+      ],
+      "schedule": [
+       "createWorkspace-1 read SELECT users WHERE (@email = \"alice@example.test\") \u2192 {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/repositories/users.ts:9:26)",
+       "createWorkspace-1 local h1$ret = {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/repositories/users.ts:10:5)",
+       "createWorkspace-1 local owner = {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/services/workspaces.ts:15:9)",
+       "createWorkspace-1 local CHECK !owner \u2192 false  (src/services/workspaces.ts:16:7)",
+       "createWorkspace-1 local h3$ret = null  (src/services/workspaces.ts:17:26)",
+       "createWorkspace-1 local h3$ownerId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/workspaces.ts:7:21)",
+       "createWorkspace-1 read SELECT workspaces WHERE (@ownerId = \"743af3c4-0000-4000-a000-000000000001\") \u2192 null  (src/repositories/workspaces.ts:8:27)",
+       "createWorkspace-1 local h3$ret = null  (src/repositories/workspaces.ts:13:5)",
+       "createWorkspace-1 local existing = null  (src/services/workspaces.ts:17:9)",
+       "createWorkspace-1 local CHECK existing \u2192 false  (src/services/workspaces.ts:18:7)",
+       "createWorkspace-1 local h5$ret = null  (src/services/workspaces.ts:19:25)",
+       "createWorkspace-1 local h5$name = \"name-1\"  (src/repositories/workspaces.ts:16:16)",
+       "createWorkspace-1 local h5$ownerId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/workspaces.ts:16:30)",
+       "createWorkspace-2 read SELECT users WHERE (@email = \"alice@example.test\") \u2192 {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/repositories/users.ts:9:26)",
+       "createWorkspace-2 local h1$ret = {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/repositories/users.ts:10:5)",
+       "createWorkspace-2 local owner = {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/services/workspaces.ts:15:9)",
+       "createWorkspace-2 local CHECK !owner \u2192 false  (src/services/workspaces.ts:16:7)",
+       "createWorkspace-2 local h3$ret = null  (src/services/workspaces.ts:17:26)",
+       "createWorkspace-2 local h3$ownerId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/workspaces.ts:7:21)",
+       "createWorkspace-2 read SELECT workspaces WHERE (@ownerId = \"743af3c4-0000-4000-a000-000000000001\") \u2192 null  (src/repositories/workspaces.ts:8:27)",
+       "createWorkspace-2 local h3$ret = null  (src/repositories/workspaces.ts:13:5)",
+       "createWorkspace-2 local existing = null  (src/services/workspaces.ts:17:9)",
+       "createWorkspace-2 local CHECK existing \u2192 false  (src/services/workspaces.ts:18:7)",
+       "createWorkspace-2 local h5$ret = null  (src/services/workspaces.ts:19:25)",
+       "createWorkspace-2 local h5$name = \"name-1\"  (src/repositories/workspaces.ts:16:16)",
+       "createWorkspace-2 local h5$ownerId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/workspaces.ts:16:30)",
+       "createWorkspace-1 write INSERT workspaces {name=\"name-1\", ownerId=\"743af3c4-0000-4000-a000-000000000001\"} \u2192 {id=gen#1:0.0}  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspace-1 local h5$_returned8 = null  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspace-1 local CHECK h5$_inserted7 is null \u2192 false  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspace-1 local h5$_returned8 = {id=gen#1:0.0}  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspace-1 local h5$ret = {id=gen#1:0.0}  (src/repositories/workspaces.ts:21:5)",
+       "createWorkspace-1 local created = {id=gen#1:0.0}  (src/services/workspaces.ts:19:9)",
+       "createWorkspace-1 local CHECK !created \u2192 false  (src/services/workspaces.ts:20:7)",
+       "createWorkspace-1 local h9$ret = null  (src/services/workspaces.ts:21:9)",
+       "createWorkspace-1 local h9$workspaceId = gen#1:0.0  (src/repositories/memberships.ts:11:13)",
+       "createWorkspace-1 local h9$userId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/memberships.ts:11:34)",
+       "createWorkspace-1 local h9$role = \"owner\"  (src/repositories/memberships.ts:11:50)",
+       "createWorkspace-1 write INSERT memberships {role=\"owner\", userId=\"743af3c4-0000-4000-a000-000000000001\", workspaceId=gen#1:0.0} \u2192 1 row  (src/repositories/memberships.ts:12:11)",
+       "createWorkspace-1 local return (success)",
+       "createWorkspace-2 write INSERT workspaces {name=\"name-1\", ownerId=\"743af3c4-0000-4000-a000-000000000001\"} \u2192 {id=gen#1:1.0}  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspace-2 local h5$_returned8 = null  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspace-2 local CHECK h5$_inserted7 is null \u2192 false  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspace-2 local h5$_returned8 = {id=gen#1:1.0}  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspace-2 local h5$ret = {id=gen#1:1.0}  (src/repositories/workspaces.ts:21:5)",
+       "createWorkspace-2 local created = {id=gen#1:1.0}  (src/services/workspaces.ts:19:9)",
+       "createWorkspace-2 local CHECK !created \u2192 false  (src/services/workspaces.ts:20:7)",
+       "createWorkspace-2 local h9$ret = null  (src/services/workspaces.ts:21:9)",
+       "createWorkspace-2 local h9$workspaceId = gen#1:1.0  (src/repositories/memberships.ts:11:13)",
+       "createWorkspace-2 local h9$userId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/memberships.ts:11:34)",
+       "createWorkspace-2 local h9$role = \"owner\"  (src/repositories/memberships.ts:11:50)",
+       "createWorkspace-2 write INSERT memberships {role=\"owner\", userId=\"743af3c4-0000-4000-a000-000000000001\", workspaceId=gen#1:1.0} \u2192 1 row  (src/repositories/memberships.ts:12:11)",
+       "createWorkspace-2 local return (success)"
+      ],
+      "states": 15,
+      "transitions": 14,
+      "validation": {
+       "initialStateValid": true,
+       "minimized": true,
+       "operationsExercised": [
+        "check src/repositories/workspaces.ts:8:27",
+        "act src/repositories/workspaces.ts:17:29"
+       ],
+       "operationsNotExercised": [],
+       "replayed": true,
+       "violates": true
+      },
+      "verdict": "COUNTEREXAMPLE_FOUND",
+      "violated": "one-workspace-per-owner"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 1 synthesized row(s)",
+      "iterations": 5,
+      "notes": [],
+      "rows": {
+       "users": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        "alice@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspace-1",
+       "selector": "src/services/workspaces.ts#createWorkspace"
+      },
+      {
+       "arguments": [
+        "bob@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspace-2",
+       "selector": "src/services/workspaces.ts#createWorkspace"
+      }
+     ],
+     "file": "cr-synth-0ee307-distinct-key.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       },
+       {
+        "email": "bob@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000002",
+        "name": "name-2"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "And([Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)]), Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000002\")}, column: None })), Int(1)])])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 26,
+      "transitions": 27,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 6,
+      "notes": [],
+      "rows": {
+       "users": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "MODEL_COUNTEREXAMPLE",
+   "title": "concurrent check-then-insert on `workspaces` (ownerId = read#0.id)",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    1
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "`createWorkspace` and `createWorkspaceLocked` can run at the same time with the same key"
+    },
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "class": "check-then-act",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "workspacesRepository.findByOwner",
+     "location": "src/repositories/workspaces.ts:8:27",
+     "operation": "SELECT workspaces WHERE ownerId = read#0.id",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "workspacesRepository.create",
+     "location": "src/repositories/workspaces.ts:17:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    },
+    {
+     "entry": 1,
+     "function": "createWorkspaceLocked",
+     "location": "src/services/workspaces.ts:41:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    }
+   ],
+   "duplicateOf": "CR-SYNTH-C57A1A",
+   "entries": [
+    {
+     "anchor": "src/services/workspaces.ts@14:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "createWorkspace",
+     "selector": "src/services/workspaces.ts#createWorkspace"
+    },
+    {
+     "anchor": "src/services/workspaces.ts@26:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "createWorkspaceLocked",
+     "selector": "src/services/workspaces.ts#createWorkspaceLocked"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `one-workspace-per-owner` (USER_DECLARED) (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). The property is declared by the user; the counterexample replays in the model.",
+   "fingerprint": "95906b611a123832",
+   "group": "9d412081b179237f",
+   "id": "CR-SYNTH-95906B",
+   "inconclusiveIf": [
+    "the intended uniqueness of the key is not established by the source",
+    "the exploration bounds are exceeded (the result is then `not established`)",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "An owner has at most one workspace (product rule of the free plan).",
+     "name": "one-workspace-per-owner",
+     "origin": "USER_DECLARED",
+     "rationale": "declared in commitrift-contracts.json The partner `createWorkspaceLocked` inserts the same key columns at src/services/workspaces.ts:41:29",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "ownerId",
+        {
+         "column": "id",
+         "effect": 0,
+         "kind": "read"
+        }
+       ]
+      ],
+      "table": "workspaces",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 4,
+   "ranking": [
+    "property origin: USER_DECLARED",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "2 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "ownerId"
+    ],
+    "kind": "unique-key",
+    "table": "workspaces",
+    "text": "workspaces(ownerId = read#0.id)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        "alice@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspace-1",
+       "selector": "src/services/workspaces.ts#createWorkspace"
+      },
+      {
+       "arguments": [
+        "alice@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspaceLocked-2",
+       "selector": "src/services/workspaces.ts#createWorkspaceLocked"
+      }
+     ],
+     "file": "cr-synth-95906b-actual.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "model-counterexample",
+      "finalTerms": [
+       "count(workspaces[ownerId=\"743af3c4-0000-4000-a000-000000000001\"]) = 2"
+      ],
+      "schedule": [
+       "createWorkspace-1 read SELECT users WHERE (@email = \"alice@example.test\") \u2192 {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/repositories/users.ts:9:26)",
+       "createWorkspace-1 local h1$ret = {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/repositories/users.ts:10:5)",
+       "createWorkspace-1 local owner = {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/services/workspaces.ts:15:9)",
+       "createWorkspace-1 local CHECK !owner \u2192 false  (src/services/workspaces.ts:16:7)",
+       "createWorkspace-1 local h3$ret = null  (src/services/workspaces.ts:17:26)",
+       "createWorkspace-1 local h3$ownerId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/workspaces.ts:7:21)",
+       "createWorkspace-1 read SELECT workspaces WHERE (@ownerId = \"743af3c4-0000-4000-a000-000000000001\") \u2192 null  (src/repositories/workspaces.ts:8:27)",
+       "createWorkspace-1 local h3$ret = null  (src/repositories/workspaces.ts:13:5)",
+       "createWorkspace-1 local existing = null  (src/services/workspaces.ts:17:9)",
+       "createWorkspace-1 local CHECK existing \u2192 false  (src/services/workspaces.ts:18:7)",
+       "createWorkspace-1 local h5$ret = null  (src/services/workspaces.ts:19:25)",
+       "createWorkspace-1 local h5$name = \"name-1\"  (src/repositories/workspaces.ts:16:16)",
+       "createWorkspace-1 local h5$ownerId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/workspaces.ts:16:30)",
+       "createWorkspaceLocked-2 begin BEGIN ISOLATION LEVEL READ COMMITTED  (src/services/workspaces.ts:27:10)",
+       "createWorkspaceLocked-2 local _tx1 = null  (src/services/workspaces.ts:27:10)",
+       "createWorkspaceLocked-2 read SELECT users WHERE (@email = \"alice@example.test\") FOR UPDATE \u2192 {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/services/workspaces.ts:28:27)",
+       "createWorkspaceLocked-2 local CHECK !_row2 \u2192 false  (src/services/workspaces.ts:34:9)",
+       "createWorkspace-1 blocked INSERT workspaces {name=\"name-1\", ownerId=\"743af3c4-0000-4000-a000-000000000001\"} \u2192 BLOCKED waiting for createWorkspaceLocked-2's transaction  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspaceLocked-2 read SELECT workspaces WHERE (@ownerId = \"743af3c4-0000-4000-a000-000000000001\") \u2192 null  (src/services/workspaces.ts:35:30)",
+       "createWorkspaceLocked-2 local CHECK _row3 \u2192 false  (src/services/workspaces.ts:40:9)",
+       "createWorkspaceLocked-2 write INSERT workspaces {name=\"name-1\", ownerId=\"743af3c4-0000-4000-a000-000000000001\"} \u2192 {id=gen#1:1.0}  (src/services/workspaces.ts:41:29)",
+       "createWorkspaceLocked-2 local _returned6 = null  (src/services/workspaces.ts:41:29)",
+       "createWorkspaceLocked-2 local CHECK _inserted5 is null \u2192 false  (src/services/workspaces.ts:41:29)",
+       "createWorkspaceLocked-2 local _returned6 = {id=gen#1:1.0}  (src/services/workspaces.ts:41:29)",
+       "createWorkspaceLocked-2 local CHECK !_returned6 \u2192 false  (src/services/workspaces.ts:45:9)",
+       "createWorkspaceLocked-2 local h7$ret = null  (src/services/workspaces.ts:47:11)",
+       "createWorkspaceLocked-2 local h7$workspaceId = gen#1:1.0  (src/repositories/memberships.ts:11:13)",
+       "createWorkspaceLocked-2 local h7$userId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/memberships.ts:11:34)",
+       "createWorkspaceLocked-2 local h7$role = \"owner\"  (src/repositories/memberships.ts:11:50)",
+       "createWorkspaceLocked-2 write INSERT memberships {role=\"owner\", userId=\"743af3c4-0000-4000-a000-000000000001\", workspaceId=gen#1:1.0} \u2192 1 row  (src/repositories/memberships.ts:12:11)",
+       "createWorkspaceLocked-2 local _tx1 = gen#1:1.0  (src/services/workspaces.ts:48:5)",
+       "createWorkspaceLocked-2 commit COMMIT  (src/services/workspaces.ts:27:10)",
+       "createWorkspaceLocked-2 local return (success)",
+       "createWorkspace-1 resumed (wait over, statement continues)  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspace-1 write INSERT workspaces {id=gen#1:0.0, name=\"name-1\", ownerId=\"743af3c4-0000-4000-a000-000000000001\"} \u2192 {id=gen#1:0.0}  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspace-1 local h5$_returned8 = null  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspace-1 local CHECK h5$_inserted7 is null \u2192 false  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspace-1 local h5$_returned8 = {id=gen#1:0.0}  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspace-1 local h5$ret = {id=gen#1:0.0}  (src/repositories/workspaces.ts:21:5)",
+       "createWorkspace-1 local created = {id=gen#1:0.0}  (src/services/workspaces.ts:19:9)",
+       "createWorkspace-1 local CHECK !created \u2192 false  (src/services/workspaces.ts:20:7)",
+       "createWorkspace-1 local h9$ret = null  (src/services/workspaces.ts:21:9)",
+       "createWorkspace-1 local h9$workspaceId = gen#1:0.0  (src/repositories/memberships.ts:11:13)",
+       "createWorkspace-1 local h9$userId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/memberships.ts:11:34)",
+       "createWorkspace-1 local h9$role = \"owner\"  (src/repositories/memberships.ts:11:50)",
+       "createWorkspace-1 write INSERT memberships {role=\"owner\", userId=\"743af3c4-0000-4000-a000-000000000001\", workspaceId=gen#1:0.0} \u2192 1 row  (src/repositories/memberships.ts:12:11)",
+       "createWorkspace-1 local return (success)"
+      ],
+      "states": 25,
+      "transitions": 26,
+      "validation": {
+       "initialStateValid": true,
+       "minimized": true,
+       "operationsExercised": [
+        "check src/repositories/workspaces.ts:8:27",
+        "act src/repositories/workspaces.ts:17:29",
+        "act src/services/workspaces.ts:41:29"
+       ],
+       "operationsNotExercised": [],
+       "replayed": true,
+       "violates": true
+      },
+      "verdict": "COUNTEREXAMPLE_FOUND",
+      "violated": "one-workspace-per-owner"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 1 synthesized row(s)",
+      "iterations": 5,
+      "notes": [],
+      "rows": {
+       "users": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        "alice@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspace-1",
+       "selector": "src/services/workspaces.ts#createWorkspace"
+      },
+      {
+       "arguments": [
+        "bob@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspaceLocked-2",
+       "selector": "src/services/workspaces.ts#createWorkspaceLocked"
+      }
+     ],
+     "file": "cr-synth-95906b-distinct-key.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       },
+       {
+        "email": "bob@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000002",
+        "name": "name-2"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "And([Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)]), Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000002\")}, column: None })), Int(1)])])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 37,
+      "transitions": 38,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 6,
+      "notes": [],
+      "rows": {
+       "users": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "MODEL_COUNTEREXAMPLE",
+   "title": "check-then-insert on `workspaces` against `createWorkspaceLocked`",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    1
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "`createWorkspaceAction(withUser)` and `createWorkspace` can run at the same time with the same key"
+    },
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    },
+    {
+     "kind": "concurrency",
+     "origin": "framework",
+     "text": "two requests can run the Server Action at the same time (double submit, two tabs, client retry)"
+    },
+    {
+     "kind": "precondition",
+     "origin": "source-derived",
+     "text": "`withUser` runs the callback only when its guards pass; the scenario assumes they do: `if (!session)` \u2192 throw (src/lib/auth.ts:10:5)"
+    }
+   ],
+   "class": "check-then-act",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "workspacesRepository.findByOwner",
+     "location": "src/repositories/workspaces.ts:8:27",
+     "operation": "SELECT workspaces WHERE ownerId = read#0.id",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "workspacesRepository.create",
+     "location": "src/repositories/workspaces.ts:17:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    },
+    {
+     "entry": 1,
+     "function": "workspacesRepository.create",
+     "location": "src/repositories/workspaces.ts:17:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    }
+   ],
+   "duplicateOf": "CR-SYNTH-C57A1A",
+   "entries": [
+    {
+     "anchor": "src/app/actions.ts@9:47",
+     "guards": [
+      "`if (!session)` \u2192 throw (src/lib/auth.ts:10:5)"
+     ],
+     "invocation": "wrapper-awaited-when-guards-pass",
+     "kind": "server-action",
+     "name": "createWorkspaceAction(withUser)",
+     "selector": "src/app/actions.ts#createWorkspaceAction/arg[0]",
+     "wrapper": "withUser"
+    },
+    {
+     "anchor": "src/services/workspaces.ts@14:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "createWorkspace",
+     "selector": "src/services/workspaces.ts#createWorkspace"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `one-workspace-per-owner` (USER_DECLARED) (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). The property is declared by the user; the counterexample replays in the model.",
+   "fingerprint": "4796f3387e86f0af",
+   "group": "9d412081b179237f",
+   "id": "CR-SYNTH-4796F3",
+   "inconclusiveIf": [
+    "the intended uniqueness of the key is not established by the source",
+    "the exploration bounds are exceeded (the result is then `not established`)",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "An owner has at most one workspace (product rule of the free plan).",
+     "name": "one-workspace-per-owner",
+     "origin": "USER_DECLARED",
+     "rationale": "declared in commitrift-contracts.json The partner `createWorkspace` inserts the same key columns at src/repositories/workspaces.ts:17:29",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "ownerId",
+        {
+         "column": "id",
+         "effect": 0,
+         "kind": "read"
+        }
+       ]
+      ],
+      "table": "workspaces",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 5,
+   "ranking": [
+    "property origin: USER_DECLARED",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "4 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "ownerId"
+    ],
+    "kind": "unique-key",
+    "table": "workspaces",
+    "text": "workspaces(ownerId = read#0.id)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "name": "name-1"
+        },
+        {
+         "email": "alice@example.test"
+        }
+       ],
+       "invocation": "awaited",
+       "name": "createWorkspaceAction-1",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `withUser` pass (`if (!session)` \u2192 throw (src/lib/auth.ts:10:5))"
+       ],
+       "selector": "src/app/actions.ts#createWorkspaceAction/arg[0]"
+      },
+      {
+       "arguments": [
+        "alice@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspace-2",
+       "selector": "src/services/workspaces.ts#createWorkspace"
+      }
+     ],
+     "file": "cr-synth-4796f3-actual.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "model-counterexample",
+      "finalTerms": [
+       "count(workspaces[ownerId=\"743af3c4-0000-4000-a000-000000000001\"]) = 2"
+      ],
+      "schedule": [
+       "createWorkspaceAction-1 read SELECT users WHERE (@email = \"alice@example.test\") \u2192 {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/repositories/users.ts:9:26)",
+       "createWorkspaceAction-1 local h2$ret = {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/repositories/users.ts:10:5)",
+       "createWorkspaceAction-1 local h1$owner = {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/services/workspaces.ts:15:9)",
+       "createWorkspaceAction-1 local CHECK !h1$owner \u2192 false  (src/services/workspaces.ts:16:7)",
+       "createWorkspaceAction-1 local h4$ret = null  (src/services/workspaces.ts:17:26)",
+       "createWorkspaceAction-1 local h4$ownerId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/workspaces.ts:7:21)",
+       "createWorkspaceAction-1 read SELECT workspaces WHERE (@ownerId = \"743af3c4-0000-4000-a000-000000000001\") \u2192 null  (src/repositories/workspaces.ts:8:27)",
+       "createWorkspaceAction-1 local h4$ret = null  (src/repositories/workspaces.ts:13:5)",
+       "createWorkspaceAction-1 local h1$existing = null  (src/services/workspaces.ts:17:9)",
+       "createWorkspaceAction-1 local CHECK h1$existing \u2192 false  (src/services/workspaces.ts:18:7)",
+       "createWorkspaceAction-1 local h6$ret = null  (src/services/workspaces.ts:19:25)",
+       "createWorkspaceAction-1 local h6$name = \"name-1\"  (src/repositories/workspaces.ts:16:16)",
+       "createWorkspaceAction-1 local h6$ownerId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/workspaces.ts:16:30)",
+       "createWorkspace-2 read SELECT users WHERE (@email = \"alice@example.test\") \u2192 {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/repositories/users.ts:9:26)",
+       "createWorkspace-2 local h1$ret = {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/repositories/users.ts:10:5)",
+       "createWorkspace-2 local owner = {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/services/workspaces.ts:15:9)",
+       "createWorkspace-2 local CHECK !owner \u2192 false  (src/services/workspaces.ts:16:7)",
+       "createWorkspace-2 local h3$ret = null  (src/services/workspaces.ts:17:26)",
+       "createWorkspace-2 local h3$ownerId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/workspaces.ts:7:21)",
+       "createWorkspace-2 read SELECT workspaces WHERE (@ownerId = \"743af3c4-0000-4000-a000-000000000001\") \u2192 null  (src/repositories/workspaces.ts:8:27)",
+       "createWorkspace-2 local h3$ret = null  (src/repositories/workspaces.ts:13:5)",
+       "createWorkspace-2 local existing = null  (src/services/workspaces.ts:17:9)",
+       "createWorkspace-2 local CHECK existing \u2192 false  (src/services/workspaces.ts:18:7)",
+       "createWorkspace-2 local h5$ret = null  (src/services/workspaces.ts:19:25)",
+       "createWorkspace-2 local h5$name = \"name-1\"  (src/repositories/workspaces.ts:16:16)",
+       "createWorkspace-2 local h5$ownerId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/workspaces.ts:16:30)",
+       "createWorkspaceAction-1 write INSERT workspaces {name=\"name-1\", ownerId=\"743af3c4-0000-4000-a000-000000000001\"} \u2192 {id=gen#1:0.0}  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspaceAction-1 local h6$_returned9 = null  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspaceAction-1 local CHECK h6$_inserted8 is null \u2192 false  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspaceAction-1 local h6$_returned9 = {id=gen#1:0.0}  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspaceAction-1 local h6$ret = {id=gen#1:0.0}  (src/repositories/workspaces.ts:21:5)",
+       "createWorkspaceAction-1 local h1$created = {id=gen#1:0.0}  (src/services/workspaces.ts:19:9)",
+       "createWorkspaceAction-1 local CHECK !h1$created \u2192 false  (src/services/workspaces.ts:20:7)",
+       "createWorkspaceAction-1 local h10$ret = null  (src/services/workspaces.ts:21:9)",
+       "createWorkspaceAction-1 local h10$workspaceId = gen#1:0.0  (src/repositories/memberships.ts:11:13)",
+       "createWorkspaceAction-1 local h10$userId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/memberships.ts:11:34)",
+       "createWorkspaceAction-1 local h10$role = \"owner\"  (src/repositories/memberships.ts:11:50)",
+       "createWorkspaceAction-1 write INSERT memberships {role=\"owner\", userId=\"743af3c4-0000-4000-a000-000000000001\", workspaceId=gen#1:0.0} \u2192 1 row  (src/repositories/memberships.ts:12:11)",
+       "createWorkspaceAction-1 local h1$ret = gen#1:0.0  (src/services/workspaces.ts:22:3)",
+       "createWorkspaceAction-1 local id = gen#1:0.0  (src/app/actions.ts:10:9)",
+       "createWorkspaceAction-1 local return (success)",
+       "createWorkspace-2 write INSERT workspaces {name=\"name-1\", ownerId=\"743af3c4-0000-4000-a000-000000000001\"} \u2192 {id=gen#1:1.0}  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspace-2 local h5$_returned8 = null  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspace-2 local CHECK h5$_inserted7 is null \u2192 false  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspace-2 local h5$_returned8 = {id=gen#1:1.0}  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspace-2 local h5$ret = {id=gen#1:1.0}  (src/repositories/workspaces.ts:21:5)",
+       "createWorkspace-2 local created = {id=gen#1:1.0}  (src/services/workspaces.ts:19:9)",
+       "createWorkspace-2 local CHECK !created \u2192 false  (src/services/workspaces.ts:20:7)",
+       "createWorkspace-2 local h9$ret = null  (src/services/workspaces.ts:21:9)",
+       "createWorkspace-2 local h9$workspaceId = gen#1:1.0  (src/repositories/memberships.ts:11:13)",
+       "createWorkspace-2 local h9$userId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/memberships.ts:11:34)",
+       "createWorkspace-2 local h9$role = \"owner\"  (src/repositories/memberships.ts:11:50)",
+       "createWorkspace-2 write INSERT memberships {role=\"owner\", userId=\"743af3c4-0000-4000-a000-000000000001\", workspaceId=gen#1:1.0} \u2192 1 row  (src/repositories/memberships.ts:12:11)",
+       "createWorkspace-2 local return (success)"
+      ],
+      "states": 15,
+      "transitions": 14,
+      "validation": {
+       "initialStateValid": true,
+       "minimized": true,
+       "operationsExercised": [
+        "check src/repositories/workspaces.ts:8:27",
+        "act src/repositories/workspaces.ts:17:29",
+        "act src/repositories/workspaces.ts:17:29"
+       ],
+       "operationsNotExercised": [],
+       "replayed": true,
+       "violates": true
+      },
+      "verdict": "COUNTEREXAMPLE_FOUND",
+      "violated": "one-workspace-per-owner"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 1 synthesized row(s)",
+      "iterations": 5,
+      "notes": [],
+      "rows": {
+       "users": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "name": "name-1"
+        },
+        {
+         "email": "alice@example.test"
+        }
+       ],
+       "invocation": "awaited",
+       "name": "createWorkspaceAction-1",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `withUser` pass (`if (!session)` \u2192 throw (src/lib/auth.ts:10:5))"
+       ],
+       "selector": "src/app/actions.ts#createWorkspaceAction/arg[0]"
+      },
+      {
+       "arguments": [
+        "bob@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspace-2",
+       "selector": "src/services/workspaces.ts#createWorkspace"
+      }
+     ],
+     "file": "cr-synth-4796f3-distinct-key.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       },
+       {
+        "email": "bob@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000002",
+        "name": "name-2"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "And([Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)]), Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000002\")}, column: None })), Int(1)])])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 26,
+      "transitions": 27,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 6,
+      "notes": [],
+      "rows": {
+       "users": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "MODEL_COUNTEREXAMPLE",
+   "title": "check-then-insert on `workspaces` against `createWorkspace`",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    1
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "`createWorkspaceAction(withUser)` and `createWorkspaceLocked` can run at the same time with the same key"
+    },
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    },
+    {
+     "kind": "concurrency",
+     "origin": "framework",
+     "text": "two requests can run the Server Action at the same time (double submit, two tabs, client retry)"
+    },
+    {
+     "kind": "precondition",
+     "origin": "source-derived",
+     "text": "`withUser` runs the callback only when its guards pass; the scenario assumes they do: `if (!session)` \u2192 throw (src/lib/auth.ts:10:5)"
+    }
+   ],
+   "class": "check-then-act",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "workspacesRepository.findByOwner",
+     "location": "src/repositories/workspaces.ts:8:27",
+     "operation": "SELECT workspaces WHERE ownerId = read#0.id",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "workspacesRepository.create",
+     "location": "src/repositories/workspaces.ts:17:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    },
+    {
+     "entry": 1,
+     "function": "createWorkspaceLocked",
+     "location": "src/services/workspaces.ts:41:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    }
+   ],
+   "duplicateOf": "CR-SYNTH-C57A1A",
+   "entries": [
+    {
+     "anchor": "src/app/actions.ts@9:47",
+     "guards": [
+      "`if (!session)` \u2192 throw (src/lib/auth.ts:10:5)"
+     ],
+     "invocation": "wrapper-awaited-when-guards-pass",
+     "kind": "server-action",
+     "name": "createWorkspaceAction(withUser)",
+     "selector": "src/app/actions.ts#createWorkspaceAction/arg[0]",
+     "wrapper": "withUser"
+    },
+    {
+     "anchor": "src/services/workspaces.ts@26:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "createWorkspaceLocked",
+     "selector": "src/services/workspaces.ts#createWorkspaceLocked"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `one-workspace-per-owner` (USER_DECLARED) (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). The property is declared by the user; the counterexample replays in the model.",
+   "fingerprint": "6c9b4131227659a9",
+   "group": "9d412081b179237f",
+   "id": "CR-SYNTH-6C9B41",
+   "inconclusiveIf": [
+    "the intended uniqueness of the key is not established by the source",
+    "the exploration bounds are exceeded (the result is then `not established`)",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "An owner has at most one workspace (product rule of the free plan).",
+     "name": "one-workspace-per-owner",
+     "origin": "USER_DECLARED",
+     "rationale": "declared in commitrift-contracts.json The partner `createWorkspaceLocked` inserts the same key columns at src/services/workspaces.ts:41:29",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "ownerId",
+        {
+         "column": "id",
+         "effect": 0,
+         "kind": "read"
+        }
+       ]
+      ],
+      "table": "workspaces",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 6,
+   "ranking": [
+    "property origin: USER_DECLARED",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "4 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "ownerId"
+    ],
+    "kind": "unique-key",
+    "table": "workspaces",
+    "text": "workspaces(ownerId = read#0.id)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "name": "name-1"
+        },
+        {
+         "email": "alice@example.test"
+        }
+       ],
+       "invocation": "awaited",
+       "name": "createWorkspaceAction-1",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `withUser` pass (`if (!session)` \u2192 throw (src/lib/auth.ts:10:5))"
+       ],
+       "selector": "src/app/actions.ts#createWorkspaceAction/arg[0]"
+      },
+      {
+       "arguments": [
+        "alice@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspaceLocked-2",
+       "selector": "src/services/workspaces.ts#createWorkspaceLocked"
+      }
+     ],
+     "file": "cr-synth-6c9b41-actual.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "model-counterexample",
+      "finalTerms": [
+       "count(workspaces[ownerId=\"743af3c4-0000-4000-a000-000000000001\"]) = 2"
+      ],
+      "schedule": [
+       "createWorkspaceAction-1 read SELECT users WHERE (@email = \"alice@example.test\") \u2192 {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/repositories/users.ts:9:26)",
+       "createWorkspaceAction-1 local h2$ret = {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/repositories/users.ts:10:5)",
+       "createWorkspaceAction-1 local h1$owner = {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/services/workspaces.ts:15:9)",
+       "createWorkspaceAction-1 local CHECK !h1$owner \u2192 false  (src/services/workspaces.ts:16:7)",
+       "createWorkspaceAction-1 local h4$ret = null  (src/services/workspaces.ts:17:26)",
+       "createWorkspaceAction-1 local h4$ownerId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/workspaces.ts:7:21)",
+       "createWorkspaceAction-1 read SELECT workspaces WHERE (@ownerId = \"743af3c4-0000-4000-a000-000000000001\") \u2192 null  (src/repositories/workspaces.ts:8:27)",
+       "createWorkspaceAction-1 local h4$ret = null  (src/repositories/workspaces.ts:13:5)",
+       "createWorkspaceAction-1 local h1$existing = null  (src/services/workspaces.ts:17:9)",
+       "createWorkspaceAction-1 local CHECK h1$existing \u2192 false  (src/services/workspaces.ts:18:7)",
+       "createWorkspaceAction-1 local h6$ret = null  (src/services/workspaces.ts:19:25)",
+       "createWorkspaceAction-1 local h6$name = \"name-1\"  (src/repositories/workspaces.ts:16:16)",
+       "createWorkspaceAction-1 local h6$ownerId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/workspaces.ts:16:30)",
+       "createWorkspaceLocked-2 begin BEGIN ISOLATION LEVEL READ COMMITTED  (src/services/workspaces.ts:27:10)",
+       "createWorkspaceLocked-2 local _tx1 = null  (src/services/workspaces.ts:27:10)",
+       "createWorkspaceLocked-2 read SELECT users WHERE (@email = \"alice@example.test\") FOR UPDATE \u2192 {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/services/workspaces.ts:28:27)",
+       "createWorkspaceLocked-2 local CHECK !_row2 \u2192 false  (src/services/workspaces.ts:34:9)",
+       "createWorkspaceAction-1 blocked INSERT workspaces {name=\"name-1\", ownerId=\"743af3c4-0000-4000-a000-000000000001\"} \u2192 BLOCKED waiting for createWorkspaceLocked-2's transaction  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspaceLocked-2 read SELECT workspaces WHERE (@ownerId = \"743af3c4-0000-4000-a000-000000000001\") \u2192 null  (src/services/workspaces.ts:35:30)",
+       "createWorkspaceLocked-2 local CHECK _row3 \u2192 false  (src/services/workspaces.ts:40:9)",
+       "createWorkspaceLocked-2 write INSERT workspaces {name=\"name-1\", ownerId=\"743af3c4-0000-4000-a000-000000000001\"} \u2192 {id=gen#1:1.0}  (src/services/workspaces.ts:41:29)",
+       "createWorkspaceLocked-2 local _returned6 = null  (src/services/workspaces.ts:41:29)",
+       "createWorkspaceLocked-2 local CHECK _inserted5 is null \u2192 false  (src/services/workspaces.ts:41:29)",
+       "createWorkspaceLocked-2 local _returned6 = {id=gen#1:1.0}  (src/services/workspaces.ts:41:29)",
+       "createWorkspaceLocked-2 local CHECK !_returned6 \u2192 false  (src/services/workspaces.ts:45:9)",
+       "createWorkspaceLocked-2 local h7$ret = null  (src/services/workspaces.ts:47:11)",
+       "createWorkspaceLocked-2 local h7$workspaceId = gen#1:1.0  (src/repositories/memberships.ts:11:13)",
+       "createWorkspaceLocked-2 local h7$userId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/memberships.ts:11:34)",
+       "createWorkspaceLocked-2 local h7$role = \"owner\"  (src/repositories/memberships.ts:11:50)",
+       "createWorkspaceLocked-2 write INSERT memberships {role=\"owner\", userId=\"743af3c4-0000-4000-a000-000000000001\", workspaceId=gen#1:1.0} \u2192 1 row  (src/repositories/memberships.ts:12:11)",
+       "createWorkspaceLocked-2 local _tx1 = gen#1:1.0  (src/services/workspaces.ts:48:5)",
+       "createWorkspaceLocked-2 commit COMMIT  (src/services/workspaces.ts:27:10)",
+       "createWorkspaceLocked-2 local return (success)",
+       "createWorkspaceAction-1 resumed (wait over, statement continues)  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspaceAction-1 write INSERT workspaces {id=gen#1:0.0, name=\"name-1\", ownerId=\"743af3c4-0000-4000-a000-000000000001\"} \u2192 {id=gen#1:0.0}  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspaceAction-1 local h6$_returned9 = null  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspaceAction-1 local CHECK h6$_inserted8 is null \u2192 false  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspaceAction-1 local h6$_returned9 = {id=gen#1:0.0}  (src/repositories/workspaces.ts:17:29)",
+       "createWorkspaceAction-1 local h6$ret = {id=gen#1:0.0}  (src/repositories/workspaces.ts:21:5)",
+       "createWorkspaceAction-1 local h1$created = {id=gen#1:0.0}  (src/services/workspaces.ts:19:9)",
+       "createWorkspaceAction-1 local CHECK !h1$created \u2192 false  (src/services/workspaces.ts:20:7)",
+       "createWorkspaceAction-1 local h10$ret = null  (src/services/workspaces.ts:21:9)",
+       "createWorkspaceAction-1 local h10$workspaceId = gen#1:0.0  (src/repositories/memberships.ts:11:13)",
+       "createWorkspaceAction-1 local h10$userId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/memberships.ts:11:34)",
+       "createWorkspaceAction-1 local h10$role = \"owner\"  (src/repositories/memberships.ts:11:50)",
+       "createWorkspaceAction-1 write INSERT memberships {role=\"owner\", userId=\"743af3c4-0000-4000-a000-000000000001\", workspaceId=gen#1:0.0} \u2192 1 row  (src/repositories/memberships.ts:12:11)",
+       "createWorkspaceAction-1 local h1$ret = gen#1:0.0  (src/services/workspaces.ts:22:3)",
+       "createWorkspaceAction-1 local id = gen#1:0.0  (src/app/actions.ts:10:9)",
+       "createWorkspaceAction-1 local return (success)"
+      ],
+      "states": 25,
+      "transitions": 26,
+      "validation": {
+       "initialStateValid": true,
+       "minimized": true,
+       "operationsExercised": [
+        "check src/repositories/workspaces.ts:8:27",
+        "act src/repositories/workspaces.ts:17:29",
+        "act src/services/workspaces.ts:41:29"
+       ],
+       "operationsNotExercised": [],
+       "replayed": true,
+       "violates": true
+      },
+      "verdict": "COUNTEREXAMPLE_FOUND",
+      "violated": "one-workspace-per-owner"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 1 synthesized row(s)",
+      "iterations": 5,
+      "notes": [],
+      "rows": {
+       "users": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "name": "name-1"
+        },
+        {
+         "email": "alice@example.test"
+        }
+       ],
+       "invocation": "awaited",
+       "name": "createWorkspaceAction-1",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `withUser` pass (`if (!session)` \u2192 throw (src/lib/auth.ts:10:5))"
+       ],
+       "selector": "src/app/actions.ts#createWorkspaceAction/arg[0]"
+      },
+      {
+       "arguments": [
+        "bob@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspaceLocked-2",
+       "selector": "src/services/workspaces.ts#createWorkspaceLocked"
+      }
+     ],
+     "file": "cr-synth-6c9b41-distinct-key.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       },
+       {
+        "email": "bob@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000002",
+        "name": "name-2"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "And([Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)]), Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000002\")}, column: None })), Int(1)])])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 37,
+      "transitions": 38,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 6,
+      "notes": [],
+      "rows": {
+       "users": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "MODEL_COUNTEREXAMPLE",
+   "title": "check-then-insert on `workspaces` against `createWorkspaceLocked`",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    1
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "`createWorkspaceLocked` and `registerUser` can run at the same time with the same key"
+    },
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "class": "check-then-act",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "createWorkspaceLocked",
+     "location": "src/services/workspaces.ts:35:30",
+     "operation": "SELECT workspaces WHERE ownerId = read#0.id",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "createWorkspaceLocked",
+     "location": "src/services/workspaces.ts:41:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    },
+    {
+     "entry": 1,
+     "function": "workspacesRepository.create",
+     "location": "src/repositories/workspaces.ts:17:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/services/workspaces.ts@26:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "createWorkspaceLocked",
+     "selector": "src/services/workspaces.ts#createWorkspaceLocked"
+    },
+    {
+     "anchor": "src/services/workspaces.ts@73:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "registerUser",
+     "selector": "src/services/workspaces.ts#registerUser"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "INCONCLUSIVE: no valid initial state: actor `registerUser-2` does not reach src/repositories/workspaces.ts:17:29 and no row can be added: no read on the executed path came back empty",
+   "fingerprint": "0fa91b5251bcfca1",
+   "group": "3be960e63ac89814",
+   "id": "CR-SYNTH-0FA91B",
+   "inconclusiveIf": [
+    "the intended uniqueness of the key is not established by the source",
+    "the exploration bounds are exceeded (the result is then `not established`)",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "An owner has at most one workspace (product rule of the free plan).",
+     "name": "one-workspace-per-owner",
+     "origin": "USER_DECLARED",
+     "rationale": "declared in commitrift-contracts.json The partner `registerUser` inserts the same key columns at src/repositories/workspaces.ts:17:29",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "ownerId",
+        {
+         "column": "id",
+         "effect": 0,
+         "kind": "read"
+        }
+       ]
+      ],
+      "table": "workspaces",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 7,
+   "ranking": [
+    "property origin: USER_DECLARED",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "2 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "ownerId"
+    ],
+    "kind": "unique-key",
+    "table": "workspaces",
+    "text": "workspaces(ownerId = read#0.id)"
+   },
+   "scenarios": [
+    {
+     "sourceVerification": false,
+     "synthesis": {
+      "detail": "actor `registerUser-2` does not reach src/repositories/workspaces.ts:17:29 and no row can be added: no read on the executed path came back empty",
+      "iterations": 3,
+      "notes": [],
+      "rows": {
+       "users": 1
+      },
+      "status": "unsatisfiable"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "sourceVerification": false,
+     "synthesis": {
+      "detail": "actor `registerUser-2` does not reach src/repositories/workspaces.ts:17:29 and no row can be added: no read on the executed path came back empty",
+      "iterations": 3,
+      "notes": [],
+      "rows": {
+       "users": 1
+      },
+      "status": "unsatisfiable"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "INCONCLUSIVE",
+   "title": "check-then-insert on `workspaces` against `registerUser`",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    1
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "`createWorkspace` and `registerUser` can run at the same time with the same key"
+    },
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "class": "check-then-act",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "workspacesRepository.findByOwner",
+     "location": "src/repositories/workspaces.ts:8:27",
+     "operation": "SELECT workspaces WHERE ownerId = read#0.id",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "workspacesRepository.create",
+     "location": "src/repositories/workspaces.ts:17:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    },
+    {
+     "entry": 1,
+     "function": "workspacesRepository.create",
+     "location": "src/repositories/workspaces.ts:17:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    }
+   ],
+   "duplicateOf": "CR-SYNTH-C57A1A",
+   "entries": [
+    {
+     "anchor": "src/services/workspaces.ts@14:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "createWorkspace",
+     "selector": "src/services/workspaces.ts#createWorkspace"
+    },
+    {
+     "anchor": "src/services/workspaces.ts@73:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "registerUser",
+     "selector": "src/services/workspaces.ts#registerUser"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "INCONCLUSIVE: no valid initial state: actor `registerUser-2` does not reach src/repositories/workspaces.ts:17:29 and no row can be added: no read on the executed path came back empty",
+   "fingerprint": "fa69a09001e102bf",
+   "group": "9d412081b179237f",
+   "id": "CR-SYNTH-FA69A0",
+   "inconclusiveIf": [
+    "the intended uniqueness of the key is not established by the source",
+    "the exploration bounds are exceeded (the result is then `not established`)",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "An owner has at most one workspace (product rule of the free plan).",
+     "name": "one-workspace-per-owner",
+     "origin": "USER_DECLARED",
+     "rationale": "declared in commitrift-contracts.json The partner `registerUser` inserts the same key columns at src/repositories/workspaces.ts:17:29",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "ownerId",
+        {
+         "column": "id",
+         "effect": 0,
+         "kind": "read"
+        }
+       ]
+      ],
+      "table": "workspaces",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 8,
+   "ranking": [
+    "property origin: USER_DECLARED",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "2 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "ownerId"
+    ],
+    "kind": "unique-key",
+    "table": "workspaces",
+    "text": "workspaces(ownerId = read#0.id)"
+   },
+   "scenarios": [
+    {
+     "sourceVerification": false,
+     "synthesis": {
+      "detail": "actor `registerUser-2` does not reach src/repositories/workspaces.ts:17:29 and no row can be added: no read on the executed path came back empty",
+      "iterations": 3,
+      "notes": [],
+      "rows": {
+       "users": 1
+      },
+      "status": "unsatisfiable"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "sourceVerification": false,
+     "synthesis": {
+      "detail": "actor `registerUser-2` does not reach src/repositories/workspaces.ts:17:29 and no row can be added: no read on the executed path came back empty",
+      "iterations": 3,
+      "notes": [],
+      "rows": {
+       "users": 1
+      },
+      "status": "unsatisfiable"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "INCONCLUSIVE",
+   "title": "check-then-insert on `workspaces` against `registerUser`",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    1
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "`createWorkspaceAction(withUser)` and `registerUser` can run at the same time with the same key"
+    },
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    },
+    {
+     "kind": "concurrency",
+     "origin": "framework",
+     "text": "two requests can run the Server Action at the same time (double submit, two tabs, client retry)"
+    },
+    {
+     "kind": "precondition",
+     "origin": "source-derived",
+     "text": "`withUser` runs the callback only when its guards pass; the scenario assumes they do: `if (!session)` \u2192 throw (src/lib/auth.ts:10:5)"
+    }
+   ],
+   "class": "check-then-act",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "workspacesRepository.findByOwner",
+     "location": "src/repositories/workspaces.ts:8:27",
+     "operation": "SELECT workspaces WHERE ownerId = read#0.id",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "workspacesRepository.create",
+     "location": "src/repositories/workspaces.ts:17:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    },
+    {
+     "entry": 1,
+     "function": "workspacesRepository.create",
+     "location": "src/repositories/workspaces.ts:17:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    }
+   ],
+   "duplicateOf": "CR-SYNTH-C57A1A",
+   "entries": [
+    {
+     "anchor": "src/app/actions.ts@9:47",
+     "guards": [
+      "`if (!session)` \u2192 throw (src/lib/auth.ts:10:5)"
+     ],
+     "invocation": "wrapper-awaited-when-guards-pass",
+     "kind": "server-action",
+     "name": "createWorkspaceAction(withUser)",
+     "selector": "src/app/actions.ts#createWorkspaceAction/arg[0]",
+     "wrapper": "withUser"
+    },
+    {
+     "anchor": "src/services/workspaces.ts@73:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "registerUser",
+     "selector": "src/services/workspaces.ts#registerUser"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "INCONCLUSIVE: no valid initial state: actor `registerUser-2` does not reach src/repositories/workspaces.ts:17:29 and no row can be added: no read on the executed path came back empty",
+   "fingerprint": "9279f4f37c1b3aae",
+   "group": "9d412081b179237f",
+   "id": "CR-SYNTH-9279F4",
+   "inconclusiveIf": [
+    "the intended uniqueness of the key is not established by the source",
+    "the exploration bounds are exceeded (the result is then `not established`)",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "An owner has at most one workspace (product rule of the free plan).",
+     "name": "one-workspace-per-owner",
+     "origin": "USER_DECLARED",
+     "rationale": "declared in commitrift-contracts.json The partner `registerUser` inserts the same key columns at src/repositories/workspaces.ts:17:29",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "ownerId",
+        {
+         "column": "id",
+         "effect": 0,
+         "kind": "read"
+        }
+       ]
+      ],
+      "table": "workspaces",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 9,
+   "ranking": [
+    "property origin: USER_DECLARED",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "4 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "ownerId"
+    ],
+    "kind": "unique-key",
+    "table": "workspaces",
+    "text": "workspaces(ownerId = read#0.id)"
+   },
+   "scenarios": [
+    {
+     "sourceVerification": false,
+     "synthesis": {
+      "detail": "actor `registerUser-2` does not reach src/repositories/workspaces.ts:17:29 and no row can be added: no read on the executed path came back empty",
+      "iterations": 3,
+      "notes": [],
+      "rows": {
+       "users": 1
+      },
+      "status": "unsatisfiable"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "sourceVerification": false,
+     "synthesis": {
+      "detail": "actor `registerUser-2` does not reach src/repositories/workspaces.ts:17:29 and no row can be added: no read on the executed path came back empty",
+      "iterations": 3,
+      "notes": [],
+      "rows": {
+       "users": 1
+      },
+      "status": "unsatisfiable"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "INCONCLUSIVE",
+   "title": "check-then-insert on `workspaces` against `registerUser`",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "retry",
+     "origin": "declared",
+     "text": "the caller retries the request (on-crash)"
+    }
+   ],
+   "class": "resubmitted-write",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "workspacesRepository.createWithId",
+     "location": "src/repositories/workspaces.ts:27:29",
+     "operation": "INSERT workspaces",
+     "role": "insert"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/services/workspaces.ts@63:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "addWorkspaceIdempotent",
+     "selector": "src/services/workspaces.ts#addWorkspaceIdempotent"
+    }
+   ],
+   "environment": {
+    "actors": 1,
+    "maxCrashes": 1,
+    "maxInFlight": 0,
+    "maxRetries": 1,
+    "relation": "same",
+    "retry": "on-crash"
+   },
+   "finding": "No violation found within the modeled bounds. This is not a proof that the application is safe.",
+   "fingerprint": "2839f38fde991a38",
+   "group": "76136531ffbc83b7",
+   "id": "CR-SYNTH-2839F3",
+   "inconclusiveIf": [
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "at most one `workspaces` row per (id)",
+     "name": "unique-workspaces-id",
+     "origin": "SCHEMA_ENFORCED",
+     "rationale": "UNIQUE(id) in the analyzed schema",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "id",
+        {
+         "kind": "param",
+         "path": "requestId"
+        }
+       ]
+      ],
+      "table": "workspaces",
+      "template": "atMostOne"
+     },
+     "strength": "database-integrity"
+    },
+    {
+     "description": "An owner has at most one workspace (product rule of the free plan).",
+     "name": "one-workspace-per-owner",
+     "origin": "USER_DECLARED",
+     "rationale": "declared in commitrift-contracts.json",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "ownerId",
+        {
+         "kind": "param",
+         "path": "ownerId"
+        }
+       ]
+      ],
+      "table": "workspaces",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [
+    "UNIQUE(id) on `workspaces`: a repeated insert with the same values fails"
+   ],
+   "rank": 10,
+   "ranking": [
+    "property origin: SCHEMA_ENFORCED",
+    "no unsupported operation on the path",
+    "entries are request handlers or have declared contracts",
+    "1 assumption(s)",
+    "1 recognized protection(s)"
+   ],
+   "resource": {
+    "columns": [
+     "id",
+     "name",
+     "ownerId"
+    ],
+    "kind": "table",
+    "table": "workspaces",
+    "text": "workspaces"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        "requestId-1",
+        "55b64072-0000-4000-a000-000000000001",
+        "name-1"
+       ],
+       "name": "addWorkspaceIdempotent",
+       "response": true,
+       "retry": "on-crash",
+       "selector": "src/services/workspaces.ts#addWorkspaceIdempotent"
+      }
+     ],
+     "file": "cr-synth-2839f3-actual.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "email-1",
+        "id": "55b64072-0000-4000-a000-000000000001",
+        "name": "name-1"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"id\": Str(\"requestId-1\")}, column: None })), Int(1)])",
+       "name": "unique-workspaces-id",
+       "origin": "SCHEMA_ENFORCED"
+      },
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"55b64072-0000-4000-a000-000000000001\")}, column: None })), Int(1)])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 10,
+      "transitions": 9,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 1 synthesized row(s)",
+      "iterations": 3,
+      "notes": [],
+      "rows": {
+       "users": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    }
+   ],
+   "status": "NO_VIOLATION_WITHIN_BOUNDS",
+   "title": "crash after the insert into `workspaces`, then a retry",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "class": "check-then-act",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "invitesRepository.findPending",
+     "location": "src/repositories/invites.ts:11:27",
+     "operation": "SELECT invites WHERE workspaceId = $workspaceId AND email = $email AND status = \"pending\"",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "inviteToWorkspace",
+     "location": "src/services/invites.ts:11:28",
+     "operation": "INSERT invites",
+     "role": "act"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/services/invites.ts@7:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "inviteToWorkspace",
+     "selector": "src/services/invites.ts#inviteToWorkspace"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "No violation found within the modeled bounds (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). This is not a proof that the application is safe.",
+   "fingerprint": "114e879309495fbe",
+   "group": "0eb0bbcceab188be",
+   "id": "CR-SYNTH-114E87",
+   "inconclusiveIf": [
+    "the intended uniqueness of the key is not established by the source",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "at most one `invites` row per (workspaceId, email) \u2014 enforced by the database",
+     "evidence": [
+      "schema: invites"
+     ],
+     "name": "unique-invites-workspaceId-email",
+     "origin": "SCHEMA_ENFORCED",
+     "rationale": "UNIQUE(workspaceId, email) in the analyzed schema covers the key the code checks",
+     "spec": {
+      "filter": {
+       "status": "pending"
+      },
+      "key": [
+       [
+        "workspaceId",
+        {
+         "kind": "param",
+         "path": "workspaceId"
+        }
+       ],
+       [
+        "email",
+        {
+         "kind": "param",
+         "path": "email"
+        }
+       ]
+      ],
+      "table": "invites",
+      "template": "atMostOne"
+     },
+     "strength": "database-integrity"
+    }
+   ],
+   "protections": [
+    "UNIQUE(workspaceId, email) on `invites` (schema): a second insert of the same key fails with SQLSTATE 23505"
+   ],
+   "rank": 11,
+   "ranking": [
+    "property origin: SCHEMA_ENFORCED",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "1 assumption(s)",
+    "1 recognized protection(s)"
+   ],
+   "resource": {
+    "columns": [
+     "workspaceId",
+     "email",
+     "status"
+    ],
+    "kind": "unique-key",
+    "table": "invites",
+    "text": "invites(workspaceId = $workspaceId, email = $email, status = \"pending\")"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        "workspaceId-1",
+        "alice@example.test"
+       ],
+       "name": "inviteToWorkspace-1",
+       "selector": "src/services/invites.ts#inviteToWorkspace"
+      },
+      {
+       "arguments": [
+        "workspaceId-1",
+        "alice@example.test"
+       ],
+       "name": "inviteToWorkspace-2",
+       "selector": "src/services/invites.ts#inviteToWorkspace"
+      }
+     ],
+     "file": "cr-synth-114e87-actual.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "email-1",
+        "id": "55b64072-0000-4000-a000-000000000001",
+        "name": "name-1"
+       }
+      ],
+      "workspaces": [
+       {
+        "id": "workspaceId-1",
+        "name": "name-1",
+        "ownerId": "55b64072-0000-4000-a000-000000000001"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"invites\", filter: {\"email\": Str(\"alice@example.test\"), \"status\": Str(\"pending\"), \"workspaceId\": Str(\"workspaceId-1\")}, column: None })), Int(1)])",
+       "name": "unique-invites-workspaceId-email",
+       "origin": "SCHEMA_ENFORCED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 31,
+      "transitions": 34,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 5,
+      "notes": [],
+      "rows": {
+       "users": 1,
+       "workspaces": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        "workspaceId-1",
+        "alice@example.test"
+       ],
+       "name": "inviteToWorkspace-1",
+       "selector": "src/services/invites.ts#inviteToWorkspace"
+      },
+      {
+       "arguments": [
+        "workspaceId-1-b",
+        "bob@example.test"
+       ],
+       "name": "inviteToWorkspace-2",
+       "selector": "src/services/invites.ts#inviteToWorkspace"
+      }
+     ],
+     "file": "cr-synth-114e87-distinct-key.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "email-1",
+        "id": "55b64072-0000-4000-a000-000000000001",
+        "name": "name-1"
+       },
+       {
+        "email": "email-2",
+        "id": "55b64072-0000-4000-a000-000000000002",
+        "name": "name-2"
+       }
+      ],
+      "workspaces": [
+       {
+        "id": "workspaceId-1",
+        "name": "name-1",
+        "ownerId": "55b64072-0000-4000-a000-000000000001"
+       },
+       {
+        "id": "workspaceId-1-b",
+        "name": "name-2",
+        "ownerId": "55b64072-0000-4000-a000-000000000002"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "And([Le([Op(Count(RowRef { table: \"invites\", filter: {\"email\": Str(\"alice@example.test\"), \"status\": Str(\"pending\"), \"workspaceId\": Str(\"workspaceId-1\")}, column: None })), Int(1)]), Le([Op(Count(RowRef { table: \"invites\", filter: {\"email\": Str(\"bob@example.test\"), \"status\": Str(\"pending\"), \"workspaceId\": Str(\"workspaceId-1-b\")}, column: None })), Int(1)])])",
+       "name": "unique-invites-workspaceId-email",
+       "origin": "SCHEMA_ENFORCED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 25,
+      "transitions": 26,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 4 synthesized row(s)",
+      "iterations": 6,
+      "notes": [],
+      "rows": {
+       "users": 2,
+       "workspaces": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "NO_VIOLATION_WITHIN_BOUNDS",
+   "title": "concurrent check-then-insert on `invites` (workspaceId = $workspaceId, email = $email, status = \"pending\")",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    1
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "`createWorkspaceAction(withUser)` and `addWorkspace` can run at the same time with the same key"
+    },
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    },
+    {
+     "kind": "concurrency",
+     "origin": "framework",
+     "text": "two requests can run the Server Action at the same time (double submit, two tabs, client retry)"
+    },
+    {
+     "kind": "precondition",
+     "origin": "source-derived",
+     "text": "`withUser` runs the callback only when its guards pass; the scenario assumes they do: `if (!session)` \u2192 throw (src/lib/auth.ts:10:5)"
+    }
+   ],
+   "class": "check-then-act",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "workspacesRepository.findByOwner",
+     "location": "src/repositories/workspaces.ts:8:27",
+     "operation": "SELECT workspaces WHERE ownerId = read#0.id",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "workspacesRepository.create",
+     "location": "src/repositories/workspaces.ts:17:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    },
+    {
+     "entry": 1,
+     "function": "workspacesRepository.create",
+     "location": "src/repositories/workspaces.ts:17:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    }
+   ],
+   "duplicateOf": "CR-SYNTH-C57A1A",
+   "entries": [
+    {
+     "anchor": "src/app/actions.ts@9:47",
+     "guards": [
+      "`if (!session)` \u2192 throw (src/lib/auth.ts:10:5)"
+     ],
+     "invocation": "wrapper-awaited-when-guards-pass",
+     "kind": "server-action",
+     "name": "createWorkspaceAction(withUser)",
+     "selector": "src/app/actions.ts#createWorkspaceAction/arg[0]",
+     "wrapper": "withUser"
+    },
+    {
+     "anchor": "src/services/workspaces.ts@54:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "addWorkspace",
+     "selector": "src/services/workspaces.ts#addWorkspace"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "No violation found within the modeled bounds (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). This is not a proof that the application is safe.",
+   "fingerprint": "34933dd8267369ac",
+   "group": "9d412081b179237f",
+   "id": "CR-SYNTH-34933D",
+   "inconclusiveIf": [
+    "the intended uniqueness of the key is not established by the source",
+    "the exploration bounds are exceeded (the result is then `not established`)",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "An owner has at most one workspace (product rule of the free plan).",
+     "name": "one-workspace-per-owner",
+     "origin": "USER_DECLARED",
+     "rationale": "declared in commitrift-contracts.json The partner `addWorkspace` inserts the same key columns at src/repositories/workspaces.ts:17:29",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "ownerId",
+        {
+         "column": "id",
+         "effect": 0,
+         "kind": "read"
+        }
+       ]
+      ],
+      "table": "workspaces",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 12,
+   "ranking": [
+    "property origin: USER_DECLARED",
+    "no unsupported operation on the path",
+    "entries are request handlers or have declared contracts",
+    "4 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "ownerId"
+    ],
+    "kind": "unique-key",
+    "table": "workspaces",
+    "text": "workspaces(ownerId = read#0.id)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "name": "name-1"
+        },
+        {
+         "email": "alice@example.test"
+        }
+       ],
+       "invocation": "awaited",
+       "name": "createWorkspaceAction-1",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `withUser` pass (`if (!session)` \u2192 throw (src/lib/auth.ts:10:5))"
+       ],
+       "selector": "src/app/actions.ts#createWorkspaceAction/arg[0]"
+      },
+      {
+       "arguments": [
+        "55b64072-0000-4000-a000-000000000001",
+        "name-1"
+       ],
+       "name": "addWorkspace-2",
+       "selector": "src/services/workspaces.ts#addWorkspace"
+      }
+     ],
+     "file": "cr-synth-34933d-actual.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       },
+       {
+        "email": "email-2",
+        "id": "55b64072-0000-4000-a000-000000000001",
+        "name": "name-2"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 16,
+      "transitions": 17,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 6,
+      "notes": [],
+      "rows": {
+       "users": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "name": "name-1"
+        },
+        {
+         "email": "alice@example.test"
+        }
+       ],
+       "invocation": "awaited",
+       "name": "createWorkspaceAction-1",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `withUser` pass (`if (!session)` \u2192 throw (src/lib/auth.ts:10:5))"
+       ],
+       "selector": "src/app/actions.ts#createWorkspaceAction/arg[0]"
+      },
+      {
+       "arguments": [
+        "55b64072-0000-4000-a000-000000000001",
+        "name-1"
+       ],
+       "name": "addWorkspace-2",
+       "selector": "src/services/workspaces.ts#addWorkspace"
+      }
+     ],
+     "file": "cr-synth-34933d-distinct-key.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       },
+       {
+        "email": "email-2",
+        "id": "55b64072-0000-4000-a000-000000000001",
+        "name": "name-2"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 16,
+      "transitions": 17,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 6,
+      "notes": [],
+      "rows": {
+       "users": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "NO_VIOLATION_WITHIN_BOUNDS",
+   "title": "check-then-insert on `workspaces` against `addWorkspace`",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    1
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "`createWorkspaceAction(withUser)` and `addWorkspaceIdempotent` can run at the same time with the same key"
+    },
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    },
+    {
+     "kind": "concurrency",
+     "origin": "framework",
+     "text": "two requests can run the Server Action at the same time (double submit, two tabs, client retry)"
+    },
+    {
+     "kind": "precondition",
+     "origin": "source-derived",
+     "text": "`withUser` runs the callback only when its guards pass; the scenario assumes they do: `if (!session)` \u2192 throw (src/lib/auth.ts:10:5)"
+    }
+   ],
+   "class": "check-then-act",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "workspacesRepository.findByOwner",
+     "location": "src/repositories/workspaces.ts:8:27",
+     "operation": "SELECT workspaces WHERE ownerId = read#0.id",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "workspacesRepository.create",
+     "location": "src/repositories/workspaces.ts:17:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    },
+    {
+     "entry": 1,
+     "function": "workspacesRepository.createWithId",
+     "location": "src/repositories/workspaces.ts:27:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    }
+   ],
+   "duplicateOf": "CR-SYNTH-C57A1A",
+   "entries": [
+    {
+     "anchor": "src/app/actions.ts@9:47",
+     "guards": [
+      "`if (!session)` \u2192 throw (src/lib/auth.ts:10:5)"
+     ],
+     "invocation": "wrapper-awaited-when-guards-pass",
+     "kind": "server-action",
+     "name": "createWorkspaceAction(withUser)",
+     "selector": "src/app/actions.ts#createWorkspaceAction/arg[0]",
+     "wrapper": "withUser"
+    },
+    {
+     "anchor": "src/services/workspaces.ts@63:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "addWorkspaceIdempotent",
+     "selector": "src/services/workspaces.ts#addWorkspaceIdempotent"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "No violation found within the modeled bounds (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). This is not a proof that the application is safe.",
+   "fingerprint": "b7e58c5b476fe40b",
+   "group": "9d412081b179237f",
+   "id": "CR-SYNTH-B7E58C",
+   "inconclusiveIf": [
+    "the intended uniqueness of the key is not established by the source",
+    "the exploration bounds are exceeded (the result is then `not established`)",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "An owner has at most one workspace (product rule of the free plan).",
+     "name": "one-workspace-per-owner",
+     "origin": "USER_DECLARED",
+     "rationale": "declared in commitrift-contracts.json The partner `addWorkspaceIdempotent` inserts the same key columns at src/repositories/workspaces.ts:27:29",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "ownerId",
+        {
+         "column": "id",
+         "effect": 0,
+         "kind": "read"
+        }
+       ]
+      ],
+      "table": "workspaces",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 13,
+   "ranking": [
+    "property origin: USER_DECLARED",
+    "no unsupported operation on the path",
+    "entries are request handlers or have declared contracts",
+    "4 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "ownerId"
+    ],
+    "kind": "unique-key",
+    "table": "workspaces",
+    "text": "workspaces(ownerId = read#0.id)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "name": "name-1"
+        },
+        {
+         "email": "alice@example.test"
+        }
+       ],
+       "invocation": "awaited",
+       "name": "createWorkspaceAction-1",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `withUser` pass (`if (!session)` \u2192 throw (src/lib/auth.ts:10:5))"
+       ],
+       "selector": "src/app/actions.ts#createWorkspaceAction/arg[0]"
+      },
+      {
+       "arguments": [
+        "requestId-1",
+        "55b64072-0000-4000-a000-000000000001",
+        "name-1"
+       ],
+       "name": "addWorkspaceIdempotent-2",
+       "selector": "src/services/workspaces.ts#addWorkspaceIdempotent"
+      }
+     ],
+     "file": "cr-synth-b7e58c-actual.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       },
+       {
+        "email": "email-2",
+        "id": "55b64072-0000-4000-a000-000000000001",
+        "name": "name-2"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 16,
+      "transitions": 17,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 6,
+      "notes": [],
+      "rows": {
+       "users": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "name": "name-1"
+        },
+        {
+         "email": "alice@example.test"
+        }
+       ],
+       "invocation": "awaited",
+       "name": "createWorkspaceAction-1",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `withUser` pass (`if (!session)` \u2192 throw (src/lib/auth.ts:10:5))"
+       ],
+       "selector": "src/app/actions.ts#createWorkspaceAction/arg[0]"
+      },
+      {
+       "arguments": [
+        "requestId-1",
+        "55b64072-0000-4000-a000-000000000001",
+        "name-1"
+       ],
+       "name": "addWorkspaceIdempotent-2",
+       "selector": "src/services/workspaces.ts#addWorkspaceIdempotent"
+      }
+     ],
+     "file": "cr-synth-b7e58c-distinct-key.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       },
+       {
+        "email": "email-2",
+        "id": "55b64072-0000-4000-a000-000000000001",
+        "name": "name-2"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 16,
+      "transitions": 17,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 6,
+      "notes": [],
+      "rows": {
+       "users": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "NO_VIOLATION_WITHIN_BOUNDS",
+   "title": "check-then-insert on `workspaces` against `addWorkspaceIdempotent`",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "class": "check-then-act",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "createWorkspaceLocked",
+     "location": "src/services/workspaces.ts:35:30",
+     "operation": "SELECT workspaces WHERE ownerId = read#0.id",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "createWorkspaceLocked",
+     "location": "src/services/workspaces.ts:41:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    }
+   ],
+   "duplicateOf": "CR-SYNTH-0FA91B",
+   "entries": [
+    {
+     "anchor": "src/services/workspaces.ts@26:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "createWorkspaceLocked",
+     "selector": "src/services/workspaces.ts#createWorkspaceLocked"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "No violation found within the modeled bounds (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). This is not a proof that the application is safe.",
+   "fingerprint": "f12f55736b319423",
+   "group": "3be960e63ac89814",
+   "id": "CR-SYNTH-F12F55",
+   "inconclusiveIf": [
+    "the intended uniqueness of the key is not established by the source",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "An owner has at most one workspace (product rule of the free plan).",
+     "name": "one-workspace-per-owner",
+     "origin": "USER_DECLARED",
+     "rationale": "declared in commitrift-contracts.json",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "ownerId",
+        {
+         "column": "id",
+         "effect": 0,
+         "kind": "read"
+        }
+       ]
+      ],
+      "table": "workspaces",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 14,
+   "ranking": [
+    "property origin: USER_DECLARED",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "1 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "ownerId"
+    ],
+    "kind": "unique-key",
+    "table": "workspaces",
+    "text": "workspaces(ownerId = read#0.id)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        "alice@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspaceLocked-1",
+       "selector": "src/services/workspaces.ts#createWorkspaceLocked"
+      },
+      {
+       "arguments": [
+        "alice@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspaceLocked-2",
+       "selector": "src/services/workspaces.ts#createWorkspaceLocked"
+      }
+     ],
+     "file": "cr-synth-f12f55-actual.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 40,
+      "transitions": 47,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 1 synthesized row(s)",
+      "iterations": 5,
+      "notes": [],
+      "rows": {
+       "users": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        "alice@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspaceLocked-1",
+       "selector": "src/services/workspaces.ts#createWorkspaceLocked"
+      },
+      {
+       "arguments": [
+        "bob@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspaceLocked-2",
+       "selector": "src/services/workspaces.ts#createWorkspaceLocked"
+      }
+     ],
+     "file": "cr-synth-f12f55-distinct-key.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       },
+       {
+        "email": "bob@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000002",
+        "name": "name-2"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "And([Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)]), Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000002\")}, column: None })), Int(1)])])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 53,
+      "transitions": 55,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 6,
+      "notes": [],
+      "rows": {
+       "users": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "NO_VIOLATION_WITHIN_BOUNDS",
+   "title": "concurrent check-then-insert on `workspaces` (ownerId = read#0.id)",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    1
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "`createWorkspaceLocked` and `addWorkspaceIdempotent` can run at the same time with the same key"
+    },
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "class": "check-then-act",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "createWorkspaceLocked",
+     "location": "src/services/workspaces.ts:35:30",
+     "operation": "SELECT workspaces WHERE ownerId = read#0.id",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "createWorkspaceLocked",
+     "location": "src/services/workspaces.ts:41:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    },
+    {
+     "entry": 1,
+     "function": "workspacesRepository.createWithId",
+     "location": "src/repositories/workspaces.ts:27:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    }
+   ],
+   "duplicateOf": "CR-SYNTH-0FA91B",
+   "entries": [
+    {
+     "anchor": "src/services/workspaces.ts@26:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "createWorkspaceLocked",
+     "selector": "src/services/workspaces.ts#createWorkspaceLocked"
+    },
+    {
+     "anchor": "src/services/workspaces.ts@63:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "addWorkspaceIdempotent",
+     "selector": "src/services/workspaces.ts#addWorkspaceIdempotent"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "No violation found within the modeled bounds (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). This is not a proof that the application is safe.",
+   "fingerprint": "0fca8f1bcf2e2d0e",
+   "group": "3be960e63ac89814",
+   "id": "CR-SYNTH-0FCA8F",
+   "inconclusiveIf": [
+    "the intended uniqueness of the key is not established by the source",
+    "the exploration bounds are exceeded (the result is then `not established`)",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "An owner has at most one workspace (product rule of the free plan).",
+     "name": "one-workspace-per-owner",
+     "origin": "USER_DECLARED",
+     "rationale": "declared in commitrift-contracts.json The partner `addWorkspaceIdempotent` inserts the same key columns at src/repositories/workspaces.ts:27:29",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "ownerId",
+        {
+         "column": "id",
+         "effect": 0,
+         "kind": "read"
+        }
+       ]
+      ],
+      "table": "workspaces",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 15,
+   "ranking": [
+    "property origin: USER_DECLARED",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "2 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "ownerId"
+    ],
+    "kind": "unique-key",
+    "table": "workspaces",
+    "text": "workspaces(ownerId = read#0.id)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        "alice@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspaceLocked-1",
+       "selector": "src/services/workspaces.ts#createWorkspaceLocked"
+      },
+      {
+       "arguments": [
+        "requestId-1",
+        "55b64072-0000-4000-a000-000000000001",
+        "name-1"
+       ],
+       "name": "addWorkspaceIdempotent-2",
+       "selector": "src/services/workspaces.ts#addWorkspaceIdempotent"
+      }
+     ],
+     "file": "cr-synth-0fca8f-actual.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       },
+       {
+        "email": "email-2",
+        "id": "55b64072-0000-4000-a000-000000000001",
+        "name": "name-2"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 23,
+      "transitions": 25,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 6,
+      "notes": [],
+      "rows": {
+       "users": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        "alice@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspaceLocked-1",
+       "selector": "src/services/workspaces.ts#createWorkspaceLocked"
+      },
+      {
+       "arguments": [
+        "requestId-1",
+        "55b64072-0000-4000-a000-000000000001",
+        "name-1"
+       ],
+       "name": "addWorkspaceIdempotent-2",
+       "selector": "src/services/workspaces.ts#addWorkspaceIdempotent"
+      }
+     ],
+     "file": "cr-synth-0fca8f-distinct-key.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       },
+       {
+        "email": "email-2",
+        "id": "55b64072-0000-4000-a000-000000000001",
+        "name": "name-2"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 23,
+      "transitions": 25,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 6,
+      "notes": [],
+      "rows": {
+       "users": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "NO_VIOLATION_WITHIN_BOUNDS",
+   "title": "check-then-insert on `workspaces` against `addWorkspaceIdempotent`",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    1
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "`createWorkspaceLocked` and `addWorkspace` can run at the same time with the same key"
+    },
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "class": "check-then-act",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "createWorkspaceLocked",
+     "location": "src/services/workspaces.ts:35:30",
+     "operation": "SELECT workspaces WHERE ownerId = read#0.id",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "createWorkspaceLocked",
+     "location": "src/services/workspaces.ts:41:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    },
+    {
+     "entry": 1,
+     "function": "workspacesRepository.create",
+     "location": "src/repositories/workspaces.ts:17:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    }
+   ],
+   "duplicateOf": "CR-SYNTH-0FA91B",
+   "entries": [
+    {
+     "anchor": "src/services/workspaces.ts@26:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "createWorkspaceLocked",
+     "selector": "src/services/workspaces.ts#createWorkspaceLocked"
+    },
+    {
+     "anchor": "src/services/workspaces.ts@54:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "addWorkspace",
+     "selector": "src/services/workspaces.ts#addWorkspace"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "No violation found within the modeled bounds (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). This is not a proof that the application is safe.",
+   "fingerprint": "6d52c61d3e7f8d5b",
+   "group": "3be960e63ac89814",
+   "id": "CR-SYNTH-6D52C6",
+   "inconclusiveIf": [
+    "the intended uniqueness of the key is not established by the source",
+    "the exploration bounds are exceeded (the result is then `not established`)",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "An owner has at most one workspace (product rule of the free plan).",
+     "name": "one-workspace-per-owner",
+     "origin": "USER_DECLARED",
+     "rationale": "declared in commitrift-contracts.json The partner `addWorkspace` inserts the same key columns at src/repositories/workspaces.ts:17:29",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "ownerId",
+        {
+         "column": "id",
+         "effect": 0,
+         "kind": "read"
+        }
+       ]
+      ],
+      "table": "workspaces",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 16,
+   "ranking": [
+    "property origin: USER_DECLARED",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "2 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "ownerId"
+    ],
+    "kind": "unique-key",
+    "table": "workspaces",
+    "text": "workspaces(ownerId = read#0.id)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        "alice@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspaceLocked-1",
+       "selector": "src/services/workspaces.ts#createWorkspaceLocked"
+      },
+      {
+       "arguments": [
+        "55b64072-0000-4000-a000-000000000001",
+        "name-1"
+       ],
+       "name": "addWorkspace-2",
+       "selector": "src/services/workspaces.ts#addWorkspace"
+      }
+     ],
+     "file": "cr-synth-6d52c6-actual.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       },
+       {
+        "email": "email-2",
+        "id": "55b64072-0000-4000-a000-000000000001",
+        "name": "name-2"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 23,
+      "transitions": 25,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 6,
+      "notes": [],
+      "rows": {
+       "users": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        "alice@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspaceLocked-1",
+       "selector": "src/services/workspaces.ts#createWorkspaceLocked"
+      },
+      {
+       "arguments": [
+        "55b64072-0000-4000-a000-000000000001",
+        "name-1"
+       ],
+       "name": "addWorkspace-2",
+       "selector": "src/services/workspaces.ts#addWorkspace"
+      }
+     ],
+     "file": "cr-synth-6d52c6-distinct-key.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       },
+       {
+        "email": "email-2",
+        "id": "55b64072-0000-4000-a000-000000000001",
+        "name": "name-2"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 23,
+      "transitions": 25,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 6,
+      "notes": [],
+      "rows": {
+       "users": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "NO_VIOLATION_WITHIN_BOUNDS",
+   "title": "check-then-insert on `workspaces` against `addWorkspace`",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    1
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "`createWorkspace` and `addWorkspaceIdempotent` can run at the same time with the same key"
+    },
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "class": "check-then-act",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "workspacesRepository.findByOwner",
+     "location": "src/repositories/workspaces.ts:8:27",
+     "operation": "SELECT workspaces WHERE ownerId = read#0.id",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "workspacesRepository.create",
+     "location": "src/repositories/workspaces.ts:17:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    },
+    {
+     "entry": 1,
+     "function": "workspacesRepository.createWithId",
+     "location": "src/repositories/workspaces.ts:27:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    }
+   ],
+   "duplicateOf": "CR-SYNTH-C57A1A",
+   "entries": [
+    {
+     "anchor": "src/services/workspaces.ts@14:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "createWorkspace",
+     "selector": "src/services/workspaces.ts#createWorkspace"
+    },
+    {
+     "anchor": "src/services/workspaces.ts@63:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "addWorkspaceIdempotent",
+     "selector": "src/services/workspaces.ts#addWorkspaceIdempotent"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "No violation found within the modeled bounds (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). This is not a proof that the application is safe.",
+   "fingerprint": "8fb7ccfc422ba738",
+   "group": "9d412081b179237f",
+   "id": "CR-SYNTH-8FB7CC",
+   "inconclusiveIf": [
+    "the intended uniqueness of the key is not established by the source",
+    "the exploration bounds are exceeded (the result is then `not established`)",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "An owner has at most one workspace (product rule of the free plan).",
+     "name": "one-workspace-per-owner",
+     "origin": "USER_DECLARED",
+     "rationale": "declared in commitrift-contracts.json The partner `addWorkspaceIdempotent` inserts the same key columns at src/repositories/workspaces.ts:27:29",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "ownerId",
+        {
+         "column": "id",
+         "effect": 0,
+         "kind": "read"
+        }
+       ]
+      ],
+      "table": "workspaces",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 17,
+   "ranking": [
+    "property origin: USER_DECLARED",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "2 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "ownerId"
+    ],
+    "kind": "unique-key",
+    "table": "workspaces",
+    "text": "workspaces(ownerId = read#0.id)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        "alice@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspace-1",
+       "selector": "src/services/workspaces.ts#createWorkspace"
+      },
+      {
+       "arguments": [
+        "requestId-1",
+        "55b64072-0000-4000-a000-000000000001",
+        "name-1"
+       ],
+       "name": "addWorkspaceIdempotent-2",
+       "selector": "src/services/workspaces.ts#addWorkspaceIdempotent"
+      }
+     ],
+     "file": "cr-synth-8fb7cc-actual.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       },
+       {
+        "email": "email-2",
+        "id": "55b64072-0000-4000-a000-000000000001",
+        "name": "name-2"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 16,
+      "transitions": 17,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 6,
+      "notes": [],
+      "rows": {
+       "users": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        "alice@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspace-1",
+       "selector": "src/services/workspaces.ts#createWorkspace"
+      },
+      {
+       "arguments": [
+        "requestId-1",
+        "55b64072-0000-4000-a000-000000000001",
+        "name-1"
+       ],
+       "name": "addWorkspaceIdempotent-2",
+       "selector": "src/services/workspaces.ts#addWorkspaceIdempotent"
+      }
+     ],
+     "file": "cr-synth-8fb7cc-distinct-key.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       },
+       {
+        "email": "email-2",
+        "id": "55b64072-0000-4000-a000-000000000001",
+        "name": "name-2"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 16,
+      "transitions": 17,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 6,
+      "notes": [],
+      "rows": {
+       "users": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "NO_VIOLATION_WITHIN_BOUNDS",
+   "title": "check-then-insert on `workspaces` against `addWorkspaceIdempotent`",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    1
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "`createWorkspace` and `addWorkspace` can run at the same time with the same key"
+    },
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "class": "check-then-act",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "workspacesRepository.findByOwner",
+     "location": "src/repositories/workspaces.ts:8:27",
+     "operation": "SELECT workspaces WHERE ownerId = read#0.id",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "workspacesRepository.create",
+     "location": "src/repositories/workspaces.ts:17:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    },
+    {
+     "entry": 1,
+     "function": "workspacesRepository.create",
+     "location": "src/repositories/workspaces.ts:17:29",
+     "operation": "INSERT workspaces",
+     "role": "act"
+    }
+   ],
+   "duplicateOf": "CR-SYNTH-C57A1A",
+   "entries": [
+    {
+     "anchor": "src/services/workspaces.ts@14:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "createWorkspace",
+     "selector": "src/services/workspaces.ts#createWorkspace"
+    },
+    {
+     "anchor": "src/services/workspaces.ts@54:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "addWorkspace",
+     "selector": "src/services/workspaces.ts#addWorkspace"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "No violation found within the modeled bounds (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). This is not a proof that the application is safe.",
+   "fingerprint": "aab8d07314939e8d",
+   "group": "9d412081b179237f",
+   "id": "CR-SYNTH-AAB8D0",
+   "inconclusiveIf": [
+    "the intended uniqueness of the key is not established by the source",
+    "the exploration bounds are exceeded (the result is then `not established`)",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "An owner has at most one workspace (product rule of the free plan).",
+     "name": "one-workspace-per-owner",
+     "origin": "USER_DECLARED",
+     "rationale": "declared in commitrift-contracts.json The partner `addWorkspace` inserts the same key columns at src/repositories/workspaces.ts:17:29",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "ownerId",
+        {
+         "column": "id",
+         "effect": 0,
+         "kind": "read"
+        }
+       ]
+      ],
+      "table": "workspaces",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 18,
+   "ranking": [
+    "property origin: USER_DECLARED",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "2 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "ownerId"
+    ],
+    "kind": "unique-key",
+    "table": "workspaces",
+    "text": "workspaces(ownerId = read#0.id)"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        "alice@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspace-1",
+       "selector": "src/services/workspaces.ts#createWorkspace"
+      },
+      {
+       "arguments": [
+        "55b64072-0000-4000-a000-000000000001",
+        "name-1"
+       ],
+       "name": "addWorkspace-2",
+       "selector": "src/services/workspaces.ts#addWorkspace"
+      }
+     ],
+     "file": "cr-synth-aab8d0-actual.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       },
+       {
+        "email": "email-2",
+        "id": "55b64072-0000-4000-a000-000000000001",
+        "name": "name-2"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 16,
+      "transitions": 17,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 6,
+      "notes": [],
+      "rows": {
+       "users": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        "alice@example.test",
+        "name-1"
+       ],
+       "name": "createWorkspace-1",
+       "selector": "src/services/workspaces.ts#createWorkspace"
+      },
+      {
+       "arguments": [
+        "55b64072-0000-4000-a000-000000000001",
+        "name-1"
+       ],
+       "name": "addWorkspace-2",
+       "selector": "src/services/workspaces.ts#addWorkspace"
+      }
+     ],
+     "file": "cr-synth-aab8d0-distinct-key.json",
+     "initialState": {
+      "users": [
+       {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+       },
+       {
+        "email": "email-2",
+        "id": "55b64072-0000-4000-a000-000000000001",
+        "name": "name-2"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"workspaces\", filter: {\"ownerId\": Str(\"743af3c4-0000-4000-a000-000000000001\")}, column: None })), Int(1)])",
+       "name": "one-workspace-per-owner",
+       "origin": "USER_DECLARED"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 16,
+      "transitions": 17,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": true,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 2 synthesized row(s)",
+      "iterations": 6,
+      "notes": [],
+      "rows": {
+       "users": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "NO_VIOLATION_WITHIN_BOUNDS",
+   "title": "check-then-insert on `workspaces` against `addWorkspace`",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "discovery-default",
+     "text": "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+    }
+   ],
+   "blocked": "no declared invariant: CommitRift does not infer a multi-row invariant (declare one in commitrift-contracts.json)",
+   "class": "write-skew",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "invitesRepository.findPending",
+     "location": "src/repositories/invites.ts:11:27",
+     "operation": "SELECT invites WHERE workspaceId = $workspaceId AND email = $email AND status = \"pending\"",
+     "role": "read"
+    },
+    {
+     "entry": 0,
+     "function": "inviteToWorkspace",
+     "location": "src/services/invites.ts:11:28",
+     "operation": "INSERT invites",
+     "role": "write"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/services/invites.ts@7:8",
+     "invocation": "direct",
+     "kind": "exported-function",
+     "name": "inviteToWorkspace",
+     "selector": "src/services/invites.ts#inviteToWorkspace"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "distinct-row"
+   },
+   "finding": "STATIC_CANDIDATE only: no declared invariant: CommitRift does not infer a multi-row invariant (declare one in commitrift-contracts.json).",
+   "fingerprint": "e1aa0a5157e79d32",
+   "group": "6b2ec27e0dcab126",
+   "id": "CR-SYNTH-E1AA0A",
+   "inconclusiveIf": [
+    "without a declared invariant there is no property to check",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [],
+   "protections": [],
+   "rank": 19,
+   "ranking": [
+    "property origin: none",
+    "no unsupported operation on the path",
+    "an entry's invocation context is not established",
+    "1 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "email",
+     "status",
+     "workspaceId"
+    ],
+    "kind": "row-predicate",
+    "table": "invites",
+    "text": "invites WHERE workspaceId = $workspaceId AND email = $email AND status = \"pending\""
+   },
+   "scenarios": [],
+   "status": "BLOCKED",
+   "title": "write skew on `invites` (read workspaceId = $workspaceId AND email = $email AND status = \"pending\", write another row)",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  }
+ ],
+ "entries": [
+  {
+   "externals": 0,
+   "invocation": "wrapper-awaited-when-guards-pass",
+   "kind": "server-action",
+   "reads": 2,
+   "selector": "src/app/actions.ts#createWorkspaceAction/arg[0]",
+   "status": "effectful",
+   "writes": 2
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/db/client.ts#getDb",
+   "status": "no-database-effects",
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/db/pool.ts#usePool",
+   "status": "no-database-effects",
+   "unknown": [
+    "unresolved identifier `configured` (src/db/pool.ts:9:7)",
+    "assignment target is not a local variable (src/db/pool.ts:10:3)"
+   ],
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/db/pool.ts#configuredPool",
+   "status": "no-database-effects",
+   "unknown": [
+    "unresolved identifier `configured` (src/db/pool.ts:14:7)"
+   ],
+   "writes": 0
+  },
+  {
+   "detail": "its import closure mentions no database receiver and no declared external",
+   "externals": 0,
+   "invocation": "",
+   "kind": "wrapped-callback",
+   "reads": 0,
+   "selector": "src/db/schema/invites.ts#invites/arg[2]",
+   "status": "not-extracted",
+   "writes": 0
+  },
+  {
+   "detail": "its import closure mentions no database receiver and no declared external",
+   "externals": 0,
+   "invocation": "",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/lib/auth.ts#withUser",
+   "status": "not-extracted",
+   "writes": 0
+  },
+  {
+   "detail": "its import closure mentions no database receiver and no declared external",
+   "externals": 0,
+   "invocation": "",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/lib/ids.ts#createId",
+   "status": "not-extracted",
+   "writes": 0
+  },
+  {
+   "detail": "its import closure mentions no database receiver and no declared external",
+   "externals": 0,
+   "invocation": "",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/lib/session.ts#runWithSession",
+   "status": "not-extracted",
+   "writes": 0
+  },
+  {
+   "detail": "its import closure mentions no database receiver and no declared external",
+   "externals": 0,
+   "invocation": "",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/lib/session.ts#currentSession",
+   "status": "not-extracted",
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "object-property",
+   "reads": 0,
+   "selector": "src/repositories/invites.ts#invitesRepository/property[findPending]",
+   "status": "no-database-effects",
+   "unknown": [
+    "database handle of an unresolved type: parameter `tx: Executor` is not a drizzle-orm database type (its operations are not bound): the type is not a reference to a database type (src/repositories/invites.ts:11:27)",
+    "database handle of an unresolved type: parameter `tx: Executor` is not a drizzle-orm database type (its operations are not bound): the type is not a reference to a database type (src/repositories/invites.ts:11:11)"
+   ],
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "class-method",
+   "reads": 0,
+   "selector": "src/repositories/memberships.ts#MembershipRepository/method[add]",
+   "status": "no-database-effects",
+   "unknown": [
+    "call to `<expression>`: method calls are not resolved (src/repositories/memberships.ts:12:11)"
+   ],
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "class-method",
+   "reads": 0,
+   "selector": "src/repositories/memberships.ts#MembershipRepository/method[find]",
+   "status": "no-database-effects",
+   "unknown": [
+    "call to `<expression>`: method calls are not resolved (src/repositories/memberships.ts:16:27)",
+    "call to `<expression>`: method calls are not resolved (src/repositories/memberships.ts:16:11)"
+   ],
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "object-property",
+   "reads": 1,
+   "selector": "src/repositories/users.ts#usersRepository/property[findByEmail]",
+   "status": "read-only",
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "object-property",
+   "reads": 0,
+   "selector": "src/repositories/users.ts#usersRepository/property[create]",
+   "status": "effectful",
+   "writes": 1
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "object-property",
+   "reads": 1,
+   "selector": "src/repositories/workspaces.ts#workspacesRepository/property[findByOwner]",
+   "status": "read-only",
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "object-property",
+   "reads": 0,
+   "selector": "src/repositories/workspaces.ts#workspacesRepository/property[create]",
+   "status": "effectful",
+   "writes": 1
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "object-property",
+   "reads": 0,
+   "selector": "src/repositories/workspaces.ts#workspacesRepository/property[createWithId]",
+   "status": "effectful",
+   "writes": 1
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 1,
+   "selector": "src/services/invites.ts#inviteToWorkspace",
+   "status": "effectful",
+   "writes": 1
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 2,
+   "selector": "src/services/workspaces.ts#createWorkspace",
+   "status": "effectful",
+   "writes": 2
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 2,
+   "selector": "src/services/workspaces.ts#createWorkspaceLocked",
+   "status": "effectful",
+   "writes": 2
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/services/workspaces.ts#addWorkspace",
+   "status": "effectful",
+   "writes": 2
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/services/workspaces.ts#addWorkspaceIdempotent",
+   "status": "effectful",
+   "writes": 2
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/services/workspaces.ts#registerUser",
+   "status": "effectful",
+   "writes": 3
+  }
+ ],
+ "executesApplicationCode": false,
+ "index": {
+  "cacheHits": 0,
+  "cacheMisses": 0,
+  "effectfulEntries": 10,
+  "entriesByKind": {
+   "class-method": 2,
+   "exported-function": 13,
+   "object-property": 6,
+   "server-action": 1,
+   "wrapped-callback": 1
+  },
+  "entriesExtracted": 18,
+  "entriesWithUnknownOperations": 5,
+  "entriesWithoutDatabaseReach": 5,
+  "entryCandidates": 23,
+  "extractionFailures": 0,
+  "generatedColumns": [
+   [
+    "invites.id",
+    "application",
+    "crypto.randomUUID()"
+   ],
+   [
+    "users.id",
+    "database",
+    "gen_random_uuid()"
+   ],
+   [
+    "workspaces.id",
+    "application",
+    "crypto.randomUUID()"
+   ]
+  ],
+  "readOnlyEntries": 2,
+  "resources": 10,
+  "tablesModeled": 4,
+  "tablesRefused": [],
+  "transactionHelpers": [],
+  "unknownOperations": 8
+ },
+ "kind": "commitrift.discovery",
+ "mode": "discover+model-check",
+ "notes": [],
+ "project": {
+  "contracts": "commitrift-contracts.json",
+  "modules": 19,
+  "name": "workspace-app",
+  "parseErrors": 0,
+  "schemaFiles": [
+   "src/db/schema/invites.ts",
+   "src/db/schema/memberships.ts",
+   "src/db/schema/users.ts",
+   "src/db/schema/workspaces.ts"
+  ]
+ },
+ "rejected": [],
+ "schemaVersion": 1,
+ "summary": {
+  "byClass": {
+   "check-then-act": 16,
+   "resubmitted-write": 2,
+   "write-skew": 1
+  },
+  "byPropertyOrigin": {
+   "SCHEMA_ENFORCED": 2,
+   "USER_DECLARED": 16
+  },
+  "byStatus": {
+   "BLOCKED": 1,
+   "INCONCLUSIVE": 3,
+   "MODEL_COUNTEREXAMPLE": 6,
+   "NO_VIOLATION_WITHIN_BOUNDS": 9
+  },
+  "candidates": 19,
+  "counterexamplesAgainstHypotheses": 0,
+  "deduplicatedFindings": 2,
+  "modelCheckable": 15,
+  "modelCounterexamples": 6,
+  "requiringAssumptions": 19,
+  "unknownOperationBreakdown": {
+   "database handle of an unresolved type": 2,
+   "other": 1,
+   "unresolved identifier": 2,
+   "unresolved method call": 3
+  },
+  "unsupportedBreakdown": {
+   "missing invariant": 1,
+   "unsatisfiable initial state": 3
+  },
+  "withDeclaredProperty": 17
+ },
+ "tool": {
+  "name": "commitrift",
+  "version": "0.1.0"
+ }
+}

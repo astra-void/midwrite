@@ -1,0 +1,257 @@
+[
+ {
+  "candidate": "C1",
+  "class": "check-then-act",
+  "actors": 2,
+  "entryKinds": [
+   "exported-function"
+  ],
+  "propertyOrigin": [
+   "HEURISTIC_HYPOTHESIS"
+  ],
+  "phase12": {
+   "status": "UNSUPPORTED",
+   "synthesis": "unsupported",
+   "firstBlocker": "call of an exported `const` function alias (`export const a = b`, `b` a function declaration): the resolved export was not a function declaration"
+  },
+  "phase13": {
+   "status": "INCONCLUSIVE",
+   "synthesis": "unsatisfiable",
+   "firstBlocker": "unsatisfiable: the synthesized argument (a table row) lacks the field the inlined authorization guard tests, so the guard denies and the actor throws before the candidate operations",
+   "modelChecked": false,
+   "counterexample": false
+  },
+  "phase13WithDeclaredGuardField": {
+   "status": "UNSUPPORTED",
+   "synthesis": "unsupported",
+   "firstBlocker": "Array.prototype.includes on a field of the argument (the model has no array values)"
+  }
+ },
+ {
+  "candidate": "C2",
+  "class": "check-then-act",
+  "actors": 2,
+  "entryKinds": [
+   "exported-function"
+  ],
+  "propertyOrigin": [
+   "HEURISTIC_HYPOTHESIS"
+  ],
+  "phase12": {
+   "status": "UNSUPPORTED",
+   "synthesis": "unsupported",
+   "firstBlocker": "call of an exported `const` function alias (`export const a = b`, `b` a function declaration): the resolved export was not a function declaration"
+  },
+  "phase13": {
+   "status": "INCONCLUSIVE",
+   "synthesis": "unsatisfiable",
+   "firstBlocker": "unsatisfiable: the synthesized argument (a table row) lacks the field the inlined authorization guard tests, so the guard denies and the actor throws before the candidate operations",
+   "modelChecked": false,
+   "counterexample": false
+  },
+  "phase13WithDeclaredGuardField": {
+   "status": "INCONCLUSIVE",
+   "synthesis": "unsatisfiable",
+   "firstBlocker": "unsatisfiable: the synthesized argument (a table row) lacks the field the inlined authorization guard tests, so the guard denies and the actor throws before the candidate operations"
+  }
+ },
+ {
+  "candidate": "C3",
+  "class": "check-then-act",
+  "actors": 2,
+  "entryKinds": [
+   "exported-function"
+  ],
+  "propertyOrigin": [
+   "HEURISTIC_HYPOTHESIS"
+  ],
+  "phase12": {
+   "status": "UNSUPPORTED",
+   "synthesis": "unsupported",
+   "firstBlocker": "template literal whose interpolation is a package call (node:crypto randomUUID) followed by a String method, in a default parameter value of a test-support helper; string concatenation is not modeled"
+  },
+  "phase13": {
+   "status": "UNSUPPORTED",
+   "synthesis": "unsupported",
+   "firstBlocker": "template literal whose interpolation is a package call (node:crypto randomUUID) followed by a String method, in a default parameter value of a test-support helper; string concatenation is not modeled",
+   "modelChecked": false,
+   "counterexample": false
+  },
+  "phase13WithDeclaredGuardField": {
+   "status": "UNSUPPORTED",
+   "synthesis": "unsupported",
+   "firstBlocker": "template literal whose interpolation is a package call (node:crypto randomUUID) followed by a String method, in a default parameter value of a test-support helper; string concatenation is not modeled"
+  }
+ },
+ {
+  "candidate": "C4",
+  "class": "check-then-act",
+  "actors": 2,
+  "entryKinds": [
+   "exported-function"
+  ],
+  "propertyOrigin": [
+   "HEURISTIC_HYPOTHESIS"
+  ],
+  "phase12": {
+   "status": "UNSUPPORTED",
+   "synthesis": "unsupported",
+   "firstBlocker": "call of an exported `const` function alias (`export const a = b`, `b` a function declaration): the resolved export was not a function declaration"
+  },
+  "phase13": {
+   "status": "INCONCLUSIVE",
+   "synthesis": "unsatisfiable",
+   "firstBlocker": "unsatisfiable: the synthesized argument (a table row) lacks the field the inlined authorization guard tests, so the guard denies and the actor throws before the candidate operations",
+   "modelChecked": false,
+   "counterexample": false
+  },
+  "phase13WithDeclaredGuardField": {
+   "status": "UNSUPPORTED",
+   "synthesis": "unsupported",
+   "firstBlocker": "Array.prototype.includes on a field of the argument (the model has no array values)"
+  }
+ },
+ {
+  "candidate": "C5",
+  "class": "check-then-act",
+  "actors": 2,
+  "entryKinds": [
+   "exported-function"
+  ],
+  "propertyOrigin": [
+   "HEURISTIC_HYPOTHESIS"
+  ],
+  "phase12": {
+   "status": "UNSUPPORTED",
+   "synthesis": "unsupported",
+   "firstBlocker": "call of an exported `const` function alias (`export const a = b`, `b` a function declaration): the resolved export was not a function declaration"
+  },
+  "phase13": {
+   "status": "INCONCLUSIVE",
+   "synthesis": "unsatisfiable",
+   "firstBlocker": "unsatisfiable: the synthesized argument (a table row) lacks the field the inlined authorization guard tests, so the guard denies and the actor throws before the candidate operations",
+   "modelChecked": false,
+   "counterexample": false
+  },
+  "phase13WithDeclaredGuardField": {
+   "status": "UNSUPPORTED",
+   "synthesis": "unsupported",
+   "firstBlocker": "Array.prototype.includes on a field of the argument (the model has no array values)"
+  }
+ },
+ {
+  "candidate": "C6",
+  "class": "check-then-act",
+  "actors": 2,
+  "entryKinds": [
+   "exported-function"
+  ],
+  "propertyOrigin": [
+   "HEURISTIC_HYPOTHESIS"
+  ],
+  "phase12": {
+   "status": "UNSUPPORTED",
+   "synthesis": "unsupported",
+   "firstBlocker": "call of an exported `const` function alias (`export const a = b`, `b` a function declaration): the resolved export was not a function declaration"
+  },
+  "phase13": {
+   "status": "INCONCLUSIVE",
+   "synthesis": "unsatisfiable",
+   "firstBlocker": "unsatisfiable: the synthesized argument (a table row) lacks the field the inlined authorization guard tests, so the guard denies and the actor throws before the candidate operations",
+   "modelChecked": false,
+   "counterexample": false
+  },
+  "phase13WithDeclaredGuardField": {
+   "status": "INCONCLUSIVE",
+   "synthesis": "unsatisfiable",
+   "firstBlocker": "unsatisfiable: the synthesized argument (a table row) lacks the field the inlined authorization guard tests, so the guard denies and the actor throws before the candidate operations"
+  }
+ },
+ {
+  "candidate": "C7",
+  "class": "check-then-act",
+  "actors": 2,
+  "entryKinds": [
+   "exported-function",
+   "server-action"
+  ],
+  "propertyOrigin": [
+   "HEURISTIC_HYPOTHESIS"
+  ],
+  "phase12": {
+   "status": "UNSUPPORTED",
+   "synthesis": "unsupported",
+   "firstBlocker": "call of an exported `const` function alias (`export const a = b`, `b` a function declaration): the resolved export was not a function declaration"
+  },
+  "phase13": {
+   "status": "INCONCLUSIVE",
+   "synthesis": "unsatisfiable",
+   "firstBlocker": "unsatisfiable: the synthesized argument (a table row) lacks the field the inlined authorization guard tests, so the guard denies and the actor throws before the candidate operations",
+   "modelChecked": false,
+   "counterexample": false
+  },
+  "phase13WithDeclaredGuardField": {
+   "status": "INCONCLUSIVE",
+   "synthesis": "unsatisfiable",
+   "firstBlocker": "unsatisfiable: the synthesized argument (a table row) lacks the field the inlined authorization guard tests, so the guard denies and the actor throws before the candidate operations"
+  }
+ },
+ {
+  "candidate": "C8",
+  "class": "check-then-act",
+  "actors": 2,
+  "entryKinds": [
+   "exported-function",
+   "server-action"
+  ],
+  "propertyOrigin": [
+   "HEURISTIC_HYPOTHESIS"
+  ],
+  "phase12": {
+   "status": "UNSUPPORTED",
+   "synthesis": "unsupported",
+   "firstBlocker": "template literal whose interpolation is a package call (node:crypto randomUUID) followed by a String method, in a default parameter value of a test-support helper; string concatenation is not modeled"
+  },
+  "phase13": {
+   "status": "UNSUPPORTED",
+   "synthesis": "unsupported",
+   "firstBlocker": "template literal whose interpolation is a package call (node:crypto randomUUID) followed by a String method, in a default parameter value of a test-support helper; string concatenation is not modeled",
+   "modelChecked": false,
+   "counterexample": false
+  },
+  "phase13WithDeclaredGuardField": {
+   "status": "UNSUPPORTED",
+   "synthesis": "unsupported",
+   "firstBlocker": "template literal whose interpolation is a package call (node:crypto randomUUID) followed by a String method, in a default parameter value of a test-support helper; string concatenation is not modeled"
+  }
+ },
+ {
+  "candidate": "C9",
+  "class": "check-then-act",
+  "actors": 2,
+  "entryKinds": [
+   "exported-function",
+   "server-action"
+  ],
+  "propertyOrigin": [
+   "HEURISTIC_HYPOTHESIS"
+  ],
+  "phase12": {
+   "status": "UNSUPPORTED",
+   "synthesis": "unsupported",
+   "firstBlocker": "call of an exported `const` function alias (`export const a = b`, `b` a function declaration): the resolved export was not a function declaration"
+  },
+  "phase13": {
+   "status": "INCONCLUSIVE",
+   "synthesis": "unsatisfiable",
+   "firstBlocker": "unsatisfiable: the synthesized argument (a table row) lacks the field the inlined authorization guard tests, so the guard denies and the actor throws before the candidate operations",
+   "modelChecked": false,
+   "counterexample": false
+  },
+  "phase13WithDeclaredGuardField": {
+   "status": "UNSUPPORTED",
+   "synthesis": "unsupported",
+   "firstBlocker": "Array.prototype.includes on a field of the argument (the model has no array values)"
+  }
+ }
+]

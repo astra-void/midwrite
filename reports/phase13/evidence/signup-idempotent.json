@@ -1,0 +1,184 @@
+{
+ "actors": [
+  {
+   "arguments": [
+    [
+     "request",
+     {
+      "accountId": 1,
+      "requestId": "req-1"
+     }
+    ]
+   ],
+   "file": "src/handlers/signup.ts",
+   "function": "src/handlers/signup.ts#recordSignupIdempotent",
+   "name": "client",
+   "operations": 5,
+   "origin": "extracted",
+   "process": "client",
+   "retry": "OnCrash",
+   "sourceRefs": [
+    {
+     "column": 9,
+     "effectId": 0,
+     "file": "src/handlers/signup.ts",
+     "function": "recordSignupIdempotent",
+     "line": 18,
+     "origin": "extracted",
+     "text": "db .insert(signupRequests) .values({ requestId: request.requestId, accountId:..."
+    }
+   ],
+   "tasks": 1
+  }
+ ],
+ "assumptions": [
+  "database default isolation: read-committed (PostgreSQL semantics, see docs/phase6/POSTGRES-ISOLATION.md)",
+  "a database statement is atomic unless it must wait for another transaction; waiting statements resume with their original snapshot",
+  "autocommit (root `db`) statements are single-statement transactions at the default isolation level",
+  "local computation is not a scheduling point; it is folded into the preceding transition",
+  "rows are read in primary-key order for LIMIT 1 (the declared programs and generated SQL both use ORDER BY the primary key)",
+  "tasks of different actors never share a transaction, connection or event loop; actors listed with the same process share in-process variables and crash together",
+  "a process crash rolls back open transactions and loses local state; committed data and performed external effects remain"
+ ],
+ "bounds": {
+  "declared": {
+   "maxActors": 4,
+   "maxContextSwitches": null,
+   "maxCrashes": 1,
+   "maxMemoryBytes": null,
+   "maxRetries": 1,
+   "maxStates": 200000,
+   "maxSteps": 64,
+   "maxTransitions": null,
+   "maxWallMs": null
+  },
+  "partialOrderReduction": true,
+  "strategy": "dfs"
+ },
+ "database": {
+  "isolation": "read-committed",
+  "tables": [
+   {
+    "checks": [],
+    "columns": [
+     "requestId",
+     "accountId"
+    ],
+    "initialRows": [],
+    "name": "signup_requests",
+    "primaryKey": [
+     "requestId"
+    ],
+    "unique": []
+   }
+  ]
+ },
+ "diagnostics": [],
+ "evidence": {
+  "level": "none",
+  "summary": "no invariant violation exists in any behavior within the declared bounds (this does not prove the application race-free)"
+ },
+ "exploration": {
+  "complete": true,
+  "metrics": {
+   "contextPrunedTransitions": 0,
+   "duplicateStateHits": 0,
+   "maxDepth": 5,
+   "schedulesInExploredGraph": 2,
+   "sleepPrunedTransitions": 0,
+   "states": 7,
+   "terminalStates": 3,
+   "transitions": 6,
+   "visitedBytes": 5900
+  },
+  "stuckStates": 0,
+  "truncation": {
+   "maxContextSwitches": false,
+   "maxMemory": false,
+   "maxStates": false,
+   "maxSteps": false,
+   "maxTransitions": false,
+   "maxWallTime": false
+  },
+  "unsupported": [],
+  "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+ },
+ "extraction": [
+  {
+   "actor": "client",
+   "entry": {
+    "anchor": "src/handlers/signup.ts@17:8",
+    "contractStatus": "not-needed",
+    "endLine": 23,
+    "file": "src/handlers/signup.ts",
+    "selector": "src/handlers/signup.ts#recordSignupIdempotent",
+    "staticName": "recordSignupIdempotent"
+   },
+   "sourceCoverage": {
+    "assumedOperations": 0,
+    "representedOperations": 1,
+    "unsupportedOperations": 0
+   },
+   "sourceFacts": [
+    "entry `src/handlers/signup.ts#recordSignupIdempotent` is the function at src/handlers/signup.ts@17:8 (`recordSignupIdempotent` in `commitrift check`)"
+   ]
+  }
+ ],
+ "invariants": [
+  {
+   "description": "[USER_DECLARED] One signup request records at most one signup for the account.",
+   "formula": "count(signup_requests[accountId=1]) <= 1",
+   "name": "one-signup-per-request",
+   "status": "holds-within-bounds",
+   "when": "final"
+  }
+ ],
+ "kind": "commitrift.model-check",
+ "modelVersion": "1.0.0",
+ "runtime": {
+  "note": "no runtime validation was requested (--validate-postgres)",
+  "observations": [],
+  "performed": false,
+  "sqlstates": [],
+  "status": "not-requested"
+ },
+ "scenario": {
+  "description": "Phase 13 vertical slice 3, safe counterpart: the request id is the key, ON CONFLICT DO NOTHING.",
+  "file": "/private/tmp/claude-501/-Users-returnf4lse-Desktop-Workspace-rust-crash-proof/25219952-a7b3-4685-bdea-a099b93b0188/scratchpad/p13/src/fixtures/phase13/request-app/scenarios/signup-idempotent.json",
+  "name": "signup-idempotent",
+  "scenarioVersion": 1
+ },
+ "schemaFacts": [
+  {
+   "binding": "signupRequests",
+   "facts": [
+    {
+     "fact": "table `signup_requests` from binding `signupRequests`",
+     "origin": "extracted-from-source",
+     "source": "src/db/schema.ts:17"
+    },
+    {
+     "fact": "column `requestId` \u2192 `request_id` text NOT NULL",
+     "origin": "extracted-from-source",
+     "source": "src/db/schema.ts:18"
+    },
+    {
+     "fact": "column `accountId` \u2192 `account_id` int NOT NULL",
+     "origin": "extracted-from-source",
+     "source": "src/db/schema.ts:19"
+    },
+    {
+     "fact": "primary key (request_id)",
+     "origin": "extracted-from-source",
+     "source": "src/db/schema.ts:17"
+    }
+   ],
+   "table": "signup_requests"
+  }
+ ],
+ "schemaVersion": 3,
+ "tool": {
+  "name": "commitrift",
+  "version": "0.1.0"
+ }
+}

@@ -1,0 +1,10 @@
+Phase 12 binary vs final Phase 13 binary (sha256 97e96ac0...), JSON compared field by field:
+fixtures/phase9/scenarios/ledger-autocommit-blind-in-flight.json ['/exploration/metrics/visitedBytes']
+fixtures/phase9/scenarios/ledger-idempotent-commit-answered.json ['/exploration/metrics/visitedBytes']
+fixtures/phase9/scenarios/ledger-idempotent-commit-held.json ['/exploration/metrics/visitedBytes']
+fixtures/phase9/scenarios/ledger-idempotent-commit-not-reached.json ['/exploration/metrics/visitedBytes']
+fixtures/phase9/scenarios/ledger-settle-update-answered.json ['/exploration/metrics/visitedBytes']
+fixtures/phase9/scenarios/ledger-settle-update-not-reached.json ['/exploration/metrics/visitedBytes']
+fixtures/phase9/scenarios/ledger-shared-process-crash.json ['/exploration/metrics/visitedBytes']
+fixtures/phase9/model-scenarios/ambiguous-commit-idempotency-key.json ['/exploration/metrics/visitedBytes']
+fixtures/phase9/model-scenarios/ambiguous-commit-lookup-unique.json ['/exploration/metrics/visitedBytes']

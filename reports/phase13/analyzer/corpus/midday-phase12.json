@@ -1,0 +1,55 @@
+{
+ "candidateList": [],
+ "candidates": 0,
+ "config": "phase12",
+ "counterexamples": 0,
+ "effectfulEntries": 0,
+ "entriesExtracted": 1168,
+ "entryCandidates": 2864,
+ "entryConnections": {
+  "entries with pool statements": 2
+ },
+ "modelCheckable": 0,
+ "peakRss": 116686848,
+ "project": "midday",
+ "readOnlyEntries": 2,
+ "replicaNotes": [],
+ "resources": 0,
+ "statements": {
+  "pool select": 3
+ },
+ "statuses": {},
+ "tablesModeled": 50,
+ "unknownBreakdown": {
+  "call into an unanalyzed package": 4335,
+  "column not modeled (schema)": 6,
+  "database handle of an unresolved type": 752,
+  "inline depth limit": 179,
+  "loop over a collection of unknown length": 167,
+  "other": 1984,
+  "unresolved call": 576,
+  "unresolved identifier": 717,
+  "unresolved method call": 6053,
+  "unsupported binding pattern": 718,
+  "unsupported expression": 1679,
+  "unsupported query shape": 3,
+  "unsupported transaction shape": 434
+ },
+ "unknownByCategoryInCache": {
+  "call into an unanalyzed package": 4335,
+  "column not modeled (schema)": 6,
+  "database handle of an unresolved type": 752,
+  "inline depth limit": 179,
+  "loop over a collection of unknown length": 167,
+  "other": 2180,
+  "unresolved call": 576,
+  "unresolved identifier": 717,
+  "unresolved method call": 6053,
+  "unsupported binding pattern": 786,
+  "unsupported expression": 1827,
+  "unsupported query shape": 2,
+  "unsupported transaction shape": 23
+ },
+ "unknownOperations": 17603,
+ "wallSeconds": 1.05
+}

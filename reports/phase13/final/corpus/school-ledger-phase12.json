@@ -1,0 +1,69 @@
+{
+ "candidates": 9,
+ "config": "phase12",
+ "counterexamples": 0,
+ "effectfulEntries": 21,
+ "entriesExtracted": 546,
+ "entryCandidates": 880,
+ "entryConnections": {
+  "entries with pool statements": 22,
+  "entries with tx statements": 33
+ },
+ "modelCheckable": 0,
+ "peakRss": 84623360,
+ "project": "school-ledger",
+ "readOnlyEntries": 29,
+ "replicaNotes": [],
+ "resources": 18,
+ "statements": {
+  "pool insert": 17,
+  "pool select": 12,
+  "pool selectCount": 2,
+  "pool update": 5,
+  "transactions (begin)": 148,
+  "tx delete": 5,
+  "tx insert": 8,
+  "tx select": 53,
+  "tx update": 6
+ },
+ "statuses": {
+  "UNSUPPORTED": 9
+ },
+ "tablesModeled": 30,
+ "unknownBreakdown": {
+  "call into an unanalyzed package": 614,
+  "column not modeled (schema)": 157,
+  "database handle of an unresolved type": 173,
+  "inline depth limit": 871,
+  "loop over a collection of unknown length": 413,
+  "other": 2555,
+  "table not modeled (schema)": 22,
+  "unresolved call": 606,
+  "unresolved identifier": 646,
+  "unresolved method call": 4603,
+  "unsupported binding pattern": 321,
+  "unsupported expression": 1706,
+  "unsupported query (raw SQL)": 60,
+  "unsupported query shape": 20,
+  "unsupported transaction shape": 127
+ },
+ "unknownByCategoryInCache": {
+  "call into an unanalyzed package": 614,
+  "column not modeled (schema)": 157,
+  "database handle of an unresolved type": 173,
+  "inline depth limit": 871,
+  "loop over a collection of unknown length": 413,
+  "other": 2555,
+  "table not modeled (schema)": 22,
+  "unresolved call": 606,
+  "unresolved identifier": 646,
+  "unresolved method call": 4603,
+  "unsupported binding pattern": 321,
+  "unsupported expression": 1810,
+  "unsupported query (raw SQL)": 60,
+  "unsupported query shape": 20,
+  "unsupported transaction shape": 23
+ },
+ "unknownOperations": 12894,
+ "wallSeconds": 0.56
+}

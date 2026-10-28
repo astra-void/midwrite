@@ -1,0 +1,23 @@
+a_foreign_key_lock_is_modeled_and_the_schedule_reproduces_at_runtime (crates/commitrift-cli/tests/phase12.rs), 2026-10-28, Darwin arm64, PostgreSQL 17.11
+Binary: the debug build of the working tree during the Phase 14 work (the Phase 13 frozen tree plus Phase 14 changes that do not touch this path: the generated-value matching of connection-loss and server-completion checkpoints, which this scenario has none of). The first full-suite failure (reports/phase13/final/test.txt) was on the frozen Phase 13 tree.
+alone, 3 consecutive runs: 3 passed
+6 copies started in parallel:
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 6.43s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 6.54s
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 6.54s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 6.54s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 6.55s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 6.49s
+
+failing copy, problems:
+  "problems": [
+    "plan step 9 (transition 10): createWorkspace-1 has no waiting statement to resume"
+  ],
+
+== After the Phase 14 coordinator fix (crates/commitrift-replay/src/source.rs, run_plan PlanStep::Complete: a waiting statement whose answer was already pumped is accepted) ==
+Cause: tasks[a].running is cleared when a statement's answer arrives; the unblocked INSERT's answer can arrive while the coordinator still waits for the lock holder's COMMIT, so the following 'resume' step found nothing running and reported a divergence although every result agreed.
+2 rounds of 6 parallel copies:
+  12 test result: ok. 1 passed; 0 failed; 0 ignored; 
+12 parallel copies together with 6 copies of phase13 upserts_match_the_original_code:
+  12 test result: ok. 1 passed; 0 failed; 0 ignored; 
+upserts:    6 test result: ok. 1 passed; 0 failed; 0 ignored; 
