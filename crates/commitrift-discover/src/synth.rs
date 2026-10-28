@@ -499,7 +499,7 @@ fn retry_trigger(r: &str) -> &'static str {
 // ---------------------------------------------------------------------------
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Ty {
+pub(crate) enum Ty {
     Int,
     Text,
     Bool,
@@ -515,7 +515,7 @@ enum Ty {
 pub const MAX_LIST: usize = 3;
 
 /// Parameter paths the code reads, each with a type and whether it is a key.
-fn param_paths(a: &Analyzed, index: &ProjectIndex) -> BTreeMap<String, (Ty, bool)> {
+pub(crate) fn param_paths(a: &Analyzed, index: &ProjectIndex) -> BTreeMap<String, (Ty, bool)> {
     let s = &a.summary;
     let mut out: BTreeMap<String, (Ty, bool)> = BTreeMap::new();
     let mut record = |path: &str, ty: Ty, key: bool| {
@@ -619,7 +619,7 @@ fn uses_js_values(codes: &[Vec<commitrift_model::ir::Step>]) -> bool {
     })
 }
 
-fn exprs_of(op: &Op) -> Vec<&Expr> {
+pub(crate) fn exprs_of(op: &Op) -> Vec<&Expr> {
     use commitrift_model::ir::StmtKind;
     match op {
         Op::Let { expr, .. } => vec![expr],
@@ -648,7 +648,7 @@ fn exprs_of(op: &Op) -> Vec<&Expr> {
     }
 }
 
-fn path_of(e: &Expr, params: &[String]) -> Option<String> {
+pub(crate) fn path_of(e: &Expr, params: &[String]) -> Option<String> {
     match e {
         Expr::Local(l) if params.contains(l) => Some(l.clone()),
         // Phase 14: `At(base, "f")` is the property read of JavaScript values.
@@ -1053,7 +1053,7 @@ pub fn get_path(args: &[Value], params: &[String], path: &str) -> Option<Value> 
 
 /// Paths of an entry that carry the candidate's logical key, or that the
 /// relation varies.
-fn varied_paths(c: &Candidate, a: &Analyzed, relation: Relation) -> Vec<String> {
+pub(crate) fn varied_paths(c: &Candidate, a: &Analyzed, relation: Relation) -> Vec<String> {
     let mut vals: Vec<Val> = Vec::new();
     match relation {
         Relation::Same => {}
@@ -1151,9 +1151,15 @@ fn arguments(
         .map(|code| code.iter().map(|s| s.op.clone()).collect())
         .collect();
     let usage = value_usage(&ops, params);
+    let annotations = commitrift_analyzer::TsActorProvider::new(&index.root)
+        .param_annotations(&index.root, &a.fact.selector);
+    // Phase 15: a string-literal union (`kind: RouteKind`) admits only its
+    // members.
+    let literals: BTreeMap<String, Vec<String>> = annotations
+        .iter()
+        .filter_map(|(p, t)| crate::domains::literal_members(t).map(|m| (p.clone(), m)))
+        .collect();
     if !usage.is_empty() {
-        let annotations = commitrift_analyzer::TsActorProvider::new(&index.root)
-            .param_annotations(&index.root, &a.fact.selector);
         for (path, u) in &usage {
             if let Some(ty) = usage_ty(path, u, annotations.get(path).map(String::as_str))? {
                 paths.entry(path.clone()).or_insert((ty, false)).0 = ty;
@@ -1178,6 +1184,7 @@ fn arguments(
             Ty::Int => Value::Int(3),
             Ty::Bool => Value::Bool(true),
             Ty::Uuid => uuid_literal(last, 1),
+            Ty::Text if literals.contains_key(path) => Value::Str(literals[path][0].clone()),
             Ty::Text if last.to_ascii_lowercase().contains("email") => {
                 Value::Str("alice@example.test".to_owned())
             }
@@ -1197,6 +1204,13 @@ fn arguments(
             Relation::DistinctKey | Relation::DistinctRow | Relation::DistinctRequestKey => {
                 for path in &varied {
                     let new = match get_path(&args, params, path) {
+                        // Phase 15: another member of a literal union, if any.
+                        Some(Value::Str(s)) if literals.contains_key(path) => {
+                            match literals[path].iter().find(|m| **m != s) {
+                                Some(m) => Value::Str(m.clone()),
+                                None => continue,
+                            }
+                        }
                         Some(Value::Int(n)) => Value::Int(n + 100),
                         // Phase 12: another valid UUID.
                         Some(Value::Str(s)) if s.len() == 36 && s.matches('-').count() == 4 => {
@@ -1226,6 +1240,21 @@ fn arguments(
     Ok(args)
 }
 
+/// Phase 15: the synthesized arguments of every actor of a variant (the
+/// base world's), or why one cannot be synthesized.
+pub fn base_arguments(
+    c: &Candidate,
+    variant: &Variant,
+    analyzed: &[&Analyzed],
+    index: &ProjectIndex,
+) -> Result<Vec<Vec<Value>>, String> {
+    c.actor_entries
+        .iter()
+        .enumerate()
+        .map(|(k, &ai)| arguments(c, analyzed[ai], index, variant.relation, k))
+        .collect()
+}
+
 // ---------------------------------------------------------------------------
 // Running actors in the engine
 // ---------------------------------------------------------------------------
@@ -1234,6 +1263,9 @@ fn arguments(
 pub struct Executed {
     pub src: SourceRef,
     pub actions: Vec<Action>,
+    /// Phase 15: the branches evaluated in this transition (local
+    /// operations are folded into it): (location, source condition's value).
+    pub branches: Vec<(String, bool)>,
 }
 
 pub enum Solo {
@@ -1245,6 +1277,36 @@ pub enum Solo {
         detail: String,
         location: String,
     },
+}
+
+/// Phase 15: where a solo run ended (for a developer): the last executed
+/// operation and the failure the actor ended with, if any.
+fn stopped_at(executed: &[Executed], state: &State) -> String {
+    let last = executed
+        .last()
+        .map(|e| e.src.label())
+        .unwrap_or_else(|| "its first operation".to_owned());
+    let failure = state
+        .actors
+        .first()
+        .and_then(|a| a.threads.iter().find_map(|t| t.failure.clone()));
+    match failure {
+        Some(f) => format!(" (the actor ended after {last} with: {f})"),
+        None => format!(" (the actor ended after {last})"),
+    }
+}
+
+/// Phase 15: branch outcomes among recorded events (`CHECK` events: the
+/// branch's source condition and its value).
+fn branch_events(events: &[commitrift_model::engine::Event]) -> Vec<(String, bool)> {
+    events
+        .iter()
+        .filter(|e| e.text.starts_with("CHECK "))
+        .filter_map(|e| match (&e.src, &e.result) {
+            (Some(src), Some(Value::Bool(b))) => Some((src.label(), *b)),
+            _ => None,
+        })
+        .collect()
 }
 
 /// Run `actor` alone from `state` until it cannot proceed.
@@ -1264,8 +1326,11 @@ pub fn run_alone(model: &Model, state: State, actor: usize) -> Solo {
         match apply(model, &s, t, &mut rec) {
             Ok(applied) => {
                 s = applied.state;
+                // Phase 15: branch outcomes, from the recorder's `CHECK`
+                // events (a branch's source condition and its value).
                 executed.push(Executed {
                     src,
+                    branches: branch_events(&rec.events),
                     actions: rec.actions,
                 });
             }
@@ -1507,7 +1572,7 @@ fn model_ty(builder: &str) -> Ty {
 
 /// A valid, readable UUID for the `n`-th synthesized row of `name`: the
 /// first group is a stable hash of the name, the last the row number.
-fn uuid_literal(name: &str, n: usize) -> Value {
+pub(crate) fn uuid_literal(name: &str, n: usize) -> Value {
     let h = commitrift_core::diagnostic::stable_hash(&[name]);
     Value::Str(format!(
         "{:08x}-0000-4000-a000-{:012}",
@@ -1641,6 +1706,8 @@ pub struct ScenarioBudget {
 pub struct Built {
     pub plan: Plan,
     pub synthesis: SynthesisReport,
+    /// Phase 15: what the actors' solo runs on the final rows observed.
+    pub observations: crate::worlds::Observations,
 }
 
 fn table_closure(
@@ -1747,7 +1814,6 @@ fn parents_first(index: &ProjectIndex, mut bindings: Vec<String>) -> Vec<String>
 }
 
 /// Build the scenario of one candidate variant (rows, arguments, invariants).
-#[allow(clippy::too_many_arguments)]
 pub fn build(
     c: &Candidate,
     variant: &Variant,
@@ -1755,6 +1821,32 @@ pub fn build(
     index: &ProjectIndex,
     provider: &dyn ActorProvider,
     budget: ScenarioBudget,
+) -> Result<Built, SynthesisReport> {
+    build_world(
+        c,
+        variant,
+        analyzed,
+        index,
+        provider,
+        budget,
+        &crate::worlds::WorldSpec::base(),
+    )
+}
+
+/// Phase 15: [`build`] for one initial world: its argument overrides are
+/// applied before rows are synthesized (rows then follow the arguments),
+/// its cell overrides after every actor's first solo run (the rows the
+/// actors need), and every actor must still reach the candidate's
+/// operations alone on the final rows.
+#[allow(clippy::too_many_arguments)]
+pub fn build_world(
+    c: &Candidate,
+    variant: &Variant,
+    analyzed: &[&Analyzed],
+    index: &ProjectIndex,
+    provider: &dyn ActorProvider,
+    budget: ScenarioBudget,
+    world: &crate::worlds::WorldSpec,
 ) -> Result<Built, SynthesisReport> {
     let fail = |status: &str, detail: String| SynthesisReport {
         status: status.to_owned(),
@@ -1860,7 +1952,12 @@ pub fn build(
             invocation,
             preconditions,
             arguments: match arguments(c, a, index, variant.relation, k) {
-                Ok(args) => args,
+                Ok(mut args) => {
+                    for o in world.args.iter().filter(|o| o.actors.contains(&k)) {
+                        set_path(&mut args, &a.summary.params, &o.path, o.value.clone());
+                    }
+                    args
+                }
                 Err(why) => return Err(fail("unsupported", why)),
             },
             retry: c.environment.retry.clone(),
@@ -1938,10 +2035,25 @@ pub fn build(
     preseed_argument_rows(c, &plan, analyzed, &mut rows);
     preseed_written_rows(c, &plan, analyzed, &mut rows);
     let mut iterations = 0;
+    let mut observations = crate::worlds::Observations::default();
+    let mut guard_fixes: BTreeSet<(String, String, String, Value)> = BTreeSet::new();
     // Each actor alone, rows accumulating; then every actor again on the
     // final rows.
     let order: Vec<usize> = (0..plan.actors.len()).chain(0..plan.actors.len()).collect();
     for (round, k) in order.into_iter().enumerate() {
+        // Phase 15: the world's changes to the rows the actors need.
+        if round == plan.actors.len()
+            && !world.cells.is_empty()
+            && let Err(e) = crate::worlds::apply_cells(&mut rows.rows, &world.cells)
+        {
+            return Err(SynthesisReport {
+                status: "unsatisfiable".to_owned(),
+                detail: format!("world `{}`: {e}", world.id),
+                iterations,
+                rows: rows.added.clone(),
+                notes: rows.notes.clone(),
+            });
+        }
         let mut solo = plan.clone();
         solo.actors = vec![plan.actors[k].clone()];
         solo.max_crashes = 0;
@@ -1983,7 +2095,11 @@ pub fn build(
                     notes: rows.notes.clone(),
                 });
             }
-            let run = run_alone(&model, initial_state(&model), 0);
+            // Phase 15: the local operations before the first visible step
+            // (branches included) run while the initial state settles.
+            let mut settle = Recorder::on();
+            let start = commitrift_model::engine::initial_state_recorded(&model, &mut settle);
+            let run = run_alone(&model, start, 0);
             let (executed, state) = match run {
                 Solo::Unsupported { detail, location } => {
                     return Err(SynthesisReport {
@@ -2006,7 +2122,7 @@ pub fn build(
                 .filter(|e| !e.actions.iter().any(changed_nothing))
                 .map(|e| e.src.label())
                 .collect();
-            let targets = &solo.actors[0].targets;
+            let targets = solo.actors[0].targets.clone();
             if targets.iter().all(|t| done.contains(t)) {
                 // Rows the actor inserts need their parents too.
                 let inserted = inserted_rows(&model, &executed);
@@ -2016,6 +2132,29 @@ pub fn build(
                     let _ = state;
                     if final_round {
                         plan.actors[k].observed = observed_rows(&executed);
+                        let selector = plan.actors[k].selector.clone();
+                        let settled = branch_events(&settle.events);
+                        let all = settled
+                            .iter()
+                            .chain(executed.iter().flat_map(|e| e.branches.iter()));
+                        for (at, value) in all {
+                            let b = observations
+                                .branches
+                                .entry((selector.clone(), at.clone()))
+                                .or_default();
+                            if *value {
+                                b.1 = true;
+                            } else {
+                                b.0 = true;
+                            }
+                        }
+                        for e in &executed {
+                            observations
+                                .reached
+                                .entry(selector.clone())
+                                .or_default()
+                                .insert(e.src.label());
+                        }
                     }
                     break;
                 }
@@ -2086,15 +2225,85 @@ pub fn build(
             }
             // Find the last read that came back empty and is not required
             // to stay empty.
-            match seed_from(&model, &executed, &solo.actors[0].keep_empty, &mut rows) {
+            let seeded = seed_from(&model, &executed, &solo.actors[0].keep_empty, &mut rows)
+                .or_else(|why| {
+                    // Phase 15: every read found a row; a guard over a read
+                    // row may have stopped the actor.
+                    satisfy_guard(
+                        &model,
+                        &settle.events,
+                        &executed,
+                        &mut rows,
+                        &mut guard_fixes,
+                        &solo.actors[0].name,
+                    )
+                    .map_err(|g| {
+                        if g.is_empty() {
+                            why
+                        } else {
+                            format!("{why}; {g}")
+                        }
+                    })
+                });
+            // Phase 15: a guard over an argument (`actor.kind === "staff"`).
+            let seeded = match seeded {
+                Ok(()) => Ok(()),
+                Err(why) => {
+                    let a = analyzed[c.actor_entries[k]];
+                    let fixed: BTreeSet<String> = a
+                        .contract
+                        .as_ref()
+                        .map(|ct| {
+                            if ct.arguments.is_some() {
+                                a.summary.params.to_vec()
+                            } else {
+                                ct.values.keys().cloned().collect::<Vec<_>>()
+                            }
+                        })
+                        .unwrap_or_default()
+                        .into_iter()
+                        .chain(world.args.iter().map(|o| o.path.clone()))
+                        .collect();
+                    match argument_guard(
+                        &model,
+                        &settle.events,
+                        &executed,
+                        &a.summary.params,
+                        &solo.actors[0].arguments,
+                        &fixed,
+                        &mut guard_fixes,
+                    ) {
+                        Some((path, value, at)) => {
+                            let selector = plan.actors[k].selector.clone();
+                            for actor in plan.actors.iter_mut().filter(|x| x.selector == selector) {
+                                set_path(
+                                    &mut actor.arguments,
+                                    &a.summary.params,
+                                    &path,
+                                    value.clone(),
+                                );
+                            }
+                            solo.actors[0].arguments = plan.actors[k].arguments.clone();
+                            rows.notes.push(format!(
+                                "SYNTHESIZED precondition of `{selector}`: argument `{path}` = {}, so that the guard at {at} lets the call continue (the scenario explores callers that satisfy this guard; it is not assumed of every caller)",
+                                value.render()
+                            ));
+                            Ok(())
+                        }
+                        None => Err(why),
+                    }
+                }
+            };
+            match seeded {
                 Ok(()) => continue,
                 Err(why) => {
                     return Err(SynthesisReport {
                         status: "unsatisfiable".to_owned(),
                         detail: format!(
-                            "actor `{}` does not reach {} and no row can be added: {why}",
+                            "actor `{}` does not reach {} and no row can be added: {why}{}",
                             solo.actors[0].name,
-                            targets.join(", ")
+                            targets.join(", "),
+                            stopped_at(&executed, &state)
                         ),
                         iterations,
                         rows: rows.added.clone(),
@@ -2128,7 +2337,11 @@ pub fn build(
         rows: rows.added.clone(),
         notes: rows.notes.clone(),
     };
-    Ok(Built { plan, synthesis })
+    Ok(Built {
+        plan,
+        synthesis,
+        observations,
+    })
 }
 
 fn actor_base(a: &Analyzed) -> String {
@@ -2521,6 +2734,321 @@ fn seed_from(
         }
     }
     Err("no read on the executed path came back empty".to_owned())
+}
+
+/// Phase 15: a guard the run evaluated that compares an argument path with
+/// a literal its synthesized value differs from (`actor.kind === "staff"`
+/// with `kind = "kind-1"`): the path, the literal, and the guard's location.
+/// Paths in `fixed` (declared, or chosen by the world) are left alone; each
+/// (path, value) is tried once.
+fn argument_guard(
+    model: &Model,
+    settled: &[commitrift_model::engine::Event],
+    executed: &[Executed],
+    params: &[String],
+    args: &[Value],
+    fixed: &BTreeSet<String>,
+    tried: &mut BTreeSet<(String, String, String, Value)>,
+) -> Option<(String, Value, String)> {
+    let evaluated: BTreeSet<String> = branch_events(settled)
+        .into_iter()
+        .chain(executed.iter().flat_map(|e| e.branches.iter().cloned()))
+        .map(|(at, _)| at)
+        .collect();
+    // Locals defined exactly once, over every code vector (inlined
+    // callees bind their parameters to such locals).
+    let mut defs: BTreeMap<&str, Vec<&Expr>> = BTreeMap::new();
+    for code in &model.actors[0].codes {
+        for st in code {
+            if let Op::Let { local, expr } = &st.op {
+                defs.entry(local.as_str()).or_default().push(expr);
+            }
+        }
+    }
+    type Defs<'a> = BTreeMap<&'a str, Vec<&'a Expr>>;
+    fn single<'a>(defs: &Defs<'a>, l: &str) -> Option<&'a Expr> {
+        match defs.get(l).map(Vec::as_slice) {
+            Some([one]) => Some(*one),
+            _ => None,
+        }
+    }
+    // A parameter path, through such locals (`isSchoolAdmin$actor.kind`).
+    fn path_through(e: &Expr, params: &[String], defs: &Defs<'_>, depth: u32) -> Option<String> {
+        if let Some(p) = path_of(e, params) {
+            return Some(p);
+        }
+        if depth > 6 {
+            return None;
+        }
+        if let Some((base, f)) = e.as_property() {
+            return path_through(base, params, defs, depth + 1).map(|p| format!("{p}.{f}"));
+        }
+        match e {
+            Expr::Local(l) => path_through(single(defs, l)?, params, defs, depth + 1),
+            _ => None,
+        }
+    }
+    fn walk(
+        e: &Expr,
+        params: &[String],
+        defs: &Defs<'_>,
+        depth: u32,
+        out: &mut Vec<(String, Value)>,
+    ) {
+        if depth > 6 {
+            return;
+        }
+        match e {
+            Expr::Bin(BinOp::Eq | BinOp::Ne, a, b) => {
+                if let (x, Expr::Lit(v)) | (Expr::Lit(v), x) = (a.as_ref(), b.as_ref())
+                    && let Some(p) = path_through(x, params, defs, 0)
+                    && matches!(v, Value::Str(_) | Value::Int(_) | Value::Bool(_))
+                {
+                    out.push((p, v.clone()));
+                }
+                walk(a, params, defs, depth, out);
+                walk(b, params, defs, depth, out);
+            }
+            Expr::Bin(_, a, b) => {
+                walk(a, params, defs, depth, out);
+                walk(b, params, defs, depth, out);
+            }
+            Expr::Not(x) | Expr::Field(x, _) | Expr::IsNull(x) => {
+                walk(x, params, defs, depth, out);
+            }
+            // A local holding a condition (`ok = a && b`, lowered as
+            // several assignments): every definition.
+            Expr::Local(l) => {
+                for def in defs.get(l.as_str()).into_iter().flatten() {
+                    walk(def, params, defs, depth + 1, out);
+                }
+            }
+            // A membership guard (`roles.includes("admin")`): the element.
+            Expr::Call {
+                func: Builtin::Includes,
+                args,
+            } => {
+                if let [list, Expr::Lit(v @ (Value::Str(_) | Value::Int(_)))] = args.as_slice()
+                    && let Some(p) = path_through(list, params, defs, 0)
+                {
+                    out.push((p, Value::List(vec![v.clone()])));
+                }
+            }
+            _ => {}
+        }
+    }
+    for code in &model.actors[0].codes {
+        for step in code {
+            let Op::JumpIf { cond, .. } = &step.op else {
+                continue;
+            };
+            let at = step.src.label();
+            if !evaluated.contains(&at) {
+                continue;
+            }
+            let mut tests = Vec::new();
+            walk(cond, params, &defs, 0, &mut tests);
+            for (path, literal) in tests {
+                if fixed
+                    .iter()
+                    .any(|f| path == *f || path.starts_with(&format!("{f}.")))
+                {
+                    continue;
+                }
+                let current = get_path(args, params, &path);
+                if current.as_ref() == Some(&literal) {
+                    continue;
+                }
+                // A list that already holds the element passes.
+                if let (Some(Value::List(have)), Value::List(want)) = (&current, &literal)
+                    && want.iter().all(|w| have.contains(w))
+                {
+                    continue;
+                }
+                if !tried.insert((
+                    "argument".to_owned(),
+                    path.clone(),
+                    String::new(),
+                    literal.clone(),
+                )) {
+                    continue;
+                }
+                return Some((path, literal, at));
+            }
+        }
+    }
+    None
+}
+
+/// Phase 15: when an actor stops at a guard that compares a property of a
+/// row it read with a literal (`membership.role !== "admin"`), set that
+/// column of the stored row to the value that lets the guard pass, once per
+/// (table, column, value). The requirement is recorded as a synthesized
+/// precondition: the scenario explores callers who satisfy it, it is never
+/// assumed of an arbitrary caller. Returns why nothing could be changed
+/// (empty: no such guard).
+fn satisfy_guard(
+    model: &Model,
+    settled: &[commitrift_model::engine::Event],
+    executed: &[Executed],
+    rows: &mut Rows<'_>,
+    tried: &mut BTreeSet<(String, String, String, Value)>,
+    actor: &str,
+) -> Result<(), String> {
+    use commitrift_model::engine::Expect;
+    use commitrift_model::exec::StmtResult;
+    // Branches the run evaluated, by location.
+    let evaluated: BTreeSet<String> = branch_events(settled)
+        .into_iter()
+        .chain(executed.iter().flat_map(|e| e.branches.iter().cloned()))
+        .map(|(at, _)| at)
+        .collect();
+    // (branch location, property, candidate values that may pass it).
+    let mut tests: Vec<(String, String, Vec<Value>)> = Vec::new();
+    fn walk(e: &Expr, at: &str, out: &mut Vec<(String, String, Vec<Value>)>) {
+        match e {
+            Expr::Bin(
+                op @ (BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge),
+                a,
+                b,
+            ) => {
+                let pair = match (a.as_ref(), b.as_ref()) {
+                    (x, Expr::Lit(v)) | (Expr::Lit(v), x) => {
+                        x.as_property().map(|(_, f)| (f.to_owned(), v.clone()))
+                    }
+                    _ => None,
+                };
+                match (op, pair) {
+                    (BinOp::Eq | BinOp::Ne, Some((f, v)))
+                        if matches!(v, Value::Str(_) | Value::Int(_) | Value::Bool(_)) =>
+                    {
+                        out.push((at.to_owned(), f, vec![v]));
+                    }
+                    // An integer ordering: the values around the operand.
+                    (_, Some((f, Value::Int(n)))) => {
+                        let vs = [n.checked_add(1), Some(n), n.checked_sub(1)]
+                            .into_iter()
+                            .flatten()
+                            .map(Value::Int)
+                            .collect();
+                        out.push((at.to_owned(), f, vs));
+                    }
+                    _ => {}
+                }
+                walk(a, at, out);
+                walk(b, at, out);
+            }
+            Expr::Bin(_, a, b) => {
+                walk(a, at, out);
+                walk(b, at, out);
+            }
+            Expr::Not(x) | Expr::Field(x, _) | Expr::IsNull(x) => walk(x, at, out),
+            _ => {}
+        }
+    }
+    fn locals_of(e: &Expr, out: &mut Vec<String>) {
+        match e {
+            Expr::Local(l) => out.push(l.clone()),
+            Expr::Bin(_, a, b) => {
+                locals_of(a, out);
+                locals_of(b, out);
+            }
+            Expr::Not(x) | Expr::Field(x, _) | Expr::IsNull(x) => locals_of(x, out),
+            _ => {}
+        }
+    }
+    for code in &model.actors[0].codes {
+        for step in code {
+            if let Op::JumpIf { cond, .. } = &step.op {
+                let at = step.src.label();
+                if evaluated.contains(&at) {
+                    walk(cond, &at, &mut tests);
+                    // The locals the condition tests (`allowed = x > 0`).
+                    let mut locals = Vec::new();
+                    locals_of(cond, &mut locals);
+                    for st in code {
+                        if let Op::Let { local, expr } = &st.op
+                            && locals.contains(local)
+                        {
+                            walk(expr, &at, &mut tests);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if tests.is_empty() {
+        return Err(String::new());
+    }
+    // Rows the run read, latest first.
+    for e in executed.iter().rev() {
+        for a in &e.actions {
+            let Action::Stmt {
+                stmt:
+                    ClosedStmt::Select {
+                        table, pred, joins, ..
+                    },
+                expect: Expect::Done(StmtResult::Row(Some(_))),
+                ..
+            } = a
+            else {
+                continue;
+            };
+            if !joins.is_empty() {
+                continue;
+            }
+            let name = model.schema.table(*table).name.clone();
+            let Some(key) = eq_literals(pred) else {
+                continue;
+            };
+            for (at, column, values) in &tests {
+                if crate::worlds::identity_column(rows.index, &name, column) {
+                    continue;
+                }
+                for literal in values {
+                    let Some(matching) = rows.rows.get_mut(&name) else {
+                        continue;
+                    };
+                    let hits: Vec<usize> = matching
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, r)| key.iter().all(|(k, v)| r.get(k) == Some(v)))
+                        .map(|(i, _)| i)
+                        .collect();
+                    let Some(&first) = hits.first() else { continue };
+                    let Some(current) = matching[first].get(column).cloned() else {
+                        continue;
+                    };
+                    let value = if current == *literal {
+                        if values.len() > 1 {
+                            continue;
+                        }
+                        match crate::worlds::distinct_value(rows.index, &name, column, literal) {
+                            Some(v) => v,
+                            None => continue,
+                        }
+                    } else {
+                        literal.clone()
+                    };
+                    let row_key = Value::Row(key.clone()).render();
+                    if !tried.insert((name.clone(), row_key, column.clone(), value.clone())) {
+                        continue;
+                    }
+                    let matching = rows.rows.get_mut(&name).expect("present");
+                    for i in hits {
+                        matching[i].insert(column.clone(), value.clone());
+                    }
+                    rows.notes.push(format!(
+                    "SYNTHESIZED precondition of `{actor}`: the `{name}` row its read at {} returns has `{column}` = {}, so that the guard at {at} lets it continue (the scenario explores callers that satisfy this guard; it is not assumed of every caller)",
+                    e.src.label(),
+                    value.render()
+                ));
+                    return Ok(());
+                }
+            }
+        }
+    }
+    Err("no stored row read by the actor can be changed to pass its guards".to_owned())
 }
 
 // ---------------------------------------------------------------------------

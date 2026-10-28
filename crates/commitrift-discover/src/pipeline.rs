@@ -24,11 +24,13 @@ use crate::effects::{Access, summarize};
 use crate::extract::{MemoProvider, extract_entry};
 use crate::project::{ProjectIndex, index};
 use crate::report::{
-    Budgets, CandidateReport, DiscoveryReport, EntryReport, IndexStats, InvariantReport,
-    ModelResult, ProjectInfo, REPORT_KIND, REPORT_SCHEMA_VERSION, ScenarioResult, Summary, Timings,
-    Tool, Validation,
+    BranchCoverage, Budgets, CandidateReport, Coverage, DimensionCoverage, DiscoveryReport,
+    EntryReport, IndexStats, InvariantReport, ModelResult, ProjectInfo, REPORT_KIND,
+    REPORT_SCHEMA_VERSION, ScenarioResult, ScheduleCoverage, SourceCoverage, Summary, Timings,
+    Tool, Validation, WorldInfo, WorldOutcome,
 };
 use crate::synth::{self, ScenarioBudget, VariantKind};
+use crate::worlds::{Observations, WorldOrigin, WorldSpec};
 
 #[derive(Clone, Debug)]
 pub struct Options {
@@ -53,6 +55,11 @@ pub struct Options {
     /// A cache file for extractions (keyed by everything they read).
     pub cache: Option<PathBuf>,
     pub tool_version: String,
+    /// Phase 15: initial worlds tried per actual variant (the base world
+    /// included); 1 turns world search off (the Phase 14 behavior).
+    pub max_worlds: usize,
+    /// Phase 15: keep exploring worlds after a validated counterexample.
+    pub all_worlds: bool,
 }
 
 impl Default for Options {
@@ -73,9 +80,14 @@ impl Default for Options {
             include_timing: true,
             cache: None,
             tool_version: String::new(),
+            max_worlds: DEFAULT_MAX_WORLDS,
+            all_worlds: false,
         }
     }
 }
+
+/// Phase 15: the default world budget per actual variant.
+pub const DEFAULT_MAX_WORLDS: usize = 8;
 
 fn ms(start: Instant) -> u64 {
     u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX)
@@ -510,6 +522,7 @@ pub fn discover(root: &Path, opts: &Options) -> Result<DiscoveryReport, String> 
         max_states_per_scenario: opts.max_states,
         max_wall_ms_per_scenario: opts.max_wall_ms,
         max_total_states: opts.max_total_states,
+        max_worlds_per_variant: opts.max_worlds.max(1),
         candidates_found: found,
         candidates_reported: found,
         partners_truncated: truncated,
@@ -534,6 +547,13 @@ pub fn discover(root: &Path, opts: &Options) -> Result<DiscoveryReport, String> 
     for (n, &ci) in order.iter().enumerate() {
         let c = &candidates[ci];
         let mut scenarios = Vec::new();
+        // Phase 15: the world search of this candidate.
+        let world_search = opts.max_worlds > 1;
+        let mut seen: BTreeMap<String, String> = BTreeMap::new();
+        let mut outcomes: Vec<WorldOutcome> = Vec::new();
+        let mut observed = Observations::default();
+        let mut first_counterexample: Option<String> = None;
+        let mut unknown_nullability: Vec<String> = Vec::new();
         if n >= opts.max_candidates {
             budgets.candidates_over_budget += 1;
         } else if c.blocked.is_none() {
@@ -547,112 +567,194 @@ pub fn discover(root: &Path, opts: &Options) -> Result<DiscoveryReport, String> 
                         .expect("candidate entries are analyzed")
                 })
                 .collect();
+            let cx = WorldCtx {
+                c,
+                entries: &entries,
+                index: &index,
+                provider: &provider,
+                opts,
+                emit_dir: emit_dir.as_deref(),
+                root: &root,
+            };
+            let mut timing = (0u64, 0u64);
+            let mut extra = Vec::new();
             for variant in synth::variants(c, opts.hypothetical) {
-                let t = Instant::now();
-                let built = synth::build(
-                    c,
+                let base = run_world(
+                    &cx,
                     &variant,
-                    &entries,
-                    &index,
-                    &provider,
-                    ScenarioBudget {
-                        max_states: opts.max_states,
-                        max_wall_ms: opts.max_wall_ms,
-                        max_memory_bytes: opts.max_memory_bytes,
-                    },
-                );
-                let mut result = ScenarioResult {
-                    variant: variant.clone(),
-                    file: None,
-                    synthesis: match &built {
-                        Ok(b) => b.synthesis.clone(),
-                        Err(r) => r.clone(),
-                    },
-                    actors: Vec::new(),
-                    initial_state: BTreeMap::new(),
-                    invariants: Vec::new(),
-                    invariant_notes: Vec::new(),
-                    source_verification: false,
-                    model: None,
-                };
-                let Ok(mut built) = built else {
-                    synthesis_ms += ms(t);
-                    scenarios.push(result);
-                    continue;
-                };
-                result.actors = built.plan.actors.clone();
-                result.initial_state = built.plan.rows.clone();
-                let (invariants, notes) = synth::invariants(
-                    c,
-                    &built.plan,
-                    variant.relation,
-                    &entries,
-                    &index,
-                    &provider,
-                );
-                result.invariant_notes = notes;
-                built.plan.name = format!("{}-{}", c.id.to_ascii_lowercase(), variant.name);
-                built.plan.description = scenario_description(c, &variant);
-                built.plan.invariants = invariants.iter().map(|(_, i)| i.clone()).collect();
-                result.invariants = invariants
-                    .iter()
-                    .map(|(p, i)| InvariantReport {
-                        name: i.name.clone(),
-                        origin: p.origin.as_str().to_owned(),
-                        formula: format!("{:?}", i.formula),
-                    })
-                    .collect();
-                synthesis_ms += ms(t);
-                if built.plan.invariants.is_empty() {
-                    result
-                        .synthesis
-                        .notes
-                        .push("no property could be instantiated: nothing to check".to_owned());
-                    scenarios.push(result);
-                    continue;
+                    &WorldSpec::base(),
+                    &mut budgets,
+                    &mut timing,
+                    &mut seen,
+                )?;
+                outcomes.push(outcome_of(&variant, &WorldSpec::base(), &base));
+                let base_found = base.counterexample();
+                if let Some(b) = &base.built {
+                    observed.merge(&b.observations);
                 }
-                budgets.scenarios_built += 1;
-                if let Some(dir) = &emit_dir {
-                    let root_rel = synth::relative_path(dir, &root);
-                    if let Some(h) = &index.contracts.harness {
-                        let manifest = format!("{root_rel}/{}", h.manifest);
-                        built.plan.source_verification =
-                            synth::source_verification(&built.plan, &entries, c, &index, &manifest);
+                if base_found {
+                    first_counterexample.get_or_insert_with(|| "base".to_owned());
+                }
+                let search = world_search
+                    && variant.kind == VariantKind::Actual
+                    && opts.model_check
+                    && (!base_found || opts.all_worlds)
+                    && (first_counterexample.is_none() || opts.all_worlds);
+                if search {
+                    let mut pending = Vec::new();
+                    if let Ok(args) = synth::base_arguments(c, &variant, &entries, &index) {
+                        let domains: Vec<_> = c
+                            .actor_entries
+                            .iter()
+                            .map(|&ai| crate::domains::entry_domains(entries[ai], &index))
+                            .collect();
+                        for (k, ds) in domains.iter().enumerate() {
+                            for d in ds {
+                                let name = format!("actor {} `{}`", k + 1, d.path);
+                                if d.null == crate::domains::Permission::Unknown
+                                    && !unknown_nullability.contains(&name)
+                                {
+                                    unknown_nullability.push(name);
+                                }
+                            }
+                        }
+                        pending.extend(crate::worlds::domain_worlds(c, &entries, &domains, &args));
+                        if variant.relation == crate::candidate::Relation::Same {
+                            pending.extend(crate::worlds::actor_worlds(c, &entries, &index, &args));
+                        }
                     }
-                    result.source_verification = built.plan.source_verification.is_some();
-                    let doc = built.plan.to_json(&index, &root_rel);
-                    let name = format!("{}.json", built.plan.name);
-                    let mut text = serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())?;
-                    text.push('\n');
-                    std::fs::write(dir.join(&name), text)
-                        .map_err(|e| format!("cannot write `{name}`: {e}"))?;
-                    result.file = Some(name);
-                    // Model checking loads the in-memory plan (root-relative).
-                    built.plan.source_verification = None;
-                }
-                if opts.model_check {
-                    if budgets.total_states_explored >= opts.max_total_states {
-                        budgets.scenarios_skipped_for_budget += 1;
-                        result
-                            .synthesis
-                            .notes
-                            .push("not model-checked: the total state budget is spent".to_owned());
-                    } else {
-                        let t = Instant::now();
-                        result.model = Some(model_check(c, &built.plan, &index, &provider, opts));
-                        checking_ms += ms(t);
-                        budgets.scenarios_model_checked += 1;
-                        if let Some(m) = &result.model {
-                            budgets.total_states_explored += m.states;
+                    if let Some(b) = &base.built {
+                        pending.extend(crate::worlds::relationship_worlds(
+                            c, &entries, &index, &b.plan,
+                        ));
+                        pending
+                            .extend(crate::worlds::boundary_worlds(c, &entries, &index, &b.plan));
+                    }
+                    crate::worlds::prioritize(&mut pending, &unflipped(&observed, &entries));
+                    let mut attempts = 1;
+                    while !pending.is_empty() {
+                        if attempts >= opts.max_worlds {
+                            for w in pending.drain(..) {
+                                budgets.worlds_skipped_for_budget += 1;
+                                outcomes.push(WorldOutcome {
+                                    id: w.id,
+                                    variant: variant.name.clone(),
+                                    origin: w.origin,
+                                    status: "skipped-budget".to_owned(),
+                                    verdict: None,
+                                    detail: format!(
+                                        "the world budget ({} per variant, --max-worlds) is spent",
+                                        opts.max_worlds
+                                    ),
+                                });
+                            }
+                            break;
+                        }
+                        let spec = pending.remove(0);
+                        attempts += 1;
+                        let run =
+                            run_world(&cx, &variant, &spec, &mut budgets, &mut timing, &mut seen)?;
+                        outcomes.push(outcome_of(&variant, &spec, &run));
+                        if let Some(b) = &run.built {
+                            observed.merge(&b.observations);
+                            crate::worlds::prioritize(
+                                &mut pending,
+                                &unflipped(&observed, &entries),
+                            );
+                        }
+                        let found = run.counterexample();
+                        if run.checked {
+                            extra.push(run.result);
+                        }
+                        if found {
+                            first_counterexample.get_or_insert_with(|| spec.id.clone());
+                            if !opts.all_worlds {
+                                for w in pending.drain(..) {
+                                    outcomes.push(WorldOutcome {
+                                        id: w.id,
+                                        variant: variant.name.clone(),
+                                        origin: w.origin,
+                                        status: "skipped-after-counterexample".to_owned(),
+                                        verdict: None,
+                                        detail: "a validated counterexample was found first (--all-worlds explores the rest)".to_owned(),
+                                    });
+                                }
+                                break;
+                            }
                         }
                     }
                 }
-                scenarios.push(result);
+                scenarios.push(base.result);
+            }
+            scenarios.extend(extra);
+            synthesis_ms += timing.0;
+            checking_ms += timing.1;
+        }
+        let (status, mut finding) = status_of(
+            c,
+            &scenarios,
+            opts.model_check,
+            n >= opts.max_candidates,
+            unenforced_unique(c, &index).as_deref(),
+        );
+        let coverage = (opts.model_check && !scenarios.is_empty()).then(|| {
+            let entries: Vec<&Analyzed> = c
+                .entries
+                .iter()
+                .filter_map(|e| analyzed.iter().find(|a| a.fact.selector == e.selector))
+                .collect();
+            coverage_of(
+                c,
+                &entries,
+                &scenarios,
+                &outcomes,
+                &observed,
+                first_counterexample.clone(),
+                &unknown_nullability,
+                world_search,
+                &status,
+                opts,
+            )
+        });
+        if let Some(cov) = &coverage {
+            match status.as_str() {
+                "NO_VIOLATION_WITHIN_BOUNDS" => {
+                    finding.push(' ');
+                    finding.push_str(&cov.conclusion);
+                }
+                "MODEL_COUNTEREXAMPLE" => {
+                    if let Some(w) = deciding_scenario(&scenarios).and_then(|s| s.world.as_ref())
+                        && w.origin != WorldOrigin::Base
+                    {
+                        finding = format!(
+                            "In the initial world `{}` ({}): {finding}",
+                            w.id,
+                            w.relationships.join("; ")
+                        );
+                    }
+                }
+                _ => {}
             }
         }
-        let (status, finding) =
-            status_of(c, &scenarios, opts.model_check, n >= opts.max_candidates);
         let next_step = crate::report::next_step(c, &status, opts.model_check);
+        // Phase 15: the deciding counterexample's reproduction artifact.
+        if status == "MODEL_COUNTEREXAMPLE"
+            && let Some(dir) = &emit_dir
+            && let Some(s) = deciding_scenario(&scenarios)
+            && let (Some(doc), Some(file)) = (&s.reproduction, &s.file)
+        {
+            let mut doc = doc.clone();
+            doc["status"] = serde_json::json!(status);
+            doc["finding"] = serde_json::json!(finding);
+            let name = format!(
+                "{}.counterexample.json",
+                file.strip_suffix(".json").unwrap_or(file)
+            );
+            let mut text = serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())?;
+            text.push('\n');
+            std::fs::write(dir.join(&name), text)
+                .map_err(|e| format!("cannot write `{name}`: {e}"))?;
+        }
         reports.push(CandidateReport {
             rank: 0,
             candidate: c.clone(),
@@ -663,6 +765,7 @@ pub fn discover(root: &Path, opts: &Options) -> Result<DiscoveryReport, String> 
             ranking: ranking_factors(c, &analyzed),
             scenarios,
             next_step,
+            coverage,
         });
     }
 
@@ -929,6 +1032,570 @@ fn scenario_description(c: &Candidate, v: &synth::Variant) -> String {
     )
 }
 
+// ---------------------------------------------------------------------------
+// Phase 15: worlds
+// ---------------------------------------------------------------------------
+
+/// What one world's run needs.
+struct WorldCtx<'a> {
+    c: &'a Candidate,
+    entries: &'a [&'a Analyzed],
+    index: &'a ProjectIndex,
+    provider: &'a MemoProvider,
+    opts: &'a Options,
+    emit_dir: Option<&'a Path>,
+    root: &'a Path,
+}
+
+struct WorldRun {
+    result: ScenarioResult,
+    built: Option<synth::Built>,
+    /// Model-checked (built, not a duplicate, within the state budget).
+    checked: bool,
+    duplicate_of: Option<String>,
+}
+
+impl WorldRun {
+    /// A validated counterexample.
+    fn counterexample(&self) -> bool {
+        self.result.model.as_ref().is_some_and(|m| {
+            m.verdict == "COUNTEREXAMPLE_FOUND"
+                && m.validation
+                    .as_ref()
+                    .is_some_and(|v| v.replayed && v.violates)
+        })
+    }
+}
+
+fn slug(text: &str) -> String {
+    let mut out = String::new();
+    for ch in text.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch.to_ascii_lowercase());
+        } else if !out.ends_with('-') {
+            out.push('-');
+        }
+    }
+    out.trim_matches('-').to_owned()
+}
+
+/// Build, instantiate, emit and (optionally) model-check one world of a
+/// variant. `timing` accumulates (synthesis, model checking) milliseconds.
+fn run_world(
+    cx: &WorldCtx<'_>,
+    variant: &synth::Variant,
+    spec: &WorldSpec,
+    budgets: &mut Budgets,
+    timing: &mut (u64, u64),
+    seen: &mut BTreeMap<String, String>,
+) -> Result<WorldRun, String> {
+    let (c, index, opts) = (cx.c, cx.index, cx.opts);
+    let t = Instant::now();
+    let built = synth::build_world(
+        c,
+        variant,
+        cx.entries,
+        index,
+        cx.provider,
+        ScenarioBudget {
+            max_states: opts.max_states,
+            max_wall_ms: opts.max_wall_ms,
+            max_memory_bytes: opts.max_memory_bytes,
+        },
+        spec,
+    );
+    let world_search = opts.max_worlds > 1;
+    let mut result = ScenarioResult {
+        variant: variant.clone(),
+        file: None,
+        synthesis: match &built {
+            Ok(b) => b.synthesis.clone(),
+            Err(r) => r.clone(),
+        },
+        actors: Vec::new(),
+        initial_state: BTreeMap::new(),
+        invariants: Vec::new(),
+        invariant_notes: Vec::new(),
+        source_verification: false,
+        model: None,
+        reproduction: None,
+        world: world_search.then(|| WorldInfo {
+            id: spec.id.clone(),
+            origin: spec.origin,
+            relationships: spec.relationships.clone(),
+            feedback: spec.feedback.clone(),
+            fingerprint: String::new(),
+        }),
+    };
+    let mut built = match built {
+        Ok(b) => b,
+        Err(_) => {
+            timing.0 += ms(t);
+            if !spec.is_base() {
+                budgets.worlds_invalid += 1;
+            }
+            return Ok(WorldRun {
+                result,
+                built: None,
+                checked: false,
+                duplicate_of: None,
+            });
+        }
+    };
+    result.actors = built.plan.actors.clone();
+    result.initial_state = built.plan.rows.clone();
+    let (invariants, notes) = synth::invariants(
+        c,
+        &built.plan,
+        variant.relation,
+        cx.entries,
+        index,
+        cx.provider,
+    );
+    result.invariant_notes = notes;
+    built.plan.name = if spec.is_base() {
+        format!("{}-{}", c.id.to_ascii_lowercase(), variant.name)
+    } else {
+        format!(
+            "{}-{}--{}",
+            c.id.to_ascii_lowercase(),
+            variant.name,
+            slug(&spec.id)
+        )
+    };
+    built.plan.description = scenario_description(c, variant);
+    if !spec.is_base() {
+        built.plan.description.push_str(&format!(
+            " Initial world `{}`: {}.",
+            spec.id,
+            spec.relationships.join("; ")
+        ));
+    }
+    built.plan.invariants = invariants.iter().map(|(_, i)| i.clone()).collect();
+    result.invariants = invariants
+        .iter()
+        .map(|(p, i)| InvariantReport {
+            name: i.name.clone(),
+            origin: p.origin.as_str().to_owned(),
+            formula: format!("{:?}", i.formula),
+        })
+        .collect();
+    timing.0 += ms(t);
+    if built.plan.invariants.is_empty() {
+        result
+            .synthesis
+            .notes
+            .push("no property could be instantiated: nothing to check".to_owned());
+        return Ok(WorldRun {
+            result,
+            built: Some(built),
+            checked: false,
+            duplicate_of: None,
+        });
+    }
+    // Phase 15: equivalent worlds (everything the model checker is given
+    // is identical) are explored once.
+    let fp = crate::worlds::fingerprint(&built.plan, index);
+    if let Some(w) = result.world.as_mut() {
+        w.fingerprint = fp.clone();
+    }
+    if world_search
+        && !spec.is_base()
+        && let Some(prev) = seen.get(&fp).cloned()
+    {
+        budgets.worlds_duplicate += 1;
+        return Ok(WorldRun {
+            result,
+            built: Some(built),
+            checked: false,
+            duplicate_of: Some(prev),
+        });
+    }
+    seen.entry(fp).or_insert_with(|| spec.id.clone());
+    budgets.scenarios_built += 1;
+    budgets.worlds_built += 1;
+    if let Some(dir) = cx.emit_dir {
+        let root_rel = synth::relative_path(dir, cx.root);
+        if let Some(h) = &index.contracts.harness {
+            let manifest = format!("{root_rel}/{}", h.manifest);
+            built.plan.source_verification =
+                synth::source_verification(&built.plan, cx.entries, c, index, &manifest);
+        }
+        result.source_verification = built.plan.source_verification.is_some();
+        let doc = built.plan.to_json(index, &root_rel);
+        let name = format!("{}.json", built.plan.name);
+        let mut text = serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())?;
+        text.push('\n');
+        std::fs::write(dir.join(&name), text).map_err(|e| format!("cannot write `{name}`: {e}"))?;
+        result.file = Some(name);
+        // Model checking loads the in-memory plan (root-relative).
+        built.plan.source_verification = None;
+    }
+    let mut checked = false;
+    if opts.model_check {
+        if budgets.total_states_explored >= opts.max_total_states {
+            budgets.scenarios_skipped_for_budget += 1;
+            result
+                .synthesis
+                .notes
+                .push("not model-checked: the total state budget is spent".to_owned());
+        } else {
+            let t = Instant::now();
+            result.model = Some(model_check(c, &built.plan, index, cx.provider, opts));
+            timing.1 += ms(t);
+            budgets.scenarios_model_checked += 1;
+            checked = true;
+            if let Some(m) = &result.model {
+                budgets.total_states_explored += m.states;
+            }
+        }
+    }
+    let mut run = WorldRun {
+        result,
+        built: Some(built),
+        checked,
+        duplicate_of: None,
+    };
+    if run.counterexample()
+        && cx.emit_dir.is_some()
+        && let Some(b) = &run.built
+    {
+        run.result.reproduction = reproduction(cx, variant, spec, &run.result, &b.plan);
+    }
+    Ok(run)
+}
+
+fn outcome_of(variant: &synth::Variant, spec: &WorldSpec, run: &WorldRun) -> WorldOutcome {
+    let (status, detail) = if let Some(prev) = &run.duplicate_of {
+        (
+            "duplicate".to_owned(),
+            format!("equivalent to world `{prev}` (same fingerprint)"),
+        )
+    } else if run.built.is_none() {
+        let d = &run.result.synthesis.detail;
+        (
+            if run.result.synthesis.status == "unsupported" {
+                "unsupported"
+            } else if d.contains("no longer reaches") || d.contains("does not reach") {
+                // A valid state in which an actor stops before the
+                // candidate's operations (a guard, a missing row).
+                "unreached"
+            } else {
+                "invalid"
+            }
+            .to_owned(),
+            run.result.synthesis.detail.clone(),
+        )
+    } else if run.checked {
+        ("explored".to_owned(), String::new())
+    } else {
+        (
+            "not-checked".to_owned(),
+            run.result
+                .synthesis
+                .notes
+                .last()
+                .cloned()
+                .unwrap_or_default(),
+        )
+    };
+    WorldOutcome {
+        id: spec.id.clone(),
+        variant: variant.name.clone(),
+        origin: spec.origin,
+        status,
+        verdict: run.result.model.as_ref().map(|m| m.verdict.clone()),
+        detail,
+    }
+}
+
+/// Parameter paths of branches that the explored worlds' solo runs took in
+/// one direction only.
+fn unflipped(observed: &Observations, entries: &[&Analyzed]) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    for ((selector, at), (fell, jumped)) in &observed.branches {
+        if *fell && *jumped {
+            continue;
+        }
+        if let Some(a) = entries.iter().find(|a| &a.fact.selector == selector)
+            && let Some(paths) = crate::domains::branch_paths(a).get(at)
+        {
+            out.extend(paths.iter().cloned());
+        }
+    }
+    out
+}
+
+/// Phase 15: the coverage section of a candidate.
+#[allow(clippy::too_many_arguments)]
+fn coverage_of(
+    c: &Candidate,
+    entries: &[&Analyzed],
+    scenarios: &[ScenarioResult],
+    outcomes: &[WorldOutcome],
+    observed: &Observations,
+    first_counterexample: Option<String>,
+    unknown_nullability: &[String],
+    world_search: bool,
+    status: &str,
+    opts: &Options,
+) -> Coverage {
+    let explored: Vec<&ScenarioResult> = scenarios
+        .iter()
+        .filter(|s| s.variant.kind == VariantKind::Actual && s.model.is_some())
+        .collect();
+    let rows: BTreeSet<String> = explored
+        .iter()
+        .map(|s| serde_json::to_string(&s.initial_state).unwrap_or_default())
+        .collect();
+    let args: BTreeSet<String> = explored
+        .iter()
+        .map(|s| {
+            serde_json::to_string(
+                &s.actors
+                    .iter()
+                    .map(|a| a.arguments.clone())
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap_or_default()
+        })
+        .collect();
+    let mut state_rel = Vec::new();
+    let mut input_rel = Vec::new();
+    for s in &explored {
+        let rel = s.world.as_ref().map_or_else(
+            || vec!["the synthesized initial state and arguments".to_owned()],
+            |w| w.relationships.clone(),
+        );
+        let origin = s.world.as_ref().map_or(WorldOrigin::Base, |w| w.origin);
+        let tagged: Vec<String> = rel
+            .into_iter()
+            .map(|r| format!("{}: {r}", s.variant.name))
+            .collect();
+        match origin {
+            WorldOrigin::Relationship => state_rel.extend(tagged),
+            WorldOrigin::Domain => input_rel.extend(tagged),
+            WorldOrigin::Base => {
+                state_rel.extend(tagged.iter().cloned());
+                input_rel.push(format!(
+                    "{}: {}",
+                    s.variant.name,
+                    match s.variant.relation {
+                        crate::candidate::Relation::Same => "the actors use the same key",
+                        crate::candidate::Relation::DistinctKey => "the actors use different keys",
+                        crate::candidate::Relation::DistinctRequestKey =>
+                            "the actors use different request keys",
+                        crate::candidate::Relation::DistinctRow =>
+                            "the actors address different rows",
+                        crate::candidate::Relation::Swapped => "the actors' keys are swapped",
+                    }
+                ));
+            }
+        }
+    }
+    let mut schedules = ScheduleCoverage {
+        algorithm: match opts.source_dpor {
+            Some(m) => format!("source-dpor:{}", m.as_str()),
+            None => "sleep-sets".to_owned(),
+        },
+        ..ScheduleCoverage::default()
+    };
+    for s in &explored {
+        let m = s.model.as_ref().expect("explored");
+        if m.verdict == "UNSUPPORTED" {
+            schedules.worlds_unsupported += 1;
+        } else if m.complete || m.verdict == "COUNTEREXAMPLE_FOUND" {
+            schedules.worlds_complete += 1;
+        } else {
+            schedules.worlds_truncated += 1;
+        }
+    }
+    // Branch outcomes: every `JumpIf` of the actors' extracted code.
+    let mut relevant: BTreeSet<(String, String)> = BTreeSet::new();
+    for a in entries {
+        if !c.actor_entries.iter().any(|&ai| {
+            c.entries
+                .get(ai)
+                .is_some_and(|e| e.selector == a.fact.selector)
+        }) {
+            continue;
+        }
+        for step in a.summary.codes.iter().flatten() {
+            if matches!(step.op, commitrift_model::ir::Op::JumpIf { .. }) {
+                relevant.insert((a.fact.selector.clone(), step.src.label()));
+            }
+        }
+    }
+    let reached = observed
+        .branches
+        .iter()
+        .filter(|(k, _)| relevant.contains(*k))
+        .map(|(_, (f, j))| usize::from(*f) + usize::from(*j))
+        .sum();
+    let mut unexplored = Vec::new();
+    if !world_search {
+        unexplored.push(
+            "world search is off (--max-worlds 1): one synthesized initial world per variant"
+                .to_owned(),
+        );
+    }
+    for w in outcomes.iter().filter(|o| o.status != "explored") {
+        unexplored.push(format!(
+            "world `{}` ({}): {}{}",
+            w.id,
+            w.variant,
+            w.status,
+            if w.detail.is_empty() {
+                String::new()
+            } else {
+                format!(" — {}", w.detail)
+            }
+        ));
+    }
+    for n in unknown_nullability {
+        unexplored.push(format!(
+            "{n}: whether null is a valid value is unknown (no TypeScript annotation): null not explored"
+        ));
+    }
+    unexplored.push(
+        "values outside the listed relationship classes (each parameter's value domain is not enumerated)"
+            .to_owned(),
+    );
+    if c.actor_entries.len() > 1 {
+        unexplored.push("more actors than the candidate's pair".to_owned());
+    }
+    let classes_exhaustive = world_search
+        && outcomes
+            .iter()
+            .all(|o| matches!(o.status.as_str(), "explored" | "duplicate"));
+    let source = SourceCoverage {
+        unknown_operations: entries.iter().map(|a| a.summary.unknown.len()).sum(),
+        unsupported_on_path: c.unsupported_on_path,
+        unsupported: c.unsupported.clone(),
+    };
+    let n = explored.len();
+    let conclusion = match status {
+        "MODEL_COUNTEREXAMPLE" => format!(
+            "A counterexample was found in initial world `{}` after exploring {n} world(s).",
+            first_counterexample
+                .clone()
+                .unwrap_or_else(|| "base".to_owned())
+        ),
+        "NO_VIOLATION_WITHIN_BOUNDS" => format!(
+            "Input exploration: no counterexample among {n} explored initial world(s) of the actual configuration ({} distinct row set(s), {} distinct argument vector(s)); schedules {} for the explored worlds. The input domain was not exhaustively explored{}; general application safety is not established.",
+            rows.len(),
+            args.len(),
+            if schedules.worlds_truncated == 0 && schedules.worlds_unsupported == 0 {
+                "completed within the bounds"
+            } else {
+                "did not complete for every world"
+            },
+            if source.unknown_operations > 0 || source.unsupported_on_path {
+                " and the actors contain operations the extractor did not understand"
+            } else {
+                ""
+            }
+        ),
+        _ => format!("{n} initial world(s) were model-checked."),
+    };
+    Coverage {
+        mode: if world_search {
+            "relationship-search".to_owned()
+        } else {
+            "single-world".to_owned()
+        },
+        source_semantics: source,
+        initial_states: DimensionCoverage {
+            distinct_explored: rows.len(),
+            relationships: state_rel,
+        },
+        actor_inputs: DimensionCoverage {
+            distinct_explored: args.len(),
+            relationships: input_rel,
+        },
+        schedules,
+        branch_outcomes: BranchCoverage {
+            relevant_outcomes: relevant.len() * 2,
+            reached_outcomes: reached,
+            basis: "branch directions taken by each actor running alone on the explored worlds' final rows (concurrent schedules may take others)".to_owned(),
+        },
+        worlds: outcomes.to_vec(),
+        domain_exhaustive: false,
+        classes_exhaustive,
+        unexplored,
+        first_counterexample_world: first_counterexample,
+        conclusion,
+    }
+}
+
+/// Phase 15: a stable reproduction artifact for a validated counterexample
+/// (written next to its emitted scenario once the candidate's status is
+/// known). Every value in it was synthesized.
+fn reproduction(
+    cx: &WorldCtx<'_>,
+    variant: &synth::Variant,
+    spec: &WorldSpec,
+    result: &ScenarioResult,
+    plan: &synth::Plan,
+) -> Option<serde_json::Value> {
+    let m = result.model.as_ref()?;
+    let c = cx.c;
+    let mut modules: Vec<String> = c
+        .entries
+        .iter()
+        .filter_map(|e| e.selector.split('#').next().map(str::to_owned))
+        .collect();
+    modules.sort();
+    modules.dedup();
+    let source: Vec<serde_json::Value> = modules
+        .iter()
+        .map(|m| serde_json::json!({ "file": m, "fnv64": file_digest(cx.root, m) }))
+        .chain(
+            cx.index
+                .schema_files
+                .iter()
+                .map(|f| serde_json::json!({ "file": f, "fnv64": file_digest(cx.root, f) })),
+        )
+        .collect();
+    let property = m.violated.clone().unwrap_or_default();
+    let origin = c
+        .properties
+        .iter()
+        .find(|p| p.name == property)
+        .map_or(Origin::HeuristicHypothesis, |p| p.origin);
+    let file = result.file.clone().unwrap_or_default();
+    let doc = serde_json::json!({
+        "kind": "commitrift.counterexample",
+        "schemaVersion": 1,
+        "candidate": c.id,
+        "class": c.class.as_str(),
+        "variant": variant.name,
+        "world": { "id": spec.id, "origin": spec.origin, "relationships": spec.relationships },
+        "property": { "name": property, "origin": origin.as_str() },
+        "scenario": file,
+        "initialState": plan.rows,
+        "actors": plan.actors.iter().map(|a| serde_json::json!({
+            "name": a.name, "selector": a.selector, "arguments": a.arguments,
+        })).collect::<Vec<_>>(),
+        "assumptions": c.assumptions.iter().map(|a| a.text.clone()).collect::<Vec<_>>(),
+        "bounds": {
+            "maxSteps": plan.max_steps, "maxStates": plan.max_states,
+            "maxCrashes": plan.max_crashes, "maxRetries": plan.max_retries,
+            "maxInFlight": plan.max_in_flight,
+        },
+        "algorithm": m.algorithm,
+        "schedule": m.schedule,
+        "finalTerms": m.final_terms,
+        "sourceFingerprint": source,
+        "evidence": "model counterexample (not an original-code reproduction)",
+        "reproduce": format!("commitrift model-check {file}"),
+        "reproduceOnOriginalCode": result.source_verification.then(|| format!(
+            "commitrift model-check {file} --verify-source --allow-execution"
+        )),
+    });
+    Some(doc)
+}
+
 fn model_check(
     c: &Candidate,
     plan: &synth::Plan,
@@ -1074,9 +1741,46 @@ fn deciding_scenario(scenarios: &[ScenarioResult]) -> Option<&ScenarioResult> {
                     .is_some_and(|m| m.verdict == "COUNTEREXAMPLE_FOUND")
         })
         .or_else(|| {
+            // Phase 15: the base world, unless only another world could be
+            // built and checked.
             scenarios
                 .iter()
                 .find(|s| s.variant.kind == VariantKind::Actual)
+                .filter(|s| s.model.is_some())
+                .or_else(|| {
+                    scenarios
+                        .iter()
+                        .find(|s| s.variant.kind == VariantKind::Actual && s.model.is_some())
+                })
+        })
+        .or_else(|| {
+            scenarios
+                .iter()
+                .find(|s| s.variant.kind == VariantKind::Actual)
+        })
+}
+
+/// Phase 15: a unique rule of the candidate's table that the model does not
+/// enforce although PostgreSQL does: `NULLS NOT DISTINCT` over a nullable
+/// column (the model treats NULLs as distinct).
+fn unenforced_unique(c: &Candidate, index: &ProjectIndex) -> Option<String> {
+    let t = index.source_table(&c.resource.table)?;
+    t.unique
+        .iter()
+        .find(|u| {
+            u.predicate.is_none()
+                && u.nulls_not_distinct
+                && u.columns
+                    .iter()
+                    .any(|col| t.column_by_sql(col).is_some_and(|x| !x.not_null))
+        })
+        .map(|u| {
+            format!(
+                "unique {} `{}` NULLS NOT DISTINCT on ({})",
+                u.kind,
+                u.name.clone().unwrap_or_default(),
+                u.columns.join(", ")
+            )
         })
 }
 
@@ -1085,6 +1789,7 @@ fn status_of(
     scenarios: &[ScenarioResult],
     model_checked: bool,
     over_budget: bool,
+    unenforced: Option<&str>,
 ) -> (String, String) {
     if let Some(b) = &c.blocked {
         return ("BLOCKED".to_owned(), format!("STATIC_CANDIDATE only: {b}."));
@@ -1164,6 +1869,16 @@ fn status_of(
                     "INCONCLUSIVE".to_owned(),
                     format!(
                         "INCONCLUSIVE: the model found a violating schedule, but the table has a {index}; PostgreSQL may reject the duplicate the schedule creates, so it is not reported as a counterexample."
+                    ),
+                );
+            }
+            // Phase 15: the same for a NULLS NOT DISTINCT unique rule over
+            // a nullable column.
+            if let Some(rule) = unenforced {
+                return (
+                    "INCONCLUSIVE".to_owned(),
+                    format!(
+                        "INCONCLUSIVE: the model found a violating schedule, but the table has a {rule}, which the model does not enforce (it treats NULLs as distinct); PostgreSQL may reject the duplicate the schedule creates, so it is not reported as a counterexample."
                     ),
                 );
             }

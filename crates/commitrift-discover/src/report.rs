@@ -150,6 +150,114 @@ pub struct ScenarioResult {
     pub source_verification: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<ModelResult>,
+    /// Phase 15: the initial world of this scenario (absent when world
+    /// search is off).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub world: Option<WorldInfo>,
+    /// Phase 15: the reproduction artifact of a validated counterexample
+    /// (written next to the emitted scenario only when the candidate's
+    /// status is MODEL_COUNTEREXAMPLE).
+    #[serde(skip)]
+    pub reproduction: Option<serde_json::Value>,
+}
+
+/// Phase 15: one initial world (rows and arguments) of a variant.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldInfo {
+    pub id: String,
+    pub origin: crate::worlds::WorldOrigin,
+    pub relationships: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub feedback: Option<String>,
+    /// Fingerprint of everything the model checker was given.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub fingerprint: String,
+}
+
+/// Phase 15: what happened to one world of the search.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldOutcome {
+    pub id: String,
+    pub variant: String,
+    pub origin: crate::worlds::WorldOrigin,
+    /// `explored`, `unreached` (an actor stops before the candidate's
+    /// operations in this state), `invalid`, `unsupported`, `duplicate`,
+    /// `not-checked`,
+    /// `skipped-budget`, `skipped-after-counterexample`.
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub verdict: Option<String>,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub detail: String,
+}
+
+/// Phase 15: coverage of one exploration dimension.
+#[derive(Clone, Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DimensionCoverage {
+    /// Distinct values of this dimension among the explored worlds (row
+    /// sets, argument vectors).
+    pub distinct_explored: usize,
+    pub relationships: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScheduleCoverage {
+    pub algorithm: String,
+    /// Explored worlds whose schedule search completed within its bounds.
+    pub worlds_complete: usize,
+    /// Explored worlds whose search stopped at a bound before completing.
+    pub worlds_truncated: usize,
+    /// Explored worlds whose search reached unsupported behavior.
+    pub worlds_unsupported: usize,
+}
+
+#[derive(Clone, Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceCoverage {
+    /// Operations of the actors' entries the extractor did not understand.
+    pub unknown_operations: usize,
+    pub unsupported_on_path: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub unsupported: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BranchCoverage {
+    /// Branch outcomes in the actors' extracted code (two per branch).
+    pub relevant_outcomes: usize,
+    /// Outcomes taken by a solo run of an actor on an explored world.
+    pub reached_outcomes: usize,
+    pub basis: String,
+}
+
+/// Phase 15: the four verification dimensions of a candidate, kept apart
+/// (`docs/phase15/VERDICT-SEMANTICS.md`).
+#[derive(Clone, Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Coverage {
+    /// `single-world` (world search off) or `relationship-search`.
+    pub mode: String,
+    pub source_semantics: SourceCoverage,
+    pub initial_states: DimensionCoverage,
+    pub actor_inputs: DimensionCoverage,
+    pub schedules: ScheduleCoverage,
+    pub branch_outcomes: BranchCoverage,
+    pub worlds: Vec<WorldOutcome>,
+    /// Never true for synthesized inputs: the value domains are not
+    /// enumerated, only the relationship classes listed.
+    pub domain_exhaustive: bool,
+    /// Every relationship class the synthesizer derived was explored (none
+    /// skipped for budget or after a counterexample, none invalid).
+    pub classes_exhaustive: bool,
+    pub unexplored: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub first_counterexample_world: Option<String>,
+    pub conclusion: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -172,6 +280,9 @@ pub struct CandidateReport {
     /// Phase 14: what a developer can do next to verify (or decide) the
     /// candidate, from its status and its property's origin.
     pub next_step: String,
+    /// Phase 15: what was and was not explored.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub coverage: Option<Coverage>,
 }
 
 /// Phase 14: the next verification step for a candidate.
@@ -211,6 +322,12 @@ pub struct Budgets {
     pub scenarios_model_checked: usize,
     pub scenarios_skipped_for_budget: usize,
     pub total_states_explored: u64,
+    /// Phase 15: initial worlds per actual variant (1: world search off).
+    pub max_worlds_per_variant: usize,
+    pub worlds_built: usize,
+    pub worlds_invalid: usize,
+    pub worlds_duplicate: usize,
+    pub worlds_skipped_for_budget: usize,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -277,7 +394,7 @@ impl DiscoveryReport {
     }
 }
 
-pub fn render_text(r: &DiscoveryReport, verbose: bool) -> String {
+pub fn render_text(r: &DiscoveryReport, verbose: bool, explain_coverage: bool) -> String {
     let mut o = String::new();
     let _ = writeln!(
         o,
@@ -361,9 +478,15 @@ pub fn render_text(r: &DiscoveryReport, verbose: bool) -> String {
                     )
                 },
             );
+            let world = s
+                .world
+                .as_ref()
+                .filter(|w| w.origin != crate::worlds::WorldOrigin::Base)
+                .map(|w| format!(" world `{}`", w.id))
+                .unwrap_or_default();
             let _ = writeln!(
                 o,
-                "  Scenario {} [{:?}]: synthesis {} — {}",
+                "  Scenario {}{world} [{:?}]: synthesis {} — {}",
                 s.variant.name, s.variant.kind, s.synthesis.status, model
             );
             if s.synthesis.status != "satisfied" {
@@ -372,6 +495,9 @@ pub fn render_text(r: &DiscoveryReport, verbose: bool) -> String {
             if let Some(f) = &s.file {
                 let _ = writeln!(o, "    file: {f}");
             }
+        }
+        if let Some(cov) = &c.coverage {
+            render_coverage(&mut o, cov, verbose || explain_coverage);
         }
         let _ = writeln!(o, "  Status: {}", c.status);
         let _ = writeln!(o, "  {}", c.finding);
@@ -399,6 +525,77 @@ pub fn render_text(r: &DiscoveryReport, verbose: bool) -> String {
         "Important: a model counterexample against a HEURISTIC_HYPOTHESIS is not a confirmed defect; a bounded run without counterexample is not a proof."
     );
     o
+}
+
+/// Phase 15: the input, schedule and source dimensions of a candidate.
+fn render_coverage(o: &mut String, cov: &Coverage, detail: bool) {
+    let explored = cov.worlds.iter().filter(|w| w.status == "explored").count();
+    let not = cov.worlds.len() - explored;
+    let _ = writeln!(
+        o,
+        "  Input exploration ({}): {explored} world(s) model-checked, controls included — actual configuration: {} distinct row set(s), {} distinct argument vector(s){}",
+        cov.mode,
+        cov.initial_states.distinct_explored,
+        cov.actor_inputs.distinct_explored,
+        if not > 0 {
+            format!("; {not} world(s) not explored")
+        } else {
+            String::new()
+        }
+    );
+    if detail {
+        for w in &cov.worlds {
+            let _ = writeln!(
+                o,
+                "    world `{}` ({}, {:?}): {}{}{}",
+                w.id,
+                w.variant,
+                w.origin,
+                w.status,
+                w.verdict
+                    .as_ref()
+                    .map(|v| format!(" — {v}"))
+                    .unwrap_or_default(),
+                if w.detail.is_empty() {
+                    String::new()
+                } else {
+                    format!(" — {}", w.detail)
+                }
+            );
+        }
+    }
+    let s = &cov.schedules;
+    let _ = writeln!(
+        o,
+        "  Schedule exploration ({}): completed for {} world(s), truncated for {}, unsupported for {}",
+        s.algorithm, s.worlds_complete, s.worlds_truncated, s.worlds_unsupported
+    );
+    let _ = writeln!(
+        o,
+        "  Branch outcomes reached alone: {} of {}",
+        cov.branch_outcomes.reached_outcomes, cov.branch_outcomes.relevant_outcomes
+    );
+    if cov.source_semantics.unknown_operations > 0 {
+        let _ = writeln!(
+            o,
+            "  Source: {} operation(s) of the actors' entries not understood by the extractor",
+            cov.source_semantics.unknown_operations
+        );
+    }
+    let _ = writeln!(
+        o,
+        "  Input domain exhaustive: no{}",
+        if cov.classes_exhaustive {
+            " (every derived relationship class was explored)"
+        } else {
+            ""
+        }
+    );
+    if detail {
+        for u in &cov.unexplored {
+            let _ = writeln!(o, "    not explored: {u}");
+        }
+    }
 }
 
 fn esc(s: &str) -> String {
@@ -524,6 +721,16 @@ pub fn render_html(r: &DiscoveryReport) -> String {
             }
         }
         let _ = write!(o, "</table><p>{}</p>", esc(&c.finding));
+        if let Some(cov) = &c.coverage {
+            let mut text = String::new();
+            render_coverage(&mut text, cov, true);
+            let _ = write!(
+                o,
+                "<details><summary>Coverage: {} world(s) explored, input domain not exhaustive</summary><pre>{}</pre></details>",
+                cov.worlds.iter().filter(|w| w.status == "explored").count(),
+                esc(&text)
+            );
+        }
         if !c.next_step.is_empty() {
             let _ = write!(o, "<p><b>Next step:</b> {}</p>", esc(&c.next_step));
         }

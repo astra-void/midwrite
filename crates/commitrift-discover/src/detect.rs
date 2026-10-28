@@ -286,6 +286,7 @@ pub fn detect(
         d.check_then_act(i, a);
         d.status_transition(i, a);
         d.read_modify_write(i, a);
+        d.guarded_update(i, a);
         d.write_skew(i, a);
         d.duplicate_processing(i, a);
         d.external_gap(i, a);
@@ -364,13 +365,27 @@ impl Detector<'_> {
                         key: k
                             .iter()
                             .map(|c| {
+                                // Phase 15: a key column the check does not
+                                // compare by equality (a conditional `IS
+                                // NULL`/`=` test) takes the argument the
+                                // entry's own INSERT writes to it.
+                                let written = || {
+                                    a.summary
+                                        .db
+                                        .iter()
+                                        .filter(|e| e.access == Access::Insert && e.table == *table)
+                                        .find_map(|e| match e.write_val(c) {
+                                            Some(v @ Val::Param { .. }) => Some(v.clone()),
+                                            _ => None,
+                                        })
+                                };
                                 (
                                     c.clone(),
                                     key.iter()
                                         .find(|(kc, _)| kc == c)
-                                        .map_or(Val::Unknown { text: c.clone() }, |(_, v)| {
-                                            v.clone()
-                                        }),
+                                        .map(|(_, v)| v.clone())
+                                        .or_else(written)
+                                        .unwrap_or(Val::Unknown { text: c.clone() }),
                                 )
                             })
                             .collect(),
@@ -1101,6 +1116,109 @@ impl Detector<'_> {
                 ],
                 &[vec![read, upd], vec![read, upd]],
             );
+        }
+    }
+
+    /// Phase 15: a guard tests a column of a row the entry read, and an
+    /// UPDATE of the same row then changes that column relatively
+    /// (`remaining = remaining - 1`): the database computes the new value
+    /// atomically, but the test was made on the value read. Only with a
+    /// declared property over the table (as the return-value family): the
+    /// source alone does not say which values are wrong.
+    fn guarded_update(&mut self, _i: usize, a: &Analyzed) {
+        let s = &a.summary;
+        let mut seen = BTreeSet::new();
+        for g in &s.guards {
+            for &ri in &g.reads {
+                let Some(read) = s.db.get(ri) else { continue };
+                if read.access != Access::Read || !read.joins.is_empty() || read.eq.is_empty() {
+                    continue;
+                }
+                for upd in s.db.iter().filter(|u| {
+                    u.access == Access::Update
+                        && u.table == read.table
+                        && s.reaches(read.index, u.index)
+                }) {
+                    let same_row = read
+                        .eq
+                        .iter()
+                        .all(|(c, v)| upd.eq_val(c).is_some_and(|x| same_value(x, v, s)));
+                    if !same_row {
+                        continue;
+                    }
+                    for (column, v) in &upd.writes {
+                        if !matches!(v, Val::ColumnRelative { .. }) || !g.columns.contains(column) {
+                            continue;
+                        }
+                        if !seen.insert((read.index, upd.index, column.clone())) {
+                            continue;
+                        }
+                        let key: Vec<(String, Val)> = read
+                            .eq
+                            .iter()
+                            .map(|(c, v)| (c.clone(), canon(v, s)))
+                            .collect();
+                        let properties = self.declared_properties(a, Some(&upd.table), None, &key);
+                        if properties.is_empty() {
+                            self.reject(
+                                Class::CheckThenAct,
+                                &[a, a],
+                                format!(
+                                    "the guard at {} tests `{column}` before a relative update of it, but no property over `{}` is declared (this family is never inferred)",
+                                    g.src.label(),
+                                    upd.table
+                                ),
+                                &upd.src.label(),
+                            );
+                            continue;
+                        }
+                        let (concurrent, _) = a.concurrency();
+                        if !concurrent {
+                            continue;
+                        }
+                        let key_text = key
+                            .iter()
+                            .map(|(c, v)| format!("{c} = {}", v.render()))
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        let mut protections = Vec::new();
+                        if read.lock.is_exclusive() && read.tx.is_some() && read.tx == upd.tx {
+                            protections.push(
+                                "the row is read FOR UPDATE in the transaction that writes it"
+                                    .to_owned(),
+                            );
+                        }
+                        if upd.other.iter().any(|(_, cols)| cols.contains(column))
+                            || upd.eq.iter().any(|(c, _)| c == column)
+                        {
+                            protections.push(format!(
+                                "the UPDATE re-checks `{column}` in its WHERE clause"
+                            ));
+                        }
+                        self.push(
+                            Class::CheckThenAct,
+                            format!(
+                                "guarded relative update of `{}.{column}` ({key_text})",
+                                upd.table
+                            ),
+                            vec![a, a],
+                            Resource {
+                                kind: "column".to_owned(),
+                                table: upd.table.clone(),
+                                columns: vec![column.clone()],
+                                text: format!("{}.{column}({key_text})", upd.table),
+                            },
+                            vec![op(0, "read", read), op(0, "write", upd)],
+                            properties,
+                            protections,
+                            Vec::new(),
+                            Self::two(Relation::Same),
+                            Vec::new(),
+                            &[vec![read, upd], vec![read, upd]],
+                        );
+                    }
+                }
+            }
         }
     }
 

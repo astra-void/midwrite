@@ -11,6 +11,7 @@
 pub mod candidate;
 pub mod contracts;
 pub mod detect;
+pub mod domains;
 pub mod effects;
 pub mod eval;
 pub mod extract;
@@ -18,3 +19,4 @@ pub mod pipeline;
 pub mod project;
 pub mod report;
 pub mod synth;
+pub mod worlds;
