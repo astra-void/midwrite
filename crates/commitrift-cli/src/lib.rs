@@ -472,7 +472,7 @@ fn explain(code: Option<&str>) -> Result<u8, String> {
                 ));
             }
             text.push_str("\nConcurrency model checking (`commitrift model-check`):\n");
-            for code in ["CP7001", "CP7002", "CP7003", "CP7101", "CP7102"] {
+            for code in ["CP7001", "CP7002", "CP7003", "CP7101", "CP7102", "CP7103"] {
                 text.push_str(&format!("  {code}\n"));
             }
             text.push_str("\nRun `commitrift explain <CODE>` for details.\n");

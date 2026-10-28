@@ -191,7 +191,7 @@ fn same_rows(
                         Value::Str(s) => got.as_str() == Some(s.as_str()),
                         Value::Bool(v) => got.as_bool() == Some(*v),
                         Value::Null => got.is_null(),
-                        Value::Row(_) => false,
+                        _ => false,
                     }
                 });
                 if ok {
@@ -283,11 +283,11 @@ fn drizzle_generated_defaults_match_the_model() {
 
 #[test]
 fn the_model_does_not_represent_shapes_it_has_not_validated() {
-    // Multi-row inserts, a builder executed twice and SQL DEFAULT are
-    // observed at runtime (above) but not modeled: extraction says so.
+    // A builder executed twice and SQL DEFAULT are observed at runtime
+    // (above) but not modeled: extraction says so. (Phase 14 models
+    // multi-row inserts: `docs/phase14/DRIZZLE-DIFFERENTIAL.md`.)
     let root = repo().join("fixtures/phase12/defaults-probe");
     for (probe, args) in [
-        ("multiRow", json!([])),
         ("sameBuilderTwice", json!([])),
         ("sqlDefault", json!(["s@example.test"])),
     ] {
@@ -475,12 +475,15 @@ fn generated_id_counterexamples_reproduce_on_the_original_code() {
 }
 
 #[test]
-fn a_foreign_key_lock_the_model_lacks_is_stated_and_detected_at_runtime() {
-    // Known model limitation (POSTGRESQL-DIFFERENTIAL.md §5): the owner's row
-    // is locked FOR UPDATE by `createWorkspaceLocked`; the unlocked actor's
-    // INSERT references it, and PostgreSQL's foreign-key check waits for the
-    // lock where the model lets it proceed. Discovery states it; the
-    // original-code run reports the divergence instead of a reproduction.
+fn a_foreign_key_lock_is_modeled_and_the_schedule_reproduces_at_runtime() {
+    // Phase 12 pinned a model limitation here (POSTGRESQL-DIFFERENTIAL.md
+    // §5): the unlocked actor's INSERT references the owner's row that
+    // `createWorkspaceLocked` holds FOR UPDATE; PostgreSQL's foreign-key
+    // check waits for that lock, the Phase 12 model let it proceed, and the
+    // original-code run diverged. Phase 13 models foreign keys and their
+    // row locks (docs/phase13/POSTGRESQL-FK-LOCKS.md): discovery enables
+    // them, the model's counterexample makes the INSERT wait, and the
+    // original code follows that schedule and violates the invariant.
     require_runtime!();
     build_fixture(&workspace_app());
     let out = Temp::new("fk-lock");
@@ -491,7 +494,7 @@ fn a_foreign_key_lock_the_model_lacks_is_stated_and_detected_at_runtime() {
         &["#createWorkspace", "#createWorkspaceLocked"],
     );
     assert!(
-        c["assumptions"]
+        !c["assumptions"]
             .as_array()
             .unwrap()
             .iter()
@@ -499,6 +502,12 @@ fn a_foreign_key_lock_the_model_lacks_is_stated_and_detected_at_runtime() {
         "{c:#}"
     );
     let file = c["scenarios"][0]["file"].as_str().unwrap();
+    let scenario: Json =
+        serde_json::from_str(&std::fs::read_to_string(out.0.join(file)).unwrap()).unwrap();
+    // Phase 14: discovery extracts with JavaScript value semantics; the
+    // inlined helpers' result slots are `undefined`, so the scenario also
+    // carries `js-values` (the loader then extracts what discovery did).
+    assert_eq!(scenario["features"], json!(["foreign-keys", "js-values"]));
     let output = bin()
         .arg("model-check")
         .arg(out.0.join(file))
@@ -512,10 +521,14 @@ fn a_foreign_key_lock_the_model_lacks_is_stated_and_detected_at_runtime() {
         .output()
         .unwrap();
     let mc: Json = serde_json::from_slice(&output.stdout).unwrap();
+    let blocked = mc["counterexample"]["steps"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .flat_map(|s| s["events"].as_array().into_iter().flatten())
+        .any(|e| e["kind"] == "blocked");
+    assert!(blocked, "the INSERT waits for the FOR UPDATE lock: {mc:#}");
     let sv = &mc["sourceVerification"];
-    assert_eq!(sv["status"], "diverged", "{sv:#}");
-    assert!(
-        sv["problems"][0].as_str().unwrap().contains("lock wait"),
-        "{sv:#}"
-    );
+    assert_eq!(sv["status"], "reproduced", "{sv:#}");
+    assert_eq!(mc["evidence"]["level"], "original-code-reproduced");
 }

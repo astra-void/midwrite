@@ -159,6 +159,17 @@ impl ActorProvider for ScenarioProvider {
         commitrift_analyzer::schema::extract_schema(root, file)
     }
 
+    /// Phase 13: through the frontend (foreign keys whose target is
+    /// imported from another schema module).
+    fn resolve_reference(
+        &self,
+        root: &std::path::Path,
+        file: &str,
+        local: &str,
+    ) -> Option<(String, String)> {
+        TsActorProvider::new(root.to_path_buf()).resolve_reference(root, file, local)
+    }
+
     fn extract(&self, request: &ExtractRequest) -> Result<Extracted, String> {
         let mut extracted = TsActorProvider::new(request.root.clone()).extract(request)?;
         if let Err(why) = link_effects(&request.root, &mut extracted) {
