@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "kind": "commitrift.contracts",
+  "description": "Phase 15 evaluation application: what the source cannot say. The loyalty consumer receives at-least-once deliveries; business rules for invitations, carts, wishlists, environments, release channels, routes, aliases, the loyalty ledger and two non-negative counters; and the read-your-writes promise of the two nickname entries. Rules whose meaning depends on NULL equality (documents, pages), the admin-count rule and the per-call grant rule are deliberately not declared.",
+  "entries": {
+    "src/services/loyalty.ts#applyLoyaltyEvent": {
+      "delivery": "at-least-once",
+      "description": "Message-bus consumer: a message is redelivered after a crash or a lost acknowledgment; deliveries of the same message may overlap."
+    },
+    "src/services/loyalty.ts#applyLoyaltyEventOnce": {
+      "delivery": "at-least-once",
+      "description": "As applyLoyaltyEvent."
+    }
+  },
+  "invariants": [
+    {
+      "name": "nickname-read-your-writes",
+      "description": "The profile page is never told that a saved nickname was not saved.",
+      "entries": ["src/services/profile.ts#saveNickname"],
+      "property": {
+        "template": "formula",
+        "assert": { "le": [{ "actors": { "function": "saveNickname", "outcome": "ok", "returned": false } }, 0] }
+      }
+    },
+    {
+      "name": "nickname-read-your-writes-tx",
+      "description": "The profile page is never told that a saved nickname was not saved.",
+      "entries": ["src/services/profile.ts#saveNicknameInTransaction"],
+      "property": {
+        "template": "formula",
+        "assert": { "le": [{ "actors": { "function": "saveNicknameInTransaction", "outcome": "ok", "returned": false } }, 0] }
+      }
+    },
+    {
+      "name": "one-invitation-per-email",
+      "description": "An email address has at most one organization-level invitation per organization.",
+      "entries": ["src/services/invitations.ts#inviteMember", "src/services/invitations.ts#inviteToTeam"],
+      "property": { "template": "atMostOne", "table": "invitations", "key": ["orgId", "email"] }
+    },
+    {
+      "name": "export-quota-non-negative",
+      "description": "An account never starts more exports than its quota allows.",
+      "entries": ["src/services/exports.ts#startExport", "src/services/exports.ts#startExportAtomic"],
+      "property": { "template": "nonNegative", "table": "quotas", "column": "remaining" }
+    },
+    {
+      "name": "vacancies-non-negative",
+      "description": "An organization never has more seats taken than it bought.",
+      "entries": ["src/services/seats.ts#addSeat", "src/services/seats.ts#addSeatChecked"],
+      "property": { "template": "nonNegative", "table": "orgs", "column": "vacancies" }
+    },
+    {
+      "name": "one-cart-per-account",
+      "description": "An account has at most one cart.",
+      "entries": ["src/services/carts.ts#addToCart"],
+      "property": { "template": "atMostOne", "table": "carts", "key": ["accountId"] }
+    },
+    {
+      "name": "one-wishlist-per-account",
+      "description": "An account has at most one wishlist.",
+      "entries": ["src/services/carts.ts#addToWishlist"],
+      "property": { "template": "atMostOne", "table": "wishlists", "key": ["accountId"] }
+    },
+    {
+      "name": "one-environment-per-name",
+      "description": "An organization has at most one deployment environment with a given name.",
+      "entries": ["src/services/environments.ts#createEnvironment"],
+      "property": { "template": "atMostOne", "table": "environments", "key": ["orgId", "name"] }
+    },
+    {
+      "name": "one-channel-per-name",
+      "description": "An organization has at most one release channel with a given name.",
+      "entries": ["src/services/environments.ts#createReleaseChannel"],
+      "property": { "template": "atMostOne", "table": "channels", "key": ["orgId", "name"] }
+    },
+    {
+      "name": "one-route-per-slug",
+      "description": "A slug of an organization's site leads to one place: at most one route per (organization, slug), whatever its kind.",
+      "entries": ["src/services/routes.ts#claimRoute"],
+      "property": { "template": "atMostOne", "table": "routes", "key": ["orgId", "slug"] }
+    },
+    {
+      "name": "one-alias-per-slug",
+      "description": "At most one alias per (organization, slug).",
+      "entries": ["src/services/routes.ts#claimAlias"],
+      "property": { "template": "atMostOne", "table": "aliases", "key": ["orgId", "slug"] }
+    },
+    {
+      "name": "one-ledger-row-per-event",
+      "description": "A loyalty event is credited at most once.",
+      "entries": ["src/services/loyalty.ts#applyLoyaltyEvent", "src/services/loyalty.ts#applyLoyaltyEventOnce"],
+      "property": { "template": "atMostOne", "table": "ledger", "key": ["eventId"] }
+    }
+  ]
+}

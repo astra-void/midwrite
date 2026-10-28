@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "kind": "commitrift.contracts",
+  "description": "What the Phase 15 worlds application's source cannot say: its business rules, and how the authorized harness calls each entry.",
+  "invariants": [
+    {
+      "name": "one-folder-per-place",
+      "description": "An owner has at most one folder with a given name in a given place (the root included).",
+      "entries": ["src/services/folders.ts#createFolder"],
+      "property": { "template": "atMostOne", "table": "folders", "key": ["ownerId", "parentId", "name"] }
+    },
+    {
+      "name": "one-label-per-place",
+      "description": "An owner has at most one label with a given name in a given place (the root included).",
+      "entries": ["src/services/folders.ts#createLabel"],
+      "property": { "template": "atMostOne", "table": "labels", "key": ["ownerId", "parentId", "name"] }
+    },
+    {
+      "name": "export-quota-non-negative",
+      "description": "An account never starts more exports than its quota allows.",
+      "entries": ["src/services/exports.ts#startExport", "src/services/exports.ts#startExportAtomic"],
+      "property": { "template": "nonNegative", "table": "quotas", "column": "remaining" }
+    }
+  ],
+  "harness": {
+    "manifest": "commitrift-source.json",
+    "entries": {
+      "src/services/folders.ts#createFolder": {
+        "entry": "createFolder",
+        "input": { "ownerId": "$arg0", "parentId": "$arg1", "name": "$arg2" }
+      },
+      "src/services/folders.ts#createLabel": {
+        "entry": "createLabel",
+        "input": { "ownerId": "$arg0", "parentId": "$arg1", "name": "$arg2" }
+      },
+      "src/services/exports.ts#startExport": {
+        "entry": "startExport",
+        "input": { "accountId": "$arg0" }
+      },
+      "src/services/exports.ts#startExportAtomic": {
+        "entry": "startExportAtomic",
+        "input": { "accountId": "$arg0" }
+      }
+    }
+  }
+}

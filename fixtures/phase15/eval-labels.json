@@ -1,0 +1,755 @@
+{
+ "$comment": "Phase 15 evaluation labels, written 2026-10-28 together with fixtures/phase15/eval-app, BEFORE any Phase 15 scoring and before any CommitRift command was run on this application. Author: an AI assistant (Claude) working independently of the Phase 15 implementation: it did not read crates/, runtime/, docs/phase14/ or docs/phase15/ and ran no cargo or commitrift command; it read fixtures/phase14 (dataset description, labels, eval-app), fixtures/phase13/eval-labels.json, scripts/phase14-eval.py and docs/reference, docs/concepts, docs/user-guide. It therefore knew the documented supported subset and its documented gaps: the set is fresh but not blind. No independent human review performed. Theme: input-domain and initial-state sensitivity: each positive is violated only for some inputs the TypeScript signature permits and/or some initial database states the schema and declared invariants permit; `inputSensitivity` says which input or initial-state relationship the label depends on (for a negative, why no permitted input or state violates the property). A label says whether the entry, under the stated environment, can violate the stated property according to PostgreSQL semantics (READ COMMITTED unless `isolation` says otherwise) and JavaScript semantics; inputs are those the TypeScript signature permits; a valid initial state satisfies the schema's constraints, the declared invariants and the case's environment. `class` is the hazard family a correct discovery should report; `family` the input/state relationship the case exercises; `effectful` whether extraction should bind at least one database write on a reachable path; `tables` the tables the entry touches (including parents read by foreign-key checks); `counterpart` the paired positive/negative case (it is NOT `pairedWith`: no case in this set is labeled for two different entries running together, so every label is about invocations of the entry itself); `observable` (when present) says the property is about what callers are told; `replicas` (when present) the read-replica routing the label depends on; `requiresDeclaration` / `declaredInContracts` (when present) whether the property must be declared to be checked and whether eval-app/commitrift-contracts.json declares it; `contractsUsed` the contract items the environment or property relies on. `why` is the reason: for a positive the violating schedule (or crash/retry sequence), for a negative why no schedule violates the property. Labels are frozen (fixtures/phase15/FROZEN.json): do not edit them to improve metrics; corrections go into `corrections` with a reason.",
+ "schemaVersion": 1,
+ "project": "fixtures/phase15/eval-app",
+ "families": {
+  "value-distinction": "the hazard is visible only when the stored value differs from the value an actor writes (replica read-back, 'changed?' checks), plus a race that is harmless because every actor writes the same value",
+  "nullable-argument": "the hazard is reachable only with a null/undefined argument the TypeScript signature permits: UNIQUE NULLS DISTINCT on a nullable column, a `== null` guard selecting an unprotected branch; safe counterparts with NULLS NOT DISTINCT or a non-nullable parameter type",
+  "actor-keys": "the hazard needs a particular relationship between the two actors' keys (crossed wallet ids) and disappears for equal or disjoint keys",
+  "boundary": "integer limits: a quota at exactly one remaining under concurrency; `>=` vs `>` at exactly zero vacancies",
+  "fk-parent-child": "a parent row created on demand for a child row (foreign key), racing only when no parent exists initially",
+  "authorization": "a check-then-act behind an admin-membership guard (the caller must hold role 'admin'), and a guard-plus-count write skew that needs exactly two admins",
+  "composite-unique": "a check on (org, slug) protected by a composite unique key that also contains `kind`: covered only when the actors' kinds are equal",
+  "idempotency": "retry and redelivery keyed by an idempotency key: an optional key that becomes NULL; an event id checked before, or claimed together with, the effect",
+  "unsupported": "raw SQL whose text or identifier is a runtime argument"
+ },
+ "expectedSchema": {
+  "tables": [
+   "accounts",
+   "profiles",
+   "notes",
+   "orgs",
+   "memberships",
+   "seats",
+   "environments",
+   "channels",
+   "invitations",
+   "teams",
+   "team_invites",
+   "routes",
+   "aliases",
+   "spaces",
+   "folders",
+   "documents",
+   "pages",
+   "counters",
+   "carts",
+   "cart_items",
+   "wishlists",
+   "wishlist_items",
+   "wallets",
+   "quotas",
+   "export_jobs",
+   "grants",
+   "processed_events",
+   "ledger"
+  ],
+  "generators": {
+   "accounts.id": "database-generated",
+   "notes.id": "sequence-generated",
+   "orgs.id": "sequence-generated",
+   "memberships.id": "sequence-generated",
+   "seats.id": "sequence-generated",
+   "environments.id": "sequence-generated",
+   "channels.id": "sequence-generated",
+   "invitations.id": "sequence-generated",
+   "teams.id": "sequence-generated",
+   "routes.id": "sequence-generated",
+   "aliases.id": "sequence-generated",
+   "spaces.id": "sequence-generated",
+   "folders.id": "sequence-generated",
+   "documents.id": "sequence-generated",
+   "pages.id": "sequence-generated",
+   "counters.id": "sequence-generated",
+   "carts.id": "sequence-generated",
+   "cart_items.id": "sequence-generated",
+   "wishlists.id": "sequence-generated",
+   "wishlist_items.id": "sequence-generated",
+   "wallets.id": "sequence-generated",
+   "export_jobs.id": "sequence-generated",
+   "grants.id": "sequence-generated",
+   "ledger.id": "sequence-generated"
+  },
+  "foreignKeys": {
+   "$comment": "SQL names; every foreign key is ON DELETE NO ACTION, ON UPDATE NO ACTION, NOT DEFERRABLE.",
+   "profiles.account_id": "accounts.id",
+   "notes.account_id": "accounts.id",
+   "memberships.org_id": "orgs.id",
+   "memberships.account_id": "accounts.id",
+   "seats.org_id": "orgs.id",
+   "seats.account_id": "accounts.id",
+   "environments.org_id": "orgs.id",
+   "environments.created_by": "accounts.id",
+   "channels.org_id": "orgs.id",
+   "channels.created_by": "accounts.id",
+   "invitations.org_id": "orgs.id",
+   "teams.org_id": "orgs.id",
+   "team_invites.team_id": "teams.id",
+   "routes.org_id": "orgs.id",
+   "aliases.org_id": "orgs.id",
+   "spaces.account_id": "accounts.id",
+   "folders.space_id": "spaces.id",
+   "documents.space_id": "spaces.id",
+   "documents.folder_id": "folders.id",
+   "pages.space_id": "spaces.id",
+   "pages.folder_id": "folders.id",
+   "carts.account_id": "accounts.id",
+   "cart_items.cart_id": "carts.id",
+   "wishlists.account_id": "accounts.id",
+   "wishlist_items.wishlist_id": "wishlists.id",
+   "wallets.account_id": "accounts.id",
+   "quotas.account_id": "accounts.id",
+   "export_jobs.account_id": "accounts.id",
+   "grants.account_id": "accounts.id",
+   "ledger.account_id": "accounts.id"
+  },
+  "uniqueKeys": [
+   "accounts(email)",
+   "profiles(account_id) primary key",
+   "memberships(org_id, account_id)",
+   "seats(org_id, account_id)",
+   "channels(org_id, name)",
+   "team_invites(team_id, email) primary key",
+   "routes(org_id, kind, slug)",
+   "aliases(org_id, slug)",
+   "documents(space_id, folder_id, title) NULLS DISTINCT (folder_id nullable)",
+   "pages(space_id, folder_id, title) NULLS NOT DISTINCT (folder_id nullable; PostgreSQL 15+)",
+   "wishlists(account_id)",
+   "quotas(account_id) primary key",
+   "grants(grant_key) NULLS DISTINCT (grant_key nullable)",
+   "processed_events(event_id) primary key"
+  ],
+  "nonUniqueIndexes": [
+   "environments(org_id, name)",
+   "invitations(org_id, email)",
+   "carts(account_id)",
+   "ledger(event_id)"
+  ],
+  "nullableColumns": [
+   "documents.folder_id",
+   "pages.folder_id",
+   "grants.grant_key"
+  ],
+  "replicaHandles": {
+   "src/db.ts#replicatedDb": "withReplicas(db, [replica])"
+  }
+ },
+ "cases": [
+  {
+   "id": "P15-E01",
+   "family": "value-distinction",
+   "entry": "src/services/profile.ts#saveNickname",
+   "class": "stale-read",
+   "label": "positive",
+   "tables": [
+    "profiles"
+   ],
+   "property": "read-your-writes: no call for an existing profile is told its nickname was not saved (declared nickname-read-your-writes: no call returns false)",
+   "environment": "a single call for an existing profile whose stored nickname differs from the argument, no concurrent rename; the asynchronous replica has not yet replayed the UPDATE",
+   "observable": {
+    "kind": "return-value",
+    "description": "the call returns true"
+   },
+   "replicas": {
+    "api": "withReplicas(primary, [replica]) from drizzle-orm/pg-core",
+    "handle": "replicatedDb",
+    "replication": "asynchronous streaming standby",
+    "routing": "update -> primary; select -> replica"
+   },
+   "requiresDeclaration": true,
+   "declaredInContracts": true,
+   "contractsUsed": [
+    "invariants: nickname-read-your-writes (template formula)"
+   ],
+   "inputSensitivity": "stored nickname != argument. With stored nickname = argument the lagging replica returns the old value, which equals the argument, and the call returns true: an initial state whose nickname coincides with the argument hides the defect.",
+   "counterpart": "P15-E02",
+   "why": "The UPDATE autocommits on the primary; the SELECT goes to the replica (withReplicas routes select to the replica), which has not replayed the UPDATE and returns the old nickname. old != argument, so the comparison is false and the call returns false (outcome ok) although its write committed. No concurrency is needed.",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E02",
+   "family": "value-distinction",
+   "entry": "src/services/profile.ts#saveNicknameInTransaction",
+   "class": "stale-read",
+   "label": "negative",
+   "tables": [
+    "profiles"
+   ],
+   "property": "read-your-writes: no call for an existing profile is told its nickname was not saved (declared nickname-read-your-writes-tx: no call returns false)",
+   "environment": "any number of concurrent calls for an existing profile, with equal or different nicknames and any stored nickname; the replica may lag",
+   "observable": {
+    "kind": "return-value",
+    "description": "the call returns true"
+   },
+   "replicas": {
+    "api": "withReplicas(primary, [replica]) from drizzle-orm/pg-core",
+    "handle": "replicatedDb",
+    "replication": "asynchronous streaming standby",
+    "routing": "transaction (update, select) -> primary"
+   },
+   "requiresDeclaration": true,
+   "declaredInContracts": true,
+   "contractsUsed": [
+    "invariants: nickname-read-your-writes-tx (template formula)"
+   ],
+   "inputSensitivity": "none: holds for every stored nickname and every argument, equal or not, and for concurrent calls with equal or different nicknames.",
+   "counterpart": "P15-E01",
+   "why": "replicatedDb.transaction runs on the primary. The SELECT runs in the same transaction after its own UPDATE and sees the transaction's own row version. A concurrent call's UPDATE of the same row waits for this transaction's row lock until it commits, so no other write can come between this UPDATE and its read-back; the read-back always equals the argument. A missing profile updates 0 rows, the SELECT finds nothing and the call throws (outcome failed, not 'ok returned false').",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E03",
+   "family": "value-distinction",
+   "entry": "src/services/profile.ts#setTheme",
+   "class": "status-transition",
+   "label": "positive",
+   "tables": [
+    "profiles"
+   ],
+   "property": "theme_changes counts real changes: the final (theme, theme_changes) of the profile equals that of some serial execution of the completed calls",
+   "environment": "two concurrent calls for the same existing profile with the same theme argument, different from the stored theme, READ COMMITTED",
+   "inputSensitivity": "both actors pass the same theme and it differs from the stored theme. With different arguments (both different from the stored theme) every interleaving ends with the last writer's theme and +2, as the serial order in which that writer runs second; with one argument equal to the stored theme that call is a no-op in the racy and in some serial order; with both equal to the stored theme nothing is written.",
+   "counterpart": "P15-E04",
+   "why": "Plain SELECT (no lock), JavaScript comparison, unconditional UPDATE keyed only by account_id. Schedule (stored 'light', both pass 'dark'): A and B both read 'light', both see a difference, A's UPDATE sets 'dark' and theme_changes + 1 and commits, B's UPDATE (its WHERE is only the key, so it simply applies to the newest version) sets 'dark' again and theme_changes + 1: theme_changes rose by 2 and both callers were told true. In every serial order the second call reads 'dark', returns false and writes nothing: +1.",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E04",
+   "family": "value-distinction",
+   "entry": "src/services/profile.ts#setThemeAtomic",
+   "class": "status-transition",
+   "label": "negative",
+   "tables": [
+    "profiles"
+   ],
+   "property": "theme_changes counts real changes: the final (theme, theme_changes) of the profile equals that of some serial execution of the completed calls",
+   "environment": "any number of concurrent calls for the same existing profile, with equal or different theme arguments and any stored theme, READ COMMITTED",
+   "inputSensitivity": "none: holds for equal and distinct arguments and for every stored theme.",
+   "counterpart": "P15-E03",
+   "why": "One statement: UPDATE profiles SET theme = $t, theme_changes = theme_changes + 1 WHERE account_id = $a AND theme <> $t. If B's UPDATE meets A's uncommitted update of the row it waits; after A commits, READ COMMITTED re-evaluates B's WHERE on A's committed version (EvalPlanQual). With equal arguments theme <> $t is now false and B updates 0 rows (+1 in total, B told false); with distinct arguments it is true and B applies on top of A, exactly the serial order A then B. theme is NOT NULL, so <> is never NULL.",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E05",
+   "family": "value-distinction",
+   "entry": "src/services/notes.ts#archiveNote",
+   "class": "status-transition",
+   "label": "negative",
+   "tables": [
+    "notes"
+   ],
+   "property": "the final state of the note equals that of some serial execution of the completed calls (archived = true after any completed call on an existing note)",
+   "environment": "two concurrent calls for the same existing note, initially not archived, READ COMMITTED",
+   "inputSensitivity": "harmless because every actor writes the same value: the check-then-write race is reachable (archived = false initially) but both writers write the constant true, nothing else depends on which call made the change, and the call returns nothing.",
+   "why": "Both calls may read archived = false and both run UPDATE notes SET archived = true. The second UPDATE rewrites the value the first one wrote; no counter, row or return value records who archived the note. The final state (archived = true, nothing else changed) is the state of every serial order. With archived = true initially both calls return without writing.",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E06",
+   "family": "nullable-argument",
+   "entry": "src/services/documents.ts#createDocument",
+   "class": "check-then-act",
+   "label": "positive",
+   "tables": [
+    "documents",
+    "spaces",
+    "folders"
+   ],
+   "property": "at most one document per (space, folder, title), the root of the space (folder_id NULL) counting as one folder",
+   "environment": "two concurrent calls with the same spaceId and title and folderId = null, no root document with that title, READ COMMITTED",
+   "inputSensitivity": "folderId = null for both actors (same spaceId and title). With a non-null folderId the unique constraint covers the key.",
+   "counterpart": "P15-E07",
+   "why": "For folderId = null the check is folder_id IS NULL (correct), and the INSERT is ON CONFLICT DO NOTHING, but UNIQUE(space_id, folder_id, title) is NULLS DISTINCT (PostgreSQL's default): rows whose folder_id is NULL never conflict. Schedule: A and B both SELECT and find nothing, both INSERT: two root documents with the same title. With a non-null folderId B's INSERT meets A's key, waits for A to commit and does nothing. The foreign-key checks take FOR KEY SHARE on the space (and folder) row, which do not conflict with each other.",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E07",
+   "family": "nullable-argument",
+   "entry": "src/services/documents.ts#createPage",
+   "class": "check-then-act",
+   "label": "negative",
+   "tables": [
+    "pages",
+    "spaces",
+    "folders"
+   ],
+   "property": "at most one page per (space, folder, title), the root of the space (folder_id NULL) counting as one folder",
+   "environment": "two concurrent calls with the same spaceId and title, folderId null or not (equal for both), READ COMMITTED, PostgreSQL 15 or newer",
+   "inputSensitivity": "none: safe for folderId = null and for a non-null folderId.",
+   "counterpart": "P15-E06",
+   "why": "UNIQUE(space_id, folder_id, title) NULLS NOT DISTINCT (PostgreSQL 15+): NULL folder ids are equal for the constraint, so the constraint covers every key the entry inserts. If B's INSERT meets A's uncommitted row with the same key it waits; A commits and B's ON CONFLICT DO NOTHING inserts nothing (A aborts and B inserts). No schedule leaves two rows with the same (space, folder, title).",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E08",
+   "family": "nullable-argument",
+   "entry": "src/services/invitations.ts#inviteMember",
+   "class": "check-then-act",
+   "label": "positive",
+   "tables": [
+    "invitations",
+    "orgs"
+   ],
+   "property": "at most one organization-level invitation per (org, email) (declared one-invitation-per-email)",
+   "environment": "two concurrent calls with the same orgId and email, teamId omitted (undefined) or null for both, no invitation for that email, READ COMMITTED",
+   "contractsUsed": [
+    "invariants: one-invitation-per-email (template atMostOne)"
+   ],
+   "inputSensitivity": "teamId == null (undefined or null, both allowed by `teamId?: number | null`) for both actors. With a team id every call takes the team branch.",
+   "counterpart": "P15-E09",
+   "why": "teamId == null is true for undefined and null. That branch SELECTs the invitation by (org_id, email) and INSERTs it if absent, as separate autocommitted statements; invitations has only a non-unique index on (org_id, email). Schedule: A and B both SELECT and find nothing, both INSERT: two invitations. The team branch is one INSERT ... ON CONFLICT DO NOTHING on team_invites, whose primary key is (team_id, email).",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E09",
+   "family": "nullable-argument",
+   "entry": "src/services/invitations.ts#inviteToTeam",
+   "class": "check-then-act",
+   "label": "negative",
+   "tables": [
+    "team_invites",
+    "teams"
+   ],
+   "property": "at most one organization-level invitation per (org, email) (declared one-invitation-per-email) and at most one team invitation per (team, email)",
+   "environment": "two concurrent calls with the same orgId, email and teamId, READ COMMITTED; callers respect the signature (teamId is a number)",
+   "contractsUsed": [
+    "invariants: one-invitation-per-email (template atMostOne)"
+   ],
+   "inputSensitivity": "none within the signature: teamId: number, so `teamId == null` is false for every argument (including 0 and NaN) and the racy branch of inviteMember is unreachable. A JavaScript caller ignoring the type and passing null would reach it; that input is outside the domain the signature permits.",
+   "counterpart": "P15-E08",
+   "why": "inviteToTeam forwards a number to inviteMember, which takes the team branch: INSERT INTO team_invites ... ON CONFLICT DO NOTHING with primary key (team_id, email). A concurrent duplicate waits for the first insert and does nothing. invitations is never written, so the declared invariant cannot be violated.",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E10",
+   "family": "actor-keys",
+   "entry": "src/services/wallets.ts#transfer",
+   "class": "lock-order",
+   "label": "positive",
+   "tables": [
+    "wallets"
+   ],
+   "property": "no transfer between two existing wallets fails",
+   "environment": "two concurrent calls with crossed wallets, transfer(w1, w2, n) and transfer(w2, w1, m), w1 != w2, both wallets exist, READ COMMITTED",
+   "inputSensitivity": "A.fromId = B.toId and A.toId = B.fromId with fromId != toId. With two actors a deadlock needs that cycle: equal (from, to) pairs, disjoint wallets, or a wallet shared in the same position lock in a consistent order, and both calls complete.",
+   "counterpart": "P15-E11",
+   "why": "Each transaction locks its source wallet (SELECT ... FOR UPDATE), then its destination. Schedule: A locks w1, B locks w2, A's SELECT w2 FOR UPDATE waits for B, B's SELECT w1 FOR UPDATE waits for A. PostgreSQL's deadlock detector aborts one of them with SQLSTATE 40P01 and that transfer fails (no retry in the code).",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E11",
+   "family": "actor-keys",
+   "entry": "src/services/wallets.ts#transferOrdered",
+   "class": "lock-order",
+   "label": "negative",
+   "tables": [
+    "wallets"
+   ],
+   "property": "no transfer between two existing wallets fails",
+   "environment": "any two concurrent calls, crossed, equal or disjoint wallets, all existing, READ COMMITTED",
+   "inputSensitivity": "none: crossed, equal and disjoint keys, and fromId = toId.",
+   "counterpart": "P15-E10",
+   "why": "Both transactions lock the wallet with the smaller id first and the other second, so every waiting edge points from a holder of a smaller id to a larger one and no wait cycle can form. The UPDATEs touch only rows the transaction already holds FOR UPDATE. For fromId = toId the second lock is on a row the transaction already holds: no wait. Balances have no CHECK constraint, so nothing else can make a transfer fail.",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E12",
+   "family": "boundary",
+   "entry": "src/services/exports.ts#startExport",
+   "class": "check-then-act",
+   "label": "positive",
+   "tables": [
+    "quotas",
+    "export_jobs",
+    "accounts"
+   ],
+   "property": "quotas.remaining is never negative (declared export-quota-non-negative)",
+   "environment": "two concurrent calls for the same account whose quota row has remaining = 1, READ COMMITTED",
+   "contractsUsed": [
+    "invariants: export-quota-non-negative (template nonNegative)"
+   ],
+   "inputSensitivity": "initial remaining = 1 with two calls (in general 0 < remaining < number of concurrent calls). With remaining >= 2 two decrements end >= 0; with remaining = 0 both calls throw.",
+   "counterpart": "P15-E13",
+   "why": "The quota test (remaining <= 0 throws) is a plain SELECT; the decrement remaining - 1 is computed by the database but its WHERE is only the key. Schedule: A and B both read 1, A decrements to 0 and commits, B's UPDATE applies to the newest version: -1. Two export jobs were started on a quota of one.",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E13",
+   "family": "boundary",
+   "entry": "src/services/exports.ts#startExportAtomic",
+   "class": "check-then-act",
+   "label": "negative",
+   "tables": [
+    "quotas",
+    "export_jobs",
+    "accounts"
+   ],
+   "property": "quotas.remaining is never negative (declared export-quota-non-negative)",
+   "environment": "any number of concurrent calls for the same account, any initial remaining >= 0, READ COMMITTED",
+   "contractsUsed": [
+    "invariants: export-quota-non-negative (template nonNegative)"
+   ],
+   "inputSensitivity": "none: remaining = 0, 1 or more, any number of calls.",
+   "counterpart": "P15-E12",
+   "why": "UPDATE quotas SET remaining = remaining - 1 WHERE account_id = $1 AND remaining > 0 RETURNING. B's UPDATE waits for A's row lock; after A commits, READ COMMITTED re-evaluates remaining > 0 on the new version; at 0 it matches no row, B throws and its transaction (with no job) rolls back. A row is decremented only from a positive value, so it never goes below 0. (An initial negative value would violate the invariant before any call; such a state is not a valid initial state.)",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E14",
+   "family": "boundary",
+   "entry": "src/services/seats.ts#addSeat",
+   "class": "check-then-act",
+   "label": "positive",
+   "tables": [
+    "orgs",
+    "seats",
+    "accounts"
+   ],
+   "property": "orgs.vacancies is never negative (declared vacancies-non-negative)",
+   "environment": "a single call for an organization with vacancies = 0 and an account without a seat (or, generally, more calls than vacancies), READ COMMITTED",
+   "contractsUsed": [
+    "invariants: vacancies-non-negative (template nonNegative)"
+   ],
+   "inputSensitivity": "initial vacancies = 0 for one call (more calls than vacancies in general): the guard `vacancies >= 0` admits exactly the boundary value 0. For vacancies >= the number of calls every decrement ends >= 0.",
+   "counterpart": "P15-E15",
+   "why": "The organization row is held FOR UPDATE, so calls are serialized and each sees the latest value; the defect is the comparison: `org.vacancies >= 0` is true at 0, the UPDATE sets vacancies to -1 and a seat is inserted. No concurrency is needed.",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E15",
+   "family": "boundary",
+   "entry": "src/services/seats.ts#addSeatChecked",
+   "class": "check-then-act",
+   "label": "negative",
+   "tables": [
+    "orgs",
+    "seats",
+    "accounts"
+   ],
+   "property": "orgs.vacancies is never negative (declared vacancies-non-negative)",
+   "environment": "any number of concurrent calls for the same organization, any initial vacancies >= 0, READ COMMITTED",
+   "contractsUsed": [
+    "invariants: vacancies-non-negative (template nonNegative)"
+   ],
+   "inputSensitivity": "none: vacancies = 0, 1 or more, any number of calls.",
+   "counterpart": "P15-E14",
+   "why": "SELECT ... FOR UPDATE on the organization row serializes the calls; after waiting, READ COMMITTED returns the newest committed version of the locked row. The strict test vacancies > 0 admits only positive values, and the decrement happens under the same lock in the same transaction, so vacancies never goes below 0. (A duplicate seat fails with 23505 and rolls back its decrement too.)",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E16",
+   "family": "fk-parent-child",
+   "entry": "src/services/carts.ts#addToCart",
+   "class": "check-then-act",
+   "label": "positive",
+   "tables": [
+    "carts",
+    "cart_items",
+    "accounts"
+   ],
+   "property": "at most one cart per account (declared one-cart-per-account)",
+   "environment": "two concurrent first adds for an account that has no cart, READ COMMITTED",
+   "contractsUsed": [
+    "invariants: one-cart-per-account (template atMostOne)"
+   ],
+   "inputSensitivity": "initial state without a cart for the account. With an existing cart both calls find it and add their items (child rows) to it.",
+   "counterpart": "P15-E17",
+   "why": "SELECT the account's cart; if none, INSERT the parent cart and then the child cart_items row referencing it, as separate autocommitted statements; carts.account_id has only a non-unique index. Schedule: A and B both find no cart, both INSERT a cart and each puts its item in its own cart. The foreign-key checks take FOR KEY SHARE on the account and on each new cart, which never conflict.",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E17",
+   "family": "fk-parent-child",
+   "entry": "src/services/carts.ts#addToWishlist",
+   "class": "check-then-act",
+   "label": "negative",
+   "tables": [
+    "wishlists",
+    "wishlist_items",
+    "accounts"
+   ],
+   "property": "at most one wishlist per account (declared one-wishlist-per-account), and every item is attached to that wishlist",
+   "environment": "two concurrent first adds for an account with or without a wishlist, READ COMMITTED",
+   "contractsUsed": [
+    "invariants: one-wishlist-per-account (template atMostOne)"
+   ],
+   "inputSensitivity": "none: with and without an existing wishlist.",
+   "counterpart": "P15-E16",
+   "why": "INSERT ... ON CONFLICT (account_id) DO NOTHING on a UNIQUE account_id: B's INSERT waits for A's uncommitted row and then does nothing (or inserts if A aborted). B's following SELECT is a new statement whose snapshot includes A's committed wishlist, so both items reference the one wishlist.",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E18",
+   "family": "authorization",
+   "entry": "src/services/environments.ts#createEnvironment",
+   "class": "check-then-act",
+   "label": "positive",
+   "tables": [
+    "environments",
+    "memberships",
+    "orgs",
+    "accounts"
+   ],
+   "property": "at most one deployment environment per (org, name) (declared one-environment-per-name)",
+   "environment": "two concurrent calls with the same orgId and name, each caller holding a membership with role 'admin' in the org (same or different callers), no environment with that name, READ COMMITTED",
+   "contractsUsed": [
+    "invariants: one-environment-per-name (template atMostOne)"
+   ],
+   "inputSensitivity": "callerId has a membership of orgId with role 'admin' (for both actors). Without it requireAdmin throws before the check-then-act and nothing is written: an initial state without the admin membership hides the defect.",
+   "counterpart": "P15-E19",
+   "why": "requireAdmin (an imported helper) passes for admins. Then SELECT by (org_id, name) and INSERT if absent, as separate autocommitted statements; environments has only a non-unique index on (org_id, name). Schedule: A and B pass the guard, both SELECT and find nothing, both INSERT: two environments with the same name.",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E19",
+   "family": "authorization",
+   "entry": "src/services/environments.ts#createReleaseChannel",
+   "class": "check-then-act",
+   "label": "negative",
+   "tables": [
+    "channels",
+    "memberships",
+    "orgs",
+    "accounts"
+   ],
+   "property": "at most one release channel per (org, name) (declared one-channel-per-name)",
+   "environment": "two concurrent calls with the same orgId and name, by admins or not, READ COMMITTED",
+   "contractsUsed": [
+    "invariants: one-channel-per-name (template atMostOne)"
+   ],
+   "inputSensitivity": "none: admin callers reach the insert, which is covered by the unique key; other callers write nothing.",
+   "counterpart": "P15-E18",
+   "why": "Behind the same guard, the INSERT is ON CONFLICT DO NOTHING on UNIQUE(org_id, name): B's INSERT waits for A's uncommitted row and then does nothing. No schedule leaves two channels with the same name.",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E20",
+   "family": "authorization",
+   "entry": "src/services/admins.ts#demoteAdmin",
+   "class": "write-skew",
+   "label": "positive",
+   "tables": [
+    "memberships"
+   ],
+   "property": "every organization keeps at least one admin (not declared)",
+   "environment": "an organization with exactly two admins X and Y; two concurrent calls: X demotes Y and Y demotes X (or each demotes themself), READ COMMITTED",
+   "requiresDeclaration": true,
+   "declaredInContracts": false,
+   "inputSensitivity": "exactly two admins, both callers are admins, and the two calls demote different admins. With three or more admins, with one admin, with a non-admin caller, or with both calls demoting the same admin, at least one admin remains.",
+   "counterpart": "P15-E21",
+   "why": "Each call checks its caller's membership, counts the admins (2) and demotes its target by an UPDATE of a different membership row; the reads take no locks and the two UPDATEs touch different rows, so nothing orders them. Schedule: both guards pass, both counts return 2, A demotes Y, B demotes X: no admin left. A multi-row (write-skew) property: it must be declared to be checked.",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E21",
+   "family": "authorization",
+   "entry": "src/services/admins.ts#demoteAdminLocked",
+   "class": "write-skew",
+   "label": "negative",
+   "tables": [
+    "memberships",
+    "orgs"
+   ],
+   "property": "every organization keeps at least one admin (not declared)",
+   "environment": "any two concurrent calls on the same organization, any number of admins >= 1, READ COMMITTED",
+   "requiresDeclaration": true,
+   "declaredInContracts": false,
+   "inputSensitivity": "none: two or more admins, crossed, self or same-target demotions.",
+   "counterpart": "P15-E20",
+   "why": "Both calls first lock the organization row FOR UPDATE, so they run one after the other. In READ COMMITTED each later statement of the second call takes a new snapshot that includes the first call's committed demotion: either its caller is no longer an admin (forbidden) or the admin count is 1 (throws). Only a demotion that leaves at least one admin commits.",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E22",
+   "family": "composite-unique",
+   "entry": "src/services/routes.ts#claimRoute",
+   "class": "check-then-act",
+   "label": "positive",
+   "tables": [
+    "routes",
+    "orgs"
+   ],
+   "property": "at most one route per (org, slug), whatever its kind (declared one-route-per-slug)",
+   "environment": "two concurrent calls with the same orgId and slug and different kinds ('page' and 'redirect'), the slug unused, READ COMMITTED",
+   "contractsUsed": [
+    "invariants: one-route-per-slug (template atMostOne)"
+   ],
+   "inputSensitivity": "kind differs between the actors. With equal kinds the unique key (org_id, kind, slug) covers the key and the second INSERT does nothing.",
+   "counterpart": "P15-E23",
+   "why": "The check reads (org_id, slug) but the unique constraint is (org_id, kind, slug). Schedule: A ('page') and B ('redirect') both SELECT and find nothing, both INSERT ... ON CONFLICT DO NOTHING; the keys differ in kind, so neither conflicts: the slug has two routes and both callers are told true.",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E23",
+   "family": "composite-unique",
+   "entry": "src/services/routes.ts#claimAlias",
+   "class": "check-then-act",
+   "label": "negative",
+   "tables": [
+    "aliases",
+    "orgs"
+   ],
+   "property": "at most one alias per (org, slug) (declared one-alias-per-slug)",
+   "environment": "two concurrent calls with the same orgId and slug, equal or different kinds, READ COMMITTED",
+   "contractsUsed": [
+    "invariants: one-alias-per-slug (template atMostOne)"
+   ],
+   "inputSensitivity": "none: equal and different kinds.",
+   "counterpart": "P15-E22",
+   "why": "UNIQUE(org_id, slug) does not contain kind, so it covers the checked key: B's INSERT waits for A's uncommitted row with the same (org_id, slug) and does nothing. No schedule leaves two aliases for one slug.",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E24",
+   "family": "idempotency",
+   "entry": "src/services/grants.ts#grantCredit",
+   "class": "ambiguous-commit",
+   "label": "positive",
+   "tables": [
+    "grants",
+    "accounts"
+   ],
+   "property": "one call adds at most one grants row: an INSERT whose first attempt committed adds nothing when withRetry runs it again",
+   "environment": "a single call with grantKey omitted; the first INSERT commits on the server and its reply is lost (ECONNRESET); withRetry runs it again",
+   "inputSensitivity": "grantKey omitted (undefined, written as NULL by `grantKey ?? null`). With a key the retried INSERT conflicts with the committed row and does nothing.",
+   "counterpart": "P15-E25",
+   "why": "INSERT ... ON CONFLICT (grant_key) DO NOTHING with grant_key NULL: the unique constraint is NULLS DISTINCT, so a NULL key never conflicts and the retried INSERT adds a second row for the same call.",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E25",
+   "family": "idempotency",
+   "entry": "src/services/grants.ts#grantCreditKeyed",
+   "class": "ambiguous-commit",
+   "label": "negative",
+   "tables": [
+    "grants",
+    "accounts"
+   ],
+   "property": "one call adds at most one grants row: an INSERT whose first attempt committed adds nothing when withRetry runs it again",
+   "environment": "a single call (or concurrent calls with the same key); the first INSERT commits on the server and its reply is lost (ECONNRESET); withRetry runs it again",
+   "inputSensitivity": "none within the signature: grantKey: string is never NULL.",
+   "counterpart": "P15-E24",
+   "why": "The key is a non-null string: the retried INSERT meets the committed row with the same grant_key and ON CONFLICT (grant_key) DO NOTHING inserts nothing. Concurrent calls with the same key: the second waits for the first's uncommitted key and does nothing.",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E26",
+   "family": "idempotency",
+   "entry": "src/services/loyalty.ts#applyLoyaltyEvent",
+   "class": "duplicate-processing",
+   "label": "positive",
+   "tables": [
+    "processed_events",
+    "ledger",
+    "accounts"
+   ],
+   "property": "a loyalty event is credited at most once: at most one ledger row per event id (declared one-ledger-row-per-event)",
+   "environment": "one message with event id e, not yet processed, delivered at least once (declared): a redelivery after a crash between the ledger INSERT and the processed_events INSERT, or two overlapping deliveries, READ COMMITTED",
+   "contractsUsed": [
+    "entries: delivery at-least-once",
+    "invariants: one-ledger-row-per-event (template atMostOne)"
+   ],
+   "inputSensitivity": "initial state without e in processed_events, and the deliveries carry the same event id (a redelivery). With e already processed every delivery returns at once; distinct event ids are distinct events.",
+   "counterpart": "P15-E27",
+   "why": "The SELECT of processed_events, the ledger INSERT and the processed_events INSERT are separate autocommitted statements; ledger.event_id is not unique. Crash schedule: the first delivery inserts the ledger row and crashes before recording e; the redelivery finds e unprocessed and inserts a second ledger row. Overlap schedule: both deliveries SELECT before either records e and both insert a ledger row.",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E27",
+   "family": "idempotency",
+   "entry": "src/services/loyalty.ts#applyLoyaltyEventOnce",
+   "class": "duplicate-processing",
+   "label": "negative",
+   "tables": [
+    "processed_events",
+    "ledger",
+    "accounts"
+   ],
+   "property": "a loyalty event is credited at most once: at most one ledger row per event id (declared one-ledger-row-per-event)",
+   "environment": "one message with event id e delivered at least once (declared), with redeliveries after crashes and overlapping deliveries; initial state reachable by these writers (every ledger row's event id is in processed_events), READ COMMITTED",
+   "contractsUsed": [
+    "entries: delivery at-least-once",
+    "invariants: one-ledger-row-per-event (template atMostOne)"
+   ],
+   "inputSensitivity": "none for reachable initial states (e processed or not). An initial state with a ledger row for e but no processed_events row cannot be produced by these writers (both rows commit together) and is excluded by the environment.",
+   "counterpart": "P15-E26",
+   "why": "One transaction: INSERT INTO processed_events ... ON CONFLICT DO NOTHING RETURNING, and the ledger INSERT only if a row was claimed; both commit together. An overlapping delivery's INSERT waits for the first transaction's uncommitted key and then claims nothing (or claims it if the first rolled back). A crash before COMMIT rolls back both rows, so the redelivery applies the event once.",
+   "isolation": "read committed",
+   "effectful": true
+  },
+  {
+   "id": "P15-E28",
+   "family": "unsupported",
+   "entry": "src/services/ops.ts#runSavedQuery",
+   "class": "unknown",
+   "label": "unsupported",
+   "tables": [],
+   "property": "-",
+   "environment": "-",
+   "isolation": "-",
+   "inputSensitivity": "the whole statement is the runtime argument `text`",
+   "why": "db.execute(sql.raw(text)): the SQL text is a runtime argument; neither the statement kind nor its tables are known (it may write).",
+   "effectful": true
+  },
+  {
+   "id": "P15-E29",
+   "family": "unsupported",
+   "entry": "src/services/ops.ts#bumpCounter",
+   "class": "unknown",
+   "label": "unsupported",
+   "tables": [
+    "counters"
+   ],
+   "property": "-",
+   "environment": "-",
+   "isolation": "-",
+   "inputSensitivity": "the updated column is the runtime argument `column`",
+   "why": "db.execute(sql`update counters set ${sql.identifier(column)} = ... + 1 ...`): raw SQL whose column is a runtime argument; the table is literal text inside raw SQL, the column is unknown.",
+   "effectful": true
+  },
+  {
+   "id": "P15-E30",
+   "family": "unsupported",
+   "entry": "src/services/ops.ts#countViewUnlessExcluded",
+   "class": "unknown",
+   "label": "unsupported",
+   "tables": [
+    "counters"
+   ],
+   "property": "-",
+   "environment": "-",
+   "isolation": "-",
+   "inputSensitivity": "the guard is the result of the runtime SQL text `exclusionQuery`",
+   "why": "The decision to write is taken on the rows of db.execute(sql.raw(exclusionQuery)), raw SQL whose text is a runtime argument; the following Drizzle UPDATE (views = views + 1) is modeled, but the guard and whatever the query itself does are not.",
+   "effectful": true
+  }
+ ],
+ "corrections": []
+}

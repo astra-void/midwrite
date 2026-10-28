@@ -118,6 +118,7 @@ fn every_fixture_matches_its_expectations() {
                 && !file.starts_with(fixtures_dir().join("phase12"))
                 && !file.starts_with(fixtures_dir().join("phase13"))
                 && !file.starts_with(fixtures_dir().join("phase14"))
+                && !file.starts_with(fixtures_dir().join("phase15"))
         })
         .collect();
     assert!(

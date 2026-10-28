@@ -1,0 +1,21 @@
+{
+  "name": "commitrift-fixture-phase15-worlds-app",
+  "private": true,
+  "version": "0.0.0",
+  "description": "CommitRift Phase 15 first-party application: concurrency defects that appear only for some valid inputs or initial states (a nullable argument under a NULLS DISTINCT unique key; a stored quota at the boundary of its guard), each with a safe counterpart. Drizzle ORM on node-postgres.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@commitrift/replay": "file:../../../runtime/node",
+    "drizzle-orm": "0.45.4",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/pg": "8.23.1",
+    "typescript": "5.9.3"
+  }
+}

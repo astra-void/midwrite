@@ -1,0 +1,12 @@
+{
+  "name": "commitrift-fixture-phase15-eval-app",
+  "private": true,
+  "version": "0.0.0",
+  "description": "CommitRift Phase 15 evaluation application (labels frozen before any Phase 15 scoring): concurrency and failure hazards that appear only for some valid inputs or initial database states — stored vs written values, nullable arguments, equal vs crossed actor keys, integer boundaries, parent rows created on demand, admin-membership guards, composite unique keys and idempotency keys. Static source: never executed.",
+  "type": "module",
+  "dependencies": {
+    "drizzle-orm": "0.45.4",
+    "pg": "8.23.1",
+    "zod": "3.24.2"
+  }
+}
