@@ -173,3 +173,64 @@ their properties are hypotheses (`HEURISTIC_HYPOTHESIS`): a counterexample
 against one is not a confirmed defect, and properties about what callers
 are told (return values) are never inferred — declare them
 ([contracts](../user-guide/contracts.md)).
+
+## Explore input worlds and save a counterexample (Phase 15)
+
+Validated with the Phase 15 binary on the first-party application
+`fixtures/phase15/worlds-app`, whose defects appear only for some valid
+inputs: a root folder (`parentId = null`) and a quota with one export left.
+
+1. Build (once): `cargo build --release`.
+2. Analyze and model-check, listing every explored world:
+
+   ```bash
+   target/release/commitrift discover fixtures/phase15/worlds-app --model-check --entry createFolder --explain-coverage
+   ```
+
+   The candidate's property is `USER_DECLARED` (from the app's
+   `commitrift-contracts.json`). The synthesized world (`base`,
+   `parentId = 1`) holds; the world `null:parentId` — `null` is allowed by
+   the signature `parentId: number | null` — violates the property:
+
+   ```text
+   Input exploration (relationship-search): 3 world(s) model-checked, controls included — actual configuration: 1 distinct row set(s), 2 distinct argument vector(s)
+     world `base` (actual, Base): explored — NO_COUNTEREXAMPLE_WITHIN_BOUNDS
+     world `null:parentId` (actual, Domain): explored — COUNTEREXAMPLE_FOUND
+     world `base` (distinct-key, Base): explored — NO_COUNTEREXAMPLE_WITHIN_BOUNDS
+   Schedule exploration (sleep-sets): completed for 2 world(s), truncated for 0, unsupported for 0
+   Branch outcomes reached alone: 5 of 8
+   Input domain exhaustive: no (every derived relationship class was explored)
+   Status: MODEL_COUNTEREXAMPLE
+   ```
+
+   The exit status is 1 when a model counterexample is reported.
+3. Save the scenarios and the reproduction artifact:
+
+   ```bash
+   target/release/commitrift discover fixtures/phase15/worlds-app --model-check --emit-scenarios /tmp/cr-worlds
+   ```
+
+   `/tmp/cr-worlds/cr-synth-438686-actual--null-parentid.counterexample.json`
+   holds the world, rows, arguments, assumptions, bounds, schedule and
+   source fingerprint.
+4. Replay it in the model:
+
+   ```bash
+   target/release/commitrift model-check /tmp/cr-worlds/cr-synth-438686-actual--null-parentid.json
+   ```
+
+5. Optionally, with explicit authorization, run it against the original
+   TypeScript on a disposable PostgreSQL (Node 22 and PostgreSQL 15+
+   installed; the fixture's `dist/` is built with `npm run build`):
+
+   ```bash
+   target/release/commitrift model-check /tmp/cr-worlds/cr-synth-438686-actual--null-parentid.json --verify-source --allow-execution --source-repeat 3
+   ```
+
+   Result in this cycle: `original-code-reproduced`, 3/3.
+
+A result without a counterexample reads, for example: "No violation found
+within the modeled bounds … Input exploration: no counterexample among 2
+explored initial world(s) of the actual configuration … The input domain
+was not exhaustively explored; general application safety is not
+established."

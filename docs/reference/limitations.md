@@ -363,3 +363,29 @@ Details and the full lists: [Phase 14 limitations](../phase14/LIMITATIONS.md).
   JSON in lockstep (669 schedules, 0 disagreements besides the known
   one-way SSI difference); two new first-party original-code slices
   (`docs/phase14/FINAL-REPORT.md`).
+
+## Phase 15 changes
+
+Details: [Phase 15 limitations](../phase15/LIMITATIONS.md).
+
+* **Lifted:** synthesized initial values coinciding with written values
+  (now varied: `stored-distinct`/`stored-equal` worlds); `null`/`undefined`
+  arguments where the annotation admits them; branch-boundary and stored
+  guard-boundary values; non-key arguments differing between actors;
+  string-literal union arguments; guards over read rows and arguments that
+  synthesized inputs failed (satisfied with stated preconditions);
+  declared `atMostOne` keys over conditionally tested columns; guarded
+  relative updates with a declared property.
+* **Still not covered:** exhaustive value domains (never claimed:
+  `domainExhaustive` is always false); combinations of relationships; more
+  than two actors; nullability without an annotation; zod `strictObject`,
+  formats, `nullable`/`optional`/`default`; `for`/`while` loops;
+  `req.json()`; time arithmetic; JSON projections; predicates hoisted into
+  locals; multi-row `FOR UPDATE`; properties over generated identifiers.
+* **New INCONCLUSIVE rule:** a counterexample on a table with a `NULLS NOT
+  DISTINCT` unique rule over a nullable column (not enforced by the
+  model) is INCONCLUSIVE; PostgreSQL confirmed the rule is needed.
+* **Verified on PostgreSQL:** 28 counterexample worlds in lockstep (166
+  outcomes, 0 disagreements); two input-dependent first-party defects
+  reproduced on the original code (3/3 each). **Model only:** the new
+  read-your-writes counterexamples through a replica.

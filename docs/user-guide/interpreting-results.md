@@ -73,6 +73,12 @@ framework, or `discovery-default`), printed with the candidate.
 * A replica counterexample cannot go beyond `model-counterexample`: no
   streaming replication is run.
 
+* Phase 15: a discovery verdict is relative to the **initial worlds** it
+  explored. Read the candidate's coverage section: how many worlds, which
+  input relationships, whether each world's schedule search completed, and
+  what was not explored. `domainExhaustive` is never true for synthesized
+  inputs ([verdict semantics](../phase15/VERDICT-SEMANTICS.md)).
+
 ## Runtime results
 
 * `postgres-confirmed-schedule`: PostgreSQL agreed with every predicted

@@ -28,7 +28,8 @@ Diagnostic fields (`code`, `severity`, `confidence`, `pathCertainty`,
 | `commitrift.verification` | 1, 2 | `replay --format json` | [v1](../phase3/schemas/verification-report.v1.schema.json), [v2](../phase4/schemas/verification-report.v2.schema.json) |
 | `commitrift.regression` | 1 | `replay --baseline … --regression-output` | [v1](../phase4/schemas/regression-report.v1.schema.json) |
 | `commitrift.model-check` | 1–5 | `model-check --format json` | [v1](../phase6/schemas/model-check-report.v1.schema.json) (Phase 6), [v2](../phase7/schemas/model-check-report.v2.schema.json) (source verification), [v3](../phase8/schemas/model-check-report.v3.schema.json) (crash/recovery, schema facts), [v4](../phase9/schemas/model-check-report.v4.schema.json) (in-flight, pools, worlds), [v5](../phase10/schemas/model-check-report.v5.schema.json) (source-DPOR, connection loss) |
-| `commitrift.discovery` | 1 | `discover --format json` | no published JSON Schema |
+| `commitrift.discovery` | 1 | `discover --format json` (Phase 15 adds `coverage` per candidate, `world` per scenario and world counters in `budgets`; additive) | no published JSON Schema |
+| `commitrift.counterexample` | 1 | `discover --emit-scenarios` (Phase 15), one per `MODEL_COUNTEREXAMPLE` candidate | no published JSON Schema |
 
 `scripts/validate-schemas.py FILE...` chooses the schema by `kind` and
 `schemaVersion`, validates with the `jsonschema` package (or `--builtin`, a

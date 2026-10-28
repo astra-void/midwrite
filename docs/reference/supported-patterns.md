@@ -60,6 +60,21 @@ Sources: [Phase 6 concurrent IR § TypeScript subset](../phase6/CONCURRENT-IR.md
 [Phase 13 source resolution](../phase13/SOURCE-RESOLUTION.md),
 [Phase 13 advanced Drizzle](../phase13/ADVANCED-DRIZZLE.md).
 
+## Input synthesis (Phase 15)
+
+| pattern | how discovery uses it |
+| --- | --- |
+| `x: T \| null`, `x?: T`, `x: T \| undefined`, default values | `null`/`undefined` worlds (never without an annotation) |
+| a string-literal union, inline or a type alias in the module or imported relatively (`kind: RouteKind`) | argument values are its members |
+| `if (x > 10)`, `x === "admin"`, `flag === true` over an argument | operand and boundary worlds |
+| a guard over a read row (`if (!m \|\| m.role !== "admin") throw`, `if (q.remaining <= 0) throw`) | the stored row is set to pass it (stated precondition); stored boundary worlds |
+| a guard over an argument, also inside an inlined helper (`actor.kind === "staff" && actor.roles.includes("admin")`) | the argument is set to pass it (stated precondition) |
+| an UPDATE/INSERT writing an argument to a column a row already has | `stored-distinct` / `stored-equal` worlds |
+| a read, a guard on one of its columns, then a relative UPDATE of that column (`c = c - 1` via Drizzle's `sql` template) | `guarded-update` candidates when a property over the table is declared |
+
+Details: [Phase 15 input domains](../phase15/INPUT-DOMAINS.md),
+[constraint synthesis](../phase15/CONSTRAINT-SYNTHESIS.md).
+
 ## Runtime coordination
 
 | | supported |

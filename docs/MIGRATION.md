@@ -92,3 +92,22 @@ the phase owners:
   `user-guide/discover.md` (new families, next step), `user-guide/contracts.md`
   (return-value templates), `getting-started/quickstart.md` (a discovery
   walk-through with Phase 14 output), this index.
+
+## Phase 15 additions
+
+* `docs/phase15/` (baseline, architecture, input domains, constraint
+  synthesis, feedback-guided search, verdict semantics, source coverage,
+  real-world evaluation, PostgreSQL differential, precision/recall,
+  performance, alpha readiness, security, limitations, final report). The
+  brief's STATE-SPACE-SAMPLING, INPUT-COVERAGE, MIDDAY-EVALUATION and
+  SCHOOL-LEDGER-EVALUATION are consolidated into FEEDBACK-GUIDED-SEARCH,
+  VERDICT-SEMANTICS and REAL-WORLD-EVALUATION.
+* Updated current pages: `reference/cli.md` (`--max-worlds`,
+  `--all-worlds`, `--explain-coverage`, reproduction artifacts),
+  `reference/output-formats.md` (`coverage`, `commitrift.counterexample`),
+  `reference/limitations.md` (Phase 15 changes), `user-guide/discover.md`
+  (input exploration), `user-guide/interpreting-results.md` (verdicts are
+  relative to explored worlds), `getting-started/quickstart.md` (an
+  input-world walk-through validated with the Phase 15 binary),
+  `research/evidence-index.md` (Phase 15 rows), this index.
+* No historical `docs/phaseN/` file was changed.

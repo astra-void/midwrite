@@ -146,12 +146,21 @@ commitrift discover [OPTIONS] <ROOT>
 | `--max-wall-ms <N>` | 60000 | wall-clock time per scenario |
 | `--max-memory-bytes <N>` | — | approximate memory of one scenario's visited states |
 | `--max-total-states <N>` | 5000000 | distinct states over all scenarios |
+| `--max-worlds <N>` | 8 | Phase 15: initial worlds (rows and arguments) tried per actual variant, the synthesized one included; each further world changes one input relationship; `1` turns the search off ([world search](../phase15/FEEDBACK-GUIDED-SEARCH.md)) |
+| `--all-worlds` | off | keep exploring worlds after a validated counterexample |
+| `--explain-coverage` | off | text output: list every explored and unexplored world and every coverage gap (also with `-v`) |
 | `--entry <TEXT>` | — | only entries whose selector contains this text (repeatable) |
 | `--labels <FILE>` | — | score the report against labeled entries |
 | `--cache <FILE>` | — | cache extractions in this file |
 | `--format text\|json\|html`, `-o, --output <FILE>` | `text` | output |
 | `--no-timing` | — | reproducible output |
 | `-v`, `--verbose` | — | also assumptions and rejected combinations |
+
+With `--emit-scenarios <DIR>`, every candidate whose status is
+`MODEL_COUNTEREXAMPLE` also gets `<scenario>.counterexample.json`
+(`kind: "commitrift.counterexample"`, Phase 15): the world, rows,
+arguments, assumptions, bounds, schedule, source fingerprint and the
+commands to replay it.
 
 ## schema
 

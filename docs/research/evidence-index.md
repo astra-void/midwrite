@@ -1,6 +1,6 @@
 # Evidence index
 
-Every measured result of Phases 2–13 that a reader might cite, with the
+Every measured result of Phases 2–15 that a reader might cite, with the
 binary or source revision it came from, the environment, the baseline it
 was compared with, its scope and limitations, and where the raw evidence
 is. Method: [evaluation methodology](evaluation-methodology.md).
@@ -78,6 +78,10 @@ model counterexample. "Static" = a hazard candidate exists.
 | 14 | Phase 14 set (38 entries, 12 families; `FROZEN.json` sha256 `778117d2…`) | Phase 13 final binary `97e96ac0…` | model 2 / 1 / 16 / 17 (0.667 / 0.111) | frozen before scoring | AI-authored without `crates/` access; not blind | `reports/phase14/eval/phase13-binary.json` |
 | 14 | same, **first scoring** | Phase 14 tree `465e12d2…` | model 0 / 0 / 18 / 18 (— / 0.000) | yes | as above | `reports/phase14/eval/first-scoring.json` |
 | 14 | same, post-feedback 1 and 2 | Phase 14 tree | 3 / 1 / 15 / 17 (0.750 / 0.167); 4 / 0 / 14 / 18 (1.000 / 0.222) | **no** | as above | `reports/phase14/eval/post-feedback-{1,2}.json` |
+| 15 | Phase 15 set (30 entries, 9 input-domain families; `FROZEN.json` manifest `b11cc1a1…`) | Phase 14 binary (rebuilt, `059b1150…`) | model 2 / 0 / 11 / 14 (1.000 / 0.154) | frozen before scoring | AI-authored without `crates/` access; not blind | `reports/phase15/eval/phase14-binary.json` |
+| 15 | same, **first scoring** | Phase 15 build `fd0e291b…` | model 4 / 0 / 9 / 14 (1.000 / 0.308) | yes | as above | `reports/phase15/eval/first-scoring.json` |
+| 15 | same, post-feedback (final) | Phase 15 final tree `ced40150…` | 8 / 0 / 5 / 14 (1.000 / 0.615) | **no** | as above | `reports/phase15/eval/post-feedback-final.json` |
+| 15 | Phase 13 frozen set; Phase 14 set (regression) | Phase 15 final tree | 8 / 0 / 7 / 11 (E26 → TP); 5 / 0 / 13 / 18 (E21 → TP) | **no** | as above | `reports/phase15/regression/` |
 
 Regression of earlier benchmarks under a newer binary (not new estimates):
 
@@ -203,3 +207,19 @@ Sources: [Phase 11 real-world evaluation](../phase11/REAL-WORLD-EVALUATION.md),
 Raw: `reports/phase11/evidence/corpus-*.json`, `reports/phase12/corpus/`,
 `reports/phase13/analyzer/corpus/`, `reports/phase13/final/corpus/`,
 `reports/phase14/corpus/` ([Phase 14 real-world results](../phase14/REAL-WORLD-RESULTS.md)).
+
+Phase 15 (`reports/phase15/corpus/`, Phase 14 vs Phase 15 binary): saas-starter
+unchanged; midday (declared factory) unchanged (4 candidates: 1
+INCONCLUSIVE, 3 BLOCKED; 0 model-checkable); school-ledger 9 candidates,
+now 9 UNSUPPORTED (the 7 formerly INCONCLUSIVE pass their authorization
+guards with stated preconditions and stop at zod `strictObject`), 0
+model-checkable ([Phase 15 real-world evaluation](../phase15/REAL-WORLD-EVALUATION.md)).
+
+Phase 15 model-checking and differential evidence (`reports/phase15/evidence/`,
+final tree `ced40150…`, PostgreSQL 17.11): 98 of 98 generated worlds agree
+under the unreduced search, sleep sets, classic DPOR and source-set DPOR;
+28 of 31 counterexample worlds confirmed in lockstep (166 outcomes, 0
+disagreements; 3 replica models not replayable); two input-dependent
+first-party defects reproduced on the original code 3/3 each, the safe
+NULLS NOT DISTINCT counterpart not reproduced 0/3
+([Phase 15 differential](../phase15/POSTGRESQL-DIFFERENTIAL.md)).

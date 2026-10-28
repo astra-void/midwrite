@@ -12,12 +12,13 @@ TypeScript ─► Oxc semantic analysis ─► interprocedural effect extraction
 ```
 
 **Status.** Experimental. These pages describe the current system: the
-Phase 14 working tree (base commit `32efbca`; Phase 13 and 14 changes
-uncommitted). The Phase 13 record is complete
-([final report](phase13/FINAL-REPORT.md)); Phase 14 added JavaScript
-values, closures, zod validation, multi-row inserts, predicates,
-timestamps/JSON subsets and new candidate families
-([Phase 14 final report](phase14/FINAL-REPORT.md)). Example outputs name
+Phase 15 working tree (base commit `4c338ad`; Phase 15 changes
+uncommitted). Phase 14 added JavaScript values, closures, zod validation,
+multi-row inserts, predicates, timestamps/JSON subsets and new candidate
+families ([Phase 14 final report](phase14/FINAL-REPORT.md)); Phase 15 added
+typed input domains, a feedback-guided search over initial worlds,
+guard-satisfying synthesis and coverage accounting in four dimensions
+([Phase 15 final report](phase15/FINAL-REPORT.md)). Example outputs name
 the binary that produced them. No independent human review of any result
 has been performed, and no external application has been executed.
 
@@ -113,6 +114,7 @@ phase.
 | 12 | schema fidelity, generated values, cross-module resolution, shared analysis context | [phase12](phase12/FINAL-REPORT.md) |
 | 13 | foreign-key and row-lock semantics, return values and the response step, read replicas, upserts, source resolution | [phase13](phase13/FINAL-REPORT.md) |
 | 14 | JavaScript values, closures, zod, multi-row inserts, predicates, timestamps/JSON, replica round trip, parent-child and return-value families, next steps | [phase14](phase14/FINAL-REPORT.md) |
+| 15 | typed input domains, feedback-guided search over initial worlds, guard-satisfying synthesis, coverage in four dimensions, reproduction artifacts, a fresh frozen evaluation set | [phase15](phase15/FINAL-REPORT.md) |
 
 Top-level records kept as they were: [`LIMITATIONS.md`](LIMITATIONS.md)
 (static analyzer, Phases 1–7; superseded as the *current* list by

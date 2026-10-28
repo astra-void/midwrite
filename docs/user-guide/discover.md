@@ -98,8 +98,48 @@ model-checked; discovery extracts with JavaScript value semantics and opts
 its scenarios into the `js-values`, `timestamps` and `json` features when
 they need them ([Phase 14](../phase14/FINAL-REPORT.md)).
 
+## Input exploration (Phase 15)
+
+With `--model-check`, each actual variant is checked in up to
+`--max-worlds` (default 8) **initial worlds**: the synthesized one, then
+worlds that each change one input relationship — a nullable argument set
+to `null` (only where the TypeScript annotation admits it), an argument at
+a branch's operand or boundary, a stored value distinct from (or equal to)
+the value an actor writes, a stored value at the boundary of a guard, a
+non-key argument that differs between the actors. The search stops at the
+first validated counterexample (`--all-worlds` continues). Guards that
+synthesized inputs failed (an admin role, a caller kind) are satisfied
+with **stated** preconditions ("SYNTHESIZED precondition … not assumed of
+every caller").
+
+Every model-checked candidate has a **coverage** section, kept in four
+dimensions — source semantics, initial states, actor inputs, schedules —
+plus branch outcomes and the list of worlds and gaps
+(`--explain-coverage` prints them). A `NO_VIOLATION_WITHIN_BOUNDS` result
+always says how many worlds were explored and that the input domain was
+not exhaustively explored. Details:
+[Phase 15 verdict semantics](../phase15/VERDICT-SEMANTICS.md).
+
+```text
+  Input exploration (relationship-search): 3 world(s) model-checked, controls included — actual configuration: 1 distinct row set(s), 2 distinct argument vector(s)
+    world `base` (actual, Base): explored — NO_COUNTEREXAMPLE_WITHIN_BOUNDS
+    world `null:parentId` (actual, Domain): explored — COUNTEREXAMPLE_FOUND
+  Schedule exploration (sleep-sets): completed for 2 world(s), truncated for 0, unsupported for 0
+  Branch outcomes reached alone: 5 of 8
+  Input domain exhaustive: no (every derived relationship class was explored)
+  Status: MODEL_COUNTEREXAMPLE
+  In the initial world `null:parentId` (parentId = null for every actor): MODEL_COUNTEREXAMPLE: …
+```
+
 ## Known blind spots
 
+Phase 15: on its fresh input-domain set, first scoring recall 0.308,
+post-feedback 0.615, precision 1.000; the Phase 13 set's E26 and the
+Phase 14 set's E21 are now found
+([Phase 15 evaluation](../phase15/PRECISION-RECALL.md)). Still not
+covered (Phase 15): zod `strictObject` and string formats, loops,
+request bodies, time arithmetic, predicates hoisted into locals, multi-row
+`FOR UPDATE`. Earlier:
 Recall on the Phase 14 evaluation set is still low (first scoring 0.000,
 post-feedback 0.222, precision 1.000; on the Phase 13 frozen set 0.467,
 post-feedback; [Phase 14 evaluation](../phase14/EVALUATION.md)). Not covered:
