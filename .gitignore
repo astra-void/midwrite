@@ -33,3 +33,11 @@ node_modules/
 /reports/phase11/baseline/commitrift-phase10
 /reports/phase12/baseline/commitrift-phase11
 /fixtures/phase12/**/dist/
+/reports/phase13/baseline/commitrift-phase12
+/fixtures/phase13/**/dist/
+/fixtures/phase14/**/dist/
+# Phase 13/14: the request applications link the Phase 12 fixture's packages
+# locally (`npm ci` creates their own elsewhere); Python bytecode of scripts.
+/fixtures/phase13/request-app/node_modules
+/fixtures/phase14/request-app/node_modules
+/scripts/__pycache__/
