@@ -95,6 +95,11 @@ pub struct ProjectContext {
     /// Memoized import closures (files a module reaches through imports and
     /// re-exports, itself included).
     closures: Mutex<HashMap<usize, Arc<BTreeSet<usize>>>>,
+    /// Phase 13: memoized handle provenance (`crate::handles`), keyed by the
+    /// declared replica factories and the query.
+    handles: Mutex<HashMap<String, crate::handles::HandleFact>>,
+    /// Phase 13: the scan for drizzle-orm `withReplicas` imports (once).
+    replicas: Mutex<Option<Option<String>>>,
     pub stats: ContextStats,
 }
 
@@ -144,6 +149,8 @@ impl ProjectContext {
             summaries: Mutex::new(HashMap::new()),
             facts: Mutex::new(HashMap::new()),
             closures: Mutex::new(HashMap::new()),
+            handles: Mutex::new(HashMap::new()),
+            replicas: Mutex::new(None),
             stats: ContextStats::default(),
         };
         context.stats.contexts.fetch_add(1, Ordering::Relaxed);
@@ -390,6 +397,22 @@ impl ProjectContext {
 }
 
 impl ProjectContext {
+    pub(crate) fn handle_memo(&self, key: &str) -> Option<crate::handles::HandleFact> {
+        self.handles.lock().expect("handles lock").get(key).cloned()
+    }
+
+    pub(crate) fn set_handle_memo(&self, key: String, fact: crate::handles::HandleFact) {
+        self.handles.lock().expect("handles lock").insert(key, fact);
+    }
+
+    pub(crate) fn replicas_scan(&self) -> Option<Option<String>> {
+        self.replicas.lock().expect("replicas lock").clone()
+    }
+
+    pub(crate) fn set_replicas_scan(&self, found: Option<String>) {
+        *self.replicas.lock().expect("replicas lock") = Some(found);
+    }
+
     /// Phase 12: whether the function `name` declared in file `file` returns
     /// a Drizzle database (its declared return type, or `Promise` of it, is
     /// a `drizzle-orm` `...Database` type, directly or through a type alias

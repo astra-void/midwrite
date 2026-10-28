@@ -447,6 +447,11 @@ impl Extractor<'_, '_, '_> {
             enum_values,
             references: None,
             generation: None,
+            // Phase 14: an explicit `mode` of a time or JSON column.
+            mode: matches!(builder, "timestamp" | "date" | "json" | "jsonb")
+                .then(|| options("mode").and_then(string_value))
+                .flatten(),
+            on_update: None,
             line,
         };
         if matches!(builder, "serial" | "bigserial" | "smallserial") {
@@ -638,6 +643,32 @@ impl Extractor<'_, '_, '_> {
                                 }
                                 _ => None,
                             });
+                    // Phase 13: `{ onDelete: "cascade", onUpdate: ... }`.
+                    let action = |key: &str| {
+                        args.get(1)
+                            .and_then(Argument::as_expression)
+                            .and_then(|e| match e.get_inner_expression() {
+                                Expression::ObjectExpression(o) => Some(o),
+                                _ => None,
+                            })
+                            .and_then(|o| {
+                                o.properties.iter().find_map(|p| match p {
+                                    ObjectPropertyKind::ObjectProperty(p)
+                                        if property_key(&p.key).as_deref() == Some(key) =>
+                                    {
+                                        match p.value.get_inner_expression() {
+                                            Expression::StringLiteral(s) => {
+                                                s.value.as_str().map(str::to_owned)
+                                            }
+                                            other => {
+                                                Some(format!("<{}>", source_text(source, other)))
+                                            }
+                                        }
+                                    }
+                                    _ => None,
+                                })
+                            })
+                    };
                     match target.as_deref().and_then(|t| t.split_once('.')) {
                         Some((t, c)) if !c.contains('.') => {
                             column.references = Some((t.to_owned(), c.to_owned()));
@@ -645,6 +676,8 @@ impl Extractor<'_, '_, '_> {
                                 columns: vec![sql_name.clone()],
                                 table: t.to_owned(),
                                 foreign_columns: vec![c.to_owned()],
+                                on_delete: action("onDelete"),
+                                on_update: action("onUpdate"),
                                 line,
                             });
                         }
@@ -653,7 +686,27 @@ impl Extractor<'_, '_, '_> {
                         )),
                     }
                 }
-                "$type" | "$onUpdate" | "$onUpdateFn" | "array" | "$inferSelect" => {
+                "$onUpdate" | "$onUpdateFn" => {
+                    // Phase 14: the callback, as written; the scenario
+                    // loader models `() => new Date()` on a time column.
+                    let text = args
+                        .first()
+                        .and_then(Argument::as_expression)
+                        .map(|e| source_text(source, e).to_owned())
+                        .unwrap_or_default();
+                    let clock: String = text.chars().filter(|c| !c.is_whitespace()).collect();
+                    if !matches!(
+                        clock.as_str(),
+                        "()=>newDate()" | "()=>{returnnewDate();}" | "()=>{returnnewDate()}"
+                    ) {
+                        table.unsupported.push(format!(
+                            "line {line}: column `{property}`: `.{}()` is not modeled",
+                            step.method
+                        ));
+                    }
+                    column.on_update = Some(text);
+                }
+                "$type" | "array" | "$inferSelect" => {
                     if step.method != "$type" {
                         table.unsupported.push(format!(
                             "line {line}: column `{property}`: `.{}()` is not modeled",
@@ -888,6 +941,19 @@ impl Extractor<'_, '_, '_> {
                             .split_once('.')
                             .map(|(t, _)| t.to_owned())
                             .unwrap_or_default();
+                        // Phase 13: `.onDelete("...")` / `.onUpdate("...")`
+                        // chained on the builder, read from its text.
+                        let action = |method: &str| {
+                            let at = text.find(&format!(".{method}("))?;
+                            let rest = &text[at + method.len() + 2..];
+                            let rest = rest.trim_start();
+                            let quote = rest.chars().next()?;
+                            if !matches!(quote, '"' | '\'' | '`') {
+                                return Some(format!("<{}>", rest.split(')').next()?.trim()));
+                            }
+                            let body = &rest[1..];
+                            Some(body[..body.find(quote)?].to_owned())
+                        };
                         table.foreign_keys.push(SchemaForeignKey {
                             columns,
                             table: target,
@@ -899,6 +965,8 @@ impl Extractor<'_, '_, '_> {
                                         .unwrap_or_default()
                                 })
                                 .collect(),
+                            on_delete: action("onDelete"),
+                            on_update: action("onUpdate"),
                             line,
                         });
                     }

@@ -42,9 +42,13 @@ use commitrift_model::provider::{
 use commitrift_model::value::{BinOp, Expr, Value};
 
 use crate::context::{ProjectContext, Resolved};
+use crate::handles::{HandleFact, Provenance, Routing};
 use crate::identity;
 use crate::resolve::{Resolution, absolute};
 use crate::wrapper;
+
+/// Phase 14: the JavaScript value domain (`ExtractRequest::js_values`).
+mod js_values;
 
 /// Lowers functions of a TypeScript project to the concurrency IR.
 #[derive(Clone, Debug)]
@@ -227,10 +231,19 @@ impl ActorProvider for TsActorProvider {
             counter: 0,
             tx_open: 0,
             assumptions: Vec::new(),
+            js_facts: Default::default(),
             qualify: false,
             param_types: HashMap::new(),
             pending_this: None,
+            prov: Provenance::new(ctx.clone(), &request.replica_factories),
+            replicating: None,
+            alias_hops: 0,
+            cached_calls: HashSet::new(),
+            pending_scopes: None,
         };
+        for error in lowerer.prov.errors.clone() {
+            lowerer.assume(format!("declared replica factory not applied: {error}"));
+        }
         let entry = match (&found, &selector) {
             (Some(found), Some(selector)) => {
                 Some(lowerer.entry_info(&module, found, selector, request.contract.clone())?)
@@ -357,19 +370,47 @@ fn info_of_function<'a>(name: &str, function: &'a Function<'a>) -> Option<FnInfo
 
 fn info_of_expression<'a>(name: &str, expression: &'a Expression<'a>) -> Option<FnInfo<'a>> {
     match expression.get_inner_expression() {
-        Expression::ArrowFunctionExpression(arrow) => Some(FnInfo {
-            name: name.to_owned(),
-            is_async: arrow.r#async,
-            params: &arrow.params,
-            body: match &arrow.body {
-                ArrowFunctionBody::FunctionBody(body) => FnBody::Block(body),
-                other => FnBody::Expr(other.as_expression()?),
-            },
-            span: arrow.span,
-        }),
+        Expression::ArrowFunctionExpression(arrow) => info_of_arrow(name, arrow),
         Expression::FunctionExpression(function) => info_of_function(name, function),
         _ => None,
     }
+}
+
+fn info_of_arrow<'a>(
+    name: &str,
+    arrow: &'a oxc_ast::ast::ArrowFunctionExpression<'a>,
+) -> Option<FnInfo<'a>> {
+    Some(FnInfo {
+        name: name.to_owned(),
+        is_async: arrow.r#async,
+        params: &arrow.params,
+        body: match &arrow.body {
+            ArrowFunctionBody::FunctionBody(body) => FnBody::Block(body),
+            other => FnBody::Expr(other.as_expression()?),
+        },
+        span: arrow.span,
+    })
+}
+
+/// Phase 14: the function node (arrow function or function expression)
+/// whose span is exactly `span`, with the program's lifetime.
+fn closure_at<'a>(program: &'a Program<'a>, span: Span, name: &str) -> Option<FnInfo<'a>> {
+    let semantic = oxc_semantic::SemanticBuilder::new()
+        .with_build_nodes(true)
+        .build(program)
+        .semantic;
+    for node in semantic.nodes().iter() {
+        match node.kind() {
+            oxc_ast::AstKind::ArrowFunctionExpression(a) if a.span == span => {
+                return info_of_arrow(name, a);
+            }
+            oxc_ast::AstKind::Function(f) if f.span == span => {
+                return info_of_function(name, f);
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 fn declaration_info<'a>(name: &str, declaration: &'a Declaration<'a>) -> Option<FnInfo<'a>> {
@@ -509,6 +550,62 @@ fn const_initializer<'a>(program: &'a Program<'a>, name: &str) -> Option<&'a Exp
         }
     }
     None
+}
+
+/// Phase 13: `const name = other` at the top level (exported or not): a
+/// function alias (`export const canManage = isAdmin`). Only a plain
+/// identifier initializer of a `const`; a call (`wrap(f)`) is not an alias.
+fn alias_target(program: &Program<'_>, name: &str) -> Option<String> {
+    match const_initializer(program, name)?.get_inner_expression() {
+        Expression::Identifier(id) if id.name.as_str() != name => Some(id.name.as_str().to_owned()),
+        _ => None,
+    }
+}
+
+/// Phase 13: the import specifier a value is built from: `z.object({...})
+/// .strict()` whose chain starts at an imported identifier (named, default
+/// or namespace import). The caller checks that it is a package.
+fn package_chain_root(module: &Module<'_>, init: &Expression<'_>) -> Option<String> {
+    let mut e = init.get_inner_expression();
+    loop {
+        e = match e {
+            Expression::CallExpression(c) => c.callee.get_inner_expression(),
+            Expression::StaticMemberExpression(m) => m.object.get_inner_expression(),
+            Expression::Identifier(id) => {
+                return match find_import(module, id.name.as_str())? {
+                    ImportRef::Named { source, .. }
+                    | ImportRef::Default { source }
+                    | ImportRef::Namespace { source } => Some(source),
+                };
+            }
+            _ => return None,
+        };
+    }
+}
+
+/// Phase 13: `const name = cache(<function>)` with `cache` imported from
+/// `react` (a verified built-in higher-order contract, `crate::packages`):
+/// the wrapped function.
+fn react_cache_fn<'a>(module: &Module<'a>, name: &str) -> Option<FnInfo<'a>> {
+    let program: &'a Program<'a> = module.program;
+    let Expression::CallExpression(call) = const_initializer(program, name)?.get_inner_expression()
+    else {
+        return None;
+    };
+    let Expression::Identifier(callee) = call.callee.get_inner_expression() else {
+        return None;
+    };
+    match find_import(module, callee.name.as_str())? {
+        ImportRef::Named {
+            source,
+            name: imported,
+        } if crate::packages::is_react_cache(&source, &imported) => {}
+        _ => return None,
+    }
+    if call.arguments.len() != 1 {
+        return None;
+    }
+    info_of_expression(name, call.arguments[0].as_expression()?)
 }
 
 /// Phase 12: whether the module's text writes a property of `name`
@@ -715,6 +812,121 @@ fn module_constant(module: &Module<'_>, name: &str) -> Option<Expr> {
     None
 }
 
+/// Phase 14: `const name = [<literal>, ...]` (optionally `as const`) at the
+/// top level: its value, and whether it is readonly by its type. A plain
+/// array qualifies only when it is not exported and the module never uses
+/// it other than by reading it (a mutating method, an assignment or passing
+/// it on would make it a shared mutable object).
+fn module_list_constant(module: &Module<'_>, name: &str) -> Option<(Expr, bool)> {
+    fn elements(array: &oxc_ast::ast::ArrayExpression<'_>) -> Option<Vec<Value>> {
+        array
+            .elements
+            .iter()
+            .map(|e| match e.as_expression().and_then(literal) {
+                Some(Expr::Lit(v)) => Some(v),
+                _ => None,
+            })
+            .collect()
+    }
+    let found = |variables: &oxc_ast::ast::VariableDeclaration<'_>| {
+        variables.declarations.iter().find_map(|d| {
+            let BindingPattern::BindingIdentifier(id) = &d.id else {
+                return None;
+            };
+            if id.name.as_str() != name || !variables.kind.is_const() {
+                return None;
+            }
+            match d.init.as_ref()? {
+                Expression::TSAsExpression(as_)
+                    if as_.type_annotation.is_const_type_reference() =>
+                {
+                    match as_.expression.get_inner_expression() {
+                        Expression::ArrayExpression(a) => Some((elements(a)?, true)),
+                        _ => None,
+                    }
+                }
+                Expression::ArrayExpression(a) => Some((elements(a)?, false)),
+                _ => None,
+            }
+        })
+    };
+    let mut result = None;
+    for statement in &module.program.body {
+        match statement {
+            Statement::VariableDeclaration(variables) => {
+                if let Some(r) = found(variables) {
+                    result = Some((r, false));
+                }
+            }
+            Statement::ExportDeclaration(export) => {
+                if let Declaration::VariableDeclaration(variables) = &export.declaration
+                    && let Some(r) = found(variables)
+                {
+                    result = Some((r, true));
+                }
+            }
+            _ => {}
+        }
+    }
+    let ((items, readonly), exported) = result?;
+    if !readonly && (exported || !read_only_uses(module.source, name)) {
+        return None;
+    }
+    Some((Expr::Lit(Value::List(items)), readonly))
+}
+
+/// Phase 14: every use of `name` in `text` reads it: followed by a reading
+/// member (`.includes(`, `.length`, `[`...) or iterated by `for … of`.
+fn read_only_uses(text: &str, name: &str) -> bool {
+    const READS: &[&str] = &[
+        "includes",
+        "indexOf",
+        "length",
+        "map",
+        "filter",
+        "find",
+        "findIndex",
+        "some",
+        "every",
+        "join",
+        "at",
+    ];
+    let bytes = text.as_bytes();
+    let is_ident = |b: u8| b.is_ascii_alphanumeric() || b == b'_' || b == b'$';
+    let mut start = 0;
+    let mut first = true;
+    while let Some(found) = text[start..].find(name) {
+        let at = start + found;
+        start = at + name.len();
+        if (at > 0 && (is_ident(bytes[at - 1]) || bytes[at - 1] == b'.'))
+            || bytes.get(at + name.len()).copied().is_some_and(is_ident)
+        {
+            continue;
+        }
+        if first {
+            // The declaration itself.
+            first = false;
+            continue;
+        }
+        let rest = &text[at + name.len()..];
+        let before = text[..at].trim_end();
+        let ok = match rest.strip_prefix('.') {
+            Some(r) => READS.iter().any(|m| {
+                r.starts_with(m) && !r[m.len()..].starts_with(|c: char| c.is_alphanumeric())
+            }),
+            None if rest.starts_with('[') => rest.find(']').is_some_and(|close| {
+                let after = rest[close + 1..].trim_start();
+                !(after.starts_with('=') && !after.starts_with("==") && !after.starts_with("=>"))
+            }),
+            None => before.ends_with(" of"),
+        };
+        if !ok {
+            return false;
+        }
+    }
+    true
+}
+
 /// `name.member` for a top-level `enum name { ... }` (string or numeric
 /// members) or `const name = { member: <literal> }` (optionally `as const`)
 /// that is never reassigned (a `const`).
@@ -820,6 +1032,37 @@ enum Binding {
     /// Phase 12: an instance of an analyzed class (`new UserRepository(tx)`)
     /// whose methods are inlined with this `this`.
     Instance(Box<ThisBinding>),
+    /// Phase 13: a replicated database (`withReplicas`): writes and
+    /// transactions use the primary, reads a replica
+    /// (`crate::handles`).
+    Replicated(Box<Routing>),
+    /// Phase 13: a name used as a database (a configured receiver) whose
+    /// value is not a recognized database, in a project that builds a
+    /// replicated one: its operations are not bound.
+    UnknownDb(String),
+    /// Phase 14: a zod schema passed to an inlined function (its
+    /// `parse`/`safeParse` are modeled by `crate::zod`), or why it is not
+    /// modeled.
+    Zod(Box<Result<crate::zod::Schema, String>>),
+    /// Phase 14: a function value (an arrow function or function
+    /// expression passed to an inlined project function). Calling it
+    /// inlines its body where the call happens, with the bindings of its
+    /// definition (`docs/phase14/SOURCE-COVERAGE.md`).
+    Closure(Box<Closure>),
+}
+
+/// Phase 14: a closure: where its function node is, and the scopes it
+/// closed over. Captured `let`/`const` bindings name the same model locals
+/// as in the defining function, so assignments after the capture are seen
+/// (JavaScript closures capture variables, not values).
+#[derive(Clone, Debug)]
+struct Closure {
+    abs: PathBuf,
+    rel: String,
+    span: Span,
+    name: String,
+    scopes: Vec<HashMap<String, Binding>>,
+    this: Option<ThisBinding>,
 }
 
 /// Phase 12: whose methods `this.m()` calls inside an inlined method.
@@ -913,6 +1156,9 @@ enum Res {
         row: String,
         length: String,
     },
+    /// Phase 14: an object whose listed properties are locals
+    /// (`schema.safeParse(x)`: `success`, `data`).
+    Fields(BTreeMap<String, String>),
 }
 
 enum ArgVal {
@@ -933,15 +1179,28 @@ struct Lowerer<'r> {
     counter: u32,
     tx_open: u32,
     assumptions: Vec<String>,
+    /// Phase 14: facts of the JavaScript value lowering.
+    js_facts: js_values::JsFacts,
     /// Column references are qualified (`table.column`): set while lowering
     /// a joined query.
     qualify: bool,
     /// Phase 12: declared types (as written) of the entry's parameters that
     /// are not database handles, to name the blocker when one is used as a
     /// Drizzle receiver.
-    param_types: HashMap<String, String>,
+    param_types: HashMap<String, (String, String)>,
     /// Phase 12: the `this` the next inlined function gets.
     pending_this: Option<ThisBinding>,
+    /// Phase 13: database handle provenance (declared replica factories).
+    prov: Provenance,
+    /// Phase 13: why a handle known only by a plain drizzle type may be a
+    /// replicated database (the project builds one), computed once.
+    replicating: Option<Option<String>>,
+    /// Phase 13: function aliases followed across modules (bounded).
+    alias_hops: u32,
+    /// Phase 13: React `cache`d functions already called by the actor.
+    cached_calls: HashSet<(PathBuf, String)>,
+    /// Phase 14: the scopes the next inlined function closed over.
+    pending_scopes: Option<Vec<HashMap<String, Binding>>>,
 }
 
 struct ChainStep<'a, 'b> {
@@ -1066,17 +1325,147 @@ impl<'r> Lowerer<'r> {
             .find_map(|scope| scope.get(name).cloned())
     }
 
-    fn handle_of(&self, name: &str) -> Option<Binding> {
+    fn handle_of(&mut self, name: &str) -> Option<Binding> {
         match self.lookup(name) {
-            Some(Binding::Tx) => Some(Binding::Tx),
-            Some(Binding::Db) => Some(Binding::Db),
+            Some(
+                b @ (Binding::Tx | Binding::Db | Binding::Replicated(_) | Binding::UnknownDb(_)),
+            ) => Some(b),
             Some(_) => None,
-            None => self
-                .receivers
-                .iter()
-                .any(|r| r == name)
-                .then_some(Binding::Db),
+            None => {
+                let file = self.frames.last().map(|f| f.key.0.clone())?;
+                self.module_handle(&file, name)
+            }
         }
+    }
+
+    /// Phase 13: whether the project builds a replicated database (then a
+    /// handle known only by a plain drizzle type, or only by its receiver
+    /// name, may be a replicated one).
+    fn replicating(&mut self) -> Option<String> {
+        if self.replicating.is_none() {
+            self.replicating = Some(self.prov.replicating());
+        }
+        self.replicating.clone().flatten()
+    }
+
+    /// Phase 13: the binding of a handle known by provenance.
+    fn bind_fact(&mut self, fact: HandleFact, written: &str) -> Option<Binding> {
+        match fact {
+            HandleFact::Primary { by_type: false, .. } => Some(Binding::Db),
+            HandleFact::Primary {
+                by_type: true,
+                origin,
+            } => match self.replicating() {
+                Some(why) => Some(Binding::Replicated(Box::new(Routing::ambiguous(format!(
+                    "`{written}` is known only as {origin}, and the project builds a replicated database ({why})"
+                ))))),
+                None => Some(Binding::Db),
+            },
+            HandleFact::Replicated(routing) => {
+                self.assume(format!(
+                    "`{written}` is a replicated database: {}; {}",
+                    routing.origin,
+                    routing.contract()
+                ));
+                Some(Binding::Replicated(Box::new(routing)))
+            }
+            HandleFact::Unknown(_) => None,
+        }
+    }
+
+    /// Phase 13: a module-level name of `file` (declared there or imported)
+    /// used as a database: its value provenance; a configured receiver name
+    /// (`db`) that cannot be resolved keeps the Phase 7 meaning (the root
+    /// database), unless the project builds a replicated database.
+    fn module_handle(&mut self, file: &Path, name: &str) -> Option<Binding> {
+        let index = self.ctx.index_of(file);
+        let fact = match index {
+            Some(index) => self.prov.value(index, name),
+            None => HandleFact::Unknown("the module is not analyzed".to_owned()),
+        };
+        let why = match &fact {
+            HandleFact::Unknown(why) => why.clone(),
+            _ => String::new(),
+        };
+        if let Some(binding) = self.bind_fact(fact, name) {
+            return Some(binding);
+        }
+        if !self.receivers.iter().any(|r| r == name) {
+            return None;
+        }
+        match self.replicating() {
+            None => Some(Binding::Db),
+            Some(replicating) => Some(Binding::UnknownDb(format!(
+                "`{name}` is a database receiver by name only ({why}), and the project builds a replicated database ({replicating}): an unrecognized database is neither the primary nor a replicated one"
+            ))),
+        }
+    }
+
+    /// Phase 13: a database handle written as an expression: a handle
+    /// local, `this.field`, `x.$primary` / `x.usePrimaryOnly()` of a
+    /// replicated database, a database factory call (`getDb()`, `await
+    /// connectDb()`).
+    fn handle_expr(&mut self, m: &Module<'_>, e: &Expression<'_>) -> Option<Binding> {
+        let e = match e.get_inner_expression() {
+            Expression::AwaitExpression(a) => a.argument.get_inner_expression(),
+            other => other,
+        };
+        match e {
+            Expression::Identifier(id) => self.handle_of(id.name.as_str()),
+            Expression::StaticMemberExpression(member) => {
+                if let Some(h) = self.this_handle(e) {
+                    return Some(h);
+                }
+                let property = member.property.name.as_str();
+                match self.handle_expr(m, &member.object)? {
+                    Binding::Replicated(r)
+                        if r.primary_properties.iter().any(|p| p == property) =>
+                    {
+                        Some(Binding::Db)
+                    }
+                    _ => None,
+                }
+            }
+            Expression::CallExpression(c) => match c.callee.get_inner_expression() {
+                Expression::Identifier(f) => {
+                    self.factory_handle(m, f.name.as_str(), c.arguments.is_empty())
+                }
+                Expression::StaticMemberExpression(member) if c.arguments.is_empty() => {
+                    let method = member.property.name.as_str();
+                    match self.handle_expr(m, &member.object)? {
+                        Binding::Replicated(r)
+                            if r.primary_only_methods.iter().any(|p| p == method) =>
+                        {
+                            Some(Binding::Db)
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Phase 13: `f(...)` of a project function returning a database: a
+    /// zero-argument function with a declared drizzle database return type
+    /// (Phase 12), or one whose result's provenance is known.
+    fn factory_handle(&mut self, m: &Module<'_>, name: &str, no_args: bool) -> Option<Binding> {
+        if self.lookup(name).is_some() {
+            return None;
+        }
+        if no_args && self.db_factory(m, name) {
+            return self.bind_fact(
+                HandleFact::Primary {
+                    origin: format!("the declared return type of `{name}`"),
+                    by_type: true,
+                },
+                &format!("{name}()"),
+            );
+        }
+        let file = self.ctx.index_of(&m.abs)?;
+        let fact = self.prov.call_result(file, name);
+        self.bind_fact(fact, &format!("{name}()"))
     }
 
     /// Phase 12: whether `name`, called with no arguments in `m`, returns a
@@ -1311,7 +1700,7 @@ impl<'r> Lowerer<'r> {
                 &label,
                 "a method of a repository object or class used as a wrapper is not analyzed",
             ),
-            Callee::Local(info) => analyze(&info, m),
+            Callee::Local(info) | Callee::Cached(info) => analyze(&info, m),
             Callee::Imported {
                 abs, rel, export, ..
             } => {
@@ -1329,6 +1718,10 @@ impl<'r> Lowerer<'r> {
                     Err(why) => wrapper::unknown(&label, why),
                 }
             }
+            Callee::Closure(c) => wrapper::unknown(
+                &label,
+                format!("a closure (`{}`) used as a wrapper is not analyzed", c.name),
+            ),
             Callee::Unresolvable(why) => wrapper::unknown(&label, why),
         }
     }
@@ -1367,21 +1760,45 @@ impl<'r> Lowerer<'r> {
                 // `...Database` type) is the root database handle.
                 if let Some(annotation) = &item.type_annotation {
                     let file = self.ctx.index_of(&module.abs);
-                    match crate::context::reference_name(&annotation.type_annotation) {
+                    let span = annotation.type_annotation.span();
+                    let written = module
+                        .source
+                        .get(span.start as usize..span.end as usize)
+                        .unwrap_or_default()
+                        .to_owned();
+                    // Phase 13: the type's provenance (computed types,
+                    // imported aliases, `PgWithReplicas`, ...).
+                    let fact = match crate::context::reference_name(&annotation.type_annotation) {
                         Some(t) if file.is_some_and(|f| self.ctx.is_database_type(f, &t)) => {
-                            self.declare(&name, Binding::Db);
-                            params.push(name);
-                            continue;
+                            HandleFact::Primary {
+                                origin: format!("the drizzle-orm database type `{t}`"),
+                                by_type: true,
+                            }
                         }
-                        _ => {
-                            let span = annotation.type_annotation.span();
-                            let written = module
-                                .source
-                                .get(span.start as usize..span.end as usize)
-                                .unwrap_or_default();
-                            self.param_types.insert(name.clone(), written.to_owned());
+                        _ => match file {
+                            Some(f) => {
+                                self.prov
+                                    .annotation(f, module.program, &annotation.type_annotation)
+                            }
+                            None => HandleFact::Unknown("the module is not analyzed".to_owned()),
+                        },
+                    };
+                    let why = match &fact {
+                        HandleFact::Unknown(why) => why.clone(),
+                        _ => String::new(),
+                    };
+                    let replicated = matches!(fact, HandleFact::Replicated(_));
+                    if let Some(binding) = self.bind_fact(fact, &format!("{name}: {written}")) {
+                        if replicated {
+                            self.assume(format!(
+                                "parameter `{name}: {written}` is taken to hold the database its type is computed from (type provenance; casts and other values of the same type are not tracked)"
+                            ));
                         }
+                        self.declare(&name, binding);
+                        params.push(name);
+                        continue;
                     }
+                    self.param_types.insert(name.clone(), (written, why));
                 }
                 self.declare(&name, Binding::Local(name.clone()));
                 params.push(name);
@@ -1462,12 +1879,13 @@ impl<'r> Lowerer<'r> {
                 continue;
             };
             let local = self.fresh(id.name.as_str());
+            let expr = self.read_prop(base.clone(), &key);
             self.emit(
                 m,
                 property.span,
                 Op::Let {
                     local: local.clone(),
-                    expr: Expr::Field(Box::new(base.clone()), key),
+                    expr,
                 },
             );
             self.declare(id.name.as_str(), Binding::Local(local));
@@ -1809,13 +2227,9 @@ impl<'r> Lowerer<'r> {
     /// else has an unknown number of iterations and is not modeled.
     fn for_of(&mut self, m: &Module<'_>, f: &oxc_ast::ast::ForOfStatement<'_>) {
         use oxc_ast::ast::ForStatementLeft;
-        let Expression::ArrayExpression(array) = f.right.get_inner_expression() else {
-            self.unknown_op(
-                m,
-                f.span,
-                "a loop over a collection of unknown length is not modeled (only `for (const x of [literal, ...])`)",
-            );
-            return;
+        let array = match f.right.get_inner_expression() {
+            Expression::ArrayExpression(array) => Some(array),
+            _ => None,
         };
         let name = match &f.left {
             ForStatementLeft::VariableDeclaration(d) if d.declarations.len() == 1 && !f.r#await => {
@@ -1835,6 +2249,17 @@ impl<'r> Lowerer<'r> {
                 self.unknown_op(m, f.span, "this `for...of` head is not modeled");
                 return;
             }
+        };
+        // Phase 14: a loop over a list value (JavaScript values only).
+        let Some(array) = array else {
+            if !self.for_of_value(m, f, &name) {
+                self.unknown_op(
+                    m,
+                    f.span,
+                    "a loop over a collection of unknown length is not modeled (only `for (const x of [literal, ...])`)",
+                );
+            }
+            return;
         };
         let mut elements = Vec::new();
         for element in &array.elements {
@@ -1894,7 +2319,7 @@ impl<'r> Lowerer<'r> {
 
     fn return_value(&mut self, m: &Module<'_>, argument: Option<&Expression<'_>>, span: Span) {
         let value = match argument {
-            None => Expr::Lit(Value::Null),
+            None => self.undef(),
             Some(arg) => match arg.get_inner_expression() {
                 Expression::AwaitExpression(a) => {
                     let res = self.call_value(m, &a.argument, true, Want::Scalar, a.span);
@@ -1912,6 +2337,11 @@ impl<'r> Lowerer<'r> {
         let ret = self.frame().rets.last().map(|r| (r.main, r.result.clone()));
         let (main, result) = ret.expect("a return target exists");
         if main {
+            // Phase 13: what the entry returns, when an invariant reads it
+            // (an expression not understood stays `Expr::Unknown`).
+            if self.request.return_values && self.cur == 0 {
+                self.emit(m, span, Op::ReturnValue { expr: value });
+            }
             self.emit(m, span, Op::Return);
         } else {
             // Returning from an inlined helper leaves its open `try` blocks.
@@ -1944,6 +2374,9 @@ impl<'r> Lowerer<'r> {
             Res::Affected(_) | Res::Aggregate { .. } | Res::Rows { .. } => {
                 Expr::Unknown("an array of rows used as a value".to_owned())
             }
+            Res::Fields(_) => Expr::Unknown(
+                "a validation result is only modeled through its properties".to_owned(),
+            ),
         }
     }
 
@@ -1990,14 +2423,8 @@ impl<'r> Lowerer<'r> {
             if let BindingPattern::BindingIdentifier(id) = &d.id {
                 let local = self.fresh(id.name.as_str());
                 self.declare(id.name.as_str(), Binding::Local(local.clone()));
-                self.emit(
-                    m,
-                    d.span,
-                    Op::Let {
-                        local,
-                        expr: Expr::Lit(Value::Null),
-                    },
-                );
+                let expr = self.undef();
+                self.emit(m, d.span, Op::Let { local, expr });
             } else {
                 self.unknown_op(m, d.span, "destructuring declaration without initializer");
             }
@@ -2013,14 +2440,24 @@ impl<'r> Lowerer<'r> {
             BindingPattern::BindingIdentifier(id) => {
                 let name = id.name.as_str();
                 // Phase 12: `const db = getDb()` (or `await getDb()`) of a
-                // database factory binds a root database handle.
-                if let Some(Expression::CallExpression(c)) =
-                    call.map(Expression::get_inner_expression)
-                    && c.arguments.is_empty()
-                    && let Expression::Identifier(f) = c.callee.get_inner_expression()
-                    && self.db_factory(m, f.name.as_str())
+                // database factory binds a root database handle. Phase 13:
+                // also `db.$primary`, `db.usePrimaryOnly()` of a replicated
+                // database and calls of functions whose result is a known
+                // database (`await connectDb()`).
+                if matches!(
+                    inner,
+                    Expression::CallExpression(_)
+                        | Expression::AwaitExpression(_)
+                        | Expression::StaticMemberExpression(_)
+                ) && let Some(handle) = self.handle_expr(m, inner)
                 {
-                    self.declare(name, Binding::Db);
+                    self.declare(name, handle);
+                    return;
+                }
+                // Phase 14: `const m = new Map()` / `new Set()`.
+                if let Expression::NewExpression(new) = inner
+                    && self.declare_collection(m, d, name, id.span, new).is_some()
+                {
                     return;
                 }
                 // Phase 12: `const repo = new Repository(tx)` of an analyzed
@@ -2040,6 +2477,7 @@ impl<'r> Lowerer<'r> {
                 if let Some(call) = call {
                     let res = self.call_value(m, call, awaited, Want::Scalar, init.span());
                     self.bind_result(m, &d.id, res, d.span, false);
+                    self.note_const_string(m, d.span, name);
                 } else if let Expression::Identifier(src) = inner
                     && self.handle_of(src.name.as_str()).is_some()
                 {
@@ -2085,9 +2523,25 @@ impl<'r> Lowerer<'r> {
                         },
                     );
                     self.declare(name, Binding::Local(local));
+                    self.note_const_string(m, d.span, name);
                 }
             }
             BindingPattern::ArrayPattern(array) => {
+                // Phase 14: `const [a, b] = list` (JavaScript values; the
+                // Phase 7 `const [row] = await query` form is kept).
+                let legacy = array.rest.is_none()
+                    && array.elements.len() == 1
+                    && array.elements[0].is_some()
+                    && awaited
+                    && call.is_some_and(|c| !self.js() || self.database_call(m, c));
+                if self.js() && !legacy {
+                    let value = match call {
+                        Some(call) => self.call_value(m, call, awaited, Want::Scalar, init.span()),
+                        None => Res::Value(self.value_of(m, init)),
+                    };
+                    self.destructure_list(m, array, value, d.span);
+                    return;
+                }
                 if array.rest.is_some() || array.elements.len() != 1 || array.elements[0].is_none()
                 {
                     self.unknown_op(
@@ -2136,12 +2590,13 @@ impl<'r> Lowerer<'r> {
                         continue;
                     };
                     let local = self.fresh(id.name.as_str());
+                    let expr = self.read_prop(base.clone(), &key);
                     self.emit(
                         m,
                         property.span,
                         Op::Let {
                             local: local.clone(),
-                            expr: Expr::Field(Box::new(base.clone()), key),
+                            expr,
                         },
                     );
                     self.declare(id.name.as_str(), Binding::Local(local));
@@ -2183,6 +2638,7 @@ impl<'r> Lowerer<'r> {
                         fields.insert(field, local);
                         self.declare(name, Binding::Virtual(fields));
                     }
+                    Res::Fields(fields) => self.declare(name, Binding::Virtual(fields)),
                     other => {
                         let value = match other {
                             Res::Unit => Expr::Lit(Value::Null),
@@ -2203,6 +2659,20 @@ impl<'r> Lowerer<'r> {
                 }
             }
             BindingPattern::ObjectPattern(object) => match res {
+                // Phase 14: `const { a } = schema.parse(x)` and other
+                // values: each property read once, in order.
+                Res::Value(e) => {
+                    let tmp = self.tmp("obj");
+                    self.emit(
+                        m,
+                        span,
+                        Op::Let {
+                            local: tmp.clone(),
+                            expr: e,
+                        },
+                    );
+                    self.destructure(m, object, Expr::Local(tmp), span);
+                }
                 Res::Aggregate { field, local } => {
                     for property in &object.properties {
                         match (static_key(&property.key), &property.value) {
@@ -2237,6 +2707,10 @@ impl<'r> Lowerer<'r> {
 
     fn expr(&mut self, m: &Module<'_>, e: &Expression<'_>, cx: Cx) -> Expr {
         let e = e.get_inner_expression();
+        // Phase 14: JavaScript values (inactive without `js_values`).
+        if let Some(value) = self.js_expr(m, e, cx) {
+            return value;
+        }
         match e {
             Expression::NumericLiteral(n) => match integer(n.value) {
                 Some(v) => Expr::lit(v),
@@ -2357,6 +2831,20 @@ impl<'r> Lowerer<'r> {
                     _ => Expr::Unknown("computed member access".to_owned()),
                 }
             }
+            // Phase 13: a template literal without interpolation is a string.
+            Expression::TemplateLiteral(t) if t.expressions.is_empty() && t.quasis.len() == 1 => {
+                match t.quasis[0].value.cooked.as_ref().and_then(|c| c.as_str()) {
+                    Some(text) => Expr::Lit(Value::Str(text.to_owned())),
+                    None => Expr::Unknown(
+                        "expression of kind `template literal` is not supported: an invalid escape"
+                            .to_owned(),
+                    ),
+                }
+            }
+            Expression::TemplateLiteral(_) => Expr::Unknown(
+                "expression of kind `template literal` is not supported: interpolation builds a string, and string concatenation is not modeled"
+                    .to_owned(),
+            ),
             Expression::AwaitExpression(a) => {
                 if cx.cond {
                     return Expr::Unknown(
@@ -2387,7 +2875,7 @@ impl<'r> Lowerer<'r> {
 
     fn identifier(&mut self, m: &Module<'_>, name: &str, cx: Cx) -> Expr {
         if name == "undefined" {
-            return Expr::Lit(Value::Null);
+            return self.undef();
         }
         match self.lookup(name) {
             Some(Binding::Local(local)) => Expr::Local(local),
@@ -2400,7 +2888,7 @@ impl<'r> Lowerer<'r> {
                     ))
                 }
             }
-            Some(Binding::Tx | Binding::Db) => {
+            Some(Binding::Tx | Binding::Db | Binding::Replicated(_) | Binding::UnknownDb(_)) => {
                 Expr::Unknown(format!("database handle `{name}` used as a value"))
             }
             Some(Binding::Virtual(_)) => Expr::Unknown(format!(
@@ -2419,6 +2907,17 @@ impl<'r> Lowerer<'r> {
             Some(Binding::Opaque) => Expr::Unknown(format!(
                 "the caught error `{name}` is not modeled (only that it was thrown)"
             )),
+            Some(Binding::Zod(_)) if cx.truthy => Expr::lit(true),
+            Some(Binding::Zod(_)) => Expr::Unknown(format!(
+                "the zod schema `{name}` is only modeled through `parse`/`safeParse`"
+            )),
+            // Phase 14: a function value is truthy; it is otherwise only
+            // modeled when called.
+            Some(Binding::Closure(_)) if cx.truthy => Expr::lit(true),
+            Some(Binding::Closure(c)) => Expr::Unknown(format!(
+                "the function `{name}` ({}) is only modeled when it is called",
+                c.name
+            )),
             Some(Binding::Object(_)) if cx.truthy => Expr::lit(true),
             Some(Binding::Object(_)) => Expr::Unknown(format!(
                 "the object `{name}` is only modeled through its properties"
@@ -2426,6 +2925,18 @@ impl<'r> Lowerer<'r> {
             None => {
                 if let Some(constant) = module_constant(m, name) {
                     return constant;
+                }
+                // Phase 14: a module-level array of literals (JavaScript
+                // value semantics only, so Phase 13 extraction is unchanged).
+                if self.request.js_values
+                    && let Some((list, readonly)) = module_list_constant(m, name)
+                {
+                    if readonly {
+                        self.assume(format!(
+                            "`{name}` is `as const` (a readonly tuple): it is not mutated (casts are not tracked)"
+                        ));
+                    }
+                    return list;
                 }
                 let _ = cx;
                 if self.table_ref(m, name).is_some() {
@@ -2476,7 +2987,7 @@ impl<'r> Lowerer<'r> {
                     return fields
                         .iter()
                         .find(|(k, _)| k == property)
-                        .map_or(Expr::Lit(Value::Null), |(_, e)| e.clone());
+                        .map_or_else(|| self.undef(), |(_, e)| e.clone());
                 }
                 None => {
                     if let Some(table) = self.table_ref(m, name) {
@@ -2521,33 +3032,43 @@ impl<'r> Lowerer<'r> {
             };
             let tmp = self.tmp("opt");
             let span = object.span();
+            let undefined = self.undef();
             self.emit(
                 m,
                 span,
                 Op::Let {
                     local: tmp.clone(),
-                    expr: Expr::Lit(Value::Null),
+                    expr: undefined,
                 },
             );
+            let cond = self.nullish(base.clone());
             let jump = self.emit(
                 m,
                 span,
                 Op::JumpIf {
-                    cond: Expr::IsNull(Box::new(base.clone())),
+                    cond,
                     target: usize::MAX,
                 },
             );
+            let expr = self.read_prop(base, property);
             self.emit(
                 m,
                 span,
                 Op::Let {
                     local: tmp.clone(),
-                    expr: Expr::Field(Box::new(base), property.to_owned()),
+                    expr,
                 },
             );
             let end = self.here();
             self.patch(jump, end);
             return Expr::Local(tmp);
+        }
+        // Phase 14: `a?.b.c` short-circuits the whole chain when `a` is
+        // nullish; only a single optional link is modeled.
+        if self.js() && has_optional_link(object) {
+            return Expr::Unknown(
+                "an optional chain with a link after `?.` is not modeled".to_owned(),
+            );
         }
         let base = self.expr(
             m,
@@ -2557,7 +3078,7 @@ impl<'r> Lowerer<'r> {
                 ..cx
             },
         );
-        Expr::Field(Box::new(base), property.to_owned())
+        self.read_prop(base, property)
     }
 
     /// `a || b`, `a && b`, `a ?? b` whose *value* is used: hoisted as
@@ -2595,9 +3116,7 @@ impl<'r> Lowerer<'r> {
         let skip = match l.operator {
             LogicalOperator::Or => Expr::Local(tmp.clone()),
             LogicalOperator::And => Expr::not(Expr::Local(tmp.clone())),
-            LogicalOperator::Coalesce => {
-                Expr::not(Expr::IsNull(Box::new(Expr::Local(tmp.clone()))))
-            }
+            LogicalOperator::Coalesce => Expr::not(self.nullish(Expr::Local(tmp.clone()))),
         };
         let jump = self.emit(
             m,
@@ -2680,6 +3199,10 @@ impl<'r> Lowerer<'r> {
                     };
                 }
             }
+        }
+        // Phase 14: loose equality and string concatenation.
+        if let Some(value) = self.js_binary(m, b, cx) {
+            return value;
         }
         let left = self.expr(
             m,
@@ -2765,6 +3288,11 @@ impl<'r> Lowerer<'r> {
                 "`await` of something other than a direct call is not supported",
             );
         };
+        // Phase 14: built-in methods on values (inactive without
+        // `js_values`).
+        if let Some(res) = self.value_method(m, call, want, call.span) {
+            return res;
+        }
         let text = callee_text(&call.callee);
         if text.as_deref() == Some("Promise.all") {
             return self.promise_all(m, call, awaited, want);
@@ -2776,14 +3304,20 @@ impl<'r> Lowerer<'r> {
                 "select" | "insert" | "update" | "delete" | "transaction" | "execute"
             )
             && self.frames.len() == 1
-            && let Some(ty) = self.param_types.get(&root).cloned()
+            && let Some((ty, why)) = self.param_types.get(&root).cloned()
         {
             return self.unknown_op(
                 m,
                 call.span,
-                format!(
-                    "database handle of an unresolved type: parameter `{root}: {ty}` is not a drizzle-orm database type (its operations are not bound)"
-                ),
+                if why.is_empty() {
+                    format!(
+                        "database handle of an unresolved type: parameter `{root}: {ty}` is not a drizzle-orm database type (its operations are not bound)"
+                    )
+                } else {
+                    format!(
+                        "database handle of an unresolved type: parameter `{root}: {ty}` is not a drizzle-orm database type (its operations are not bound): {why}"
+                    )
+                },
             );
         }
         if let Some((root, mut steps)) = flatten(e)
@@ -2798,7 +3332,7 @@ impl<'r> Lowerer<'r> {
         if let Some((root, steps)) = flatten(e)
             && root != "this"
             && let Some(handle) = match root.strip_suffix("()") {
-                Some(factory) => self.db_factory(m, factory).then_some(Binding::Db),
+                Some(factory) => self.factory_handle(m, factory, true),
                 None => self.handle_of(&root),
             }
         {
@@ -2836,6 +3370,32 @@ impl<'r> Lowerer<'r> {
             };
             return self.transaction(m, call.span, &Binding::Db, &step, want, Some(&binding));
         }
+        // Phase 14: `schema.parse(x)` / `schema.safeParse(x)` of a zod
+        // schema the extractor can read.
+        if let Expression::StaticMemberExpression(member) = call.callee.get_inner_expression()
+            && matches!(member.property.name.as_str(), "parse" | "safeParse")
+            && let Some(schema) = self.zod_schema(m, &member.object)
+        {
+            let safe = member.property.name == "safeParse";
+            return match schema {
+                Ok(schema) => match call.arguments.first().and_then(|a| a.as_expression()) {
+                    Some(input) if call.arguments.len() == 1 => {
+                        let input = self.expr(m, input, TOP);
+                        self.zod_parse(m, call.span, &schema, input, safe)
+                    }
+                    _ => {
+                        self.unknown_op(m, call.span, "a zod `parse` with other than one argument")
+                    }
+                },
+                Err(why) => {
+                    let detail = match self.package_contract(m, &call.callee) {
+                        Some(contract) => format!("{contract}; the schema is not modeled: {why}"),
+                        None => format!("zod schema not modeled: {why}"),
+                    };
+                    self.unknown_op(m, call.span, detail)
+                }
+            };
+        }
         match self.resolve_callee(m, &call.callee) {
             Callee::Method {
                 abs,
@@ -2845,20 +3405,130 @@ impl<'r> Lowerer<'r> {
                 label,
             } => self.inline_method(m, &abs, &rel, &method, this, &label, call, awaited, want),
             Callee::Local(info) => self.inline(m, &info, m, call, awaited, want),
+            Callee::Cached(info) => match self.first_cached_call(m, &info.name) {
+                Ok(()) => self.inline(m, &info, m, call, awaited, want),
+                Err(why) => self.unknown_op(m, call.span, why),
+            },
             Callee::Imported {
                 abs,
                 rel,
                 export,
                 label,
             } => self.inline_imported(m, &abs, &rel, &export, &label, call, awaited, want),
-            Callee::Unresolvable(reason) => self.unknown_op(
-                m,
-                call.span,
-                format!(
-                    "call to `{}`: {reason}",
-                    text.as_deref().unwrap_or("<expression>")
-                ),
-            ),
+            Callee::Closure(c) => self.call_closure(m, &c, call, awaited, want),
+            Callee::Unresolvable(reason) => {
+                // Phase 13: a package call covered by a verified contract
+                // stays unknown, with the contract named; Phase 14: unless
+                // its result is a fresh random value (a generation event).
+                if let Some((contract, detail)) = self.package_call(m, &call.callee) {
+                    if contract.modeled == crate::packages::Modeled::FreshValue
+                        && !contract.is_async
+                    {
+                        let local = self.tmp("gen");
+                        self.emit(
+                            m,
+                            call.span,
+                            Op::Generate {
+                                local: local.clone(),
+                                source: text.clone().unwrap_or_default(),
+                            },
+                        );
+                        self.assume(format!(
+                            "generated-values-distinct: `{}` returns a fresh value, distinct from every other value ({})",
+                            text.as_deref().unwrap_or("<call>"),
+                            contract.source
+                        ));
+                        return Res::Value(Expr::Local(local));
+                    }
+                    return self.unknown_op(m, call.span, detail);
+                }
+                self.unknown_op(
+                    m,
+                    call.span,
+                    format!(
+                        "call to `{}`: {reason}",
+                        text.as_deref().unwrap_or("<expression>")
+                    ),
+                )
+            }
+        }
+    }
+
+    /// Phase 13: the contract detail of a package call (`crate::packages`):
+    /// an export of a package (`hash` of `bcryptjs`, `bcrypt.hash` of a
+    /// default or namespace import) or a method of a module-level value
+    /// built by a package (`schema.safeParse` of a zod schema).
+    fn package_contract(&mut self, m: &Module<'_>, callee: &Expression<'_>) -> Option<String> {
+        self.package_call(m, callee).map(|(_, detail)| detail)
+    }
+
+    /// Phase 14: the contract of a package call and its unknown-operation
+    /// detail.
+    fn package_call(
+        &mut self,
+        m: &Module<'_>,
+        callee: &Expression<'_>,
+    ) -> Option<(&'static crate::packages::Contract, String)> {
+        match callee.get_inner_expression() {
+            Expression::Identifier(id) => {
+                let name = id.name.as_str();
+                if self.frames.is_empty() || self.lookup(name).is_some() {
+                    return None;
+                }
+                let ImportRef::Named {
+                    source,
+                    name: export,
+                } = find_import(m, name)?
+                else {
+                    return None;
+                };
+                let c = crate::packages::export_contract(&source, &export)?;
+                if !matches!(self.ctx.resolve(&m.abs, &source), Resolution::Package) {
+                    return None;
+                }
+                Some((c, crate::packages::describe(c, name, &source)))
+            }
+            Expression::StaticMemberExpression(member) => {
+                let Expression::Identifier(object) = member.object.get_inner_expression() else {
+                    return None;
+                };
+                let object = object.name.as_str();
+                let method = member.property.name.as_str();
+                if self.frames.is_empty() || self.lookup(object).is_some() {
+                    return None;
+                }
+                let written = format!("{object}.{method}");
+                match find_import(m, object) {
+                    Some(ImportRef::Default { source } | ImportRef::Namespace { source }) => {
+                        let c = crate::packages::export_contract(&source, method)?;
+                        if !matches!(self.ctx.resolve(&m.abs, &source), Resolution::Package) {
+                            return None;
+                        }
+                        Some((c, crate::packages::describe(c, &written, &source)))
+                    }
+                    _ => {
+                        let file = self.ctx.index_of(&m.abs)?;
+                        let Ok(Resolved::Binding { file, local }) =
+                            self.ctx.resolve_local(file, object)
+                        else {
+                            return None;
+                        };
+                        let abs = self.ctx.files[file].clone();
+                        let text = self.ctx.source(&abs).ok()?;
+                        let allocator = Allocator::default();
+                        let program = load(&allocator, &abs, &text).ok()?;
+                        let module = Module::new(&abs, self.ctx.rel(&abs), &text, &program);
+                        let init = const_initializer(&program, &local)?;
+                        let source = package_chain_root(&module, init)?;
+                        let c = crate::packages::method_contract(&source, method)?;
+                        if !matches!(self.ctx.resolve(&abs, &source), Resolution::Package) {
+                            return None;
+                        }
+                        Some((c, crate::packages::describe(c, &written, &source)))
+                    }
+                }
+            }
+            _ => None,
         }
     }
 
@@ -2997,8 +3667,37 @@ impl<'r> Lowerer<'r> {
         match callee {
             Expression::Identifier(id) => {
                 let name = id.name.as_str();
+                // Phase 14: a local binding shadows module functions.
+                if let Some(Binding::Closure(c)) =
+                    self.frames.last().and_then(|_| self.lookup(name))
+                {
+                    return Callee::Closure(c);
+                }
                 if let Some(info) = find_function(m, name) {
                     return Callee::Local(info);
+                }
+                // Phase 13: `const name = other` in this module: the alias
+                // is resolved as `other` (bounded: aliases of aliases).
+                let mut name = name.to_owned();
+                for _ in 0..8 {
+                    if find_import(m, &name).is_some() {
+                        break;
+                    }
+                    let Some(target) = alias_target(m.program, &name) else {
+                        break;
+                    };
+                    if let Some(info) = find_function(m, &target) {
+                        self.assume(format!(
+                            "`{}` is an alias of the function `{target}` (`const {} = {target}`)",
+                            id.name, id.name
+                        ));
+                        return Callee::Local(info);
+                    }
+                    name = target;
+                }
+                let name = name.as_str();
+                if let Some(info) = react_cache_fn(m, name) {
+                    return Callee::Cached(info);
                 }
                 match find_import(m, name) {
                     Some(ImportRef::Named { source, name: export }) => {
@@ -3067,7 +3766,9 @@ impl<'r> Lowerer<'r> {
 
     fn this_field_handle(&self, field: &str) -> Option<Binding> {
         match self.frames.last()?.this.as_ref()?.fields.get(field)? {
-            b @ (Binding::Db | Binding::Tx) => Some(b.clone()),
+            b @ (Binding::Db | Binding::Tx | Binding::Replicated(_) | Binding::UnknownDb(_)) => {
+                Some(b.clone())
+            }
             _ => None,
         }
     }
@@ -3142,24 +3843,26 @@ impl<'r> Lowerer<'r> {
                 let module = Module::new(&abs, self.ctx.rel(&abs), &text, &program);
                 // Constructor arguments of a module-level instance: handles
                 // only (the module's database receivers, or a factory call).
-                let args: Vec<Option<Binding>> = new
-                    .arguments
-                    .iter()
-                    .map(|a| match a.as_expression().map(Expression::get_inner_expression) {
-                        Some(Expression::Identifier(id))
-                            if self.receivers.iter().any(|r| r == id.name.as_str()) =>
-                        {
-                            Some(Binding::Db)
+                let mut args: Vec<Option<Binding>> = Vec::new();
+                for a in &new.arguments {
+                    let handle = match a.as_expression().map(Expression::get_inner_expression) {
+                        Some(Expression::Identifier(id)) => {
+                            self.module_handle(&abs, id.name.as_str())
                         }
-                        Some(Expression::CallExpression(c))
-                            if c.arguments.is_empty()
-                                && matches!(c.callee.get_inner_expression(), Expression::Identifier(f) if self.db_factory(&module, f.name.as_str())) =>
-                        {
-                            Some(Binding::Db)
+                        Some(Expression::CallExpression(c)) => {
+                            match c.callee.get_inner_expression() {
+                                Expression::Identifier(f) => self.factory_handle(
+                                    &module,
+                                    f.name.as_str(),
+                                    c.arguments.is_empty(),
+                                ),
+                                _ => None,
+                            }
                         }
                         _ => None,
-                    })
-                    .collect();
+                    };
+                    args.push(handle);
+                }
                 match self.class_this(&module, &new.callee, args) {
                     Ok(this) => self.method_callee(this, method, name),
                     Err(why) => unresolved(why),
@@ -3183,19 +3886,8 @@ impl<'r> Lowerer<'r> {
             let Some(e) = a.as_expression() else {
                 return Err("spread argument".to_owned());
             };
-            let inner = e.get_inner_expression();
-            if let Expression::Identifier(id) = inner
-                && let Some(h) = self.handle_of(id.name.as_str())
-            {
+            if let Some(h) = self.handle_expr(m, e) {
                 args.push(Some(h));
-            } else if let Some(h) = self.this_handle(inner) {
-                args.push(Some(h));
-            } else if let Expression::CallExpression(c) = inner
-                && c.arguments.is_empty()
-                && let Expression::Identifier(f) = c.callee.get_inner_expression()
-                && self.db_factory(m, f.name.as_str())
-            {
-                args.push(Some(Binding::Db));
             } else {
                 let value = self.expr(m, e, TOP);
                 let local = self.tmp("field");
@@ -3370,6 +4062,25 @@ impl<'r> Lowerer<'r> {
         result
     }
 
+    /// Phase 13: a call of a React `cache`d function. The first call of an
+    /// actor is taken to run the wrapped function (an assumption: no earlier
+    /// call in the same request); a later call returns the memoized result,
+    /// which is not modeled.
+    fn first_cached_call(&mut self, module: &Module<'_>, name: &str) -> Result<(), String> {
+        let key = (module.abs.clone(), name.to_owned());
+        if !self.cached_calls.insert(key) {
+            return Err(format!(
+                "a repeated call of `{name}` (React `cache`) returns the memoized result of an earlier call, which is not modeled"
+            ));
+        }
+        self.assume(format!(
+            "`{name}` of `{}` is React `cache(fn)` ({}): the actor's first call is taken to run `fn` (no earlier call with the same arguments in the same request)",
+            module.rel,
+            crate::packages::REACT_CACHE_CONTRACT
+        ));
+        Ok(())
+    }
+
     fn callee_import<'a>(
         &mut self,
         m: &Module<'_>,
@@ -3443,6 +4154,68 @@ impl<'r> Lowerer<'r> {
         let info = match find_resolved(&module, export) {
             Ok(info) => info,
             Err(why) => {
+                // Phase 13: `export const f = cache(async () => ...)` of
+                // React: the wrapped function runs on the first call.
+                if let Some(info) = react_cache_fn(&module, export) {
+                    return match self.first_cached_call(&module, export) {
+                        Ok(()) => self.inline(caller, &info, &module, call, awaited, want),
+                        Err(why) => self.unknown_op(caller, call.span, why),
+                    };
+                }
+                // Phase 13: `export const a = b`: an alias of a function of
+                // this module or of one it imports.
+                if self.alias_hops < 8
+                    && let Some(mut target) = alias_target(module.program, export)
+                {
+                    // Aliases of aliases within the module (bounded).
+                    for _ in 0..8 {
+                        if find_function(&module, &target).is_some()
+                            || find_import(&module, &target).is_some()
+                        {
+                            break;
+                        }
+                        match alias_target(module.program, &target) {
+                            Some(next) => target = next,
+                            None => break,
+                        }
+                    }
+                    if let Some(info) = find_function(&module, &target) {
+                        self.assume(format!(
+                            "`{label}` is an alias of the function `{target}` of `{rel}`"
+                        ));
+                        return self.inline(caller, &info, &module, call, awaited, want);
+                    }
+                    let callee = match find_import(&module, &target) {
+                        Some(ImportRef::Named { source, name }) => {
+                            self.callee_import(&module, &source, name, label)
+                        }
+                        Some(ImportRef::Default { source }) => {
+                            self.callee_import(&module, &source, "default".to_owned(), label)
+                        }
+                        _ => Callee::Unresolvable(why.clone()),
+                    };
+                    if let Callee::Imported {
+                        abs: target_abs,
+                        rel: target_rel,
+                        export: target_export,
+                        ..
+                    } = callee
+                    {
+                        self.alias_hops += 1;
+                        let result = self.inline_imported(
+                            caller,
+                            &target_abs,
+                            &target_rel,
+                            &target_export,
+                            label,
+                            call,
+                            awaited,
+                            want,
+                        );
+                        self.alias_hops -= 1;
+                        return result;
+                    }
+                }
                 return self.unknown_op(caller, call.span, format!("call to `{label}`: {why}"));
             }
         };
@@ -3451,6 +4224,349 @@ impl<'r> Lowerer<'r> {
 
     /// Inline `info` (declared in `callee_module`) at `call` (written in
     /// `caller`).
+    /// Phase 14: the zod schema `e` denotes (a parameter bound to one, a
+    /// module-level or imported `const` built from zod, or a builder chain
+    /// written in place); `None` when `e` is not a zod schema at all.
+    fn zod_schema(
+        &mut self,
+        m: &Module<'_>,
+        e: &Expression<'_>,
+    ) -> Option<Result<crate::zod::Schema, String>> {
+        struct InModule<'m, 'a> {
+            module: &'m Module<'a>,
+        }
+        impl<'a> crate::zod::Names<'a> for InModule<'_, 'a> {
+            fn is_zod(&self, name: &str) -> bool {
+                matches!(find_import(self.module, name),
+                    Some(ImportRef::Named { source, .. } | ImportRef::Namespace { source })
+                        if crate::packages::is_zod(&source))
+            }
+            fn constant(&self, name: &str) -> Option<&'a Expression<'a>> {
+                const_initializer(self.module.program, name)
+            }
+        }
+        let is_zod_chain = |module: &Module<'_>, init: &Expression<'_>| {
+            package_chain_root(module, init).is_some_and(|s| crate::packages::is_zod(&s))
+        };
+        match e.get_inner_expression() {
+            Expression::Identifier(id) => {
+                let name = id.name.as_str();
+                match self.frames.last().and_then(|_| self.lookup(name)) {
+                    Some(Binding::Zod(schema)) => return Some(*schema),
+                    Some(_) => return None,
+                    None => {}
+                }
+                if let Some(init) = const_initializer(m.program, name) {
+                    return is_zod_chain(m, init)
+                        .then(|| crate::zod::interpret(init, &InModule { module: m }));
+                }
+                // An imported schema.
+                let file = self.ctx.index_of(&m.abs)?;
+                let Ok(Resolved::Binding { file, local }) = self.ctx.resolve_local(file, name)
+                else {
+                    return None;
+                };
+                let abs = self.ctx.files[file].clone();
+                let text = self.ctx.source(&abs).ok()?;
+                let allocator = Allocator::default();
+                let program = load(&allocator, &abs, &text).ok()?;
+                let module = Module::new(&abs, self.ctx.rel(&abs), &text, &program);
+                let init = const_initializer(module.program, &local)?;
+                is_zod_chain(&module, init)
+                    .then(|| crate::zod::interpret(init, &InModule { module: &module }))
+            }
+            Expression::CallExpression(_) if is_zod_chain(m, e) => {
+                let _ = e;
+                None
+            }
+            _ => None,
+        }
+    }
+
+    /// Phase 14: `schema.parse(input)` (`safe`: `safeParse`): the
+    /// validation as explicit steps (type tests, the string checks and
+    /// rewrites in declaration order, the object's keys), then the parsed
+    /// value. `parse` throws when a check fails; `safeParse` yields
+    /// `{ success, data }` (its `error` is not modeled).
+    fn zod_parse(
+        &mut self,
+        m: &Module<'_>,
+        span: Span,
+        schema: &crate::zod::Schema,
+        input: Expr,
+        safe: bool,
+    ) -> Res {
+        let value = self.tmp("zin");
+        self.emit(
+            m,
+            span,
+            Op::Let {
+                local: value.clone(),
+                expr: input,
+            },
+        );
+        let (success, data) = (self.tmp("zok"), self.tmp("zout"));
+        if safe {
+            self.emit(
+                m,
+                span,
+                Op::Let {
+                    local: data.clone(),
+                    expr: Expr::Lit(Value::Null),
+                },
+            );
+        }
+        let mut fails = Vec::new();
+        let out = self.zod_validate(m, span, schema, Expr::Local(value), &mut fails);
+        self.emit(
+            m,
+            span,
+            Op::Let {
+                local: data.clone(),
+                expr: out,
+            },
+        );
+        if safe {
+            self.emit(
+                m,
+                span,
+                Op::Let {
+                    local: success.clone(),
+                    expr: Expr::lit(true),
+                },
+            );
+        }
+        let done = self.emit(m, span, Op::Jump { target: 0 });
+        let fail = self.here();
+        for at in fails {
+            self.patch(at, fail);
+        }
+        if safe {
+            self.emit(
+                m,
+                span,
+                Op::Let {
+                    local: success.clone(),
+                    expr: Expr::lit(false),
+                },
+            );
+        } else {
+            self.emit(
+                m,
+                span,
+                Op::Throw {
+                    message: "ZodError: the input does not match the schema".to_owned(),
+                },
+            );
+        }
+        let end = self.here();
+        self.patch(done, end);
+        if safe {
+            let mut fields = BTreeMap::new();
+            fields.insert("success".to_owned(), success);
+            fields.insert("data".to_owned(), data);
+            Res::Fields(fields)
+        } else {
+            Res::Value(Expr::Local(data))
+        }
+    }
+
+    fn zod_validate(
+        &mut self,
+        m: &Module<'_>,
+        span: Span,
+        schema: &crate::zod::Schema,
+        value: Expr,
+        fails: &mut Vec<(usize, usize)>,
+    ) -> Expr {
+        use crate::zod::{NumCheck, Schema, StrCheck};
+        let type_of = |v: &Expr, t: &str| {
+            Expr::eq(
+                Expr::Call {
+                    func: commitrift_model::value::Builtin::TypeOf,
+                    args: vec![v.clone()],
+                },
+                Expr::lit(t),
+            )
+        };
+        let call = |func, args: Vec<Expr>| Expr::Call { func, args };
+        let mut require = |this: &mut Self, ok: Expr| {
+            fails.push(this.emit(
+                m,
+                span,
+                Op::JumpIf {
+                    cond: Expr::not(ok),
+                    target: 0,
+                },
+            ));
+        };
+        use commitrift_model::value::Builtin as B;
+        match schema {
+            Schema::Str(checks) => {
+                require(self, type_of(&value, "string"));
+                let mut cur = value;
+                for check in checks {
+                    let len = || call(B::Length, vec![cur.clone()]);
+                    match check {
+                        StrCheck::Min(n) => {
+                            require(self, Expr::bin(BinOp::Ge, len(), Expr::lit(*n)))
+                        }
+                        StrCheck::Max(n) => {
+                            require(self, Expr::bin(BinOp::Le, len(), Expr::lit(*n)))
+                        }
+                        StrCheck::Length(n) => require(self, Expr::eq(len(), Expr::lit(*n))),
+                        StrCheck::StartsWith(t) => require(
+                            self,
+                            call(B::StartsWith, vec![cur.clone(), Expr::lit(t.as_str())]),
+                        ),
+                        StrCheck::EndsWith(t) => require(
+                            self,
+                            call(B::EndsWith, vec![cur.clone(), Expr::lit(t.as_str())]),
+                        ),
+                        StrCheck::Includes(t) => require(
+                            self,
+                            call(B::Includes, vec![cur.clone(), Expr::lit(t.as_str())]),
+                        ),
+                        StrCheck::Trim | StrCheck::Lower | StrCheck::Upper => {
+                            let func = match check {
+                                StrCheck::Trim => B::Trim,
+                                StrCheck::Lower => B::ToLowerCase,
+                                _ => B::ToUpperCase,
+                            };
+                            let next = self.tmp("zstr");
+                            self.emit(
+                                m,
+                                span,
+                                Op::Let {
+                                    local: next.clone(),
+                                    expr: call(func, vec![cur]),
+                                },
+                            );
+                            cur = Expr::Local(next);
+                        }
+                    }
+                }
+                cur
+            }
+            Schema::Num(checks) => {
+                require(self, type_of(&value, "number"));
+                for check in checks {
+                    let (op, n) = match check {
+                        NumCheck::Ge(n) => (BinOp::Ge, n),
+                        NumCheck::Gt(n) => (BinOp::Gt, n),
+                        NumCheck::Le(n) => (BinOp::Le, n),
+                        NumCheck::Lt(n) => (BinOp::Lt, n),
+                    };
+                    require(self, Expr::bin(op, value.clone(), Expr::lit(*n)));
+                }
+                value
+            }
+            Schema::Bool => {
+                require(self, type_of(&value, "boolean"));
+                value
+            }
+            Schema::Literal(v) => {
+                require(self, Expr::eq(value.clone(), Expr::Lit(v.clone())));
+                value
+            }
+            Schema::Enum(items) => {
+                require(self, type_of(&value, "string"));
+                let any = items
+                    .iter()
+                    .map(|i| Expr::eq(value.clone(), Expr::lit(i.as_str())))
+                    .reduce(|a, b| Expr::bin(BinOp::Or, a, b))
+                    .unwrap_or(Expr::lit(false));
+                require(self, any);
+                value
+            }
+            Schema::Object(fields) => {
+                require(
+                    self,
+                    Expr::bin(
+                        BinOp::And,
+                        type_of(&value, "object"),
+                        Expr::bin(BinOp::Ne, value.clone(), Expr::Lit(Value::Null)),
+                    ),
+                );
+                self.assume(
+                    "a zod object schema's input is assumed not to be an array (zod rejects arrays; the model's object test does not distinguish them)",
+                );
+                let mut out = Vec::new();
+                for (key, sub) in fields {
+                    let field = self.tmp("zfield");
+                    self.emit(
+                        m,
+                        span,
+                        Op::Let {
+                            local: field.clone(),
+                            expr: Expr::field(value.clone(), key),
+                        },
+                    );
+                    let parsed = self.zod_validate(m, span, sub, Expr::Local(field), fails);
+                    out.push((key.clone(), parsed));
+                }
+                Expr::Object(out)
+            }
+        }
+    }
+
+    /// Phase 14: an arrow function or function expression as a value: a
+    /// closure over the current scopes.
+    fn closure_value(&mut self, m: &Module<'_>, e: &Expression<'_>) -> Option<Binding> {
+        let span = match e.get_inner_expression() {
+            Expression::ArrowFunctionExpression(a) => a.span,
+            Expression::FunctionExpression(f) if f.body.is_some() => f.span,
+            _ => return None,
+        };
+        let at = self.src(m, span);
+        Some(Binding::Closure(Box::new(Closure {
+            abs: m.abs.clone(),
+            rel: m.rel.clone(),
+            span,
+            name: format!("<closure@{}:{}>", at.line, at.column),
+            scopes: self.frame().scopes.clone(),
+            this: self.frame().this.clone(),
+        })))
+    }
+
+    /// Phase 14: a call of a closure: its body is inlined here, in the
+    /// scopes of its definition (a callback runs when, and as often as, the
+    /// code that received it calls it; nothing is assumed about callbacks
+    /// that are never called).
+    fn call_closure(
+        &mut self,
+        caller: &Module<'_>,
+        c: &Closure,
+        call: &oxc_ast::ast::CallExpression<'_>,
+        awaited: bool,
+        want: Want,
+    ) -> Res {
+        let source = match self.ctx.source(&c.abs) {
+            Ok(s) => s,
+            Err(e) => {
+                return self.unknown_op(caller, call.span, format!("call of `{}`: {e}", c.name));
+            }
+        };
+        let allocator = Allocator::default();
+        let program = match load(&allocator, &c.abs, &source) {
+            Ok(p) => p,
+            Err(e) => {
+                return self.unknown_op(caller, call.span, format!("call of `{}`: {e}", c.name));
+            }
+        };
+        let module = Module::new(&c.abs, c.rel.clone(), &source, &program);
+        let Some(info) = closure_at(module.program, c.span, &c.name) else {
+            return self.unknown_op(
+                caller,
+                call.span,
+                format!("call of `{}`: the function node was not found", c.name),
+            );
+        };
+        self.pending_this = c.this.clone();
+        self.pending_scopes = Some(c.scopes.clone());
+        self.inline(caller, &info, &module, call, awaited, want)
+    }
+
     fn inline(
         &mut self,
         caller: &Module<'_>,
@@ -3462,6 +4578,8 @@ impl<'r> Lowerer<'r> {
     ) -> Res {
         // Phase 12: `this` of an inlined method (set by `inline_method`).
         let receiver = self.pending_this.take();
+        // Phase 14: the scopes a closure closed over (set by `call_closure`).
+        let captured = self.pending_scopes.take();
         let key = (callee_module.abs.clone(), info.name.clone());
         if self.frames.iter().any(|f| f.key == key) {
             return self.unknown_op(
@@ -3490,7 +4608,15 @@ impl<'r> Lowerer<'r> {
         if !awaited && info.is_async && want == Want::Discard {
             // Fire-and-forget: a detached task running the helper.
             let (child, ()) = self.with_child(caller, call.span, move |this| {
-                this.inline_here(caller, info, callee_module, call, Want::Discard, receiver);
+                this.inline_here(
+                    caller,
+                    info,
+                    callee_module,
+                    call,
+                    Want::Discard,
+                    receiver,
+                    captured,
+                );
             });
             self.emit(
                 caller,
@@ -3512,9 +4638,10 @@ impl<'r> Lowerer<'r> {
                 ),
             );
         }
-        self.inline_here(caller, info, callee_module, call, want, receiver)
+        self.inline_here(caller, info, callee_module, call, want, receiver, captured)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn inline_here(
         &mut self,
         caller: &Module<'_>,
@@ -3523,18 +4650,18 @@ impl<'r> Lowerer<'r> {
         call: &oxc_ast::ast::CallExpression<'_>,
         want: Want,
         this: Option<ThisBinding>,
+        captured: Option<Vec<HashMap<String, Binding>>>,
     ) -> Res {
         // Evaluate the arguments in the caller's frame.
         let mut args: Vec<ArgVal> = Vec::new();
         for argument in &call.arguments {
             match argument.as_expression() {
                 Some(expression) => {
-                    let inner = expression.get_inner_expression();
-                    if let Expression::Identifier(id) = inner
-                        && let Some(handle) = self.handle_of(id.name.as_str())
-                    {
-                        args.push(ArgVal::Handle(handle));
-                    } else if let Some(handle) = self.this_handle(inner) {
+                    if let Some(closure) = self.closure_value(caller, expression) {
+                        args.push(ArgVal::Handle(closure));
+                    } else if let Some(schema) = self.zod_schema(caller, expression) {
+                        args.push(ArgVal::Handle(Binding::Zod(Box::new(schema))));
+                    } else if let Some(handle) = self.handle_expr(caller, expression) {
                         args.push(ArgVal::Handle(handle));
                     } else {
                         args.push(ArgVal::Expr(self.expr(caller, expression, TOP)));
@@ -3553,19 +4680,23 @@ impl<'r> Lowerer<'r> {
         // The return slot belongs to the call site: its source is the call
         // in the caller's module (Phase 12; before, the caller's span was
         // resolved in the callee's file, which named an unrelated line).
+        let undefined = self.undef();
         self.emit(
             caller,
             call.span,
             Op::Let {
                 local: result.clone(),
-                expr: Expr::Lit(Value::Null),
+                expr: undefined,
             },
         );
+        // A closure's body sees the scopes it closed over, then its own.
+        let mut scopes = captured.unwrap_or_default();
+        scopes.push(HashMap::new());
         self.frames.push(Frame {
             function: info.name.clone(),
             file: callee_module.rel.clone(),
             prefix,
-            scopes: vec![HashMap::new()],
+            scopes,
             rets: vec![Ret {
                 result: result.clone(),
                 patches: Vec::new(),
@@ -3612,7 +4743,7 @@ impl<'r> Lowerer<'r> {
                         Some(ArgVal::Expr(e)) => e,
                         _ => match &item.initializer {
                             Some(default) => self.expr(callee_module, default, TOP),
-                            None => Expr::Lit(Value::Null),
+                            None => self.undef(),
                         },
                     };
                     let local = self.fresh(name);
@@ -3662,6 +4793,83 @@ impl<'r> Lowerer<'r> {
         awaited: bool,
         want: Want,
     ) -> Res {
+        // Phase 13: a replicated database routes each operation to the
+        // primary or to a replica.
+        if let Binding::UnknownDb(why) = &handle {
+            return self.unknown_op(
+                m,
+                span,
+                format!("database handle of an unresolved type: {why}"),
+            );
+        }
+        let mut handle = handle;
+        let mut steps = steps;
+        let mut replica_read = false;
+        if let Binding::Replicated(routing) = &handle {
+            let routing = routing.as_ref().clone();
+            match self.route(&routing, steps) {
+                Route::Primary(skip, path_skip) => {
+                    handle = Binding::Db;
+                    steps = &steps[skip..];
+                    if path_skip {
+                        // `db.$primary.<...>`: the property is the first path
+                        // segment of the first step.
+                        let first = &steps[0];
+                        let rest = ChainStep {
+                            path: first.path[1..].to_vec(),
+                            method: first.method.clone(),
+                            args: first.args,
+                        };
+                        let mut owned = vec![rest];
+                        owned.extend(steps[1..].iter().map(|s| ChainStep {
+                            path: s.path.clone(),
+                            method: s.method.clone(),
+                            args: s.args,
+                        }));
+                        return self.database(m, span, root, Binding::Db, &owned, awaited, want);
+                    }
+                }
+                Route::Replica => {
+                    let written = format!(
+                        "`{root}.{}{}(...)`",
+                        steps[0]
+                            .path
+                            .iter()
+                            .map(|p| format!("{p}."))
+                            .collect::<String>(),
+                        steps[0].method
+                    );
+                    if routing.ambiguous {
+                        return self.unknown_op(
+                            m,
+                            span,
+                            format!(
+                                "read through a read replica or the primary (the handle's routing is ambiguous): {written}: {}",
+                                routing.origin
+                            ),
+                        );
+                    }
+                    if !self.request.replicas {
+                        return self.unknown_op(
+                            m,
+                            span,
+                            format!(
+                                "read through a read replica (replica modeling not enabled): {written} of a replicated database ({})",
+                                routing.origin
+                            ),
+                        );
+                    }
+                    replica_read = true;
+                }
+                Route::Unknown(why) => {
+                    return self.unknown_op(
+                        m,
+                        span,
+                        format!("database handle of a replicated database: {why}"),
+                    );
+                }
+            }
+        }
         let first = &steps[0];
         if first.method == "transaction" && first.path.is_empty() && steps.len() == 1 {
             if !awaited {
@@ -3684,6 +4892,7 @@ impl<'r> Lowerer<'r> {
         }
         let conn = match handle {
             Binding::Tx => Conn::Tx,
+            _ if replica_read => Conn::Replica,
             _ => Conn::Pool,
         };
         if first.method == "execute" && first.path.is_empty() {
@@ -3714,6 +4923,49 @@ impl<'r> Lowerer<'r> {
                 format!("`{root}.{other}(...)` is not part of the supported Drizzle subset"),
             ),
         }
+    }
+
+    /// Phase 13: where an operation through a replicated database runs.
+    fn route(&self, routing: &Routing, steps: &[ChainStep<'_, '_>]) -> Route {
+        let first = &steps[0];
+        if let Some(p) = first.path.first()
+            && routing.primary_properties.iter().any(|x| x == p)
+        {
+            return Route::Primary(0, true);
+        }
+        if first.path.is_empty()
+            && first.args.is_empty()
+            && steps.len() > 1
+            && routing.primary_only_methods.contains(&first.method)
+        {
+            return Route::Primary(1, false);
+        }
+        if first.path.is_empty() && crate::handles::PRIMARY_METHODS.contains(&first.method.as_str())
+        {
+            return Route::Primary(0, false);
+        }
+        if first.path.is_empty() && crate::handles::REPLICA_METHODS.contains(&first.method.as_str())
+        {
+            return Route::Replica;
+        }
+        if first.path.first().map(String::as_str) == Some("query") {
+            return Route::Replica;
+        }
+        let written = first
+            .path
+            .iter()
+            .map(|p| format!("{p}."))
+            .collect::<String>()
+            + &first.method;
+        Route::Unknown(format!(
+            "the routing of `{written}` is not part of the {} contract ({})",
+            if routing.declared.is_some() {
+                "declared replica factory's"
+            } else {
+                "drizzle-orm `withReplicas`"
+            },
+            routing.origin
+        ))
     }
 
     fn transaction(
@@ -3885,16 +5137,122 @@ impl<'r> Lowerer<'r> {
     }
 
     fn pred(&mut self, m: &Module<'_>, e: &Expression<'_>) -> Expr {
+        // `where(undefined)` (and an `and()` of nothing) selects every row.
+        match self.pred_in(m, e, Some(true), false) {
+            Ok((expr, _)) => expr,
+            Err(why) => Expr::Unknown(why),
+        }
+    }
+
+    /// Phase 14: a Drizzle predicate. `ident` is what an operand that is
+    /// `undefined` at run time stands for where it occurs: Drizzle's `and()`
+    /// and `or()` drop `undefined` operands (`true` resp. `false` in
+    /// three-valued logic when another operand remains), `where(undefined)`
+    /// selects every row (`true`); `None` where `undefined` is not modeled.
+    /// The flag says whether the predicate may be `undefined` at run time.
+    fn pred_in(
+        &mut self,
+        m: &Module<'_>,
+        e: &Expression<'_>,
+        ident: Option<bool>,
+        cond: bool,
+    ) -> Result<(Expr, bool), String> {
         let cx = Cx {
             col_ok: true,
+            cond,
             ..TOP
         };
         let e = e.get_inner_expression();
+        if is_nullish(e) && !matches!(e, Expression::NullLiteral(_))
+            || matches!(e, Expression::UnaryExpression(u) if u.operator == UnaryOperator::Void)
+        {
+            return match ident {
+                Some(v) => Ok((Expr::lit(v), true)),
+                None => Err("an `undefined` predicate here is not modeled".to_owned()),
+            };
+        }
+        // Phase 14: `test ? predA : predB` (for example `parentId === null ?
+        // isNull(t.parentId) : eq(t.parentId, parentId)`): the test is a
+        // JavaScript condition evaluated before the statement is built.
+        if let Expression::ConditionalExpression(c) = e {
+            if cond {
+                return Err(
+                    "a conditional predicate inside a conditional predicate is not modeled"
+                        .to_owned(),
+                );
+            }
+            let test = self.expr(
+                m,
+                &c.test,
+                Cx {
+                    truthy: true,
+                    ..TOP
+                },
+            );
+            if let Some(why) = test.unknown_detail() {
+                return Err(why.to_owned());
+            }
+            let (then_pred, d1) = self.pred_in(m, &c.consequent, ident, true)?;
+            let (else_pred, d2) = self.pred_in(m, &c.alternate, ident, true)?;
+            let which = self.tmp("which");
+            self.emit(
+                m,
+                c.test.span(),
+                Op::Let {
+                    local: which.clone(),
+                    expr: Expr::not(Expr::not(test)),
+                },
+            );
+            // JavaScript evaluates the operands of the chosen branch only:
+            // they are computed into locals under the test (the other
+            // branch's are `null`, and its predicate is not selected).
+            let mut hoisted_then = Vec::new();
+            let mut hoisted_else = Vec::new();
+            let then_pred = self.hoist_operands(then_pred, &mut hoisted_then);
+            let else_pred = self.hoist_operands(else_pred, &mut hoisted_else);
+            for (local, _) in hoisted_then.iter().chain(&hoisted_else) {
+                self.emit(
+                    m,
+                    c.span,
+                    Op::Let {
+                        local: local.clone(),
+                        expr: Expr::Lit(Value::Null),
+                    },
+                );
+            }
+            let to_else = self.emit(
+                m,
+                c.test.span(),
+                Op::JumpIf {
+                    cond: Expr::not(Expr::Local(which.clone())),
+                    target: usize::MAX,
+                },
+            );
+            for (local, value) in hoisted_then {
+                self.emit(m, c.consequent.span(), Op::Let { local, expr: value });
+            }
+            let to_end = self.emit(m, c.span, Op::Jump { target: usize::MAX });
+            let else_start = self.here();
+            self.patch(to_else, else_start);
+            for (local, value) in hoisted_else {
+                self.emit(m, c.alternate.span(), Op::Let { local, expr: value });
+            }
+            let end = self.here();
+            self.patch(to_end, end);
+            // With a boolean `which`, `(which AND a) OR (NOT which AND b)` is
+            // `a` or `b` in three-valued logic, NULL included.
+            let picked = Expr::bin(
+                BinOp::Or,
+                Expr::bin(BinOp::And, Expr::Local(which.clone()), then_pred),
+                Expr::bin(BinOp::And, Expr::not(Expr::Local(which)), else_pred),
+            );
+            return Ok((picked, d1 || d2));
+        }
         let Expression::CallExpression(call) = e else {
-            return Expr::Unknown("predicate is not a Drizzle operator call".to_owned());
+            return Err("predicate is not a Drizzle operator call".to_owned());
         };
         let Expression::Identifier(op) = call.callee.get_inner_expression() else {
-            return Expr::Unknown("predicate operator is not a plain identifier".to_owned());
+            return Err("predicate operator is not a plain identifier".to_owned());
         };
         let args: Vec<&Expression<'_>> = call
             .arguments
@@ -3902,16 +5260,28 @@ impl<'r> Lowerer<'r> {
             .filter_map(Argument::as_expression)
             .collect();
         if args.len() != call.arguments.len() {
-            return Expr::Unknown("spread argument in a predicate".to_owned());
+            return Err("spread argument in a predicate".to_owned());
         }
         let name = op.name.as_str();
-        let binary = |this: &mut Self, op: BinOp| -> Expr {
+        let binary = |this: &mut Self, op: BinOp| -> Result<(Expr, bool), String> {
             if args.len() != 2 {
-                return Expr::Unknown(format!("`{name}` expects two arguments"));
+                return Err(format!("`{name}` expects two arguments"));
             }
-            let a = this.expr(m, args[0], cx);
-            let b = this.expr(m, args[1], cx);
-            Expr::bin(op, a, b)
+            // Phase 14: a JSON value (Drizzle binds it as JSON text) is not
+            // compared by the model.
+            if args.iter().any(|a| {
+                matches!(
+                    a.get_inner_expression(),
+                    Expression::ObjectExpression(_) | Expression::ArrayExpression(_)
+                )
+            }) {
+                return Err(format!(
+                    "`{name}` with an object or array operand (a JSON comparison) is not modeled"
+                ));
+            }
+            let a = this.statement_value(m, args[0], cx);
+            let b = this.statement_value(m, args[1], cx);
+            Ok((Expr::bin(op, a, b), false))
         };
         match name {
             "eq" => binary(self, BinOp::Eq),
@@ -3921,32 +5291,181 @@ impl<'r> Lowerer<'r> {
             "lt" => binary(self, BinOp::Lt),
             "lte" => binary(self, BinOp::Le),
             "and" | "or" => {
-                if args.is_empty() {
-                    return Expr::Unknown(format!("`{name}()` without arguments"));
+                let own = name == "and";
+                let op = if own { BinOp::And } else { BinOp::Or };
+                let mut parts = Vec::new();
+                let mut droppable = true;
+                for arg in &args {
+                    let (p, d) = self.pred_in(m, arg, Some(own), cond)?;
+                    droppable &= d;
+                    parts.push(p);
                 }
-                let op = if name == "and" { BinOp::And } else { BinOp::Or };
-                let mut it = args.into_iter();
-                let mut acc = self.pred(m, it.next().expect("non-empty"));
-                for next in it {
-                    let right = self.pred(m, next);
-                    acc = Expr::bin(op, acc, right);
+                // Every operand may be dropped: the call itself may be
+                // `undefined`, which stands for `ident` where it occurs;
+                // the operands' substitution must agree with it.
+                if droppable && ident != Some(own) {
+                    return Err(format!(
+                        "`{name}(...)` whose every operand may be `undefined` is not modeled here"
+                    ));
                 }
-                acc
+                let expr = parts
+                    .into_iter()
+                    .reduce(|acc, next| Expr::bin(op, acc, next))
+                    .unwrap_or_else(|| Expr::lit(own));
+                Ok((expr, droppable))
             }
-            "not" if args.len() == 1 => Expr::not(self.pred(m, args[0])),
+            "not" if args.len() == 1 => {
+                let (inner, _) = self.pred_in(m, args[0], None, cond)?;
+                Ok((Expr::not(inner), false))
+            }
             "isNull" | "isNotNull" if args.len() == 1 => {
-                let inner = self.expr(m, args[0], cx);
+                let inner = self.statement_value(m, args[0], cx);
                 let is_null = Expr::IsNull(Box::new(inner));
-                if name == "isNull" {
-                    is_null
-                } else {
-                    Expr::not(is_null)
-                }
+                Ok((
+                    if name == "isNull" {
+                        is_null
+                    } else {
+                        Expr::not(is_null)
+                    },
+                    false,
+                ))
             }
-            other => Expr::Unknown(format!(
-                "predicate operator `{other}` is not supported (supported: eq ne gt gte lt lte and or not isNull isNotNull)"
+            // Phase 14: `inArray(column, values)` / `notInArray(...)`
+            // (`sqlfn`): an array literal or a local array.
+            "inArray" | "notInArray" if args.len() == 2 => {
+                let tested = self.statement_value(m, args[0], cx);
+                let list = match args[1].get_inner_expression() {
+                    Expression::ArrayExpression(a) => {
+                        let mut items = Vec::new();
+                        for el in &a.elements {
+                            let Some(x) = el.as_expression() else {
+                                return Err(format!(
+                                    "`{name}` over an array with a spread or a hole"
+                                ));
+                            };
+                            items.push(self.statement_value(m, x, cx));
+                        }
+                        Expr::Array(items)
+                    }
+                    other @ (Expression::Identifier(_) | Expression::StaticMemberExpression(_)) => {
+                        self.expr(m, other, cx)
+                    }
+                    _ => {
+                        return Err(format!(
+                            "`{name}` over a subquery or a computed list is not modeled (an array literal or a local array is)"
+                        ));
+                    }
+                };
+                let call = Expr::Call {
+                    func: commitrift_model::value::Builtin::InList,
+                    args: vec![tested, list],
+                };
+                Ok((
+                    if name == "inArray" {
+                        call
+                    } else {
+                        Expr::not(call)
+                    },
+                    false,
+                ))
+            }
+            other => Err(format!(
+                "predicate operator `{other}` is not supported (supported: eq ne gt gte lt lte and or not isNull isNotNull inArray notInArray)"
             )),
         }
+    }
+
+    /// Phase 14: the operands of a predicate that do not read the row
+    /// (JavaScript values), replaced by fresh locals (`out` gets the
+    /// assignments to emit); literals stay.
+    fn hoist_operands(&mut self, e: Expr, out: &mut Vec<(String, Expr)>) -> Expr {
+        match e {
+            Expr::Lit(_) | Expr::Col(_) => e,
+            other if !other.mentions_column() => {
+                let local = self.tmp("operand");
+                out.push((local.clone(), other));
+                Expr::Local(local)
+            }
+            Expr::Not(x) => Expr::Not(Box::new(self.hoist_operands(*x, out))),
+            Expr::IsNull(x) => Expr::IsNull(Box::new(self.hoist_operands(*x, out))),
+            Expr::Bin(op, a, b) => {
+                let a = self.hoist_operands(*a, out);
+                let b = self.hoist_operands(*b, out);
+                Expr::bin(op, a, b)
+            }
+            Expr::Array(items) => Expr::Array(
+                items
+                    .into_iter()
+                    .map(|x| self.hoist_operands(x, out))
+                    .collect(),
+            ),
+            Expr::Call { func, args } => Expr::Call {
+                func,
+                args: args
+                    .into_iter()
+                    .map(|x| self.hoist_operands(x, out))
+                    .collect(),
+            },
+            other => other,
+        }
+    }
+
+    /// Phase 14: a value written in a statement's arguments (an operand of
+    /// a predicate, a value of `values`/`set`): a clock read there is one
+    /// reading per execution of the statement ([`Self::clock_value`]).
+    fn statement_value(&mut self, m: &Module<'_>, e: &Expression<'_>, cx: Cx) -> Expr {
+        match self.clock_value(e) {
+            Some(clock) => clock,
+            None => self.expr(m, e, cx),
+        }
+    }
+
+    /// Phase 14: `new Date()` (an application clock reading) or
+    /// ``sql`now()` `` / ``sql`current_timestamp` `` (the transaction's
+    /// start time) written where a statement reads it: a placeholder the
+    /// engine replaces when the statement starts (one application reading
+    /// per occurrence and execution; `now()` is the transaction's). Exposed
+    /// for `expr` only through [`Self::clock_in_statement`].
+    fn clock_value(&self, e: &Expression<'_>) -> Option<Expr> {
+        match e.get_inner_expression() {
+            Expression::NewExpression(new)
+                if new.arguments.is_empty()
+                    && matches!(new.callee.get_inner_expression(),
+                        Expression::Identifier(id) if id.name.as_str() == "Date")
+                    && self.lookup("Date").is_none() =>
+            {
+                Some(Expr::Lit(commitrift_model::db::clock_placeholder(
+                    new.span.start,
+                )))
+            }
+            Expression::TaggedTemplateExpression(t)
+                if matches!(t.tag.get_inner_expression(),
+                    Expression::Identifier(id) if id.name.as_str() == "sql")
+                    && t.quasi.expressions.is_empty() =>
+            {
+                let text: String = t
+                    .quasi
+                    .quasis
+                    .iter()
+                    .map(|q| q.value.raw.as_str())
+                    .collect::<String>()
+                    .trim()
+                    .to_ascii_lowercase();
+                matches!(text.as_str(), "now()" | "current_timestamp")
+                    .then(|| Expr::Lit(commitrift_model::db::now_placeholder()))
+            }
+            _ => None,
+        }
+    }
+
+    /// Phase 14 helper for the lead's `expr`: the clock placeholder of `new
+    /// Date()` / ``sql`now()` `` when the expression is evaluated as part of
+    /// a database statement's arguments (it is bound per statement
+    /// execution). Not for a value kept in a local and used later: that is
+    /// one reading shared by its uses, which a placeholder does not express.
+    #[allow(dead_code)]
+    pub(crate) fn clock_in_statement(&self, e: &Expression<'_>) -> Option<Expr> {
+        self.clock_value(e)
     }
 
     fn where_clause(&mut self, m: &Module<'_>, step: Option<&ChainStep<'_, '_>>) -> Expr {
@@ -4148,15 +5667,44 @@ impl<'r> Lowerer<'r> {
                         .first()
                         .and_then(Argument::as_expression)
                         .and_then(literal);
-                    if !matches!(&mode, Some(Expr::Lit(Value::Str(s))) if s == "update") {
+                    // Phase 13: the four PostgreSQL row-lock strengths
+                    // (`docs/phase13/ROW-LOCK-COMPATIBILITY.md`); SKIP LOCKED
+                    // and NOWAIT only with `update`.
+                    let strength = match &mode {
+                        Some(Expr::Lit(Value::Str(s))) => match s.as_str() {
+                            "update" => Some(LockMode::ForUpdate),
+                            "no key update" => Some(LockMode::ForNoKeyUpdate),
+                            "share" => Some(LockMode::ForShare),
+                            "key share" => Some(LockMode::ForKeyShare),
+                            _ => None,
+                        },
+                        _ => None,
+                    };
+                    let Some(strength) = strength else {
                         return self.unknown_op(
                             m,
                             span,
-                            "only `.for(\"update\")` row locking is supported",
+                            "row locking other than `.for(\"update\" | \"no key update\" | \"share\" | \"key share\")` is not supported",
+                        );
+                    };
+                    if conn == Conn::Replica {
+                        // Phase 13: PostgreSQL rejects row locks on a hot
+                        // standby; the statement would fail, not lock.
+                        return self.unknown_op(
+                            m,
+                            span,
+                            "read through a read replica with a row lock (`.for(\"update\")`): a hot standby rejects row locks",
                         );
                     }
-                    lock = LockMode::ForUpdate;
+                    lock = strength;
                     if let Some(options) = step.args.get(1).and_then(Argument::as_expression) {
+                        if strength != LockMode::ForUpdate {
+                            return self.unknown_op(
+                                m,
+                                span,
+                                "`skipLocked`/`noWait` are modeled with `.for(\"update\")` only",
+                            );
+                        }
                         let Expression::ObjectExpression(object) = options.get_inner_expression()
                         else {
                             return self.unknown_op(m, span, "`for` options are not an object");
@@ -4407,6 +5955,7 @@ impl<'r> Lowerer<'r> {
         let mut returning = false;
         let mut returning_step: Option<&ChainStep<'_, '_>> = None;
         let mut on_conflict = OnConflict::Error;
+        let mut upsert_step: Option<&ChainStep<'_, '_>> = None;
         for step in &steps[1..] {
             if !step.path.is_empty() {
                 return self.unknown_op(m, span, "unsupported mutation chain");
@@ -4422,6 +5971,10 @@ impl<'r> Lowerer<'r> {
                     returning_step = (!step.args.is_empty()).then_some(step);
                 }
                 (Mutation::Insert, "onConflictDoNothing") => on_conflict = OnConflict::DoNothing,
+                // Phase 13.
+                (Mutation::Insert, "onConflictDoUpdate") if upsert_step.is_none() => {
+                    upsert_step = Some(step)
+                }
                 (_, other) => {
                     return self.unknown_op(
                         m,
@@ -4535,63 +6088,86 @@ impl<'r> Lowerer<'r> {
                     .first()
                     .and_then(Argument::as_expression)
                     .map(Expression::get_inner_expression);
-                // `values(obj)` with `const obj = { ... }` declared before.
-                let declared = match argument {
-                    Some(Expression::Identifier(id)) => match self.lookup(id.name.as_str()) {
-                        Some(Binding::Object(fields)) => Some(fields),
-                        _ => None,
-                    },
-                    _ => None,
-                };
-                let mut assignments = Vec::new();
-                let from_declared = declared.is_some();
-                if let Some(fields) = declared {
-                    for (column, value) in fields {
-                        if !table.columns.contains(&column) {
+                // Phase 14: `values([{ ... }, { ... }])`, an array literal of
+                // object literals (or `const` objects): one statement.
+                let row_args: Vec<&Expression<'_>> = match argument {
+                    Some(Expression::ArrayExpression(a)) => {
+                        let mut out = Vec::new();
+                        for el in &a.elements {
+                            match el.as_expression().map(Expression::get_inner_expression) {
+                                Some(x) => out.push(x),
+                                None => {
+                                    return self.unknown_op(
+                                        m,
+                                        span,
+                                        "`values([...])` with a spread or a hole",
+                                    );
+                                }
+                            }
+                        }
+                        if out.is_empty() {
+                            return self.unknown_op(
+                                m,
+                                span,
+                                "`values([])` (Drizzle throws for an empty list)",
+                            );
+                        }
+                        if out.len() > commitrift_model::ir::MAX_INSERT_ROWS {
                             return self.unknown_op(
                                 m,
                                 span,
                                 format!(
-                                    "`{column}` is not a column of table `{}` (property names must equal column names)",
-                                    table.table
+                                    "`values([...])` with {} rows exceeds the bound of {}",
+                                    out.len(),
+                                    commitrift_model::ir::MAX_INSERT_ROWS
                                 ),
                             );
                         }
-                        assignments.push((column, value));
+                        out
                     }
-                }
-                let object = match argument {
-                    Some(Expression::ObjectExpression(object)) => Some(object),
-                    _ if from_declared => None,
-                    _ => {
-                        return self.unknown_op(
-                            m,
-                            span,
-                            "`values` argument is not a single object literal or a `const` object (multi-row inserts are not supported)",
-                        );
+                    Some(x) => vec![x],
+                    None => {
+                        return self.unknown_op(m, span, "`values()` without an argument");
                     }
                 };
-                for property in object.map(|o| o.properties.as_slice()).unwrap_or_default() {
-                    let ObjectPropertyKind::ObjectProperty(p) = property else {
-                        return self.unknown_op(m, span, "spread in `values`");
-                    };
-                    let Some(column) = static_key(&p.key).filter(|_| !p.computed) else {
-                        return self.unknown_op(m, span, "computed key in `values`");
-                    };
-                    if !table.columns.contains(&column) {
-                        return self.unknown_op(
-                            m,
-                            span,
-                            format!(
-                                "`{column}` is not a column of table `{}` (property names must equal column names)",
-                                table.table
-                            ),
-                        );
+                let multi = matches!(argument, Some(Expression::ArrayExpression(_)));
+                let mut rows: Vec<Vec<(String, Expr)>> = Vec::new();
+                for row_arg in row_args {
+                    match self.insert_row(m, table, row_arg) {
+                        Ok(row) => rows.push(row),
+                        Err(why) => return self.unknown_op(m, span, why),
                     }
-                    let value = self.expr(m, &p.value, TOP);
-                    assignments.push((column, value));
                 }
-                let refs: Vec<&Expr> = assignments.iter().map(|(_, e)| e).collect();
+                let assignments = rows.remove(0);
+                let more_rows = rows;
+                if multi
+                    && projection
+                        .as_ref()
+                        .is_some_and(|p| p.iter().any(|(a, c)| a != c))
+                {
+                    return self.unknown_op(
+                        m,
+                        span,
+                        "`returning({ alias: column })` with a different alias on a multi-row insert is not modeled",
+                    );
+                }
+                // Phase 13: `onConflictDoUpdate({ target, set, setWhere })`.
+                let upsert = match upsert_step {
+                    None => None,
+                    Some(step) => match self.upsert_config(m, table, step) {
+                        Ok(u) => Some(u),
+                        Err(why) => return self.unknown_op(m, span, why),
+                    },
+                };
+                let mut refs: Vec<&Expr> = assignments
+                    .iter()
+                    .chain(more_rows.iter().flatten())
+                    .map(|(_, e)| e)
+                    .collect();
+                if let Some(u) = &upsert {
+                    refs.extend(u.set.iter().map(|(_, e)| e));
+                    refs.extend(u.filter.iter());
+                }
                 let stmt = StmtKind::Insert {
                     table: table.table.clone(),
                     values: assignments.clone(),
@@ -4608,9 +6184,25 @@ impl<'r> Lowerer<'r> {
                         }
                         cols
                     }),
+                    upsert: upsert.clone(),
+                    more_rows: more_rows.clone(),
                 };
                 if self.emit_db(m, span, conn, stmt, &refs).is_none() {
                     return Res::Value(Expr::Unknown("insert".to_owned()));
+                }
+                // Phase 14: a multi-row `returning()` is the array of rows
+                // (`StmtResult::Rows`, the projected columns when the aliases
+                // are the column names); `const [first] = ...` reads its
+                // first element.
+                if !more_rows.is_empty() {
+                    return match (&returned_row, want) {
+                        (Some(list), Want::Single) => Res::Value(Expr::Call {
+                            func: commitrift_model::value::Builtin::At,
+                            args: vec![Expr::Local(list.clone()), Expr::lit(0)],
+                        }),
+                        (Some(list), _) => Res::Value(Expr::Local(list.clone())),
+                        (None, _) => res,
+                    };
                 }
                 if let (Some(fields), Some(row), Some(out)) =
                     (&projection, &returned_row, &projected_row)
@@ -4658,6 +6250,56 @@ impl<'r> Lowerer<'r> {
         }
     }
 
+    /// One row of `values(...)`: an object literal, or a `const` object
+    /// declared before (Phase 13); Phase 14: a clock read in a value is a
+    /// statement placeholder.
+    fn insert_row(
+        &mut self,
+        m: &Module<'_>,
+        table: &TableBinding,
+        argument: &Expression<'_>,
+    ) -> Result<Vec<(String, Expr)>, String> {
+        let not_a_column = |column: &str| {
+            format!(
+                "`{column}` is not a column of table `{}` (property names must equal column names)",
+                table.table
+            )
+        };
+        if let Expression::Identifier(id) = argument
+            && let Some(Binding::Object(fields)) = self.lookup(id.name.as_str())
+        {
+            let mut out = Vec::new();
+            for (column, value) in fields {
+                if !table.columns.contains(&column) {
+                    return Err(not_a_column(&column));
+                }
+                out.push((column, value));
+            }
+            return Ok(out);
+        }
+        let Expression::ObjectExpression(object) = argument else {
+            return Err(
+                "`values` argument is not an object literal, a `const` object or an array of them"
+                    .to_owned(),
+            );
+        };
+        let mut out = Vec::new();
+        for property in &object.properties {
+            let ObjectPropertyKind::ObjectProperty(p) = property else {
+                return Err("spread in `values`".to_owned());
+            };
+            let Some(column) = static_key(&p.key).filter(|_| !p.computed) else {
+                return Err("computed key in `values`".to_owned());
+            };
+            if !table.columns.contains(&column) {
+                return Err(not_a_column(&column));
+            }
+            let value = self.statement_value(m, &p.value, TOP);
+            out.push((column, value));
+        }
+        Ok(out)
+    }
+
     /// Phase 12: the fields of `returning({ alias: table.column, ... })`:
     /// (alias, column). Only plain column references of the inserted table.
     fn returning_projection(
@@ -4695,6 +6337,89 @@ impl<'r> Lowerer<'r> {
         Ok(out)
     }
 
+    /// Phase 13: the config of `onConflictDoUpdate({ target, set, setWhere
+    /// })` (`where` is Drizzle's deprecated name of `setWhere`). A partial
+    /// index arbiter (`targetWhere`) is not modeled.
+    fn upsert_config(
+        &mut self,
+        m: &Module<'_>,
+        table: &TableBinding,
+        step: &ChainStep<'_, '_>,
+    ) -> Result<commitrift_model::ir::Upsert, String> {
+        let Some(Expression::ObjectExpression(config)) = step
+            .args
+            .first()
+            .and_then(Argument::as_expression)
+            .map(Expression::get_inner_expression)
+        else {
+            return Err("`onConflictDoUpdate` argument is not an object literal".to_owned());
+        };
+        let column = |e: &Expression<'_>| {
+            crate::semantic::member_path(e)
+                .and_then(|path| path.split_once('.').map(|(_, c)| c.to_owned()))
+                .filter(|c| !c.contains('.') && table.columns.contains(c))
+        };
+        let mut target = Vec::new();
+        let mut set = Vec::new();
+        let mut filter = None;
+        for property in &config.properties {
+            let ObjectPropertyKind::ObjectProperty(p) = property else {
+                return Err("spread in `onConflictDoUpdate({...})`".to_owned());
+            };
+            let Some(key) = static_key(&p.key).filter(|_| !p.computed) else {
+                return Err("computed key in `onConflictDoUpdate({...})`".to_owned());
+            };
+            let value = p.value.get_inner_expression();
+            match key.as_str() {
+                "target" => match value {
+                    Expression::ArrayExpression(a) => {
+                        for el in &a.elements {
+                            let c = el
+                                .as_expression()
+                                .and_then(column)
+                                .ok_or("an upsert target is not a column of the table")?;
+                            target.push(c);
+                        }
+                    }
+                    other => target.push(
+                        column(other).ok_or("the upsert target is not a column of the table")?,
+                    ),
+                },
+                "set" => {
+                    let Expression::ObjectExpression(object) = value else {
+                        return Err("the upsert `set` is not an object literal".to_owned());
+                    };
+                    for property in &object.properties {
+                        let ObjectPropertyKind::ObjectProperty(q) = property else {
+                            return Err("spread in the upsert `set`".to_owned());
+                        };
+                        let Some(c) = static_key(&q.key).filter(|_| !q.computed) else {
+                            return Err("computed key in the upsert `set`".to_owned());
+                        };
+                        if !table.columns.contains(&c) {
+                            return Err(format!(
+                                "`{c}` is not a column of table `{}`",
+                                table.table
+                            ));
+                        }
+                        let v = self.set_value(m, &q.value);
+                        set.push((c, v));
+                    }
+                }
+                "setWhere" | "where" => filter = Some(self.pred(m, value)),
+                other => return Err(format!("upsert option `{other}` is not modeled")),
+            }
+        }
+        if target.is_empty() || set.is_empty() {
+            return Err("an upsert needs `target` and `set`".to_owned());
+        }
+        Ok(commitrift_model::ir::Upsert {
+            target,
+            set,
+            filter,
+        })
+    }
+
     /// A value in `set({ col: <value> })`: a plain expression or a `sql`
     /// template with column references and `+ - *`.
     fn set_value(&mut self, m: &Module<'_>, e: &Expression<'_>) -> Expr {
@@ -4702,6 +6427,10 @@ impl<'r> Lowerer<'r> {
             col_ok: true,
             ..TOP
         };
+        // Phase 14: `new Date()`, ``sql`now()` ``.
+        if let Some(clock) = self.clock_value(e) {
+            return clock;
+        }
         match e.get_inner_expression() {
             Expression::TaggedTemplateExpression(tagged) => {
                 let is_sql = matches!(tagged.tag.get_inner_expression(),
@@ -4735,6 +6464,15 @@ impl<'r> Lowerer<'r> {
     }
 }
 
+/// Phase 13: where an operation through a replicated database runs.
+enum Route {
+    /// The primary, after skipping this many leading steps (`usePrimaryOnly()`)
+    /// and, if set, the first path segment (`$primary`).
+    Primary(usize, bool),
+    Replica,
+    Unknown(String),
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Mutation {
     Update,
@@ -4752,12 +6490,16 @@ enum Callee<'a> {
         label: String,
     },
     Local(FnInfo<'a>),
+    /// Phase 13: a function wrapped by React `cache` in the caller's module.
+    Cached(FnInfo<'a>),
     Imported {
         abs: PathBuf,
         rel: String,
         export: String,
         label: String,
     },
+    /// Phase 14: a closure bound to a local name.
+    Closure(Box<Closure>),
     Unresolvable(String),
 }
 
@@ -4785,6 +6527,16 @@ fn has_jump(statement: &Statement<'_>) -> bool {
                     .as_ref()
                     .is_some_and(|f| f.body.iter().any(has_jump))
         }
+        _ => false,
+    }
+}
+
+/// Phase 14: whether a member chain contains an optional link (`a?.b`).
+fn has_optional_link(e: &Expression<'_>) -> bool {
+    match e.get_inner_expression() {
+        Expression::StaticMemberExpression(m) => m.optional || has_optional_link(&m.object),
+        Expression::ComputedMemberExpression(m) => m.optional || has_optional_link(&m.object),
+        Expression::ChainExpression(_) => true,
         _ => false,
     }
 }
@@ -4915,6 +6667,20 @@ fn sql_tokens(text: &str) -> Result<Vec<SqlTok>, String> {
         } else if matches!(c, '+' | '-' | '*' | '(' | ')') {
             out.push(SqlTok::Op(c));
             i += 1;
+        } else if chars[i..].starts_with(&['e', 'x', 'c', 'l', 'u', 'd', 'e', 'd', '.']) {
+            // Phase 13: `excluded.column` in an upsert's `set` (the row
+            // proposed for insertion).
+            let start = i + 9;
+            let mut j = start;
+            while j < chars.len() && (chars[j].is_ascii_alphanumeric() || chars[j] == '_') {
+                j += 1;
+            }
+            if j == start {
+                return Err(chars[i..].iter().collect::<String>().trim().to_owned());
+            }
+            let name: String = chars[start..j].iter().collect();
+            out.push(SqlTok::Operand(Expr::Col(format!("excluded.{name}"))));
+            i = j;
         } else {
             return Err(chars[i..].iter().collect::<String>().trim().to_owned());
         }

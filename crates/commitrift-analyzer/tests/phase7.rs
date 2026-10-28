@@ -39,6 +39,10 @@ fn wrappers(selector: &str, contract: Option<InvocationContract>) -> Result<Extr
         max_inline_depth: 3,
         selector: Some(selector.to_owned()),
         contract,
+        replicas: false,
+        replica_factories: Vec::new(),
+        return_values: false,
+        js_values: false,
     })
 }
 
@@ -227,6 +231,10 @@ fn the_team_app_action_callback_is_extracted_without_unknowns() {
             max_inline_depth: 3,
             selector: Some("src/app/actions.ts#inviteTeamMember/arg[1]".to_owned()),
             contract: contract(Some("awaited"), &["authenticated-user"]),
+            replicas: false,
+            replica_factories: Vec::new(),
+            return_values: false,
+            js_values: false,
         })
         .unwrap();
     assert_eq!(

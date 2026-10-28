@@ -52,6 +52,10 @@ fn extract(root: &Path, selector: &str, tables: Vec<TableBinding>) -> Extracted 
             max_inline_depth: 3,
             selector: Some(selector.to_owned()),
             contract: Some(Default::default()),
+            replicas: false,
+            replica_factories: Vec::new(),
+            return_values: false,
+            js_values: false,
         })
         .unwrap_or_else(|e| panic!("{selector}: {e}"))
 }
