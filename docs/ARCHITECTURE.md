@@ -1,5 +1,10 @@
 # Architecture
 
+> **Current overview:** [`architecture/overview.md`](architecture/overview.md)
+> (all crates, including `commitrift-model` and `commitrift-discover`). This
+> page remains the detailed design of the static analyzer (`check`,
+> `trace`, `ir`; Phases 1–7).
+
 CommitRift is a pipeline with one job: for every function, find the points at
 which state becomes durable or externally visible, and report where a failure
 between two of them leaves partial state.

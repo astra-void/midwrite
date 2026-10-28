@@ -26,7 +26,13 @@ reporting matter more than coverage.
 * **Keep output deterministic.** No hash-map iteration in anything that reaches
   the report.
 * **Document limitations.** If a change adds an approximation, list it in
-  `docs/LIMITATIONS.md`.
+  the current limitations document,
+  [`docs/reference/limitations.md`](docs/reference/limitations.md) (and in
+  the phase's own `LIMITATIONS.md` when the change belongs to a phase).
+  `docs/LIMITATIONS.md` and `docs/phaseN/` are historical records.
+* **Keep documentation links valid.** Run
+  `python3 scripts/check-doc-links.py --historical report`; see
+  [`docs/development/testing.md`](docs/development/testing.md).
 
 ## Before opening a pull request
 

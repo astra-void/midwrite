@@ -6,6 +6,12 @@ call *between two independently committed side effects* can leave your system
 half-done: the database says an order is paid, but the `order.completed` event
 was never published.
 
+> **Documentation: [`docs/README.md`](docs/README.md)** — installation,
+> quickstart, CLI reference, supported technologies, the verification
+> workflow, evidence levels, the [current limitations](docs/reference/limitations.md),
+> architecture, the [evidence index](docs/research/evidence-index.md) and
+> the historical phase reports.
+
 ```ts
 export async function completeOrder(orderId: string) {
   await db.update(orders).set({ status: "paid" }).where(eq(orders.id, orderId));
@@ -29,7 +35,21 @@ warning[CP1001]: database commit followed by an independent external effect
   help: Record the intent in the same database transaction as the state change (transactional outbox) and perform the external effect from a relay that retries until it succeeds, or make a reconciliation job derive the missing effect from database state.
 ```
 
-> **Status: experimental (Phase 5).** The analysis is deliberately narrow:
+> **Status: experimental (Phase 13 working tree; Phase 13 changes are
+> uncommitted).** Beyond the static analysis below, CommitRift model-checks
+> bounded concurrent and crash/retry scenarios against a model of PostgreSQL
+> (Phase 6), runs counterexamples against the original application code on a
+> disposable database (Phases 7–10), discovers candidates and synthesizes
+> scenarios without a hand-written scenario (Phase 11), and models
+> generated keys, multi-module schemas (Phase 12), foreign-key and row-lock
+> modes, return values, the response step, read replicas and upserts
+> (Phase 13). All original-code evidence comes from first-party fixtures;
+> no independent human review has been performed. Current state:
+> [`docs/README.md`](docs/README.md); current limitations:
+> [`docs/reference/limitations.md`](docs/reference/limitations.md). The
+> history below describes Phases 2–5.
+>
+> The static analysis (`commitrift check`) is deliberately narrow:
 > Drizzle ORM on PostgreSQL and configured external effects, one function at a
 > time plus bounded summaries of the functions it calls, in the same file or
 > imported from other analyzed modules. Expect false positives and false
@@ -277,6 +297,18 @@ re-exports, repository objects and classes, and `getDb()`-style database
 factories are resolved; one shared project context serves every extraction.
 Details: [`docs/phase12/FINAL-REPORT.md`](docs/phase12/FINAL-REPORT.md).
 
+Phase 13 (uncommitted) adds, each opt-in per scenario so that earlier
+scenarios keep their state spaces: PostgreSQL row-lock modes and
+foreign-key checks (`features: ["foreign-keys"]`; `NO ACTION`/`RESTRICT`,
+immediate constraints), invariants over what callers are told
+(`"returned"`), a response step that a crash can precede
+(`"response": true`), read-replica handles (`withReplicas` from
+`drizzle-orm/pg-core`, or a declared project factory) with replica staleness as a
+model-only result (`features: ["replicas"]`), `INSERT … ON CONFLICT DO
+UPDATE` and the `.for("share" | "key share" | "no key update")` strengths.
+Details: [`docs/phase13/`](docs/phase13/ARCHITECTURE.md) and
+[`docs/reference/limitations.md`](docs/reference/limitations.md).
+
 ## What CommitRift does not do
 
 * It does **not** prove business consistency. It knows nothing about your
@@ -395,6 +427,11 @@ commitrift explain CP1001
 | `commitrift replay … --baseline OLD.json [--regression-output R.json]` | Compare every case with an earlier verification report: still / no longer / newly reproduced, inconclusive, not executed. Exit 1 on a change, 3 when a case is inconclusive or was not executed. |
 | `commitrift init-replay --trace T.json --finding ID --output DIR [--runtime node\|bun]` | Generate an editable replay harness skeleton for one finding ([guide](docs/phase4/HARNESS-GENERATION.md)). Writes only into `DIR` (inside the project); executes and installs nothing. |
 | `commitrift report <JSON> [-o FILE]` | Render a trace or verification report as a self-contained, script-free HTML page. |
+| `commitrift model-check <SCENARIO>` | Bounded model checking of a scenario; `--validate-postgres`, `--verify-source --allow-execution` ([guide](docs/user-guide/model-check.md)). |
+| `commitrift discover <ROOT>` | Candidates, properties and synthesized scenarios from source; `--model-check`, `--emit-scenarios` ([guide](docs/user-guide/discover.md)). Never executes application code. |
+| `commitrift schema <ROOT> --file <SCHEMA>` | Schema facts read statically from a Drizzle schema module; `--migrations … --allow-execution` compares them with a disposable database. |
+
+Every flag of the current binary: [`docs/reference/cli.md`](docs/reference/cli.md).
 
 Exit status: `0` clean, `1` diagnostics at or above `--fail-on`, `2` usage,
 configuration or input error, `3` some files could not be read or parsed (and
@@ -576,8 +613,10 @@ Known **false positives** (reported, but not a real problem):
 
 Known **false negatives** (real hazards that are not reported):
 
-* Effects inside class methods (`this.save()`, `service.save()` on a class
-  instance), callbacks, packages outside the analyzed files, and functions
+* Effects inside methods on receivers whose class is not known
+  (`service.save()` with `service` a parameter or a factory result; methods
+  of known classes are followed since Phase 5), callbacks run by
+  unanalyzed code, packages outside the analyzed files, and functions
   whose module or export cannot be resolved. A call after a recognized commit becomes `CP9001`; one
   before the first commit is not reported (except under `--policy audit`).
   Calls are followed only when awaited or returned from an `async` function,
@@ -621,21 +660,25 @@ Known **false negatives** (real hazards that are not reported):
 
 ```text
 crates/commitrift-core       Effect IR, failure-path analysis, diagnostics, config (no parser dependency)
-crates/commitrift-analyzer   TypeScript frontend: Oxc parsing, provenance, recognition, lowering, module resolution, project analysis
-crates/commitrift-cli        The `commitrift` (and legacy `crashproof`) binary: text, JSON, SARIF and HTML output, baselines, trace/replay/report commands
-crates/commitrift-replay     Opt-in runtime replay: manifest validation, disposable PostgreSQL, checkpoint protocol supervisor, observations, invariants
+crates/commitrift-analyzer   TypeScript frontend: Oxc parsing, provenance, recognition, lowering, module resolution, project analysis; concurrency extractor, schema facts
+crates/commitrift-discover   Candidate discovery and scenario synthesis (`commitrift discover`)
+crates/commitrift-model      Bounded explicit-state model checker, PostgreSQL model, lockstep oracle, original-code differential
+crates/commitrift-cli        The `commitrift` (and legacy `crashproof`) binary: text, JSON, SARIF and HTML output, baselines, every command
+crates/commitrift-replay     Opt-in runtime execution: manifest validation, disposable PostgreSQL, isolation, replay supervisor, source coordinator, fault proxy
 crates/commitrift-corpus     Developer tool (not published): corpus runs, run comparison, reviewed precision, phase memory profile
 runtime/node/                Dependency-free replay client (Node.js and Bun), pg adapter, event-log transport (workspace package @commitrift/replay, unpublished)
 runtime/typescript/          Phase 3 import path for Bun harnesses (re-exports runtime/node)
 ci/, .github/workflows/      Linux test image; CI and release workflows (not yet run on GitHub)
 fixtures/                    vulnerable/, safe/, unsupported/ single-file examples, projects/ multi-file examples, all with `// @expect` annotations; replay/ runnable replay harnesses
 corpora/                     Evaluation corpus manifests, per-project configurations and review labels
-docs/                        ARCHITECTURE.md, DIAGNOSTICS.md, LIMITATIONS.md, phase2/ … phase5/ (baselines, evaluations, design notes)
+docs/                        README.md (index of the current documentation), getting-started/, user-guide/, concepts/, architecture/, reference/, development/, research/; ARCHITECTURE.md, DIAGNOSTICS.md, LIMITATIONS.md; phase2/ … phase13/ (historical records)
+reports/                     Raw evidence of each phase (reports/phaseN/)
 ```
 
 ## Contributing
 
-Contributions are welcome. See [`CONTRIBUTING.md`](CONTRIBUTING.md). Before
+Contributions are welcome. See [`CONTRIBUTING.md`](CONTRIBUTING.md) and
+[`docs/development/testing.md`](docs/development/testing.md). Before
 sending a change, run:
 
 ```bash

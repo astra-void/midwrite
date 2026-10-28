@@ -1,5 +1,10 @@
 # Limitations
 
+> **Current limitations:** [`reference/limitations.md`](reference/limitations.md)
+> consolidates this page and every phase's `LIMITATIONS.md`, with the
+> limitations later phases lifted. This page is kept as the detailed record
+> for the static analyzer (Phases 1–7) and is not updated per phase.
+
 CommitRift is a narrow analysis. This page lists what it gets wrong or does
 not attempt, so that a clean run is not mistaken for a guarantee. Many
 entries are pinned by tests or fixtures (named in parentheses). Measured

@@ -1,0 +1,79 @@
+# Invariants and properties
+
+A counterexample is only as meaningful as the property it violates.
+CommitRift never infers a business invariant silently: every property is
+either written by a person, enforced by the schema, implied by a declared
+contract, or labeled a hypothesis.
+
+## Assertion language (scenario invariants)
+
+An invariant is data: `{ "name", "when": "final" | "always",
+"description", "assert": <formula> }`. Formulas compare terms (`eq`, `ne`,
+`lt`, `le`, `gt`, `ge`) and combine them (`and`, `or`, `not`, `implies`).
+
+| term | value |
+| --- | --- |
+| literals | `3`, `"text"`, `null` |
+| `initial` | a column of the initial row matching an equality filter |
+| `row` | a column of the committed row matching a filter (`null` if none) |
+| `count`, `sum` | committed rows matching a filter; sum of an integer column |
+| `actors` | completions of a function with an outcome (`ok`, `failed`, `crashed`); with `"returned": v` (Phase 13) only completions whose main task returned `v` |
+| `externals` | performed (not deduplicated) external effects on a channel, or distinct keys |
+| `app` | an in-process variable |
+| `add`, `sub` | integer arithmetic |
+
+The state an invariant reads is the **committed** database, actor
+outcomes, the external-effect log and in-process variables. `final`
+invariants are evaluated in quiescent states; `always` invariants in every
+reachable state (DPOR is refused with them). Full definition:
+[Phase 6 § assertion language](../phase6/INVARIANTS.md#assertion-language);
+return values: [Phase 13 § 2](../phase13/RETURN-VALUES-AND-RESPONSES.md#2-invariants-over-return-values).
+
+Example (Phase 13, "at most one caller is told it claimed the task"):
+
+```json
+{ "le": [ { "actors": { "function": "claimTask", "outcome": "ok", "returned": true } }, 1 ] }
+```
+
+Return values are recorded only when an invariant reads them, so scenarios
+without such an invariant keep their earlier state spaces. An invariant
+over the return value of an actor whose return expression is not modeled
+is refused, never approximated.
+
+## Property origins
+
+`discover` attaches property candidates; each has an origin that no later
+step changes ([Phase 11 invariant synthesis](../phase11/INVARIANT-SYNTHESIS.md)).
+
+| origin | meaning | how a counterexample is reported |
+| --- | --- | --- |
+| `SCHEMA_ENFORCED` | a supported, non-partial unique constraint covers the property | the property is enforced by the schema |
+| `USER_DECLARED` | written in `commitrift-contracts.json` | declared by the user |
+| `FRAMEWORK_CONTRACT` | follows from a declared integration contract (at-least-once delivery ⇒ at most one effect per message) | implied by a declared contract |
+| `HEURISTIC_HYPOTHESIS` | suggested by the code, not established | "MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS … not a confirmed defect" |
+| `SOURCE_ASSERTED` | an explicit assertion in source with a stated translation | defined; no rule produces it |
+
+A missing constraint is not evidence that uniqueness was intended; a
+partial unique index is reported as a protection, never as
+`SCHEMA_ENFORCED`. Each emitted scenario's invariant description starts
+with its origin, so it travels into `model-check` reports.
+
+## Templates
+
+Declared invariants (`commitrift-contracts.json`) and synthesized
+properties use templates: `atMostOne {table, key, where}`, `atLeast {table,
+groupBy, where, min}`, `nonNegative {table, column}`, `maxExternal
+{channel, max}`, `formula` (a literal assertion), plus the synthesized
+`serialCell` (the cell equals some serial execution of the completed
+requests) and `noFailedActors`. Eventual properties ("an event is
+eventually published") are not synthesized.
+
+## Properties that need a declaration
+
+* Write skew (multi-row invariants) — `BLOCKED` without one.
+* Return-value properties ("at most one caller told `true`",
+  read-your-writes): no heuristic infers them; on the Phase 13 frozen
+  evaluation set this is why several observable positives are false
+  negatives ([Phase 13 evaluation](../phase13/EVALUATION.md)).
+* Recovery requirements (an event is not lost, a payment is eventually
+  recorded): never synthesized.

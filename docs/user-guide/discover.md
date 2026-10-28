@@ -1,0 +1,111 @@
+# `commitrift discover`: candidates and scenarios from source
+
+`discover` finds concurrency and failure candidates in the original
+TypeScript without a hand-written scenario. It indexes entries and their
+database and external effects, pairs effects that may interact, attaches
+property candidates with a stated origin, synthesizes small valid initial
+states, writes ordinary `model-check` scenarios and, with `--model-check`,
+explores them within budgets. It never executes application code.
+
+Introduced in Phase 11 ([final report](../phase11/FINAL-REPORT.md)),
+extended in Phase 12 (generated keys, multi-module schemas, repositories,
+shared project context) and Phase 13 (foreign keys, return values, the
+response step, read replicas, upserts, row-lock strengths). Internals:
+[scenario synthesis](../architecture/scenario-synthesis.md). All flags:
+[CLI reference](../reference/cli.md#discover).
+
+## Typical use
+
+```bash
+commitrift discover .                                     # static index + candidates + synthesized scenarios
+commitrift discover . --model-check                       # also explore them (bounded)
+commitrift discover . --model-check --format html -o discovery.html
+commitrift discover . --emit-scenarios ./commitrift-scenarios
+commitrift discover . --contracts commitrift-contracts.json --entry src/app/checkout
+commitrift discover . --cache .commitrift-cache.json      # cache extractions between runs
+```
+
+Exit status: `1` when at least one model counterexample was found, `0`
+otherwise (errors: `2`).
+
+## Detector families
+
+| class | what it looks for | property (origin unless declared) |
+| --- | --- | --- |
+| `check-then-act` | a read with equality conjuncts, then an insert into the same table decided by it, sharing a key column | at most one row per key (`HEURISTIC_HYPOTHESIS`; `SCHEMA_ENFORCED` when a non-partial unique set covers the key) |
+| `status-transition` | read a row, test its state, unconditional `UPDATE` to another state, consequences under the same guard | at most one consequence / effect per transition |
+| `read-modify-write` | `UPDATE` of a column computed from a value read earlier | the cell equals some serial execution |
+| `write-skew` | a predicate read deciding a write of another row of the group | **declared only**; otherwise `BLOCKED` |
+| `duplicate-processing` | declared at-least-once delivery with external effects (Phase 14: also the inserts a declared invariant covers) | at most one effect per message (`FRAMEWORK_CONTRACT`); declared invariants on the inserted tables |
+| `external-effect-gap` | external effect followed by writes, with a declared retry (or inside a transaction the code re-runs) | at most one effective effect per request |
+| `ambiguous-commit` | an autocommit write in `try` repeated in its `catch`; Phase 14: also a write in a transaction whose COMMIT is in the `try` (a retry wrapper's callback) | at most one row per key |
+| `lock-order` | two row locks on one table in one transaction keyed by different parameters | no request fails (bounded liveness) |
+| `resubmitted-write` (Phase 12) | an entry with a declared crash retry whose `INSERT` (Phase 14: also a multi-row `INSERT`) can commit before the crash | only with a declared invariant on the table or a covering unique constraint; otherwise a recorded rejection |
+| `parent-child` (Phase 14) | a read finds a parent row by a unique key and decides an `INSERT` of a child holding that key, while another entry deletes the parent | no orphan child: `SCHEMA_ENFORCED` with a `NO ACTION` foreign key (a 23503 is not an application defect), `HEURISTIC_HYPOTHESIS` without one |
+| `return-value` (Phase 14) | an entry named by a **declared** property over what callers are told (`atMostOneSuccess`, `exactlyOneSuccess`, `everySuccessReturns`, or a formula reading `returned`) | the declared property only; never inferred |
+
+Source: [Phase 11 candidate discovery](../phase11/CANDIDATE-DISCOVERY.md),
+[Phase 12 architecture § 5](../phase12/ARCHITECTURE.md#5-discovery-changes).
+Phase 13 changed two rules: only `FOR UPDATE` and `FOR NO KEY UPDATE` count
+as a protection (two `FOR SHARE` readers do not exclude each other), and
+actors whose caller retries after a crash get the response step
+([Phase 13 advanced Drizzle](../phase13/ADVANCED-DRIZZLE.md#2-row-lock-strengths--implemented)).
+
+## Reading a candidate
+
+Each candidate reports its entries (and how each is invoked), the
+conflicting operations with locations, the shared resource, every property
+with its origin and rationale, recognized protections, assumptions,
+unsupported operations on the path, and the scenarios built for it
+(`actual`, a `distinct-key` control, and with `--hypothetical` a schema the
+application does not have). A real excerpt is in
+[first verification](../getting-started/first-verification.md#2-discover-candidates-without-writing-a-scenario).
+
+| status | meaning |
+| --- | --- |
+| `MODEL_COUNTEREXAMPLE` | the `actual` scenario has a counterexample that replays in the model; interpret it by the property's origin |
+| `NO_VIOLATION_WITHIN_BOUNDS` | no counterexample within the scenario's bounds; not a proof |
+| `STATIC_CANDIDATE` | a scenario was built but not model-checked (no `--model-check`, or beyond `--max-candidates`) |
+| `INCONCLUSIVE` | no valid initial state could be synthesized, or a budget ran out |
+| `UNSUPPORTED` | an actor reaches an operation the model does not represent; the reason and location are printed |
+| `BLOCKED` | the property must be declared (for example write skew) |
+
+A counterexample against a `HEURISTIC_HYPOTHESIS` is reported as such and
+is never a confirmed defect ([invariants](../concepts/invariants.md)).
+Concurrency itself is an assumption: declared, `framework` (Server Actions,
+route handlers), or `discovery-default` for any other exported function.
+
+## Declaring what source cannot say
+
+Retries, at-least-once delivery, external idempotency, business invariants,
+argument values, read-replica factories and harness inputs go into an
+optional `commitrift-contracts.json`
+([contracts guide](contracts.md)). Everything taken from it is reported as
+declared.
+
+## From a candidate to runtime evidence
+
+Emitted scenarios carry a `sourceVerification` section when the contracts
+map the entry to an authorized harness. Running them needs the separate,
+explicit `model-check --verify-source --allow-execution`
+([source verification](source-verification.md)); `discover` itself never
+runs code.
+
+Phase 14: every candidate ends with a **next step** (`nextStep` in JSON,
+"Next step:" in text and HTML); a synthesized scenario is checked to
+re-extract exactly what discovery extracted (round trip) before it is
+model-checked; discovery extracts with JavaScript value semantics and opts
+its scenarios into the `js-values`, `timestamps` and `json` features when
+they need them ([Phase 14](../phase14/FINAL-REPORT.md)).
+
+## Known blind spots
+
+Recall on the Phase 14 evaluation set is still low (first scoring 0.000,
+post-feedback 0.222, precision 1.000; on the Phase 13 frozen set 0.467,
+post-feedback; [Phase 14 evaluation](../phase14/EVALUATION.md)). Not covered:
+computed keys, loops other than `for … of` over a known array, `values(obj)`
+of a parameter object, framework request objects (`req.json()`), time
+arithmetic, JSON projections and comparisons, a stale replica read without a
+declared property, and return-value properties without a declaration. On the real corpus no candidate has been model-checked to a
+counterexample except saas-starter's heuristic one (Phase 11, never
+executed). See [limitations](../reference/limitations.md).
