@@ -68,6 +68,19 @@ pub struct DiscoverArgs {
     /// skipped and counted.
     #[arg(long, default_value_t = 5_000_000)]
     pub max_total_states: u64,
+    /// Initial worlds (database rows and actor arguments) tried per actual
+    /// variant, the synthesized one included. Further worlds change one
+    /// input relationship each (a nullable argument set to null, a stored
+    /// value distinct from the written one, a branch boundary...). 1 turns
+    /// the search off.
+    #[arg(long, default_value_t = commitrift_discover::pipeline::DEFAULT_MAX_WORLDS, value_name = "N")]
+    pub max_worlds: usize,
+    /// Keep exploring initial worlds after a validated counterexample.
+    #[arg(long)]
+    pub all_worlds: bool,
+    /// Text output: list every explored and unexplored initial world.
+    #[arg(long)]
+    pub explain_coverage: bool,
     /// Only entries whose selector contains this text (repeatable).
     #[arg(long = "entry", value_name = "TEXT")]
     pub entries: Vec<String>,
@@ -114,6 +127,8 @@ pub fn discover(args: &DiscoverArgs) -> Result<u8, String> {
         include_timing: !args.no_timing,
         cache: args.cache.clone(),
         tool_version: env!("CARGO_PKG_VERSION").to_owned(),
+        max_worlds: args.max_worlds.max(1),
+        all_worlds: args.all_worlds,
     };
     let mut report = run_discovery(&args.root, &options)?;
     if let Some(path) = &args.labels {
@@ -124,7 +139,7 @@ pub fn discover(args: &DiscoverArgs) -> Result<u8, String> {
         report.evaluation = Some(commitrift_discover::eval::evaluate(&report, &labels));
     }
     let output = match args.format {
-        DiscoverFormat::Text => render_text(&report, args.verbose),
+        DiscoverFormat::Text => render_text(&report, args.verbose, args.explain_coverage),
         DiscoverFormat::Json => report.to_json(),
         DiscoverFormat::Html => render_html(&report),
     };
