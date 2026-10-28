@@ -1,0 +1,111 @@
+{
+  "actors": [
+    {
+      "arguments": [
+        "f35425ca-0000-4000-a000-000000000001",
+        "displayName-1"
+      ],
+      "name": "saveDisplayName-1",
+      "selector": "src/services/profile.ts#saveDisplayName"
+    },
+    {
+      "arguments": [
+        "f35425ca-0000-4000-a000-000000000001",
+        "displayName-1"
+      ],
+      "name": "saveDisplayName-2",
+      "selector": "src/services/profile.ts#saveDisplayName"
+    }
+  ],
+  "algorithm": "sleep-sets",
+  "assumptions": [
+    "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+  ],
+  "bounds": {
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "maxStates": 200000,
+    "maxSteps": 64
+  },
+  "candidate": "CR-SYNTH-9B0CE8",
+  "class": "return-value",
+  "evidence": "model counterexample (not an original-code reproduction)",
+  "finalTerms": [
+    "savedisplayname:ok returning false = 2"
+  ],
+  "finding": "In the initial world `stored-distinct:accounts.displayName` (the stored `accounts.displayName` differs from the value an actor writes (\"displayName-1\")): MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `display-name-read-your-writes` (USER_DECLARED). The property is declared by the user; the counterexample replays in the model.",
+  "initialState": {
+    "accounts": [
+      {
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "displayName": "displayName-stored",
+        "email": "email-1",
+        "id": "f35425ca-0000-4000-a000-000000000001",
+        "timezone": "UTC",
+        "trialUsed": false,
+        "updatedAt": "2026-01-01T00:00:00.000Z"
+      }
+    ]
+  },
+  "kind": "commitrift.counterexample",
+  "property": {
+    "name": "display-name-read-your-writes",
+    "origin": "USER_DECLARED"
+  },
+  "reproduce": "commitrift model-check cr-synth-9b0ce8-actual--stored-distinct-accounts-displayname.json",
+  "reproduceOnOriginalCode": null,
+  "scenario": "cr-synth-9b0ce8-actual--stored-distinct-accounts-displayname.json",
+  "schedule": [
+    "saveDisplayName-1 write UPDATE accounts SET displayName = \"displayName-1\", updatedAt = gen#65521:0.0 WHERE (@id = \"f35425ca-0000-4000-a000-000000000001\") → 1 row  (src/services/profile.ts:9:9)",
+    "saveDisplayName-1 read SELECT accounts WHERE (@id = \"f35425ca-0000-4000-a000-000000000001\") (on the replica, commit #0) → {displayName=\"displayName-stored\"}  (src/services/profile.ts:10:27)",
+    "saveDisplayName-1 local _opt2 = undefined  (src/services/profile.ts:15:10)",
+    "saveDisplayName-1 local CHECK (_row1 is null or (_row1 = undefined)) → false  (src/services/profile.ts:15:10)",
+    "saveDisplayName-1 local _opt2 = \"displayName-stored\"  (src/services/profile.ts:15:10)",
+    "saveDisplayName-1 local returns false  (src/services/profile.ts:15:3)",
+    "saveDisplayName-1 local return (success)",
+    "saveDisplayName-2 write UPDATE accounts SET displayName = \"displayName-1\", updatedAt = gen#65521:1.0 WHERE (@id = \"f35425ca-0000-4000-a000-000000000001\") → 1 row  (src/services/profile.ts:9:9)",
+    "saveDisplayName-2 read SELECT accounts WHERE (@id = \"f35425ca-0000-4000-a000-000000000001\") (on the replica, commit #0) → {displayName=\"displayName-stored\"}  (src/services/profile.ts:10:27)",
+    "saveDisplayName-2 local _opt2 = undefined  (src/services/profile.ts:15:10)",
+    "saveDisplayName-2 local CHECK (_row1 is null or (_row1 = undefined)) → false  (src/services/profile.ts:15:10)",
+    "saveDisplayName-2 local _opt2 = \"displayName-stored\"  (src/services/profile.ts:15:10)",
+    "saveDisplayName-2 local returns false  (src/services/profile.ts:15:3)",
+    "saveDisplayName-2 local return (success)"
+  ],
+  "schemaVersion": 1,
+  "sourceFingerprint": [
+    {
+      "file": "src/services/profile.ts",
+      "fnv64": "d87c78dd9bf7e61d"
+    },
+    {
+      "file": "src/schema/access.ts",
+      "fnv64": "3000d5747e085973"
+    },
+    {
+      "file": "src/schema/accounts.ts",
+      "fnv64": "9d0b610f44e1972e"
+    },
+    {
+      "file": "src/schema/billing.ts",
+      "fnv64": "125afb386cde230b"
+    },
+    {
+      "file": "src/schema/scheduling.ts",
+      "fnv64": "7eedc98a5972f46d"
+    },
+    {
+      "file": "src/schema/work.ts",
+      "fnv64": "bd7eb260a2ac1cc0"
+    }
+  ],
+  "status": "MODEL_COUNTEREXAMPLE",
+  "variant": "actual",
+  "world": {
+    "id": "stored-distinct:accounts.displayName",
+    "origin": "relationship",
+    "relationships": [
+      "the stored `accounts.displayName` differs from the value an actor writes (\"displayName-1\")"
+    ]
+  }
+}

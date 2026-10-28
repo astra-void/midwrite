@@ -1,0 +1,918 @@
+{
+ "binary": "/private/tmp/claude-501/-Users-returnf4lse-Desktop-Workspace-rust-crash-proof/3cefc504-0161-4743-8171-01921c15febc/scratchpad/commitrift-final",
+ "cases": [
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "class": "check-then-act",
+   "counterexample": true,
+   "effectful": true,
+   "entry": "src/services/teams.ts#createTeam",
+   "extracted": true,
+   "id": "E01",
+   "label": "positive",
+   "pairedWith": null,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "NO_VIOLATION_WITHIN_BOUNDS"
+    ]
+   ],
+   "class": "check-then-act",
+   "counterexample": false,
+   "effectful": true,
+   "entry": "src/services/teams.ts#createTeamLocked",
+   "extracted": true,
+   "id": "E02",
+   "label": "negative",
+   "pairedWith": null,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "class": "check-then-act",
+   "counterexample": true,
+   "effectful": true,
+   "entry": "src/services/teams.ts#createTeam",
+   "extracted": true,
+   "id": "E03",
+   "label": "positive",
+   "pairCandidates": [
+    [
+     "check-then-act",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "pairCounterexample": true,
+   "pairedWith": "src/services/teams.ts#createTeamLocked",
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "class": "check-then-act",
+   "counterexample": true,
+   "effectful": true,
+   "entry": "src/services/teams.ts#createTeamShared",
+   "extracted": true,
+   "id": "E04",
+   "label": "positive",
+   "pairedWith": null,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [
+    [
+     "read-modify-write",
+     "INCONCLUSIVE"
+    ]
+   ],
+   "class": "lock-cycle",
+   "counterexample": false,
+   "effectful": true,
+   "entry": "src/services/teams.ts#addMember",
+   "extracted": true,
+   "id": "E05",
+   "label": "positive",
+   "pairedWith": null,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "lock-cycle",
+   "counterexample": false,
+   "effectful": true,
+   "entry": "src/services/teams.ts#addMemberCounted",
+   "extracted": true,
+   "id": "E06",
+   "label": "negative",
+   "pairedWith": null,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "check-then-act",
+   "counterexample": false,
+   "effectful": true,
+   "entry": "src/services/posts.ts#addComment",
+   "extracted": true,
+   "id": "E07",
+   "label": "negative",
+   "pairCandidates": [
+    [
+     "parent-child",
+     "NO_VIOLATION_WITHIN_BOUNDS"
+    ]
+   ],
+   "pairCounterexample": false,
+   "pairedWith": "src/services/posts.ts#deletePost",
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "check-then-act",
+   "counterexample": false,
+   "effectful": true,
+   "entry": "src/services/posts.ts#addBookmark",
+   "extracted": true,
+   "id": "E08",
+   "label": "positive",
+   "pairCandidates": [
+    [
+     "parent-child",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "pairCounterexample": true,
+   "pairedWith": "src/services/posts.ts#deletePost",
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "status-transition",
+   "counterexample": false,
+   "effectful": true,
+   "entry": "src/services/seats.ts#holdSeat",
+   "extracted": true,
+   "id": "E09",
+   "label": "positive",
+   "pairedWith": null,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "status-transition",
+   "counterexample": false,
+   "effectful": true,
+   "entry": "src/services/seats.ts#holdSeatAtomic",
+   "extracted": true,
+   "id": "E10",
+   "label": "negative",
+   "pairedWith": null,
+   "status": "effectful",
+   "unknownOps": [
+    "an array of rows used as a value (src/repositories/seats.ts:20:5)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "status-transition",
+   "counterexample": false,
+   "effectful": true,
+   "entry": "src/services/seats.ts#holdSeatDirect",
+   "extracted": true,
+   "id": "E11",
+   "label": "positive",
+   "pairedWith": null,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "resubmitted-write",
+   "counterexample": false,
+   "effectful": false,
+   "entry": "src/services/orders.ts#placeOrder",
+   "extracted": true,
+   "id": "E12",
+   "label": "positive",
+   "pairedWith": null,
+   "status": "no-database-effects",
+   "unknownOps": [
+    "`values` argument is not an object literal, a `const` object or an array of them (src/repositories/orders.ts:10:29)",
+    "`values` argument is not an object literal, a `const` object or an array of them (src/repositories/orders.ts:10:11)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "resubmitted-write",
+   "counterexample": false,
+   "effectful": false,
+   "entry": "src/services/orders.ts#placeOrderIdempotent",
+   "extracted": true,
+   "id": "E13",
+   "label": "negative",
+   "pairedWith": null,
+   "status": "read-only",
+   "unknownOps": [
+    "spread in `values` (src/repositories/orders.ts:16:29)",
+    "spread in `values` (src/repositories/orders.ts:16:11)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "ambiguous-commit",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "class": "ambiguous-commit",
+   "counterexample": true,
+   "effectful": true,
+   "entry": "src/services/orders.ts#settleOrder",
+   "extracted": true,
+   "id": "E14",
+   "label": "positive",
+   "pairedWith": null,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "ambiguous-commit",
+     "NO_VIOLATION_WITHIN_BOUNDS"
+    ]
+   ],
+   "class": "ambiguous-commit",
+   "counterexample": false,
+   "effectful": true,
+   "entry": "src/services/orders.ts#settleOrderOnce",
+   "extracted": true,
+   "id": "E15",
+   "label": "negative",
+   "pairedWith": null,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "stale-read",
+   "counterexample": false,
+   "effectful": true,
+   "entry": "src/services/profiles.ts#renameAndRead",
+   "extracted": true,
+   "id": "E16",
+   "label": "positive",
+   "pairedWith": null,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "stale-read",
+   "counterexample": false,
+   "effectful": true,
+   "entry": "src/services/profiles.ts#renameAndReadPrimary",
+   "extracted": true,
+   "id": "E17",
+   "label": "negative",
+   "pairedWith": null,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "stale-read",
+   "counterexample": false,
+   "effectful": true,
+   "entry": "src/services/profiles.ts#renameInTransaction",
+   "extracted": true,
+   "id": "E18",
+   "label": "negative",
+   "pairedWith": null,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [
+    [
+     "check-then-act",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "class": "stale-read",
+   "counterexample": true,
+   "effectful": true,
+   "entry": "src/services/labels.ts#addLabel",
+   "extracted": true,
+   "id": "E19",
+   "label": "positive",
+   "pairedWith": null,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "class": "check-then-act",
+   "counterexample": true,
+   "effectful": true,
+   "entry": "src/api/teams.ts#createTeamRoute/arg[0]",
+   "extracted": true,
+   "id": "E20",
+   "label": "positive",
+   "pairedWith": null,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "check-then-act",
+   "counterexample": false,
+   "effectful": true,
+   "entry": "src/api/invites.ts#inviteRoute/arg[0]",
+   "extracted": true,
+   "id": "E21",
+   "label": "negative",
+   "pairedWith": null,
+   "status": "effectful",
+   "unknownOps": [
+    "package call with a verified built-in contract: `inviteInput.parse` of `zod` (synchronous; returns the parsed output (the input as transformed by the schema: unknown keys stripped, defaults, coercions and transforms applied); throws a ZodError when the input does not satisfy the schema (validation logic is not run by the model); effects: none outside the process unless the schema's own refinements or transforms have effects (not analyzed); source: zod 3.x/4.x documented ZodType API): its result is not representable in the model; the schema is not modeled: zod string check `.email()` is not modeled (src/api/invites.ts:14:29)",
+    "package call with a verified built-in contract: `inviteInput.parse` of `zod` (synchronous; returns the parsed output (the input as transformed by the schema: unknown keys stripped, defaults, coercions and transforms applied); throws a ZodError when the input does not satisfy the schema (validation logic is not run by the model); effects: none outside the process unless the schema's own refinements or transforms have effects (not analyzed); source: zod 3.x/4.x documented ZodType API): its result is not representable in the model; the schema is not modeled: zod string check `.email()` is not modeled (src/api/invites.ts:14:11)",
+    "package call with a verified built-in contract: `inviteInput.parse` of `zod` (synchronous; returns the parsed output (the input as transformed by the schema: unknown keys stripped, defaults, coercions and transforms applied); throws a ZodError when the input does not satisfy the schema (validation logic is not run by the model); effects: none outside the process unless the schema's own refinements or transforms have effects (not analyzed); source: zod 3.x/4.x documented ZodType API): its result is not representable in the model; the schema is not modeled: zod string check `.email()` is not modeled (src/api/invites.ts:14:19)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "read-modify-write",
+   "counterexample": false,
+   "effectful": true,
+   "entry": "src/services/counters.ts#recordView",
+   "extracted": true,
+   "id": "E22",
+   "label": "negative",
+   "pairedWith": null,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "status-transition",
+   "counterexample": false,
+   "effectful": true,
+   "entry": "src/services/counters.ts#reserveHandle",
+   "extracted": true,
+   "id": "E23",
+   "label": "positive",
+   "pairedWith": null,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "duplicate-processing",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "class": "duplicate-processing",
+   "counterexample": true,
+   "effectful": true,
+   "entry": "src/workers/welcome.ts#handleWelcomeJob",
+   "extracted": true,
+   "id": "E24",
+   "label": "positive",
+   "pairedWith": null,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "duplicate-processing",
+     "NO_VIOLATION_WITHIN_BOUNDS"
+    ]
+   ],
+   "class": "duplicate-processing",
+   "counterexample": false,
+   "effectful": true,
+   "entry": "src/workers/welcome.ts#handleWelcomeJobOnce",
+   "extracted": true,
+   "id": "E25",
+   "label": "negative",
+   "pairedWith": null,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "class": "check-then-act",
+   "counterexample": true,
+   "effectful": true,
+   "entry": "src/services/folders.ts#createFolder",
+   "extracted": true,
+   "id": "E26",
+   "label": "positive",
+   "pairedWith": null,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "unknown",
+   "counterexample": false,
+   "effectful": false,
+   "entry": "src/services/admin.ts#runMaintenance",
+   "extracted": true,
+   "id": "E27",
+   "label": "unsupported",
+   "pairedWith": null,
+   "status": "no-database-effects",
+   "unknownOps": [
+    "raw SQL via `execute` is not parsed (src/services/admin.ts:7:9)"
+   ],
+   "validated": true
+  }
+ ],
+ "frozen": "fixtures/phase13/FROZEN.json",
+ "frozenFilesVerified": 29,
+ "index": {
+  "cacheHits": 0,
+  "cacheMisses": 0,
+  "effectfulEntries": 25,
+  "entriesByKind": {
+   "class-method": 3,
+   "exported-function": 29,
+   "object-property": 5,
+   "wrapped-callback": 4
+  },
+  "entriesExtracted": 35,
+  "entriesWithUnknownOperations": 10,
+  "entriesWithoutDatabaseReach": 6,
+  "entryCandidates": 41,
+  "extractionFailures": 0,
+  "generatedColumns": [
+   [
+    "notifications.id",
+    "database",
+    "gen_random_uuid()"
+   ],
+   [
+    "orders.id",
+    "database",
+    "gen_random_uuid()"
+   ],
+   [
+    "users.id",
+    "database",
+    "gen_random_uuid()"
+   ]
+  ],
+  "readOnlyEntries": 3,
+  "resources": 35,
+  "tablesModeled": 16,
+  "tablesRefused": [],
+  "unknownOperations": 17
+ },
+ "stages": {
+  "candidates": {
+   "negativesWithCandidateOfClass": 3,
+   "positives": 15,
+   "positivesWithCandidateOfClass": 7
+  },
+  "effects": {
+   "effectful": 24,
+   "expectedEffectful": 27
+  },
+  "entries": {
+   "extracted": 27,
+   "labeled": 27
+  },
+  "model": {
+   "candidateToModel": "18/18",
+   "cases": [
+    {
+     "candidates": [
+      "check-then-act:MODEL_COUNTEREXAMPLE"
+     ],
+     "class": "check-then-act",
+     "classAgrees": true,
+     "entry": "src/services/teams.ts#createTeam",
+     "label": "positive",
+     "modelPrediction": true,
+     "outcome": "TP",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "check-then-act:NO_VIOLATION_WITHIN_BOUNDS"
+     ],
+     "class": "check-then-act",
+     "entry": "src/services/teams.ts#createTeamLocked",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "check-then-act:MODEL_COUNTEREXAMPLE"
+     ],
+     "class": "check-then-act",
+     "classAgrees": true,
+     "entry": "src/services/teams.ts#createTeam",
+     "label": "positive",
+     "modelPrediction": true,
+     "outcome": "TP",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "check-then-act:MODEL_COUNTEREXAMPLE"
+     ],
+     "class": "check-then-act",
+     "classAgrees": true,
+     "entry": "src/services/teams.ts#createTeamShared",
+     "label": "positive",
+     "modelPrediction": true,
+     "outcome": "TP",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "read-modify-write:INCONCLUSIVE"
+     ],
+     "class": "lock-cycle",
+     "entry": "src/services/teams.ts#addMember",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "lock-cycle",
+     "entry": "src/services/teams.ts#addMemberCounted",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "check-then-act",
+     "entry": "src/services/posts.ts#addComment",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "check-then-act",
+     "entry": "src/services/posts.ts#addBookmark",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "status-transition",
+     "entry": "src/services/seats.ts#holdSeat",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "status-transition",
+     "entry": "src/services/seats.ts#holdSeatAtomic",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "status-transition",
+     "entry": "src/services/seats.ts#holdSeatDirect",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "resubmitted-write",
+     "entry": "src/services/orders.ts#placeOrder",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "resubmitted-write",
+     "entry": "src/services/orders.ts#placeOrderIdempotent",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [
+      "ambiguous-commit:MODEL_COUNTEREXAMPLE"
+     ],
+     "class": "ambiguous-commit",
+     "classAgrees": true,
+     "entry": "src/services/orders.ts#settleOrder",
+     "label": "positive",
+     "modelPrediction": true,
+     "outcome": "TP",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "ambiguous-commit:NO_VIOLATION_WITHIN_BOUNDS"
+     ],
+     "class": "ambiguous-commit",
+     "entry": "src/services/orders.ts#settleOrderOnce",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [],
+     "class": "stale-read",
+     "entry": "src/services/profiles.ts#renameAndRead",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "stale-read",
+     "entry": "src/services/profiles.ts#renameAndReadPrimary",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "stale-read",
+     "entry": "src/services/profiles.ts#renameInTransaction",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [
+      "check-then-act:MODEL_COUNTEREXAMPLE"
+     ],
+     "class": "stale-read",
+     "classAgrees": false,
+     "entry": "src/services/labels.ts#addLabel",
+     "label": "positive",
+     "modelPrediction": true,
+     "outcome": "TP",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "check-then-act:MODEL_COUNTEREXAMPLE"
+     ],
+     "class": "check-then-act",
+     "classAgrees": true,
+     "entry": "src/api/teams.ts#createTeamRoute/arg[0]",
+     "label": "positive",
+     "modelPrediction": true,
+     "outcome": "TP",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [],
+     "class": "check-then-act",
+     "entry": "src/api/invites.ts#inviteRoute/arg[0]",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "read-modify-write",
+     "entry": "src/services/counters.ts#recordView",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "status-transition",
+     "entry": "src/services/counters.ts#reserveHandle",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [
+      "duplicate-processing:MODEL_COUNTEREXAMPLE"
+     ],
+     "class": "duplicate-processing",
+     "classAgrees": true,
+     "entry": "src/workers/welcome.ts#handleWelcomeJob",
+     "label": "positive",
+     "modelPrediction": true,
+     "outcome": "TP",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "duplicate-processing:NO_VIOLATION_WITHIN_BOUNDS"
+     ],
+     "class": "duplicate-processing",
+     "entry": "src/workers/welcome.ts#handleWelcomeJobOnce",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [
+      "check-then-act:MODEL_COUNTEREXAMPLE"
+     ],
+     "class": "check-then-act",
+     "classAgrees": true,
+     "entry": "src/services/folders.ts#createFolder",
+     "label": "positive",
+     "modelPrediction": true,
+     "outcome": "TP",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [],
+     "class": "unknown",
+     "entry": "src/services/admin.ts#runMaintenance",
+     "label": "unsupported",
+     "modelPrediction": false,
+     "outcome": "reported",
+     "staticPrediction": false
+    }
+   ],
+   "classAgreement": {
+    "agrees": 7,
+    "differs": 1
+   },
+   "labelsCorrected": 0,
+   "modelPrediction": {
+    "f1": 0.695,
+    "falseNegatives": 7,
+    "falsePositives": 0,
+    "precision": 1.0,
+    "recall": 0.533,
+    "trueNegatives": 11,
+    "truePositives": 8
+   },
+   "staticHazardPrediction": {
+    "f1": 0.64,
+    "falseNegatives": 7,
+    "falsePositives": 2,
+    "precision": 0.8,
+    "recall": 0.533,
+    "trueNegatives": 9,
+    "truePositives": 8
+   },
+   "unsupportedMissed": 0,
+   "unsupportedReported": 1
+  },
+  "original": "not measured: the evaluation application has no authorized harness",
+  "schema": {
+   "tablesExpected": 16,
+   "tablesModeled": 16,
+   "tablesRefused": []
+  },
+  "unsupported": [
+   {
+    "candidates": [],
+    "entry": "src/services/admin.ts#runMaintenance",
+    "status": "no-database-effects"
+   }
+  ],
+  "validity": {
+   "allValidated": true,
+   "entriesWithCounterexample": 8
+  }
+ },
+ "summary": {
+  "byClass": {
+   "ambiguous-commit": 2,
+   "check-then-act": 12,
+   "duplicate-processing": 2,
+   "parent-child": 2,
+   "read-modify-write": 2
+  },
+  "byPropertyOrigin": {
+   "HEURISTIC_HYPOTHESIS": 5,
+   "SCHEMA_ENFORCED": 1,
+   "USER_DECLARED": 14
+  },
+  "byStatus": {
+   "INCONCLUSIVE": 2,
+   "MODEL_COUNTEREXAMPLE": 10,
+   "NO_VIOLATION_WITHIN_BOUNDS": 8
+  },
+  "candidates": 20,
+  "counterexamplesAgainstHypotheses": 3,
+  "deduplicatedFindings": 7,
+  "modelCheckable": 18,
+  "modelCounterexamples": 10,
+  "requiringAssumptions": 20,
+  "unknownOperationBreakdown": {
+   "other": 5,
+   "package call with a contract (result not modeled)": 3,
+   "unresolved method call": 4,
+   "unsupported expression": 4,
+   "unsupported query (raw SQL)": 1
+  },
+  "unsupportedBreakdown": {
+   "unsatisfiable initial state": 2
+  },
+  "withDeclaredProperty": 14
+ }
+}

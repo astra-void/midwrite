@@ -1,0 +1,12 @@
+reports/phase13/evidence/workspace-app-discovery.json: no schema for kind/version ('commitrift.discovery', 1)
+model-check-report.v3 (builtin validator): CR-SYNTH-6C9B41 createWorkspaceAction_arg[0] × createWorkspaceLocked.json: 2 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v3 (builtin validator): CR-SYNTH-95906B createWorkspace × createWorkspaceLocked.json: 2 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v3 (builtin validator): claim-atomic.json: 2 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v3 (builtin validator): claim-race.json: 2 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v3 (builtin validator): count-views.json: 2 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v1 (builtin validator): replica-read-your-writes.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v3 (builtin validator): reserve-if-free.json: 2 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v3 (builtin validator): reserve-race.json: 2 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v3 (builtin validator): signup-crash.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+model-check-report.v3 (builtin validator): signup-idempotent.json: 1 actors, 0 schema errors; corrupted copy rejected: True
+exit 1

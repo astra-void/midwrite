@@ -1,0 +1,100 @@
+{
+  "actors": [
+    {
+      "arguments": [
+        1
+      ],
+      "name": "startExport-1",
+      "selector": "src/services/exports.ts#startExport"
+    },
+    {
+      "arguments": [
+        1
+      ],
+      "name": "startExport-2",
+      "selector": "src/services/exports.ts#startExport"
+    }
+  ],
+  "algorithm": "sleep-sets",
+  "assumptions": [
+    "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+  ],
+  "bounds": {
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "maxStates": 200000,
+    "maxSteps": 64
+  },
+  "candidate": "CR-SYNTH-6F4EF6",
+  "class": "check-then-act",
+  "evidence": "model counterexample (not an original-code reproduction)",
+  "finalTerms": [
+    "committed(quotas[accountId=1].remaining) = -1"
+  ],
+  "finding": "In the initial world `stored-boundary:quotas.remaining=1` (the stored `quotas.remaining` is 1, at a boundary of a guard that tests it): MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `export-quota-non-negative` (USER_DECLARED) (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). The property is declared by the user; the counterexample replays in the model.",
+  "initialState": {
+    "quotas": [
+      {
+        "accountId": 1,
+        "remaining": 1
+      }
+    ]
+  },
+  "kind": "commitrift.counterexample",
+  "property": {
+    "name": "export-quota-non-negative",
+    "origin": "USER_DECLARED"
+  },
+  "reproduce": "commitrift model-check cr-synth-6f4ef6-actual--stored-boundary-quotas-remaining-1.json",
+  "reproduceOnOriginalCode": "commitrift model-check cr-synth-6f4ef6-actual--stored-boundary-quotas-remaining-1.json --verify-source --allow-execution",
+  "scenario": "cr-synth-6f4ef6-actual--stored-boundary-quotas-remaining-1.json",
+  "schedule": [
+    "startExport-2 read SELECT quotas WHERE (@accountId = 1) → {remaining=1}  (src/services/exports.ts:10:25)",
+    "startExport-2 local CHECK (!_row1 or (_row1.remaining <= 0)) → false  (src/services/exports.ts:15:7)",
+    "startExport-1 read SELECT quotas WHERE (@accountId = 1) → {remaining=1}  (src/services/exports.ts:10:25)",
+    "startExport-1 local CHECK (!_row1 or (_row1.remaining <= 0)) → false  (src/services/exports.ts:15:7)",
+    "startExport-1 write UPDATE quotas SET remaining = (@remaining - 1) WHERE (@accountId = 1) → 1 row  (src/services/exports.ts:16:9)",
+    "startExport-1 write INSERT export_jobs {accountId=1} → {id=1}  (src/services/exports.ts:20:23)",
+    "startExport-1 local _returned4 = null  (src/services/exports.ts:20:23)",
+    "startExport-1 local CHECK _inserted3 is null → false  (src/services/exports.ts:20:23)",
+    "startExport-1 local _returned4 = {id=1}  (src/services/exports.ts:20:23)",
+    "startExport-1 local _opt5 = undefined  (src/services/exports.ts:21:10)",
+    "startExport-1 local CHECK (_returned4 is null or (_returned4 = undefined)) → false  (src/services/exports.ts:21:10)",
+    "startExport-1 local _opt5 = 1  (src/services/exports.ts:21:10)",
+    "startExport-1 local _logic6 = 1  (src/services/exports.ts:21:10)",
+    "startExport-1 local CHECK (_logic6 is null or (_logic6 = undefined)) → false  (src/services/exports.ts:21:10)",
+    "startExport-1 local return (success)",
+    "startExport-2 write UPDATE quotas SET remaining = (@remaining - 1) WHERE (@accountId = 1) → 1 row  (src/services/exports.ts:16:9)",
+    "startExport-2 write INSERT export_jobs {accountId=1} → {id=2}  (src/services/exports.ts:20:23)",
+    "startExport-2 local _returned4 = null  (src/services/exports.ts:20:23)",
+    "startExport-2 local CHECK _inserted3 is null → false  (src/services/exports.ts:20:23)",
+    "startExport-2 local _returned4 = {id=2}  (src/services/exports.ts:20:23)",
+    "startExport-2 local _opt5 = undefined  (src/services/exports.ts:21:10)",
+    "startExport-2 local CHECK (_returned4 is null or (_returned4 = undefined)) → false  (src/services/exports.ts:21:10)",
+    "startExport-2 local _opt5 = 2  (src/services/exports.ts:21:10)",
+    "startExport-2 local _logic6 = 2  (src/services/exports.ts:21:10)",
+    "startExport-2 local CHECK (_logic6 is null or (_logic6 = undefined)) → false  (src/services/exports.ts:21:10)",
+    "startExport-2 local return (success)"
+  ],
+  "schemaVersion": 1,
+  "sourceFingerprint": [
+    {
+      "file": "src/services/exports.ts",
+      "fnv64": "7502bc5d6967c52b"
+    },
+    {
+      "file": "src/db/schema.ts",
+      "fnv64": "b53ea6e0307712bf"
+    }
+  ],
+  "status": "MODEL_COUNTEREXAMPLE",
+  "variant": "actual",
+  "world": {
+    "id": "stored-boundary:quotas.remaining=1",
+    "origin": "relationship",
+    "relationships": [
+      "the stored `quotas.remaining` is 1, at a boundary of a guard that tests it"
+    ]
+  }
+}

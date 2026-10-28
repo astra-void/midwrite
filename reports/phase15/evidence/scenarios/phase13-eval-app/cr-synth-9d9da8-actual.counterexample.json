@@ -1,0 +1,113 @@
+{
+  "actors": [
+    {
+      "arguments": [
+        "16df69bf-0000-4000-a000-000000000001",
+        3
+      ],
+      "name": "settleOrder",
+      "selector": "src/services/orders.ts#settleOrder"
+    }
+  ],
+  "algorithm": "sleep-sets",
+  "assumptions": [
+    "the acknowledgment of the transaction's COMMIT can be lost after the server committed it (a broken connection); the driver then raises an error"
+  ],
+  "bounds": {
+    "maxCrashes": 0,
+    "maxInFlight": 1,
+    "maxRetries": 0,
+    "maxStates": 200000,
+    "maxSteps": 78
+  },
+  "candidate": "CR-SYNTH-9D9DA8",
+  "class": "ambiguous-commit",
+  "evidence": "model counterexample (not an original-code reproduction)",
+  "finalTerms": [
+    "count(payments[orderId=\"16df69bf-0000-4000-a000-000000000001\"]) = 2"
+  ],
+  "finding": "MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `one-payment-per-order` (USER_DECLARED). The property is declared by the user; the counterexample replays in the model.",
+  "initialState": {
+    "orders": [
+      {
+        "cartId": "cartId-1",
+        "customerId": "aebd7dd9-0000-4000-a000-000000000001",
+        "id": "16df69bf-0000-4000-a000-000000000001",
+        "status": "pending",
+        "total": 10
+      }
+    ],
+    "users": [
+      {
+        "email": "email-1",
+        "id": "aebd7dd9-0000-4000-a000-000000000001",
+        "name": "name-1",
+        "welcomedAt": null
+      }
+    ]
+  },
+  "kind": "commitrift.counterexample",
+  "property": {
+    "name": "one-payment-per-order",
+    "origin": "USER_DECLARED"
+  },
+  "reproduce": "commitrift model-check cr-synth-9d9da8-actual.json",
+  "reproduceOnOriginalCode": null,
+  "scenario": "cr-synth-9d9da8-actual.json",
+  "schedule": [
+    "settleOrder begin BEGIN ISOLATION LEVEL READ COMMITTED  (src/services/orders.ts:27:5)",
+    "settleOrder local h2$_tx3 = null  (src/services/orders.ts:27:5)",
+    "settleOrder write INSERT payments {amount=3, orderId=\"16df69bf-0000-4000-a000-000000000001\"} → 1 row  (src/services/orders.ts:28:13)",
+    "settleOrder write UPDATE orders SET status = \"paid\" WHERE (@id = \"16df69bf-0000-4000-a000-000000000001\") → 1 row  (src/services/orders.ts:29:13)",
+    "settleOrder ackLost COMMIT submitted; it reaches PostgreSQL, which will complete it; the acknowledgment never reaches the application (connection lost)  (src/services/orders.ts:27:5)",
+    "settleOrder fail caught: connection terminated unexpectedly: the outcome of COMMIT is unknown",
+    "settleOrder local h4$ret = undefined  (src/lib/retry.ts:7:18)",
+    "settleOrder begin BEGIN ISOLATION LEVEL READ COMMITTED  (src/services/orders.ts:27:5)",
+    "settleOrder local h4$_tx5 = null  (src/services/orders.ts:27:5)",
+    "settleOrder write INSERT payments {amount=3, orderId=\"16df69bf-0000-4000-a000-000000000001\"} → 1 row  (src/services/orders.ts:28:13)",
+    "settleOrder blocked UPDATE orders SET status = \"paid\" WHERE (@id = \"16df69bf-0000-4000-a000-000000000001\") → BLOCKED waiting for settleOrder's transaction  (src/services/orders.ts:29:13)",
+    "settleOrder serverCompletion the server completes the COMMIT it received: committed",
+    "settleOrder resumed (wait over, statement continues)  (src/services/orders.ts:29:13)",
+    "settleOrder write UPDATE orders SET status = \"paid\" WHERE (@id = \"16df69bf-0000-4000-a000-000000000001\") → 1 row  (src/services/orders.ts:29:13)",
+    "settleOrder commit COMMIT  (src/services/orders.ts:27:5)",
+    "settleOrder local h4$ret = null  (src/services/orders.ts:27:5)",
+    "settleOrder local h1$ret = null  (src/lib/retry.ts:7:5)",
+    "settleOrder local return (success)"
+  ],
+  "schemaVersion": 1,
+  "sourceFingerprint": [
+    {
+      "file": "src/services/orders.ts",
+      "fnv64": "c2538f530d8b0b8d"
+    },
+    {
+      "file": "src/schema/commerce.ts",
+      "fnv64": "13b4b45405221327"
+    },
+    {
+      "file": "src/schema/content.ts",
+      "fnv64": "8e307c5287dbd73d"
+    },
+    {
+      "file": "src/schema/jobs.ts",
+      "fnv64": "7b9c3b3fce2125f9"
+    },
+    {
+      "file": "src/schema/teams.ts",
+      "fnv64": "010df9e51b7be4f8"
+    },
+    {
+      "file": "src/schema/users.ts",
+      "fnv64": "7867fdf4704f67da"
+    }
+  ],
+  "status": "MODEL_COUNTEREXAMPLE",
+  "variant": "actual",
+  "world": {
+    "id": "base",
+    "origin": "base",
+    "relationships": [
+      "the synthesized initial state and arguments"
+    ]
+  }
+}

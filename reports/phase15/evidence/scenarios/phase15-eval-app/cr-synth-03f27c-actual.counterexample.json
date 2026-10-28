@@ -1,0 +1,126 @@
+{
+  "actors": [
+    {
+      "arguments": [
+        1,
+        "f35425ca-0000-4000-a000-000000000001"
+      ],
+      "name": "addSeat-1",
+      "selector": "src/services/seats.ts#addSeat"
+    },
+    {
+      "arguments": [
+        1,
+        "f35425ca-0000-4000-a000-000000000001"
+      ],
+      "name": "addSeat-2",
+      "selector": "src/services/seats.ts#addSeat"
+    }
+  ],
+  "algorithm": "sleep-sets",
+  "assumptions": [
+    "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+  ],
+  "bounds": {
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "maxStates": 200000,
+    "maxSteps": 64
+  },
+  "candidate": "CR-SYNTH-03F27C",
+  "class": "check-then-act",
+  "evidence": "model counterexample (not an original-code reproduction)",
+  "finalTerms": [
+    "committed(orgs[id=1].vacancies) = -1"
+  ],
+  "finding": "MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `vacancies-non-negative` (USER_DECLARED) (control `distinct-key`: COUNTEREXAMPLE_FOUND). The property is declared by the user; the counterexample replays in the model.",
+  "initialState": {
+    "accounts": [
+      {
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "email": "email-1",
+        "id": "f35425ca-0000-4000-a000-000000000001"
+      }
+    ],
+    "orgs": [
+      {
+        "id": 1,
+        "name": "name-1",
+        "vacancies": 0
+      }
+    ]
+  },
+  "kind": "commitrift.counterexample",
+  "property": {
+    "name": "vacancies-non-negative",
+    "origin": "USER_DECLARED"
+  },
+  "reproduce": "commitrift model-check cr-synth-03f27c-actual.json",
+  "reproduceOnOriginalCode": null,
+  "scenario": "cr-synth-03f27c-actual.json",
+  "schedule": [
+    "addSeat-1 begin BEGIN ISOLATION LEVEL READ COMMITTED  (src/services/seats.ts:9:10)",
+    "addSeat-1 local _tx1 = null  (src/services/seats.ts:9:10)",
+    "addSeat-1 read SELECT orgs WHERE (@id = 1) FOR UPDATE → {vacancies=0}  (src/services/seats.ts:10:25)",
+    "addSeat-1 local CHECK !_row2 → false  (src/services/seats.ts:16:9)",
+    "addSeat-1 local allowed = true  (src/services/seats.ts:17:11)",
+    "addSeat-1 local CHECK !allowed → false  (src/services/seats.ts:18:9)",
+    "addSeat-1 write UPDATE orgs SET vacancies = (@vacancies - 1) WHERE (@id = 1) → 1 row  (src/services/seats.ts:19:11)",
+    "addSeat-1 write INSERT seats {accountId=\"f35425ca-0000-4000-a000-000000000001\", orgId=1} → {id=1}  (src/services/seats.ts:23:26)",
+    "addSeat-1 local _returned5 = null  (src/services/seats.ts:23:26)",
+    "addSeat-1 local CHECK _inserted4 is null → false  (src/services/seats.ts:23:26)",
+    "addSeat-1 local _returned5 = {id=1}  (src/services/seats.ts:23:26)",
+    "addSeat-1 local _opt6 = undefined  (src/services/seats.ts:24:12)",
+    "addSeat-1 local CHECK (_returned5 is null or (_returned5 = undefined)) → false  (src/services/seats.ts:24:12)",
+    "addSeat-1 local _opt6 = 1  (src/services/seats.ts:24:12)",
+    "addSeat-1 local _tx1 = 1  (src/services/seats.ts:24:5)",
+    "addSeat-1 commit COMMIT  (src/services/seats.ts:9:10)",
+    "addSeat-1 local return (success)",
+    "addSeat-2 begin BEGIN ISOLATION LEVEL READ COMMITTED  (src/services/seats.ts:9:10)",
+    "addSeat-2 local _tx1 = null  (src/services/seats.ts:9:10)",
+    "addSeat-2 read SELECT orgs WHERE (@id = 1) FOR UPDATE → {vacancies=-1}  (src/services/seats.ts:10:25)",
+    "addSeat-2 local CHECK !_row2 → false  (src/services/seats.ts:16:9)",
+    "addSeat-2 local allowed = false  (src/services/seats.ts:17:11)",
+    "addSeat-2 local CHECK !allowed → true  (src/services/seats.ts:18:9)",
+    "addSeat-2 fail throw Error(\"no vacancies\")  (src/services/seats.ts:18:19)",
+    "addSeat-2 fail failed: no vacancies",
+    "addSeat-2 abort transaction rolled back"
+  ],
+  "schemaVersion": 1,
+  "sourceFingerprint": [
+    {
+      "file": "src/services/seats.ts",
+      "fnv64": "b6f9b3527d63eb49"
+    },
+    {
+      "file": "src/schema/accounts.ts",
+      "fnv64": "720c422360526cb9"
+    },
+    {
+      "file": "src/schema/billing.ts",
+      "fnv64": "1c99b98a727deee7"
+    },
+    {
+      "file": "src/schema/commerce.ts",
+      "fnv64": "c8f98e2df6e4f51a"
+    },
+    {
+      "file": "src/schema/content.ts",
+      "fnv64": "d6633423c2145088"
+    },
+    {
+      "file": "src/schema/orgs.ts",
+      "fnv64": "551761cdab4afca1"
+    }
+  ],
+  "status": "MODEL_COUNTEREXAMPLE",
+  "variant": "actual",
+  "world": {
+    "id": "base",
+    "origin": "base",
+    "relationships": [
+      "the synthesized initial state and arguments"
+    ]
+  }
+}

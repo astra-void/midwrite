@@ -1,0 +1,1604 @@
+{
+ "binary": "/private/tmp/claude-501/-Users-returnf4lse-Desktop-Workspace-rust-crash-proof/3cefc504-0161-4743-8171-01921c15febc/scratchpad/commitrift-final",
+ "cases": [
+  {
+   "candidateOfClass": false,
+   "candidates": [
+    [
+     "return-value",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "class": "stale-read",
+   "classAgrees": false,
+   "counterexample": true,
+   "counterpart": "P15-E02",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/profile.ts#saveNickname",
+   "extracted": true,
+   "family": "value-distinction",
+   "id": "P15-E01",
+   "inputSensitivity": "stored nickname != argument. With stored nickname = argument the lagging replica returns the old value, which equals the argument, and the call returns true: an initial state whose nickname coincides with the argument hides the defect.",
+   "label": "positive",
+   "outcome": "TP",
+   "pairedWith": null,
+   "predicted": true,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [
+    [
+     "return-value",
+     "NO_VIOLATION_WITHIN_BOUNDS"
+    ]
+   ],
+   "class": "stale-read",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P15-E01",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/profile.ts#saveNicknameInTransaction",
+   "extracted": true,
+   "family": "value-distinction",
+   "id": "P15-E02",
+   "inputSensitivity": "none: holds for every stored nickname and every argument, equal or not, and for concurrent calls with equal or different nicknames.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "status-transition",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P15-E04",
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/profile.ts#setTheme",
+   "extracted": true,
+   "family": "value-distinction",
+   "id": "P15-E03",
+   "inputSensitivity": "both actors pass the same theme and it differs from the stored theme. With different arguments (both different from the stored theme) every interleaving ends with the last writer's theme and +2, as the serial order in which that writer runs second; with one argument equal to the stored theme that call is a no-op in the racy and in some serial order; with both equal to the stored theme nothing is written.",
+   "label": "positive",
+   "outcome": "FN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "status-transition",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P15-E03",
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/profile.ts#setThemeAtomic",
+   "extracted": true,
+   "family": "value-distinction",
+   "id": "P15-E04",
+   "inputSensitivity": "none: holds for equal and distinct arguments and for every stored theme.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "status-transition",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": null,
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/notes.ts#archiveNote",
+   "extracted": true,
+   "family": "value-distinction",
+   "id": "P15-E05",
+   "inputSensitivity": "harmless because every actor writes the same value: the check-then-write race is reachable (archived = false initially) but both writers write the constant true, nothing else depends on which call made the change, and the call returns nothing.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "check-then-act",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P15-E07",
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/documents.ts#createDocument",
+   "extracted": true,
+   "family": "nullable-argument",
+   "id": "P15-E06",
+   "inputSensitivity": "folderId = null for both actors (same spaceId and title). With a non-null folderId the unique constraint covers the key.",
+   "label": "positive",
+   "outcome": "FN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": [
+    "call to `isNull`: imported from the package `drizzle-orm`, which is not analyzed (src/services/documents.ts:9:40)",
+    "call to `isNull`: imported from the package `drizzle-orm`, which is not analyzed (src/services/documents.ts:9:40)",
+    "call to `eq`: imported from the package `drizzle-orm`, which is not analyzed (src/services/documents.ts:9:69)",
+    "call to `eq`: imported from the package `drizzle-orm`, which is not analyzed (src/services/documents.ts:9:69)",
+    "predicate is not a Drizzle operator call (src/services/documents.ts:10:28)",
+    "select predicate (src/services/documents.ts:10:9)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "check-then-act",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P15-E06",
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/documents.ts#createPage",
+   "extracted": true,
+   "family": "nullable-argument",
+   "id": "P15-E07",
+   "inputSensitivity": "none: safe for folderId = null and for a non-null folderId.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": [
+    "call to `isNull`: imported from the package `drizzle-orm`, which is not analyzed (src/services/documents.ts:26:40)",
+    "call to `isNull`: imported from the package `drizzle-orm`, which is not analyzed (src/services/documents.ts:26:40)",
+    "call to `eq`: imported from the package `drizzle-orm`, which is not analyzed (src/services/documents.ts:26:65)",
+    "call to `eq`: imported from the package `drizzle-orm`, which is not analyzed (src/services/documents.ts:26:65)",
+    "predicate is not a Drizzle operator call (src/services/documents.ts:27:28)",
+    "select predicate (src/services/documents.ts:27:9)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": true,
+   "counterexample": true,
+   "counterpart": "P15-E09",
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/invitations.ts#inviteMember",
+   "extracted": true,
+   "family": "nullable-argument",
+   "id": "P15-E08",
+   "inputSensitivity": "teamId == null (undefined or null, both allowed by `teamId?: number | null`) for both actors. With a team id every call takes the team branch.",
+   "label": "positive",
+   "outcome": "TP",
+   "pairedWith": null,
+   "predicted": true,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "INCONCLUSIVE"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P15-E08",
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/invitations.ts#inviteToTeam",
+   "extracted": true,
+   "family": "nullable-argument",
+   "id": "P15-E09",
+   "inputSensitivity": "none within the signature: teamId: number, so `teamId == null` is false for every argument (including 0 and NaN) and the racy branch of inviteMember is unreachable. A JavaScript caller ignoring the type and passing null would reach it; that input is outside the domain the signature permits.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "lock-order",
+     "UNSUPPORTED"
+    ]
+   ],
+   "class": "lock-order",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P15-E11",
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/wallets.ts#transfer",
+   "extracted": true,
+   "family": "actor-keys",
+   "id": "P15-E10",
+   "inputSensitivity": "A.fromId = B.toId and A.toId = B.fromId with fromId != toId. With two actors a deadlock needs that cycle: equal (from, to) pairs, disjoint wallets, or a wallet shared in the same position lock in a consistent order, and both calls complete.",
+   "label": "positive",
+   "outcome": "FN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": [
+    "row locking is only supported with `.limit(1)` (a multi-row lock is not modeled) (src/services/wallets.ts:10:26)",
+    "row locking is only supported with `.limit(1)` (a multi-row lock is not modeled) (src/services/wallets.ts:10:11)",
+    "row locking is only supported with `.limit(1)` (a multi-row lock is not modeled) (src/services/wallets.ts:11:24)",
+    "row locking is only supported with `.limit(1)` (a multi-row lock is not modeled) (src/services/wallets.ts:11:11)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "lock-order",
+     "UNSUPPORTED"
+    ]
+   ],
+   "class": "lock-order",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P15-E10",
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/wallets.ts#transferOrdered",
+   "extracted": true,
+   "family": "actor-keys",
+   "id": "P15-E11",
+   "inputSensitivity": "none: crossed, equal and disjoint keys, and fromId = toId.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": [
+    "row locking is only supported with `.limit(1)` (a multi-row lock is not modeled) (src/services/wallets.ts:29:27)",
+    "row locking is only supported with `.limit(1)` (a multi-row lock is not modeled) (src/services/wallets.ts:29:11)",
+    "row locking is only supported with `.limit(1)` (a multi-row lock is not modeled) (src/services/wallets.ts:30:28)",
+    "row locking is only supported with `.limit(1)` (a multi-row lock is not modeled) (src/services/wallets.ts:30:11)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": true,
+   "counterexample": true,
+   "counterpart": "P15-E13",
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/exports.ts#startExport",
+   "extracted": true,
+   "family": "boundary",
+   "id": "P15-E12",
+   "inputSensitivity": "initial remaining = 1 with two calls (in general 0 < remaining < number of concurrent calls). With remaining >= 2 two decrements end >= 0; with remaining = 0 both calls throw.",
+   "label": "positive",
+   "outcome": "TP",
+   "pairedWith": null,
+   "predicted": true,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "check-then-act",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P15-E12",
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/exports.ts#startExportAtomic",
+   "extracted": true,
+   "family": "boundary",
+   "id": "P15-E13",
+   "inputSensitivity": "none: remaining = 0, 1 or more, any number of calls.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": true,
+   "counterexample": true,
+   "counterpart": "P15-E15",
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/seats.ts#addSeat",
+   "extracted": true,
+   "family": "boundary",
+   "id": "P15-E14",
+   "inputSensitivity": "initial vacancies = 0 for one call (more calls than vacancies in general): the guard `vacancies >= 0` admits exactly the boundary value 0. For vacancies >= the number of calls every decrement ends >= 0.",
+   "label": "positive",
+   "outcome": "TP",
+   "pairedWith": null,
+   "predicted": true,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "NO_VIOLATION_WITHIN_BOUNDS"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P15-E14",
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/seats.ts#addSeatChecked",
+   "extracted": true,
+   "family": "boundary",
+   "id": "P15-E15",
+   "inputSensitivity": "none: vacancies = 0, 1 or more, any number of calls.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": true,
+   "counterexample": true,
+   "counterpart": "P15-E17",
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/carts.ts#addToCart",
+   "extracted": true,
+   "family": "fk-parent-child",
+   "id": "P15-E16",
+   "inputSensitivity": "initial state without a cart for the account. With an existing cart both calls find it and add their items (child rows) to it.",
+   "label": "positive",
+   "outcome": "TP",
+   "pairedWith": null,
+   "predicted": true,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "check-then-act",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P15-E16",
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/carts.ts#addToWishlist",
+   "extracted": true,
+   "family": "fk-parent-child",
+   "id": "P15-E17",
+   "inputSensitivity": "none: with and without an existing wishlist.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": true,
+   "counterexample": true,
+   "counterpart": "P15-E19",
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/environments.ts#createEnvironment",
+   "extracted": true,
+   "family": "authorization",
+   "id": "P15-E18",
+   "inputSensitivity": "callerId has a membership of orgId with role 'admin' (for both actors). Without it requireAdmin throws before the check-then-act and nothing is written: an initial state without the admin membership hides the defect.",
+   "label": "positive",
+   "outcome": "TP",
+   "pairedWith": null,
+   "predicted": true,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "NO_VIOLATION_WITHIN_BOUNDS"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P15-E18",
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/environments.ts#createReleaseChannel",
+   "extracted": true,
+   "family": "authorization",
+   "id": "P15-E19",
+   "inputSensitivity": "none: admin callers reach the insert, which is covered by the unique key; other callers write nothing.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "write-skew",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P15-E21",
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/admins.ts#demoteAdmin",
+   "extracted": true,
+   "family": "authorization",
+   "id": "P15-E20",
+   "inputSensitivity": "exactly two admins, both callers are admins, and the two calls demote different admins. With three or more admins, with one admin, with a non-admin caller, or with both calls demoting the same admin, at least one admin remains.",
+   "label": "positive",
+   "outcome": "FN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": [
+    "`admins` is only modeled through its listed fields (src/services/admins.ts:19:7)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "write-skew",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P15-E20",
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/admins.ts#demoteAdminLocked",
+   "extracted": true,
+   "family": "authorization",
+   "id": "P15-E21",
+   "inputSensitivity": "none: two or more admins, crossed, self or same-target demotions.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": [
+    "`admins` is only modeled through its listed fields (src/services/admins.ts:42:9)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": true,
+   "counterexample": true,
+   "counterpart": "P15-E23",
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/routes.ts#claimRoute",
+   "extracted": true,
+   "family": "composite-unique",
+   "id": "P15-E22",
+   "inputSensitivity": "kind differs between the actors. With equal kinds the unique key (org_id, kind, slug) covers the key and the second INSERT does nothing.",
+   "label": "positive",
+   "outcome": "TP",
+   "pairedWith": null,
+   "predicted": true,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "NO_VIOLATION_WITHIN_BOUNDS"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P15-E22",
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/routes.ts#claimAlias",
+   "extracted": true,
+   "family": "composite-unique",
+   "id": "P15-E23",
+   "inputSensitivity": "none: equal and different kinds.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "ambiguous-commit",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P15-E25",
+   "declaredInContracts": false,
+   "effectful": false,
+   "entry": "src/services/grants.ts#grantCredit",
+   "extracted": true,
+   "family": "idempotency",
+   "id": "P15-E24",
+   "inputSensitivity": "grantKey omitted (undefined, written as NULL by `grantKey ?? null`). With a key the retried INSERT conflicts with the committed row and does nothing.",
+   "label": "positive",
+   "outcome": "FN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": false,
+   "status": "no-database-effects",
+   "unknownOps": [
+    "`for` loops are not part of the supported concurrency subset (src/lib/retry.ts:11:3)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "ambiguous-commit",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P15-E24",
+   "declaredInContracts": false,
+   "effectful": false,
+   "entry": "src/services/grants.ts#grantCreditKeyed",
+   "extracted": true,
+   "family": "idempotency",
+   "id": "P15-E25",
+   "inputSensitivity": "none within the signature: grantKey: string is never NULL.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": false,
+   "status": "no-database-effects",
+   "unknownOps": [
+    "`for` loops are not part of the supported concurrency subset (src/lib/retry.ts:11:3)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "duplicate-processing",
+     "MODEL_COUNTEREXAMPLE"
+    ],
+    [
+     "check-then-act",
+     "INCONCLUSIVE"
+    ]
+   ],
+   "class": "duplicate-processing",
+   "classAgrees": true,
+   "counterexample": true,
+   "counterpart": "P15-E27",
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/loyalty.ts#applyLoyaltyEvent",
+   "extracted": true,
+   "family": "idempotency",
+   "id": "P15-E26",
+   "inputSensitivity": "initial state without e in processed_events, and the deliveries carry the same event id (a redelivery). With e already processed every delivery returns at once; distinct event ids are distinct events.",
+   "label": "positive",
+   "outcome": "TP",
+   "pairedWith": null,
+   "predicted": true,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "duplicate-processing",
+     "NO_VIOLATION_WITHIN_BOUNDS"
+    ]
+   ],
+   "class": "duplicate-processing",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P15-E26",
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/loyalty.ts#applyLoyaltyEventOnce",
+   "extracted": true,
+   "family": "idempotency",
+   "id": "P15-E27",
+   "inputSensitivity": "none for reachable initial states (e processed or not). An initial state with a ledger row for e but no processed_events row cannot be produced by these writers (both rows commit together) and is excluded by the environment.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "unknown",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": null,
+   "declaredInContracts": false,
+   "effectful": false,
+   "entry": "src/services/ops.ts#runSavedQuery",
+   "extracted": true,
+   "family": "unsupported",
+   "id": "P15-E28",
+   "inputSensitivity": "the whole statement is the runtime argument `text`",
+   "label": "unsupported",
+   "outcome": "unsupported",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": false,
+   "status": "no-database-effects",
+   "unknownOps": [
+    "raw SQL via `execute` is not parsed (src/services/ops.ts:8:24)",
+    "raw SQL via `execute` is not parsed (src/services/ops.ts:8:9)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "unknown",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": null,
+   "declaredInContracts": false,
+   "effectful": false,
+   "entry": "src/services/ops.ts#bumpCounter",
+   "extracted": true,
+   "family": "unsupported",
+   "id": "P15-E29",
+   "inputSensitivity": "the updated column is the runtime argument `column`",
+   "label": "unsupported",
+   "outcome": "unsupported",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": false,
+   "status": "no-database-effects",
+   "unknownOps": [
+    "raw SQL via `execute` is not parsed (src/services/ops.ts:14:9)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "unknown",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": null,
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/ops.ts#countViewUnlessExcluded",
+   "extracted": true,
+   "family": "unsupported",
+   "id": "P15-E30",
+   "inputSensitivity": "the guard is the result of the runtime SQL text `exclusionQuery`",
+   "label": "unsupported",
+   "outcome": "unsupported",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": [
+    "raw SQL via `execute` is not parsed (src/services/ops.ts:20:26)",
+    "raw SQL via `execute` is not parsed (src/services/ops.ts:20:9)"
+   ],
+   "validated": true
+  }
+ ],
+ "frozen": "fixtures/phase15/FROZEN.json",
+ "frozenFilesVerified": 26,
+ "frozenManifestSha256": "b11cc1a112ac4bda46689860c68e3cf8930ce663d59711c96f9724056c53d4ed",
+ "index": {
+  "cacheHits": 0,
+  "cacheMisses": 0,
+  "effectfulEntries": 26,
+  "entriesByKind": {
+   "exported-function": 32,
+   "wrapped-callback": 12
+  },
+  "entriesExtracted": 31,
+  "entriesWithUnknownOperations": 11,
+  "entriesWithoutDatabaseReach": 13,
+  "entryCandidates": 44,
+  "extractionFailures": 0,
+  "generatedColumns": [
+   [
+    "accounts.id",
+    "database",
+    "gen_random_uuid()"
+   ]
+  ],
+  "readOnlyEntries": 1,
+  "resources": 46,
+  "tablesModeled": 28,
+  "tablesRefused": [],
+  "unknownOperations": 29
+ },
+ "labelsPassedToTool": "original",
+ "labelsRejectedWith": null,
+ "labelsSha256": "45d563014167f0db177b5c25bc4bb6969060d097c0b06317cfd5dd212438b0c7",
+ "scoring": {
+  "all": {
+   "FN": 5,
+   "FP": 0,
+   "TN": 14,
+   "TP": 8,
+   "precision": 1.0,
+   "recall": 0.615
+  },
+  "byFamily": {
+   "actor-keys": {
+    "FN": 1,
+    "FP": 0,
+    "TN": 1,
+    "TP": 0,
+    "cases": 2,
+    "negative": 1,
+    "outcomes": {
+     "P15-E10": "FN",
+     "P15-E11": "TN"
+    },
+    "positive": 1,
+    "precision": null,
+    "recall": 0.0,
+    "unsupported": 0
+   },
+   "authorization": {
+    "FN": 1,
+    "FP": 0,
+    "TN": 2,
+    "TP": 1,
+    "cases": 4,
+    "negative": 2,
+    "outcomes": {
+     "P15-E18": "TP",
+     "P15-E19": "TN",
+     "P15-E20": "FN",
+     "P15-E21": "TN"
+    },
+    "positive": 2,
+    "precision": 1.0,
+    "recall": 0.5,
+    "unsupported": 0
+   },
+   "boundary": {
+    "FN": 0,
+    "FP": 0,
+    "TN": 2,
+    "TP": 2,
+    "cases": 4,
+    "negative": 2,
+    "outcomes": {
+     "P15-E12": "TP",
+     "P15-E13": "TN",
+     "P15-E14": "TP",
+     "P15-E15": "TN"
+    },
+    "positive": 2,
+    "precision": 1.0,
+    "recall": 1.0,
+    "unsupported": 0
+   },
+   "composite-unique": {
+    "FN": 0,
+    "FP": 0,
+    "TN": 1,
+    "TP": 1,
+    "cases": 2,
+    "negative": 1,
+    "outcomes": {
+     "P15-E22": "TP",
+     "P15-E23": "TN"
+    },
+    "positive": 1,
+    "precision": 1.0,
+    "recall": 1.0,
+    "unsupported": 0
+   },
+   "fk-parent-child": {
+    "FN": 0,
+    "FP": 0,
+    "TN": 1,
+    "TP": 1,
+    "cases": 2,
+    "negative": 1,
+    "outcomes": {
+     "P15-E16": "TP",
+     "P15-E17": "TN"
+    },
+    "positive": 1,
+    "precision": 1.0,
+    "recall": 1.0,
+    "unsupported": 0
+   },
+   "idempotency": {
+    "FN": 1,
+    "FP": 0,
+    "TN": 2,
+    "TP": 1,
+    "cases": 4,
+    "negative": 2,
+    "outcomes": {
+     "P15-E24": "FN",
+     "P15-E25": "TN",
+     "P15-E26": "TP",
+     "P15-E27": "TN"
+    },
+    "positive": 2,
+    "precision": 1.0,
+    "recall": 0.5,
+    "unsupported": 0
+   },
+   "nullable-argument": {
+    "FN": 1,
+    "FP": 0,
+    "TN": 2,
+    "TP": 1,
+    "cases": 4,
+    "negative": 2,
+    "outcomes": {
+     "P15-E06": "FN",
+     "P15-E07": "TN",
+     "P15-E08": "TP",
+     "P15-E09": "TN"
+    },
+    "positive": 2,
+    "precision": 1.0,
+    "recall": 0.5,
+    "unsupported": 0
+   },
+   "unsupported": {
+    "FN": 0,
+    "FP": 0,
+    "TN": 0,
+    "TP": 0,
+    "cases": 3,
+    "negative": 0,
+    "outcomes": {
+     "P15-E28": "unsupported",
+     "P15-E29": "unsupported",
+     "P15-E30": "unsupported"
+    },
+    "positive": 0,
+    "precision": null,
+    "recall": null,
+    "unsupported": 3
+   },
+   "value-distinction": {
+    "FN": 1,
+    "FP": 0,
+    "TN": 3,
+    "TP": 1,
+    "cases": 5,
+    "negative": 3,
+    "outcomes": {
+     "P15-E01": "TP",
+     "P15-E02": "TN",
+     "P15-E03": "FN",
+     "P15-E04": "TN",
+     "P15-E05": "TN"
+    },
+    "positive": 2,
+    "precision": 1.0,
+    "recall": 0.5,
+    "unsupported": 0
+   }
+  },
+  "counterparts": {
+   "bothRight": 8,
+   "pairs": [
+    {
+     "bothRight": true,
+     "family": "value-distinction",
+     "negative": "P15-E02",
+     "outcomes": [
+      "TP",
+      "TN"
+     ],
+     "positive": "P15-E01"
+    },
+    {
+     "bothRight": false,
+     "family": "value-distinction",
+     "negative": "P15-E04",
+     "outcomes": [
+      "FN",
+      "TN"
+     ],
+     "positive": "P15-E03"
+    },
+    {
+     "bothRight": false,
+     "family": "nullable-argument",
+     "negative": "P15-E07",
+     "outcomes": [
+      "FN",
+      "TN"
+     ],
+     "positive": "P15-E06"
+    },
+    {
+     "bothRight": true,
+     "family": "nullable-argument",
+     "negative": "P15-E09",
+     "outcomes": [
+      "TP",
+      "TN"
+     ],
+     "positive": "P15-E08"
+    },
+    {
+     "bothRight": false,
+     "family": "actor-keys",
+     "negative": "P15-E11",
+     "outcomes": [
+      "FN",
+      "TN"
+     ],
+     "positive": "P15-E10"
+    },
+    {
+     "bothRight": true,
+     "family": "boundary",
+     "negative": "P15-E13",
+     "outcomes": [
+      "TP",
+      "TN"
+     ],
+     "positive": "P15-E12"
+    },
+    {
+     "bothRight": true,
+     "family": "boundary",
+     "negative": "P15-E15",
+     "outcomes": [
+      "TP",
+      "TN"
+     ],
+     "positive": "P15-E14"
+    },
+    {
+     "bothRight": true,
+     "family": "fk-parent-child",
+     "negative": "P15-E17",
+     "outcomes": [
+      "TP",
+      "TN"
+     ],
+     "positive": "P15-E16"
+    },
+    {
+     "bothRight": true,
+     "family": "authorization",
+     "negative": "P15-E19",
+     "outcomes": [
+      "TP",
+      "TN"
+     ],
+     "positive": "P15-E18"
+    },
+    {
+     "bothRight": false,
+     "family": "authorization",
+     "negative": "P15-E21",
+     "outcomes": [
+      "FN",
+      "TN"
+     ],
+     "positive": "P15-E20"
+    },
+    {
+     "bothRight": true,
+     "family": "composite-unique",
+     "negative": "P15-E23",
+     "outcomes": [
+      "TP",
+      "TN"
+     ],
+     "positive": "P15-E22"
+    },
+    {
+     "bothRight": false,
+     "family": "idempotency",
+     "negative": "P15-E25",
+     "outcomes": [
+      "FN",
+      "TN"
+     ],
+     "positive": "P15-E24"
+    },
+    {
+     "bothRight": true,
+     "family": "idempotency",
+     "negative": "P15-E27",
+     "outcomes": [
+      "TP",
+      "TN"
+     ],
+     "positive": "P15-E26"
+    }
+   ]
+  },
+  "definition": "model prediction: an unpaired case is positive when the entry's own candidate has a validated MODEL_COUNTEREXAMPLE; a paired case when the pair's candidate has one",
+  "excludingUndeclared": {
+   "FN": 4,
+   "FP": 0,
+   "TN": 13,
+   "TP": 8,
+   "excluded": [
+    "P15-E20",
+    "P15-E21"
+   ],
+   "precision": 1.0,
+   "recall": 0.667
+  }
+ },
+ "stages": {
+  "candidates": {
+   "negativesWithCandidateOfClass": 6,
+   "positives": 13,
+   "positivesWithCandidateOfClass": 8
+  },
+  "effects": {
+   "effectful": 26,
+   "expectedEffectful": 30
+  },
+  "entries": {
+   "extracted": 30,
+   "labeled": 30
+  },
+  "model": {
+   "candidateToModel": "13/13",
+   "cases": [
+    {
+     "candidates": [
+      "return-value:MODEL_COUNTEREXAMPLE"
+     ],
+     "class": "stale-read",
+     "classAgrees": false,
+     "entry": "src/services/profile.ts#saveNickname",
+     "label": "positive",
+     "modelPrediction": true,
+     "outcome": "TP",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "return-value:NO_VIOLATION_WITHIN_BOUNDS"
+     ],
+     "class": "stale-read",
+     "entry": "src/services/profile.ts#saveNicknameInTransaction",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [],
+     "class": "status-transition",
+     "entry": "src/services/profile.ts#setTheme",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "status-transition",
+     "entry": "src/services/profile.ts#setThemeAtomic",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "status-transition",
+     "entry": "src/services/notes.ts#archiveNote",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "check-then-act",
+     "entry": "src/services/documents.ts#createDocument",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "check-then-act",
+     "entry": "src/services/documents.ts#createPage",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [
+      "check-then-act:MODEL_COUNTEREXAMPLE"
+     ],
+     "class": "check-then-act",
+     "classAgrees": true,
+     "entry": "src/services/invitations.ts#inviteMember",
+     "label": "positive",
+     "modelPrediction": true,
+     "outcome": "TP",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "check-then-act:INCONCLUSIVE"
+     ],
+     "class": "check-then-act",
+     "entry": "src/services/invitations.ts#inviteToTeam",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "lock-order:UNSUPPORTED"
+     ],
+     "class": "lock-order",
+     "entry": "src/services/wallets.ts#transfer",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "lock-order:UNSUPPORTED"
+     ],
+     "class": "lock-order",
+     "entry": "src/services/wallets.ts#transferOrdered",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "check-then-act:MODEL_COUNTEREXAMPLE"
+     ],
+     "class": "check-then-act",
+     "classAgrees": true,
+     "entry": "src/services/exports.ts#startExport",
+     "label": "positive",
+     "modelPrediction": true,
+     "outcome": "TP",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [],
+     "class": "check-then-act",
+     "entry": "src/services/exports.ts#startExportAtomic",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [
+      "check-then-act:MODEL_COUNTEREXAMPLE"
+     ],
+     "class": "check-then-act",
+     "classAgrees": true,
+     "entry": "src/services/seats.ts#addSeat",
+     "label": "positive",
+     "modelPrediction": true,
+     "outcome": "TP",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [
+      "check-then-act:NO_VIOLATION_WITHIN_BOUNDS"
+     ],
+     "class": "check-then-act",
+     "entry": "src/services/seats.ts#addSeatChecked",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [
+      "check-then-act:MODEL_COUNTEREXAMPLE"
+     ],
+     "class": "check-then-act",
+     "classAgrees": true,
+     "entry": "src/services/carts.ts#addToCart",
+     "label": "positive",
+     "modelPrediction": true,
+     "outcome": "TP",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [],
+     "class": "check-then-act",
+     "entry": "src/services/carts.ts#addToWishlist",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [
+      "check-then-act:MODEL_COUNTEREXAMPLE"
+     ],
+     "class": "check-then-act",
+     "classAgrees": true,
+     "entry": "src/services/environments.ts#createEnvironment",
+     "label": "positive",
+     "modelPrediction": true,
+     "outcome": "TP",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "check-then-act:NO_VIOLATION_WITHIN_BOUNDS"
+     ],
+     "class": "check-then-act",
+     "entry": "src/services/environments.ts#createReleaseChannel",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "write-skew",
+     "entry": "src/services/admins.ts#demoteAdmin",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "write-skew",
+     "entry": "src/services/admins.ts#demoteAdminLocked",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [
+      "check-then-act:MODEL_COUNTEREXAMPLE"
+     ],
+     "class": "check-then-act",
+     "classAgrees": true,
+     "entry": "src/services/routes.ts#claimRoute",
+     "label": "positive",
+     "modelPrediction": true,
+     "outcome": "TP",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "check-then-act:NO_VIOLATION_WITHIN_BOUNDS"
+     ],
+     "class": "check-then-act",
+     "entry": "src/services/routes.ts#claimAlias",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "ambiguous-commit",
+     "entry": "src/services/grants.ts#grantCredit",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "ambiguous-commit",
+     "entry": "src/services/grants.ts#grantCreditKeyed",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [
+      "duplicate-processing:MODEL_COUNTEREXAMPLE",
+      "check-then-act:INCONCLUSIVE"
+     ],
+     "class": "duplicate-processing",
+     "classAgrees": true,
+     "entry": "src/services/loyalty.ts#applyLoyaltyEvent",
+     "label": "positive",
+     "modelPrediction": true,
+     "outcome": "TP",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [
+      "duplicate-processing:NO_VIOLATION_WITHIN_BOUNDS"
+     ],
+     "class": "duplicate-processing",
+     "entry": "src/services/loyalty.ts#applyLoyaltyEventOnce",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "unknown",
+     "entry": "src/services/ops.ts#runSavedQuery",
+     "label": "unsupported",
+     "modelPrediction": false,
+     "outcome": "reported",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "unknown",
+     "entry": "src/services/ops.ts#bumpCounter",
+     "label": "unsupported",
+     "modelPrediction": false,
+     "outcome": "reported",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "unknown",
+     "entry": "src/services/ops.ts#countViewUnlessExcluded",
+     "label": "unsupported",
+     "modelPrediction": false,
+     "outcome": "reported",
+     "staticPrediction": false
+    }
+   ],
+   "classAgreement": {
+    "agrees": 7,
+    "differs": 1
+   },
+   "labelsCorrected": 0,
+   "modelPrediction": {
+    "f1": 0.762,
+    "falseNegatives": 5,
+    "falsePositives": 0,
+    "precision": 1.0,
+    "recall": 0.615,
+    "trueNegatives": 14,
+    "truePositives": 8
+   },
+   "staticHazardPrediction": {
+    "f1": 0.608,
+    "falseNegatives": 6,
+    "falsePositives": 3,
+    "precision": 0.7,
+    "recall": 0.538,
+    "trueNegatives": 11,
+    "truePositives": 7
+   },
+   "unsupportedMissed": 0,
+   "unsupportedReported": 3
+  },
+  "original": "not measured: the evaluation application has no authorized harness",
+  "schema": {
+   "tablesExpected": 28,
+   "tablesModeled": 28,
+   "tablesRefused": []
+  },
+  "unsupported": [
+   {
+    "candidates": [],
+    "claimedSafe": false,
+    "entry": "src/services/ops.ts#runSavedQuery",
+    "id": "P15-E28",
+    "status": "no-database-effects",
+    "unknownOps": [
+     "raw SQL via `execute` is not parsed (src/services/ops.ts:8:24)",
+     "raw SQL via `execute` is not parsed (src/services/ops.ts:8:9)"
+    ]
+   },
+   {
+    "candidates": [],
+    "claimedSafe": false,
+    "entry": "src/services/ops.ts#bumpCounter",
+    "id": "P15-E29",
+    "status": "no-database-effects",
+    "unknownOps": [
+     "raw SQL via `execute` is not parsed (src/services/ops.ts:14:9)"
+    ]
+   },
+   {
+    "candidates": [],
+    "claimedSafe": false,
+    "entry": "src/services/ops.ts#countViewUnlessExcluded",
+    "id": "P15-E30",
+    "status": "effectful",
+    "unknownOps": [
+     "raw SQL via `execute` is not parsed (src/services/ops.ts:20:26)",
+     "raw SQL via `execute` is not parsed (src/services/ops.ts:20:9)"
+    ]
+   }
+  ],
+  "validity": {
+   "allValidated": true,
+   "entriesWithCounterexample": 8
+  }
+ },
+ "summary": {
+  "byClass": {
+   "check-then-act": 13,
+   "duplicate-processing": 2,
+   "lock-order": 2,
+   "return-value": 2
+  },
+  "byPropertyOrigin": {
+   "HEURISTIC_HYPOTHESIS": 2,
+   "SCHEMA_ENFORCED": 4,
+   "USER_DECLARED": 13
+  },
+  "byStatus": {
+   "INCONCLUSIVE": 4,
+   "MODEL_COUNTEREXAMPLE": 8,
+   "NO_VIOLATION_WITHIN_BOUNDS": 5,
+   "UNSUPPORTED": 2
+  },
+  "candidates": 19,
+  "counterexamplesAgainstHypotheses": 0,
+  "deduplicatedFindings": 8,
+  "modelCheckable": 13,
+  "modelCounterexamples": 8,
+  "requiringAssumptions": 19,
+  "unknownOperationBreakdown": {
+   "call into an unanalyzed package": 8,
+   "other": 12,
+   "unsupported expression": 2,
+   "unsupported query (raw SQL)": 5,
+   "unsupported query shape": 2
+  },
+  "unsupportedBreakdown": {
+   "missing schema information": 2,
+   "unsatisfiable initial state": 4
+  },
+  "withDeclaredProperty": 13
+ }
+}

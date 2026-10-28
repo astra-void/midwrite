@@ -1,0 +1,116 @@
+{
+  "actors": [
+    {
+      "arguments": [
+        "55b64072-0000-4000-a000-000000000001",
+        null,
+        "name-1"
+      ],
+      "name": "createFolder-1",
+      "selector": "src/services/folders.ts#createFolder"
+    },
+    {
+      "arguments": [
+        "55b64072-0000-4000-a000-000000000001",
+        null,
+        "name-1"
+      ],
+      "name": "createFolder-2",
+      "selector": "src/services/folders.ts#createFolder"
+    }
+  ],
+  "algorithm": "sleep-sets",
+  "assumptions": [
+    "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+  ],
+  "bounds": {
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "maxStates": 200000,
+    "maxSteps": 64
+  },
+  "candidate": "CR-SYNTH-913C4E",
+  "class": "check-then-act",
+  "evidence": "model counterexample (not an original-code reproduction)",
+  "finalTerms": [
+    "count(folders[name=\"name-1\",ownerId=\"55b64072-0000-4000-a000-000000000001\"]) = 2"
+  ],
+  "finding": "In the initial world `null:parentId` (parentId = null for every actor): MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `at-most-one-folders-per-key` (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). That the application requires this property has NOT been established; this is not a confirmed defect.",
+  "initialState": {
+    "users": [
+      {
+        "email": "email-1",
+        "id": "55b64072-0000-4000-a000-000000000001",
+        "name": "name-1",
+        "welcomedAt": null
+      }
+    ]
+  },
+  "kind": "commitrift.counterexample",
+  "property": {
+    "name": "at-most-one-folders-per-key",
+    "origin": "HEURISTIC_HYPOTHESIS"
+  },
+  "reproduce": "commitrift model-check cr-synth-913c4e-actual--null-parentid.json",
+  "reproduceOnOriginalCode": null,
+  "scenario": "cr-synth-913c4e-actual--null-parentid.json",
+  "schedule": [
+    "createFolder-1 read SELECT folders WHERE (((@ownerId = \"55b64072-0000-4000-a000-000000000001\") and ((true and @parentId is null) or (false and (@parentId = null)))) and (@name = \"name-1\")) → null  (src/services/folders.ts:9:28)",
+    "createFolder-1 local CHECK _row3 → false  (src/services/folders.ts:20:7)",
+    "createFolder-2 read SELECT folders WHERE (((@ownerId = \"55b64072-0000-4000-a000-000000000001\") and ((true and @parentId is null) or (false and (@parentId = null)))) and (@name = \"name-1\")) → null  (src/services/folders.ts:9:28)",
+    "createFolder-2 local CHECK _row3 → false  (src/services/folders.ts:20:7)",
+    "createFolder-2 write INSERT folders {name=\"name-1\", ownerId=\"55b64072-0000-4000-a000-000000000001\", parentId=null} → {id=1}  (src/services/folders.ts:21:27)",
+    "createFolder-2 local _returned6 = null  (src/services/folders.ts:21:27)",
+    "createFolder-2 local CHECK _inserted5 is null → false  (src/services/folders.ts:21:27)",
+    "createFolder-2 local _returned6 = {id=1}  (src/services/folders.ts:21:27)",
+    "createFolder-2 local _opt7 = undefined  (src/services/folders.ts:22:10)",
+    "createFolder-2 local CHECK (_returned6 is null or (_returned6 = undefined)) → false  (src/services/folders.ts:22:10)",
+    "createFolder-2 local _opt7 = 1  (src/services/folders.ts:22:10)",
+    "createFolder-2 local return (success)",
+    "createFolder-1 write INSERT folders {name=\"name-1\", ownerId=\"55b64072-0000-4000-a000-000000000001\", parentId=null} → {id=2}  (src/services/folders.ts:21:27)",
+    "createFolder-1 local _returned6 = null  (src/services/folders.ts:21:27)",
+    "createFolder-1 local CHECK _inserted5 is null → false  (src/services/folders.ts:21:27)",
+    "createFolder-1 local _returned6 = {id=2}  (src/services/folders.ts:21:27)",
+    "createFolder-1 local _opt7 = undefined  (src/services/folders.ts:22:10)",
+    "createFolder-1 local CHECK (_returned6 is null or (_returned6 = undefined)) → false  (src/services/folders.ts:22:10)",
+    "createFolder-1 local _opt7 = 2  (src/services/folders.ts:22:10)",
+    "createFolder-1 local return (success)"
+  ],
+  "schemaVersion": 1,
+  "sourceFingerprint": [
+    {
+      "file": "src/services/folders.ts",
+      "fnv64": "ef7a8939e7df6e7c"
+    },
+    {
+      "file": "src/schema/commerce.ts",
+      "fnv64": "13b4b45405221327"
+    },
+    {
+      "file": "src/schema/content.ts",
+      "fnv64": "8e307c5287dbd73d"
+    },
+    {
+      "file": "src/schema/jobs.ts",
+      "fnv64": "7b9c3b3fce2125f9"
+    },
+    {
+      "file": "src/schema/teams.ts",
+      "fnv64": "010df9e51b7be4f8"
+    },
+    {
+      "file": "src/schema/users.ts",
+      "fnv64": "7867fdf4704f67da"
+    }
+  ],
+  "status": "MODEL_COUNTEREXAMPLE",
+  "variant": "actual",
+  "world": {
+    "id": "null:parentId",
+    "origin": "domain",
+    "relationships": [
+      "parentId = null for every actor"
+    ]
+  }
+}
