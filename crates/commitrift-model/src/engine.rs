@@ -211,6 +211,13 @@ pub struct Applied {
 }
 
 pub fn initial_state(model: &Model) -> State {
+    initial_state_recorded(model, &mut Recorder::off())
+}
+
+/// Phase 15: [`initial_state`], recording the events of the local
+/// operations each actor runs before its first visible step (the state is
+/// the same).
+pub fn initial_state_recorded(model: &Model, rec: &mut Recorder) -> State {
     let mut store = crate::db::Store::default();
     for (id, row) in model.initial_row_ids() {
         store.rows.insert(
@@ -266,10 +273,9 @@ pub fn initial_state(model: &Model) -> State {
         last_thread: None,
         switches: 0,
     };
-    let mut rec = Recorder::off();
     let mut foot = Footprint::default();
     for a in 0..s.actors.len() {
-        settle_actor(model, &mut s, a, &mut foot, &mut rec);
+        settle_actor(model, &mut s, a, &mut foot, rec);
     }
     s
 }
