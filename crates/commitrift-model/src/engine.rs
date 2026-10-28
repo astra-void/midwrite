@@ -1178,7 +1178,7 @@ fn close_stmt(model: &Model, locals: &Locals, stmt: &Stmt) -> Result<ClosedStmt,
                         .iter()
                         .map(|(c, e)| Ok((c.clone(), close(e)?)))
                         .collect::<Result<_, String>>()?,
-                    filter: u.filter.as_ref().map(&close).transpose()?,
+                    filter: u.filter.as_ref().map(close).transpose()?,
                 }),
             };
             if more_rows.is_empty() {
