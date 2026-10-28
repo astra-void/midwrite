@@ -1,0 +1,51 @@
+{
+ "candidates": 0,
+ "config": "phase14",
+ "counterexamples": 0,
+ "effectfulEntries": 3,
+ "entriesExtracted": 33,
+ "entryCandidates": 74,
+ "entryConnections": {
+  "entries with pool statements": 10
+ },
+ "modelCheckable": 0,
+ "peakRss": 15319040,
+ "project": "unnamed-ai-project",
+ "readOnlyEntries": 7,
+ "replicaNotes": [],
+ "resources": 3,
+ "statements": {
+  "pool delete": 4,
+  "pool select": 12
+ },
+ "statuses": {},
+ "tablesModeled": 9,
+ "unknownBreakdown": {
+  "call into an unanalyzed package": 97,
+  "column not modeled (schema)": 8,
+  "inline depth limit": 20,
+  "other": 383,
+  "package call with a contract (result not modeled)": 62,
+  "table not modeled (schema)": 13,
+  "unresolved identifier": 5,
+  "unresolved method call": 224,
+  "unsupported binding pattern": 2,
+  "unsupported expression": 65,
+  "unsupported query shape": 2
+ },
+ "unknownByCategoryInCache": {
+  "call into an unanalyzed package": 97,
+  "column not modeled (schema)": 8,
+  "inline depth limit": 20,
+  "other": 383,
+  "package call with a contract (result not modeled)": 62,
+  "table not modeled (schema)": 13,
+  "unresolved identifier": 5,
+  "unresolved method call": 224,
+  "unsupported binding pattern": 2,
+  "unsupported expression": 65,
+  "unsupported query shape": 2
+ },
+ "unknownOperations": 881,
+ "wallSeconds": 0.04
+}

@@ -1,0 +1,193 @@
+{
+  "drizzleOrm": "0.45.4",
+  "probes": [
+    {
+      "name": "multi-row insert, serial key omitted",
+      "sql": "insert into \"order_items\" (\"id\", \"order_id\", \"sku\", \"qty\") values (default, $1, $2, $3), (default, $4, $5, $6)",
+      "params": [
+        1,
+        "a",
+        1,
+        1,
+        "b",
+        2
+      ]
+    },
+    {
+      "name": "multi-row insert, rows with different columns",
+      "sql": "insert into \"order_items\" (\"id\", \"order_id\", \"sku\", \"qty\") values ($1, $2, $3, $4), (default, $5, $6, $7)",
+      "params": [
+        10,
+        1,
+        "a",
+        1,
+        1,
+        "b",
+        2
+      ]
+    },
+    {
+      "name": "multi-row insert on conflict do nothing returning a column",
+      "sql": "insert into \"post_tags\" (\"id\", \"post_id\", \"tag\") values (default, $1, $2), (default, $3, $4) on conflict do nothing returning \"tag\"",
+      "params": [
+        1,
+        "x",
+        1,
+        "y"
+      ]
+    },
+    {
+      "name": "multi-row upsert with new Date() in set",
+      "sql": "insert into \"counters\" (\"name\", \"hits\", \"updated_at\") values ($1, $2, default), ($3, $4, default) on conflict (\"name\") do update set \"hits\" = $5, \"updated_at\" = $6",
+      "params": [
+        "a",
+        1,
+        "b",
+        1,
+        7,
+        "<clock>"
+      ]
+    },
+    {
+      "name": "values([]) (empty)",
+      "error": "values() must be called with at least one value"
+    },
+    {
+      "name": "inArray, non-empty with a null",
+      "sql": "select \"id\", \"parent_id\", \"body\", \"status\" from \"comments\" where \"comments\".\"id\" in ($1, $2, $3)",
+      "params": [
+        1,
+        null,
+        3
+      ]
+    },
+    {
+      "name": "inArray, empty",
+      "sql": "select \"id\", \"parent_id\", \"body\", \"status\" from \"comments\" where false",
+      "params": []
+    },
+    {
+      "name": "notInArray, non-empty",
+      "sql": "select \"id\", \"parent_id\", \"body\", \"status\" from \"comments\" where \"comments\".\"id\" not in ($1, $2)",
+      "params": [
+        1,
+        2
+      ]
+    },
+    {
+      "name": "notInArray, empty",
+      "sql": "select \"id\", \"parent_id\", \"body\", \"status\" from \"comments\" where true",
+      "params": []
+    },
+    {
+      "name": "isNull / or / eq",
+      "sql": "update \"comments\" set \"status\" = $1 where (\"comments\".\"id\" in ($2, $3) and (\"comments\".\"status\" is null or \"comments\".\"status\" = $4))",
+      "params": [
+        "hidden",
+        1,
+        2,
+        "visible"
+      ]
+    },
+    {
+      "name": "not(eq)",
+      "sql": "select \"id\", \"parent_id\", \"body\", \"status\" from \"comments\" where not \"comments\".\"status\" = $1",
+      "params": [
+        "hidden"
+      ]
+    },
+    {
+      "name": "and with an undefined operand",
+      "sql": "select \"id\", \"parent_id\", \"body\", \"status\" from \"comments\" where \"comments\".\"id\" = $1",
+      "params": [
+        1
+      ]
+    },
+    {
+      "name": "or with an undefined operand",
+      "sql": "select \"id\", \"parent_id\", \"body\", \"status\" from \"comments\" where \"comments\".\"id\" = $1",
+      "params": [
+        1
+      ]
+    },
+    {
+      "name": "and() of nothing",
+      "sql": "select \"id\", \"parent_id\", \"body\", \"status\" from \"comments\"",
+      "params": []
+    },
+    {
+      "name": "conditional predicate (parentId === null)",
+      "sql": "delete from \"comments\" where (\"comments\".\"parent_id\" is null and \"comments\".\"id\" not in ($1))",
+      "params": [
+        5
+      ]
+    },
+    {
+      "name": "insert omitting a defaultNow() column",
+      "sql": "insert into \"orders\" (\"id\", \"customer\", \"created_at\") values ($1, $2, default)",
+      "params": [
+        1,
+        "c"
+      ]
+    },
+    {
+      "name": "insert omitting a $onUpdate column (no default)",
+      "sql": "insert into \"users\" (\"id\", \"email\", \"welcomed_at\", \"updated_at\") values ($1, $2, default, $3)",
+      "params": [
+        1,
+        "e",
+        "<clock>"
+      ]
+    },
+    {
+      "name": "update without the $onUpdate column",
+      "sql": "update \"users\" set \"welcomed_at\" = $1, \"updated_at\" = $2 where (\"users\".\"id\" = $3 and \"users\".\"welcomed_at\" is null)",
+      "params": [
+        "<clock>",
+        "<clock>",
+        1
+      ]
+    },
+    {
+      "name": "set with sql`now()`",
+      "sql": "update \"counters\" set \"updated_at\" = now() where \"counters\".\"name\" = $1",
+      "params": [
+        "a"
+      ]
+    },
+    {
+      "name": "jsonb insert",
+      "sql": "insert into \"settings\" (\"user_id\", \"prefs\") values ($1, $2)",
+      "params": [
+        1,
+        "{\"theme\":\"dark\",\"beta\":true}"
+      ]
+    },
+    {
+      "name": "jsonb eq",
+      "sql": "select \"user_id\", \"prefs\" from \"settings\" where \"settings\".\"prefs\" = $1",
+      "params": [
+        "{\"theme\":\"dark\"}"
+      ]
+    },
+    {
+      "name": "upsert of a table with a $onUpdate column",
+      "sql": "insert into \"users\" (\"id\", \"email\", \"welcomed_at\", \"updated_at\") values ($1, $2, default, $3) on conflict (\"id\") do update set \"email\" = $4, \"updated_at\" = $5",
+      "params": [
+        1,
+        "e",
+        "<clock>",
+        "f",
+        "<clock>"
+      ]
+    },
+    {
+      "name": "conditional predicate (parentId === 4)",
+      "sql": "delete from \"comments\" where (\"comments\".\"parent_id\" = $1 and \"comments\".\"id\" not in ($2))",
+      "params": [
+        4,
+        5
+      ]
+    }
+  ]
+}

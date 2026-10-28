@@ -1,0 +1,12 @@
+# Phase 14 evidence: vertical slices
+
+Binary `../target/release/commitrift`; `--source-repeat 3`; original code runs on disposable PostgreSQL (first-party fixture only).
+The harness handles errors of checked-out node-postgres clients (a stated environment assumption, `fixtures/phase14/request-app/verify/harness.ts`).
+
+| slice | candidate | status | model | evidence | reproduced | expectation |
+| --- | --- | --- | --- | --- | --- | --- |
+| 3 multi-row INSERT, response lost, retry | `CR-SYNTH-CB8AB0` #addOrderItems | MODEL_COUNTEREXAMPLE | COUNTEREXAMPLE_FOUND | original-code-crash-reproduced | 3/3 | ok |
+| 3 multi-row INSERT (safe) | `CR-SYNTH-5EC937` #addOrderItemsIdempotent | NO_VIOLATION_WITHIN_BOUNDS | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | none | - | ok |
+| 4 retry wrapper, lost COMMIT | `CR-SYNTH-232519` #settlePayment | MODEL_COUNTEREXAMPLE | COUNTEREXAMPLE_FOUND | original-code-connection-loss-reproduced | 3/3 | ok |
+| 4 retry wrapper (safe) | `CR-SYNTH-959BBA` #settlePaymentOnce | NO_VIOLATION_WITHIN_BOUNDS | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | none | - | ok |
+exit 0

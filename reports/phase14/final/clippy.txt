@@ -1,0 +1,3 @@
+    Checking commitrift-discover v0.1.0 (/private/tmp/claude-501/-Users-returnf4lse-Desktop-Workspace-rust-crash-proof/25219952-a7b3-4685-bdea-a099b93b0188/scratchpad/p14/src/crates/commitrift-discover)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.88s
+exit 0

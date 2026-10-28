@@ -1,0 +1,53 @@
+{
+ "candidateList": [],
+ "candidates": 0,
+ "config": "phase13",
+ "counterexamples": 0,
+ "effectfulEntries": 0,
+ "entriesExtracted": 1168,
+ "entryCandidates": 2864,
+ "entryConnections": {},
+ "modelCheckable": 0,
+ "peakRss": 124993536,
+ "project": "midday",
+ "readOnlyEntries": 0,
+ "replicaNotes": [
+  "the project builds a replicated database (`withReplicas` of `./replicas` imported by `packages/db/src/client.ts`): reads through a recognized replicated database are extracted as read-replica reads, and a database known only by its receiver name or by a plain drizzle type is not taken to be the primary for reads",
+  "a project-defined `withReplicas` is not interpreted: declare it in `replicaFactories` of commitrift-contracts.json (with the reason its routing holds) to bind its databases"
+ ],
+ "resources": 0,
+ "statements": {},
+ "statuses": {},
+ "tablesModeled": 50,
+ "unknownBreakdown": {
+  "call into an unanalyzed package": 4347,
+  "database handle of an unresolved type": 771,
+  "inline depth limit": 183,
+  "loop over a collection of unknown length": 167,
+  "other": 1976,
+  "package call with a contract (result not modeled)": 2,
+  "unresolved call": 576,
+  "unresolved identifier": 744,
+  "unresolved method call": 6092,
+  "unsupported binding pattern": 724,
+  "unsupported expression": 1679,
+  "unsupported query shape": 1,
+  "unsupported transaction shape": 434
+ },
+ "unknownByCategoryInCache": {
+  "call into an unanalyzed package": 4347,
+  "database handle of an unresolved type": 771,
+  "inline depth limit": 183,
+  "loop over a collection of unknown length": 167,
+  "other": 2172,
+  "package call with a contract (result not modeled)": 2,
+  "unresolved call": 576,
+  "unresolved identifier": 744,
+  "unresolved method call": 6092,
+  "unsupported binding pattern": 792,
+  "unsupported expression": 1827,
+  "unsupported transaction shape": 23
+ },
+ "unknownOperations": 17696,
+ "wallSeconds": 1.07
+}
