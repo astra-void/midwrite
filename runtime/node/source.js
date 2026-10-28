@@ -57,6 +57,13 @@
 //     (`{"type":"pool","max","total","idle","waiting"}`): which tasks wait
 //     for a connection is observed, not inferred.
 //
+// Phase 13 adds held responses (with COMMITRIFT_SOURCE_RESPONSE=hold, one
+// task per process): after the entry returned,
+//
+//   worker -> coordinator  {"type":"respond","seq":3,"value":...}
+//   coordinator -> worker  {"type":"go","seq":3}
+//   worker -> coordinator  {"type":"result","seq":3,"command":"RESPONSE",...}
+//
 // A "stop" makes the held statement fail with CoordinatorStop (the run is
 // then inconclusive); the coordinator never fakes a result.
 
@@ -768,6 +775,23 @@ export async function runSourceActor(entries, cleanup) {
     outcome = "threw";
     error = describe(caught);
     if (caught instanceof Error && caught.cause) error += ` (caused by ${describe(caught.cause)})`;
+  }
+  // Phase 13: a request handler's response is a separate step. The entry
+  // has returned (its work may be committed); the response is announced and
+  // held until the coordinator, which plays the client, receives it. A crash
+  // planned here kills the process after the work and before the response.
+  if (outcome === "returned" && process.env.COMMITRIFT_SOURCE_RESPONSE === "hold") {
+    seq += 1;
+    const id = seq;
+    const answer = channel.reply(id);
+    await channel.send({ type: "respond", seq: id, value });
+    const reply = JSON.parse(await answer);
+    if (reply.type === "stop") {
+      outcome = "threw";
+      error = describe(new CoordinatorStop(String(reply.reason ?? "")));
+    } else {
+      await channel.send({ type: "result", seq: id, command: "RESPONSE", rowCount: 0, fields: [], rows: [] });
+    }
   }
   try {
     await cleanup?.();

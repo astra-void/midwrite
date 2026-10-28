@@ -69,6 +69,7 @@ fn run(entry: &str, plan: &[PlanStep]) -> SourceRun {
         scope: None,
         process: None,
         pool: None,
+        response: false,
     }];
     source::run(&RunRequest {
         harness: &h,

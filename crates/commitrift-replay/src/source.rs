@@ -249,6 +249,10 @@ pub enum SqlKind {
     /// Phase 8: an external effect through the coordinator's channel test
     /// double (`sourceEffect` in `source.js`); `table` names the channel.
     Effect,
+    /// Phase 13: the response of a request handler, held by the worker
+    /// after the entry returned and before the coordinator (the client)
+    /// receives it (`COMMITRIFT_SOURCE_RESPONSE=hold`).
+    Respond,
 }
 
 fn strip_comments(text: &str) -> &str {
@@ -648,6 +652,9 @@ pub struct ActorLaunch {
     /// Phase 9: the capacity of the process's connection pool in the model
     /// (the harness's pool must have the same `max`).
     pub pool: Option<u16>,
+    /// Phase 13: the actor's response is a separate step: the worker holds
+    /// it after the entry returns until the coordinator releases it.
+    pub response: bool,
 }
 
 /// What became of one statement (or, `kind: effect`, one external effect).
@@ -1285,6 +1292,14 @@ impl Coordinator<'_> {
             .env("COMMITRIFT_SOURCE_ENTRY", &a.entry)
             .env("COMMITRIFT_SOURCE_INPUT", a.input.to_string())
             .env("COMMITRIFT_SOURCE_ATTEMPT", attempt.to_string())
+            .env(
+                "COMMITRIFT_SOURCE_RESPONSE",
+                if !shared && a.response {
+                    "hold"
+                } else {
+                    "deliver"
+                },
+            )
             .env("COMMITRIFT_RUN_TOKEN", &l.token)
             .stdin(Stdio::null())
             .stdout(out)
@@ -1391,7 +1406,7 @@ impl Coordinator<'_> {
                         self.workers[w].hello = true;
                         self.pool_max.insert(w, v["pool"]["max"].as_i64());
                     }
-                    kind @ ("query" | "effect") => {
+                    kind @ ("query" | "effect" | "respond") => {
                         let frames: Vec<Frame> = v["site"]["frames"]
                             .as_array()
                             .map(|f| {
@@ -1400,7 +1415,14 @@ impl Coordinator<'_> {
                                     .collect()
                             })
                             .unwrap_or_default();
-                        let (sql, kind, table, params) = if kind == "effect" {
+                        let (sql, kind, table, params) = if kind == "respond" {
+                            (
+                                "RESPONSE".to_owned(),
+                                SqlKind::Respond,
+                                None,
+                                json!({"value": v["value"].clone()}),
+                            )
+                        } else if kind == "effect" {
                             let channel = v["channel"].as_str().unwrap_or_default().to_owned();
                             (
                                 format!("EFFECT {channel}"),
@@ -1666,7 +1688,10 @@ impl Coordinator<'_> {
             if self.statements[index].completed {
                 return Some(false);
             }
-            if self.statements[index].kind == Some(SqlKind::Effect) {
+            if matches!(
+                self.statements[index].kind,
+                Some(SqlKind::Effect | SqlKind::Respond)
+            ) {
                 continue;
             }
             if started.elapsed() >= self.req.settle
@@ -2844,7 +2869,18 @@ impl Coordinator<'_> {
                 PlanStep::Release(e) => self.release_step(k, e),
                 PlanStep::Complete { actor, transition } => {
                     let a = *actor;
-                    let Some(index) = self.tasks[a].running else {
+                    // The waiting statement may already have completed: the
+                    // previous step released the lock it waited for, and its
+                    // answer can arrive (and be pumped) while the coordinator
+                    // still waits for that step's own answer. Before this
+                    // was accepted, a run under load could "diverge" with
+                    // every result agreeing (Phase 13 closeout).
+                    let Some(index) = self.tasks[a].running.or_else(|| {
+                        self.statements
+                            .iter()
+                            .rposition(|s| s.actor == a && s.role == "planned")
+                            .filter(|&i| self.statements[i].blocked && self.statements[i].completed)
+                    }) else {
                         self.problems.push(format!(
                             "plan step {k} (transition {transition}): {} has no waiting statement to resume",
                             self.req.actors[a].name
