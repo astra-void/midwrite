@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 
 pub mod adversarial;
+pub mod fk;
 pub mod minimize;
 pub mod por_diff;
 pub mod por_workloads;

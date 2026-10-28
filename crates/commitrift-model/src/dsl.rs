@@ -21,12 +21,19 @@
 //!
 //! `@name` is a column of the row a `where`/`set` clause is evaluated
 //! against; a bare identifier is an actor-local variable (arguments are
-//! locals). Statements inside `begin ... commit` run on the transaction
+//! locals).
+//!
+//! Phase 14 values: `[a, b]` (an array), `undefined`, built-in methods
+//! `x.includes(y)`, `x.split(",")`, `x.at(0)`, `m.get(k)`, `m.set(k, v)`,
+//! ... (the names of [`crate::value::Builtin`]), array callbacks
+//! `xs.filter(x => x > 1)`, and the functions `String(x)`, `typeof(x)`,
+//! `concat(a, b, ...)`, `length(x)`, `size(x)`, `newMap(entries)`,
+//! `newSet(items)`. Statements inside `begin ... commit` run on the transaction
 //! (`Conn::Tx`); others run in autocommit mode (`Conn::Pool`). Prefix a
 //! statement with `pool` or `tx` to override.
 
 use crate::ir::{Conn, Isolation, LockMode, OnConflict, Op, SourceRef, Step, Stmt, StmtKind};
-use crate::value::{BinOp, Expr, Value};
+use crate::value::{BinOp, Builtin, EachOp, Expr, Value};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[error("line {line}: {message}")]
@@ -117,6 +124,7 @@ fn tokenize(line: u32, text: &str) -> Result<Vec<Tok>, ParseError> {
                 ">=" => Some(">="),
                 "&&" => Some("&&"),
                 "||" => Some("||"),
+                "=>" => Some("=>"),
                 _ => None,
             };
             if let Some(s) = sym2 {
@@ -138,6 +146,8 @@ fn tokenize(line: u32, text: &str) -> Result<Vec<Tok>, ParseError> {
                 ',' => Some(","),
                 '{' => Some("{"),
                 '}' => Some("}"),
+                '[' => Some("["),
+                ']' => Some("]"),
                 _ => None,
             };
             match sym1 {
@@ -290,9 +300,76 @@ impl<'a> Cursor<'a> {
         let mut e = self.atom()?;
         while self.eat_sym(".") {
             let name = self.ident("a field name")?;
-            e = Expr::Field(Box::new(e), name);
+            if matches!(self.peek(), Some(Tok::Sym("("))) {
+                e = self.method(e, &name)?;
+            } else {
+                e = Expr::Field(Box::new(e), name);
+            }
         }
         Ok(e)
+    }
+
+    /// Phase 14: `recv.name(args)` of a built-in method, or an array
+    /// callback `recv.filter(x => body)`.
+    fn method(&mut self, recv: Expr, name: &str) -> Result<Expr, ParseError> {
+        self.expect_sym("(")?;
+        let each = match name {
+            "map" => Some(EachOp::Map),
+            "filter" => Some(EachOp::Filter),
+            "find" => Some(EachOp::Find),
+            "findIndex" => Some(EachOp::FindIndex),
+            "some" => Some(EachOp::Some),
+            "every" => Some(EachOp::Every),
+            _ => None,
+        };
+        if let Some(op) = each {
+            let var = self.ident("a callback parameter")?;
+            self.expect_sym("=>")?;
+            let body = self.expr()?;
+            self.expect_sym(")")?;
+            return Ok(Expr::Each {
+                op,
+                list: Box::new(recv),
+                var,
+                body: Box::new(body),
+            });
+        }
+        let func = match name {
+            "includes" => Builtin::Includes,
+            "indexOf" => Builtin::IndexOf,
+            "startsWith" => Builtin::StartsWith,
+            "endsWith" => Builtin::EndsWith,
+            "split" => Builtin::Split,
+            "toLowerCase" => Builtin::ToLowerCase,
+            "toUpperCase" => Builtin::ToUpperCase,
+            "trim" => Builtin::Trim,
+            "join" => Builtin::Join,
+            "at" => Builtin::At,
+            "get" => Builtin::MapGet,
+            "set" => Builtin::MapSet,
+            "has" => Builtin::Has,
+            "add" => Builtin::SetAdd,
+            "delete" => Builtin::Delete,
+            other => return err(self.line, format!("unknown method `{other}`")),
+        };
+        let mut args = vec![recv];
+        args.extend(self.call_args()?);
+        Ok(Expr::Call { func, args })
+    }
+
+    /// Arguments after `(`, through `)`.
+    fn call_args(&mut self) -> Result<Vec<Expr>, ParseError> {
+        let mut args = Vec::new();
+        if self.eat_sym(")") {
+            return Ok(args);
+        }
+        loop {
+            args.push(self.expr()?);
+            if self.eat_sym(")") {
+                return Ok(args);
+            }
+            self.expect_sym(",")?;
+        }
     }
     fn atom(&mut self) -> Result<Expr, ParseError> {
         match self.next() {
@@ -303,8 +380,42 @@ impl<'a> Cursor<'a> {
                 "true" => Ok(Expr::lit(true)),
                 "false" => Ok(Expr::lit(false)),
                 "null" => Ok(Expr::Lit(Value::Null)),
+                "undefined" => Ok(Expr::undefined()),
+                // Phase 14: built-in functions.
+                name if matches!(self.peek(), Some(Tok::Sym("(")))
+                    && matches!(
+                        name,
+                        "String" | "typeof" | "concat" | "length" | "size" | "newMap" | "newSet"
+                    ) =>
+                {
+                    let func = match name {
+                        "String" => Builtin::ToString,
+                        "typeof" => Builtin::TypeOf,
+                        "concat" => Builtin::Concat,
+                        "length" => Builtin::Length,
+                        "size" => Builtin::Size,
+                        "newMap" => Builtin::NewMap,
+                        _ => Builtin::NewSet,
+                    };
+                    self.expect_sym("(")?;
+                    let args = self.call_args()?;
+                    Ok(Expr::Call { func, args })
+                }
                 _ => Ok(Expr::Local(s)),
             },
+            Some(Tok::Sym("[")) => {
+                let mut items = Vec::new();
+                if !self.eat_sym("]") {
+                    loop {
+                        items.push(self.expr()?);
+                        if self.eat_sym("]") {
+                            break;
+                        }
+                        self.expect_sym(",")?;
+                    }
+                }
+                Ok(Expr::Array(items))
+            }
             Some(Tok::Sym("(")) => {
                 let e = self.expr()?;
                 self.expect_sym(")")?;
@@ -457,6 +568,9 @@ fn parse_stmt(
         conn = Conn::Pool;
     } else if c.eat_kw("tx") {
         conn = Conn::Tx;
+    } else if c.eat_kw("replica") {
+        // Phase 13: a read routed to the read replica.
+        conn = Conn::Replica;
     }
     let head = c.ident("a statement")?;
     match head.as_str() {
@@ -497,6 +611,11 @@ fn parse_stmt(
         "let" => {
             let name = c.ident("a variable name")?;
             c.expect_sym("=")?;
+            // Phase 13: `let x = replica select ...` / `replica count ...`.
+            if c.is_kw("replica") {
+                c.eat_kw("replica");
+                conn = Conn::Replica;
+            }
             if c.eat_kw("select") {
                 let table = c.ident("a table")?;
                 let mut joins = Vec::new();
@@ -604,11 +723,52 @@ fn parse_stmt(
                 c.assigns_until_into(true)?
             };
             let mut on_conflict = OnConflict::Error;
+            let mut upsert = None;
             if c.eat_kw("on") {
                 c.expect_kw("conflict")?;
+                // Phase 13: `on conflict (@a, @b) do update set @c = e,
+                // ... [where e]`; `excluded.c` is the proposed row's column.
+                let mut target = Vec::new();
+                if c.eat_sym("(") {
+                    loop {
+                        match c.next() {
+                            Some(Tok::Col(col)) => target.push(col),
+                            _ => return err(line.no, "expected `@column` in the conflict target"),
+                        }
+                        if !c.eat_sym(",") {
+                            break;
+                        }
+                    }
+                    c.expect_sym(")")?;
+                }
                 c.expect_kw("do")?;
-                c.expect_kw("nothing")?;
-                on_conflict = OnConflict::DoNothing;
+                if c.eat_kw("update") {
+                    if target.is_empty() {
+                        return err(
+                            line.no,
+                            "`do update` needs a conflict target `(@column, ...)`",
+                        );
+                    }
+                    c.expect_kw("set")?;
+                    let set: Vec<(String, Expr)> = c
+                        .assigns(true)?
+                        .into_iter()
+                        .map(|(col, e)| (col, excluded_columns(e)))
+                        .collect();
+                    let filter = if c.eat_kw("where") {
+                        Some(excluded_columns(c.expr()?))
+                    } else {
+                        None
+                    };
+                    upsert = Some(crate::ir::Upsert {
+                        target,
+                        set,
+                        filter,
+                    });
+                } else {
+                    c.expect_kw("nothing")?;
+                    on_conflict = OnConflict::DoNothing;
+                }
             }
             let affected = parse_into(&mut c)?;
             let returning = if c.eat_kw("returning") {
@@ -624,6 +784,8 @@ fn parse_stmt(
                 affected,
                 returning,
                 returning_columns: None,
+                upsert,
+                more_rows: Vec::new(),
             };
             push(
                 b,
@@ -705,7 +867,14 @@ fn parse_stmt(
             push(b, code, line, Op::Throw { message });
         }
         "return" => {
-            done(&c)?;
+            // Phase 13: `return <expr>` states the value the task returns.
+            if !c.at_end() {
+                let expr = c.expr_until(&[])?;
+                done(&c)?;
+                push(b, code, line, Op::ReturnValue { expr });
+            } else {
+                done(&c)?;
+            }
             push(b, code, line, Op::Return);
         }
         "external" => {
@@ -816,9 +985,46 @@ fn done(c: &Cursor<'_>) -> Result<(), ParseError> {
     }
 }
 
+/// `excluded.c` (a property of the local `excluded`) as the column
+/// `excluded.c` of an upsert's evaluation row.
+fn excluded_columns(e: Expr) -> Expr {
+    match e {
+        Expr::Field(base, c) if matches!(&*base, Expr::Local(l) if l == "excluded") => {
+            Expr::Col(format!("excluded.{c}"))
+        }
+        Expr::Field(b, c) => Expr::Field(Box::new(excluded_columns(*b)), c),
+        Expr::Not(x) => Expr::Not(Box::new(excluded_columns(*x))),
+        Expr::IsNull(x) => Expr::IsNull(Box::new(excluded_columns(*x))),
+        Expr::Bin(op, a, b) => Expr::Bin(
+            op,
+            Box::new(excluded_columns(*a)),
+            Box::new(excluded_columns(*b)),
+        ),
+        Expr::Object(f) => Expr::Object(
+            f.into_iter()
+                .map(|(k, v)| (k, excluded_columns(v)))
+                .collect(),
+        ),
+        other => other,
+    }
+}
+
 fn parse_lock(c: &mut Cursor<'_>) -> Result<LockMode, ParseError> {
     if !c.eat_kw("for") {
         return Ok(LockMode::None);
+    }
+    // Phase 13: `for share`, `for key share`, `for no key update`.
+    if c.eat_kw("share") {
+        return Ok(LockMode::ForShare);
+    }
+    if c.eat_kw("key") {
+        c.expect_kw("share")?;
+        return Ok(LockMode::ForKeyShare);
+    }
+    if c.eat_kw("no") {
+        c.expect_kw("key")?;
+        c.expect_kw("update")?;
+        return Ok(LockMode::ForNoKeyUpdate);
     }
     c.expect_kw("update")?;
     if c.eat_kw("skip") {

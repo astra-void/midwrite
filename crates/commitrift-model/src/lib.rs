@@ -15,6 +15,7 @@ pub mod footprint;
 pub mod html;
 pub mod invariant;
 pub mod ir;
+pub mod jsfn;
 pub mod keytable;
 pub mod model;
 #[cfg(feature = "postgres")]
@@ -29,6 +30,7 @@ pub mod schema_fidelity;
 pub mod source_types;
 #[cfg(feature = "postgres")]
 pub mod source_verify;
+pub mod sqlfn;
 pub mod state;
 pub mod twin;
 pub mod value;

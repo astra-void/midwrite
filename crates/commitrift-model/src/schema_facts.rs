@@ -116,6 +116,15 @@ pub struct SchemaColumn {
     /// Phase 12: how the default is produced.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub generation: Option<Generation>,
+    /// Phase 14: the `mode` option of a `timestamp`/`date`/`json` column
+    /// when it is written explicitly (`{ mode: "string" }`); absent:
+    /// Drizzle's default mode.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
+    /// Phase 14: the callback of `.$onUpdate(...)` / `.$onUpdateFn(...)`,
+    /// as written.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_update: Option<String>,
     pub line: u32,
 }
 
@@ -148,6 +157,12 @@ pub struct SchemaForeignKey {
     /// The referenced table binding and column properties.
     pub table: String,
     pub foreign_columns: Vec<String>,
+    /// Phase 13: `onDelete` / `onUpdate` as written (`cascade`,
+    /// `set null`, ...); absent: `no action`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_delete: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_update: Option<String>,
     pub line: u32,
 }
 

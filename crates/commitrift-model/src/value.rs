@@ -27,7 +27,41 @@ pub enum Value {
     /// It is not a string the model knows: it equals only itself, and its
     /// order relative to other values is not determined.
     Gen(GenId),
+    /// Phase 14: JavaScript `undefined`, distinct from `null` (only produced
+    /// by code extracted with JavaScript value semantics; see
+    /// `docs/phase14/VALUE-SEMANTICS.md`).
+    Undefined(UndefinedMark),
+    /// Phase 14: a bounded `Map` (insertion order kept; keys compared with
+    /// SameValueZero on primitives).
+    Map(MapVal),
+    /// Phase 14: a bounded `Set` (insertion order kept).
+    Set(SetVal),
     Row(Row),
+    /// Phase 14: a bounded JavaScript array of concrete values. Arrays are
+    /// values, not references: code that could observe aliasing is refused
+    /// by the extractor.
+    List(Vec<Value>),
+}
+
+/// Phase 14: the JSON form of `undefined` (`{"$undefined": true}`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+pub struct UndefinedMark {
+    #[serde(rename = "$undefined")]
+    pub undefined: bool,
+}
+
+/// Phase 14: the JSON form of a `Map` (`{"$map": [[key, value], ...]}`).
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+pub struct MapVal {
+    #[serde(rename = "$map")]
+    pub entries: Vec<(Value, Value)>,
+}
+
+/// Phase 14: the JSON form of a `Set` (`{"$set": [item, ...]}`).
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+pub struct SetVal {
+    #[serde(rename = "$set")]
+    pub items: Vec<Value>,
 }
 
 /// The identity of one generation event (Phase 12): which generator
@@ -36,13 +70,98 @@ pub enum Value {
 /// rollback), so every event has its own identity and the identity does not
 /// depend on how other actors are scheduled. Two events are assumed to
 /// produce different values (the `generated-values-distinct` assumption).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct GenId {
     #[serde(rename = "$generated")]
     pub generator: u16,
     pub actor: u16,
     pub n: u32,
+}
+
+/// Phase 14: the reserved-key forms (`{"$generated": ...}`,
+/// `{"$undefined": true}`, `{"$map": ...}`, `{"$set": ...}`) are read from
+/// JSON objects only. A derived `Deserialize` of a struct also accepts a
+/// JSON array (fields by position): inside the untagged [`Value`], `[1, 2,
+/// 3]` would have become a generated value and `[true]` `undefined` before
+/// reaching [`Value::List`].
+mod reserved {
+    use serde::de::{Deserialize, Deserializer, Error};
+
+    use super::{GenId, MapVal, SetVal, UndefinedMark, Value};
+
+    fn object<'de, D, T>(d: D) -> Result<T, D::Error>
+    where
+        D: Deserializer<'de>,
+        T: serde::de::DeserializeOwned,
+    {
+        let map = serde_json::Map::<String, serde_json::Value>::deserialize(d)?;
+        serde_json::from_value(serde_json::Value::Object(map)).map_err(D::Error::custom)
+    }
+
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct RawGen {
+        #[serde(rename = "$generated")]
+        generator: u16,
+        actor: u16,
+        n: u32,
+    }
+
+    impl<'de> Deserialize<'de> for GenId {
+        fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+            let r: RawGen = object(d)?;
+            Ok(GenId {
+                generator: r.generator,
+                actor: r.actor,
+                n: r.n,
+            })
+        }
+    }
+
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct RawUndefined {
+        #[serde(rename = "$undefined")]
+        undefined: bool,
+    }
+
+    impl<'de> Deserialize<'de> for UndefinedMark {
+        fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+            let r: RawUndefined = object(d)?;
+            if !r.undefined {
+                return Err(D::Error::custom("`$undefined` must be `true`"));
+            }
+            Ok(UndefinedMark { undefined: true })
+        }
+    }
+
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct RawMap {
+        #[serde(rename = "$map")]
+        entries: Vec<(Value, Value)>,
+    }
+
+    impl<'de> Deserialize<'de> for MapVal {
+        fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+            let r: RawMap = object(d)?;
+            Ok(MapVal { entries: r.entries })
+        }
+    }
+
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct RawSet {
+        #[serde(rename = "$set")]
+        items: Vec<Value>,
+    }
+
+    impl<'de> Deserialize<'de> for SetVal {
+        fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+            let r: RawSet = object(d)?;
+            Ok(SetVal { items: r.items })
+        }
+    }
 }
 
 impl Value {
@@ -57,8 +176,19 @@ impl Value {
             Self::Bool(b) => *b,
             Self::Int(n) => *n != 0,
             Self::Str(s) => !s.is_empty(),
-            Self::Gen(_) | Self::Row(_) => true,
+            Self::Undefined(_) => false,
+            Self::Gen(_) | Self::Row(_) | Self::List(_) | Self::Map(_) | Self::Set(_) => true,
         }
+    }
+
+    /// Phase 14: `undefined`.
+    pub fn undefined() -> Self {
+        Self::Undefined(UndefinedMark { undefined: true })
+    }
+
+    /// Phase 14: `null` or `undefined` (`v == null` in JavaScript).
+    pub fn is_nullish(&self) -> bool {
+        matches!(self, Self::Null | Self::Undefined(_))
     }
 
     pub fn is_null(&self) -> bool {
@@ -80,6 +210,31 @@ impl Value {
                     .collect();
                 format!("{{{}}}", fields.join(", "))
             }
+            Self::Undefined(_) => "undefined".to_owned(),
+            Self::List(items) => format!(
+                "[{}]",
+                items
+                    .iter()
+                    .map(Value::render)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            Self::Map(m) => format!(
+                "Map{{{}}}",
+                m.entries
+                    .iter()
+                    .map(|(k, v)| format!("{} => {}", k.render(), v.render()))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            Self::Set(s) => format!(
+                "Set{{{}}}",
+                s.items
+                    .iter()
+                    .map(Value::render)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
         }
     }
 }
@@ -140,6 +295,107 @@ impl BinOp {
     }
 }
 
+/// Phase 14: built-in functions of the value layer. JavaScript builtins
+/// (evaluated in [`Mode::Js`] by `crate::jsfn`) dispatch on the runtime
+/// value of their first argument (the receiver): a receiver of another type
+/// is an unsupported evaluation, never a guess. SQL builtins are evaluated
+/// by `crate::sqlfn`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Builtin {
+    // JavaScript, strings and arrays.
+    /// `String(x)` / template interpolation: ToString of one value.
+    ToString,
+    /// `typeof x` (ECMAScript): "string", "number", "boolean", "undefined", "object" (null, rows, arrays, Map, Set).
+    TypeOf,
+    /// A template literal or `+` with a string operand: ToString of every
+    /// argument, concatenated.
+    Concat,
+    /// `recv.length` (UTF-16 code units for a string).
+    Length,
+    /// `recv[i]` / `recv.at(i)` with an integer index.
+    At,
+    /// `recv.includes(x)` (string: substring; array: SameValueZero).
+    Includes,
+    StartsWith,
+    EndsWith,
+    /// `recv.split(sep)` with a non-empty string separator.
+    Split,
+    ToLowerCase,
+    ToUpperCase,
+    Trim,
+    /// `recv.indexOf(x)`.
+    IndexOf,
+    /// `recv.join(sep)`.
+    Join,
+    // JavaScript, Map and Set (values: mutation produces a new value bound
+    // to the same local).
+    NewMap,
+    NewSet,
+    MapGet,
+    MapSet,
+    /// `m.has(k)` / `s.has(x)`.
+    Has,
+    /// `s.add(x)`.
+    SetAdd,
+    /// `m.delete(k)` / `s.delete(x)`: the new collection.
+    Delete,
+    /// `m.size` / `s.size`.
+    Size,
+    // SQL.
+    /// `col IN (v1, ...)` (Drizzle `inArray(col, [...])`) with SQL
+    /// three-valued logic.
+    InList,
+}
+
+impl Builtin {
+    pub fn is_sql(self) -> bool {
+        matches!(self, Self::InList)
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::ToString => "String",
+            Self::TypeOf => "typeof",
+            Self::Concat => "concat",
+            Self::Length => "length",
+            Self::At => "at",
+            Self::Includes => "includes",
+            Self::StartsWith => "startsWith",
+            Self::EndsWith => "endsWith",
+            Self::Split => "split",
+            Self::ToLowerCase => "toLowerCase",
+            Self::ToUpperCase => "toUpperCase",
+            Self::Trim => "trim",
+            Self::IndexOf => "indexOf",
+            Self::Join => "join",
+            Self::NewMap => "new Map",
+            Self::NewSet => "new Set",
+            Self::MapGet => "get",
+            Self::MapSet => "set",
+            Self::Has => "has",
+            Self::SetAdd => "add",
+            Self::Delete => "delete",
+            Self::Size => "size",
+            Self::InList => "in",
+        }
+    }
+}
+
+/// Phase 14: array methods with a callback. The callback is a pure
+/// expression of one element (bound to `var`); a callback that calls
+/// anything or has effects is never lowered to this form.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum EachOp {
+    Map,
+    Filter,
+    Find,
+    FindIndex,
+    Some,
+    Every,
+}
+
 /// An expression. `Col` names a column of the row a predicate or `SET`
 /// clause is being evaluated against; `Local` an actor-local variable.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -155,6 +411,20 @@ pub enum Expr {
     /// An object literal (Phase 7): evaluates to a row of its properties,
     /// in JavaScript mode only.
     Object(Vec<(String, Expr)>),
+    /// Phase 14: an array literal (JavaScript mode).
+    Array(Vec<Expr>),
+    /// Phase 14: a built-in function applied to its arguments.
+    Call {
+        func: Builtin,
+        args: Vec<Expr>,
+    },
+    /// Phase 14: `list.<op>((var) => body)` with a pure callback.
+    Each {
+        op: EachOp,
+        list: Box<Expr>,
+        var: String,
+        body: Box<Expr>,
+    },
     /// An expression the extractor did not understand. Evaluating it is an
     /// error: unknown behavior is never turned into a value.
     Unknown(String),
@@ -204,6 +474,31 @@ impl Expr {
     pub fn not(a: Expr) -> Self {
         Self::Not(Box::new(a))
     }
+    /// Phase 14: a built-in applied to its arguments.
+    pub fn call(func: Builtin, args: Vec<Expr>) -> Self {
+        Self::Call { func, args }
+    }
+    /// Phase 14: the literal `undefined`.
+    pub fn undefined() -> Self {
+        Self::Lit(Value::undefined())
+    }
+
+    /// Phase 14: a property read `base.name`, as `Field(base, name)` or, in
+    /// code extracted with JavaScript value semantics, `At(base, "name")`
+    /// (where a missing property is `undefined`).
+    pub fn as_property(&self) -> Option<(&Expr, &str)> {
+        match self {
+            Self::Field(base, name) => Some((base, name)),
+            Self::Call {
+                func: Builtin::At,
+                args,
+            } => match args.as_slice() {
+                [base, Self::Lit(Value::Str(name))] => Some((base, name)),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
 
     /// Whether the expression contains `Col` references (so it depends on
     /// the row it is evaluated against).
@@ -214,6 +509,10 @@ impl Expr {
             Self::Field(e, _) | Self::Not(e) | Self::IsNull(e) => e.mentions_column(),
             Self::Bin(_, a, b) => a.mentions_column() || b.mentions_column(),
             Self::Object(fields) => fields.iter().any(|(_, e)| e.mentions_column()),
+            Self::Array(items) | Self::Call { args: items, .. } => {
+                items.iter().any(Expr::mentions_column)
+            }
+            Self::Each { list, body, .. } => list.mentions_column() || body.mentions_column(),
         }
     }
 
@@ -225,6 +524,12 @@ impl Expr {
             Self::Field(e, _) | Self::Not(e) | Self::IsNull(e) => e.unknown_detail(),
             Self::Bin(_, a, b) => a.unknown_detail().or_else(|| b.unknown_detail()),
             Self::Object(fields) => fields.iter().find_map(|(_, e)| e.unknown_detail()),
+            Self::Array(items) | Self::Call { args: items, .. } => {
+                items.iter().find_map(Expr::unknown_detail)
+            }
+            Self::Each { list, body, .. } => {
+                list.unknown_detail().or_else(|| body.unknown_detail())
+            }
         }
     }
 
@@ -239,6 +544,17 @@ impl Expr {
                 b.locals(out);
             }
             Self::Object(fields) => fields.iter().for_each(|(_, e)| e.locals(out)),
+            Self::Array(items) | Self::Call { args: items, .. } => {
+                items.iter().for_each(|e| e.locals(out));
+            }
+            Self::Each {
+                list, var, body, ..
+            } => {
+                list.locals(out);
+                let mut inner = Vec::new();
+                body.locals(&mut inner);
+                out.extend(inner.into_iter().filter(|n| n != var));
+            }
         }
     }
 
@@ -253,6 +569,13 @@ impl Expr {
                 b.columns(out);
             }
             Self::Object(fields) => fields.iter().for_each(|(_, e)| e.columns(out)),
+            Self::Array(items) | Self::Call { args: items, .. } => {
+                items.iter().for_each(|e| e.columns(out));
+            }
+            Self::Each { list, body, .. } => {
+                list.columns(out);
+                body.columns(out);
+            }
         }
     }
 
@@ -278,6 +601,14 @@ impl Expr {
                 Value::Null => Err(EvalError::Type(format!(
                     "cannot read property `{name}` of null"
                 ))),
+                // Phase 14: JavaScript `undefined` and arrays.
+                Value::Undefined(_) => Err(EvalError::Type(format!(
+                    "cannot read property `{name}` of undefined"
+                ))),
+                Value::List(items) if name == "length" => Ok(Value::Int(items.len() as i64)),
+                Value::List(_) => Err(EvalError::Unknown(format!(
+                    "property `{name}` of an array is not modeled"
+                ))),
                 other => Err(EvalError::Type(format!(
                     "cannot read property `{name}` of {}",
                     other.render()
@@ -300,6 +631,36 @@ impl Expr {
                 }
                 Ok(Value::Row(out))
             }
+            Self::Array(items) => Ok(Value::List(
+                items
+                    .iter()
+                    .map(|e| e.eval(locals, row, mode))
+                    .collect::<Result<_, _>>()?,
+            )),
+            Self::Call { func, args } => {
+                // Phase 14: the arguments of a JavaScript built-in are
+                // JavaScript expressions, also when SQL-mode folding
+                // evaluates the call before a statement is sent.
+                let arg_mode = if func.is_sql() { mode } else { Mode::Js };
+                let values = args
+                    .iter()
+                    .map(|e| e.eval(locals, row, arg_mode))
+                    .collect::<Result<Vec<_>, _>>()?;
+                if func.is_sql() {
+                    crate::sqlfn::eval(*func, &values, mode)
+                } else {
+                    crate::jsfn::eval(*func, &values, mode)
+                }
+            }
+            Self::Each {
+                op,
+                list,
+                var,
+                body,
+            } => {
+                let list = list.eval(locals, row, mode)?;
+                crate::jsfn::each(*op, &list, var, body, locals, row, mode)
+            }
         }
     }
 
@@ -320,6 +681,19 @@ impl Expr {
                 Box::new(a.close(locals, mode)?),
                 Box::new(b.close(locals, mode)?),
             ),
+            Self::Array(items) => Self::Array(
+                items
+                    .iter()
+                    .map(|e| e.close(locals, mode))
+                    .collect::<Result<_, _>>()?,
+            ),
+            Self::Call { func, args } => Self::Call {
+                func: *func,
+                args: args
+                    .iter()
+                    .map(|e| e.close(locals, mode))
+                    .collect::<Result<_, _>>()?,
+            },
             other => other.clone(),
         })
     }
@@ -343,7 +717,77 @@ impl Expr {
             ),
             Self::Unknown(d) => format!("<unknown: {d}>"),
             Self::Bin(op, a, b) => format!("({} {} {})", a.render(), op.symbol(), b.render()),
+            Self::Array(items) => format!(
+                "[{}]",
+                items
+                    .iter()
+                    .map(Expr::render)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            Self::Call { func, args } => render_call(*func, args),
+            Self::Each {
+                op,
+                list,
+                var,
+                body,
+            } => format!("{}.{op:?}(({var}) => {})", list.render(), body.render()),
         }
+    }
+}
+
+/// Phase 14: built-ins rendered as the JavaScript they stand for.
+fn render_call(func: Builtin, args: &[Expr]) -> String {
+    use Builtin as B;
+    let list = |items: &[Expr]| {
+        items
+            .iter()
+            .map(Expr::render)
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let identifier = |s: &str| {
+        s.chars()
+            .next()
+            .is_some_and(|c| c.is_alphabetic() || c == '_' || c == '$')
+            && s.chars()
+                .all(|c| c.is_alphanumeric() || c == '_' || c == '$')
+    };
+    match (func, args) {
+        (B::At, [base, Expr::Lit(Value::Str(name))]) if identifier(name) => {
+            format!("{}.{name}", base.render())
+        }
+        (B::At, [base, index]) => format!("{}[{}]", base.render(), index.render()),
+        (B::Length | B::Size, [recv]) => format!("{}.{}", recv.render(), func.name()),
+        (B::ToString, [x]) => format!("String({})", x.render()),
+        (B::TypeOf, [x]) => format!("typeof {}", x.render()),
+        (B::Concat, parts) => format!(
+            "({})",
+            parts
+                .iter()
+                .map(Expr::render)
+                .collect::<Vec<_>>()
+                .join(" + ")
+        ),
+        (B::NewMap | B::NewSet, items) => format!("{}({})", func.name(), list(items)),
+        (
+            B::Includes
+            | B::StartsWith
+            | B::EndsWith
+            | B::Split
+            | B::ToLowerCase
+            | B::ToUpperCase
+            | B::Trim
+            | B::IndexOf
+            | B::Join
+            | B::MapGet
+            | B::MapSet
+            | B::Has
+            | B::SetAdd
+            | B::Delete,
+            [recv, rest @ ..],
+        ) => format!("{}.{}({})", recv.render(), func.name(), list(rest)),
+        _ => format!("{}({})", func.name(), list(args)),
     }
 }
 
@@ -405,6 +849,13 @@ fn eval_bin(
                         };
                         out.map(Value::Int).ok_or(EvalError::Overflow)
                     }
+                    // Phase 14: JavaScript never throws here (`undefined + 1`
+                    // is NaN, `[1] + 1` is "11"): not modeled.
+                    _ if is_js_value(&l) || is_js_value(&r) => Err(EvalError::Unknown(format!(
+                        "arithmetic on {} and {} is not modeled",
+                        l.render(),
+                        r.render()
+                    ))),
                     _ => Err(EvalError::Type(format!(
                         "arithmetic on {} and {}",
                         l.render(),
@@ -421,6 +872,9 @@ fn eval_bin(
                             BinOp::Ne => l != r,
                             _ => false,
                         }));
+                    }
+                    if is_js_value(&l) || is_js_value(&r) {
+                        return js_value_comparison(op, &l, &r, mode);
                     }
                     if matches!(l, Value::Gen(_)) || matches!(r, Value::Gen(_)) {
                         // Equality of a generated value is identity: it
@@ -444,6 +898,49 @@ fn eval_bin(
                 }
             }
         }
+    }
+}
+
+/// Phase 14: the JavaScript-only values (`undefined`, arrays, `Map`, `Set`).
+fn is_js_value(v: &Value) -> bool {
+    matches!(
+        v,
+        Value::Undefined(_) | Value::List(_) | Value::Map(_) | Value::Set(_)
+    )
+}
+
+/// Phase 14: `==`/`!=`/`<`/... where one side is `undefined`, an array, a
+/// `Map` or a `Set` (and neither side is `null`, handled before). In
+/// JavaScript mode `undefined` equals only `undefined` (strict equality; the
+/// extractor lowers `x == null` to a nullish test); arrays, maps and sets
+/// are compared by identity, which is not modeled; ordering them is not
+/// modeled. These values never reach SQL.
+fn js_value_comparison(op: BinOp, l: &Value, r: &Value, mode: Mode) -> Result<Value, EvalError> {
+    if mode == Mode::Sql {
+        return Err(EvalError::Unknown(format!(
+            "a JavaScript value in SQL ({} {} {})",
+            l.render(),
+            op.symbol(),
+            r.render()
+        )));
+    }
+    let undefined = |v: &Value| matches!(v, Value::Undefined(_));
+    match op {
+        BinOp::Eq | BinOp::Ne if undefined(l) || undefined(r) => {
+            let equal = undefined(l) && undefined(r);
+            Ok(Value::Bool(if op == BinOp::Eq { equal } else { !equal }))
+        }
+        BinOp::Eq | BinOp::Ne => Err(EvalError::Unknown(format!(
+            "the identity of arrays, Map and Set values is not modeled ({} {} {})",
+            l.render(),
+            op.symbol(),
+            r.render()
+        ))),
+        _ => Err(EvalError::Unknown(format!(
+            "ordering {} and {} is not modeled",
+            l.render(),
+            r.render()
+        ))),
     }
 }
 

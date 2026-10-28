@@ -61,6 +61,11 @@ pub enum Conn {
     /// A pooled connection in autocommit mode (the root `db` handle): the
     /// statement is its own single-statement transaction.
     Pool,
+    /// Phase 13: a read routed to a read replica (a `withReplicas`
+    /// database's `select`/`query`). Only reads; the statement sees the
+    /// replica's replayed prefix of the primary's commits, which may lag
+    /// (`docs/phase13/REPLICA-CONSISTENCY.md`).
+    Replica,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -72,6 +77,54 @@ pub enum LockMode {
     SkipLocked,
     /// `FOR UPDATE NOWAIT`
     NoWait,
+    /// Phase 13: `FOR NO KEY UPDATE`.
+    ForNoKeyUpdate,
+    /// Phase 13: `FOR SHARE`.
+    ForShare,
+    /// Phase 13: `FOR KEY SHARE`.
+    ForKeyShare,
+}
+
+impl LockMode {
+    /// The SQL suffix of a `SELECT` with this lock (with a leading space).
+    pub fn sql(self) -> &'static str {
+        match self {
+            Self::None => "",
+            Self::ForUpdate => " FOR UPDATE",
+            Self::SkipLocked => " FOR UPDATE SKIP LOCKED",
+            Self::NoWait => " FOR UPDATE NOWAIT",
+            Self::ForNoKeyUpdate => " FOR NO KEY UPDATE",
+            Self::ForShare => " FOR SHARE",
+            Self::ForKeyShare => " FOR KEY SHARE",
+        }
+    }
+
+    /// The row-lock mode the statement takes on each row it returns.
+    pub fn row_lock(self) -> Option<crate::db::RowLock> {
+        use crate::db::RowLock;
+        match self {
+            Self::None => None,
+            Self::ForUpdate | Self::SkipLocked | Self::NoWait => Some(RowLock::Update),
+            Self::ForNoKeyUpdate => Some(RowLock::NoKeyUpdate),
+            Self::ForShare => Some(RowLock::Share),
+            Self::ForKeyShare => Some(RowLock::KeyShare),
+        }
+    }
+
+    /// Whether the lock excludes other lockers of its strength: `FOR UPDATE`
+    /// (with any option) and `FOR NO KEY UPDATE` serialize two such
+    /// readers; `FOR SHARE` / `FOR KEY SHARE` do not (Phase 13).
+    pub fn is_exclusive(self) -> bool {
+        matches!(
+            self,
+            Self::ForUpdate | Self::SkipLocked | Self::NoWait | Self::ForNoKeyUpdate
+        )
+    }
+
+    /// Whether the mode needs lock modes beyond "exclusive" (Phase 13).
+    pub fn is_shared(self) -> bool {
+        matches!(self, Self::ForShare | Self::ForKeyShare)
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -112,6 +165,19 @@ pub enum ProjItem {
     Table(String),
     /// One column: plain (`email`) without joins, qualified with joins.
     Column(String),
+}
+
+/// Phase 13: the `DO UPDATE` arm of `INSERT ... ON CONFLICT (target)`.
+/// `set` and `filter` are evaluated on the existing (conflicting) row;
+/// `Col("excluded.c")` is column `c` of the row proposed for insertion.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Upsert {
+    /// The arbiter: the columns of a unique key (or the primary key).
+    pub target: Vec<String>,
+    pub set: Vec<(String, Expr)>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub filter: Option<Expr>,
 }
 
 /// A database statement of the supported subset.
@@ -164,6 +230,19 @@ pub enum StmtKind {
         /// row. Absent: every column.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         returning_columns: Option<Vec<String>>,
+        /// Phase 13: `ON CONFLICT (target) DO UPDATE SET ... [WHERE ...]`
+        /// (`on_conflict` is then `Error`: a conflict on another unique key
+        /// is still SQLSTATE 23505).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        upsert: Option<Upsert>,
+        /// Phase 14: the rows after the first of a multi-row `INSERT ...
+        /// VALUES (...), (...)` (Drizzle `values([{...}, {...}])`; `values`
+        /// is the first row). One atomic statement: rows are inserted in
+        /// order, each with its own defaults; any error aborts the whole
+        /// statement. With rows here, `returning` receives the list of
+        /// returned rows and `affected` the number of rows inserted.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        more_rows: Vec<Vec<(String, Expr)>>,
     },
     /// `DELETE FROM table WHERE pred`.
     Delete {
@@ -183,7 +262,16 @@ impl StmtKind {
             | Self::Delete { table, .. } => table,
         }
     }
+
+    /// Phase 14: whether the statement is a multi-row `INSERT`.
+    pub fn is_multi_row(&self) -> bool {
+        matches!(self, Self::Insert { more_rows, .. } if !more_rows.is_empty())
+    }
 }
+
+/// Phase 14: the most rows one multi-row `INSERT` may propose (the
+/// extractor refuses longer literal lists; the loader refuses more).
+pub const MAX_INSERT_ROWS: usize = 8;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -192,6 +280,10 @@ pub struct Stmt {
     #[serde(flatten)]
     pub kind: StmtKind,
 }
+
+/// Phase 14: the generator index of values generated by package calls
+/// ([`Op::Generate`]); column generators are numbered from 0.
+pub const CALL_GENERATOR: u16 = 0x800;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "camelCase")]
@@ -231,6 +323,22 @@ pub enum Op {
     },
     /// Normal completion.
     Return,
+    /// Phase 13: the value the main task returns (local, not a scheduling
+    /// point; emitted right before the main task's [`Op::Return`]). An
+    /// expression that cannot be evaluated records an *unknown* result
+    /// instead of failing the task: return values never change what the
+    /// database does, and an invariant over an unknown result is not
+    /// evaluated.
+    ReturnValue {
+        expr: Expr,
+    },
+    /// Phase 13: the request's response is delivered to the client (a
+    /// scheduling point, before the main task's [`Op::Return`]). Inserted by
+    /// the scenario loader for actors declared as request handlers
+    /// (`"response": true`): a crash between the last database operation
+    /// and this step is a crash after the work committed and before the
+    /// client learned it.
+    Respond,
     /// An externally visible effect (publish, HTTP call, email). `key` is an
     /// idempotency key when the call carries one.
     External {
@@ -275,6 +383,16 @@ pub enum Op {
     /// block; local).
     Rethrow {
         local: String,
+    },
+    /// Phase 14: a fresh random value from a package call with a verified
+    /// contract (`nanoid()`, `crypto.randomUUID()`), assigned to `local`: a
+    /// generation event of the actor ([`crate::value::Value::Gen`] with
+    /// generator [`CALL_GENERATOR`]; the actor's counter is shared with
+    /// column defaults, so every event has its own identity). Local, not a
+    /// scheduling point. `source` names the call for reports.
+    Generate {
+        local: String,
+        source: String,
     },
     /// Behavior the extractor did not understand.
     Unknown {

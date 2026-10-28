@@ -707,6 +707,7 @@ pub fn observe(model: &Model, limit: usize) -> BTreeSet<&'static str> {
                 TKind::LostNotCommitted => "tk.lost-not-committed",
                 TKind::CrashInFlight => "tk.crash-in-flight",
                 TKind::ServerComplete => "tk.server-complete",
+                TKind::Replicate => "tk.replicate",
             });
             let Ok(a) = apply(model, &s, t, &mut Recorder::off()) else {
                 continue;

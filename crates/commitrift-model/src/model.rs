@@ -198,6 +198,31 @@ pub struct Model {
     pub options: Options,
     /// Modeling assumptions to print with every result.
     pub assumptions: Vec<String>,
+    /// Phase 13: features the scenario opted into.
+    pub features: Features,
+}
+
+/// Phase 13: semantics beyond Phase 12 that a scenario opts into
+/// (`"features": [...]`), so that earlier scenarios keep their meaning and
+/// state spaces.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Features {
+    /// Foreign keys of tables read from the source are enforced (declared
+    /// `foreignKeys` always are).
+    pub foreign_keys: bool,
+    /// Reads routed to a read replica see the replica's replayed prefix of
+    /// the primary's commits, which advances by separate transitions.
+    pub replicas: bool,
+    /// Phase 14: actors are extracted with JavaScript value semantics
+    /// (`undefined`, arrays, strings, `Map`/`Set`:
+    /// `docs/phase14/VALUE-SEMANTICS.md`).
+    pub js_values: bool,
+    /// Phase 14: `timestamp`/`timestamptz`/`date` columns of the source
+    /// schema are modeled (clock readings are opaque values; explicit
+    /// values compare by value).
+    pub timestamps: bool,
+    /// Phase 14: `json`/`jsonb` columns of the source schema are modeled.
+    pub json: bool,
 }
 
 impl Model {
@@ -214,6 +239,50 @@ impl Model {
                     )
                 })
             })
+    }
+
+    /// Phase 13: whether row-lock modes can matter: a table has a foreign
+    /// key (whose checks lock `FOR KEY SHARE`) or a statement locks `FOR
+    /// SHARE` / `FOR KEY SHARE`. Otherwise every two row locks conflict and
+    /// the Phase 6-12 encoding is kept.
+    pub fn uses_lock_modes(&self) -> bool {
+        self.schema
+            .tables
+            .iter()
+            .any(|t| !t.foreign_keys.is_empty())
+            || self.actors.iter().any(|a| {
+                a.codes.iter().flatten().any(|s| {
+                    matches!(
+                        &s.op,
+                        crate::ir::Op::Db { stmt } if matches!(
+                            stmt.kind,
+                            crate::ir::StmtKind::Select { lock, .. } if lock.is_shared()
+                        )
+                    )
+                })
+            })
+    }
+
+    /// Phase 13: whether return values are recorded (an invariant reads
+    /// them). Otherwise [`crate::ir::Op::ReturnValue`] does nothing and
+    /// states are those of Phase 12.
+    pub fn tracks_results(&self) -> bool {
+        self.invariants.iter().any(|i| i.formula.reads_returned())
+    }
+
+    /// Phase 13: foreign keys that reference `table`: (referencing table,
+    /// index of the key in it).
+    pub fn referencing(&self, table: u16) -> Vec<(u16, u16)> {
+        let name = &self.schema.table(table).name;
+        let mut out = Vec::new();
+        for (ti, t) in self.schema.tables.iter().enumerate() {
+            for (fi, fk) in t.foreign_keys.iter().enumerate() {
+                if &fk.references == name {
+                    out.push((ti as u16, fi as u16));
+                }
+            }
+        }
+        out
     }
 
     /// Whether any process has a bounded connection pool.

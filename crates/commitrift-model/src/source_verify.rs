@@ -161,20 +161,14 @@ fn sql_table(model: &Model, t: u16) -> String {
 fn kind_of(stmt: &ClosedStmt) -> SqlKind {
     match stmt {
         ClosedStmt::Select { .. } | ClosedStmt::Count { .. } => SqlKind::Select,
-        ClosedStmt::Insert { .. } => SqlKind::Insert,
+        ClosedStmt::Insert { .. } | ClosedStmt::InsertMany { .. } => SqlKind::Insert,
         ClosedStmt::Update { .. } => SqlKind::Update,
         ClosedStmt::Delete { .. } => SqlKind::Delete,
     }
 }
 
 fn table_of(stmt: &ClosedStmt) -> u16 {
-    match stmt {
-        ClosedStmt::Select { table, .. }
-        | ClosedStmt::Count { table, .. }
-        | ClosedStmt::Insert { table, .. }
-        | ClosedStmt::Update { table, .. }
-        | ClosedStmt::Delete { table, .. } => *table,
-    }
+    stmt.table()
 }
 
 /// A model value as the JSON the runtime reports.
@@ -186,6 +180,10 @@ fn value_json(v: &Value) -> Json {
         Value::Str(s) => Json::String(s.clone()),
         Value::Gen(g) => serde_json::to_value(g).unwrap_or(Json::Null),
         Value::Row(r) => Json::Object(r.iter().map(|(k, v)| (k.clone(), value_json(v))).collect()),
+        Value::List(items) => Json::Array(items.iter().map(value_json).collect()),
+        Value::Undefined(_) | Value::Map(_) | Value::Set(_) => {
+            serde_json::to_value(v).unwrap_or(Json::Null)
+        }
     }
 }
 
@@ -267,6 +265,8 @@ fn checkpoint(
             (kind, Some(table), None, label)
         }
         Op::Begin { .. } => (SqlKind::Begin, None, None, "BEGIN".to_owned()),
+        // Phase 13: the worker holds the response after the entry returned.
+        Op::Respond => (SqlKind::Respond, None, None, "RESPONSE".to_owned()),
         Op::Commit => (SqlKind::Commit, None, None, "COMMIT".to_owned()),
         Op::Rollback => (SqlKind::Rollback, None, None, "ROLLBACK".to_owned()),
         Op::External { channel, key, .. } => {
@@ -344,6 +344,7 @@ fn plan(model: &Model, schedule: &[Transition]) -> Result<Plan, String> {
             .map(|s| s.src.clone());
         match t.kind {
             TKind::Deadlock => return Err("the counterexample picks a deadlock victim: victim steering is not done against original code".to_owned()),
+            TKind::Replicate => return Err("the counterexample depends on read-replica lag: replication is not steered against original code".to_owned()),
             TKind::LostCommitted | TKind::LostNotCommitted => {
                 // A broken connection with the process alive (Phase 10): the
                 // proxy closes the client's connection; the worker is not
@@ -813,6 +814,19 @@ fn plan(model: &Model, schedule: &[Transition]) -> Result<Plan, String> {
                         Some((payload, deduplicated)),
                     );
                 }
+                Action::Respond { actor } => {
+                    // Phase 13: release the held response to the client.
+                    push(
+                        SqlKind::Respond,
+                        None,
+                        actor,
+                        None,
+                        Expect::Ok,
+                        "RESPONSE".to_owned(),
+                        None,
+                        None,
+                    );
+                }
                 Action::Victim { .. } => {
                     return Err(
                         "deadlock victims are not executed against original code".to_owned()
@@ -864,6 +878,9 @@ fn literal(v: &Value) -> Result<String, String> {
         Value::Str(s) => format!("'{}'", s.replace('\'', "''")),
         Value::Gen(_) => return Err("a generated value in the initial state".to_owned()),
         Value::Row(_) => return Err("a row value in the initial state".to_owned()),
+        Value::List(_) | Value::Map(_) | Value::Set(_) | Value::Undefined(_) => {
+            return Err(format!("the value {} in the initial state", v.render()));
+        }
     })
 }
 
@@ -941,7 +958,9 @@ fn json_to_value(v: &Json) -> Value {
             .as_i64()
             .map_or_else(|| Value::Str(n.to_string()), Value::Int),
         Json::String(s) => Value::Str(s.clone()),
-        Json::Array(_) => Value::Str(v.to_string()),
+        // Phase 14: a JSON array (a `json`/`jsonb` value, a multi-row
+        // result).
+        Json::Array(items) => Value::List(items.iter().map(json_to_value).collect()),
         Json::Object(o) => Value::Row(
             o.iter()
                 .map(|(k, v)| (k.clone(), json_to_value(v)))
@@ -1025,6 +1044,11 @@ fn expected_cells(model: &Model, stmt: &ClosedStmt, row: &Row) -> Vec<(String, V
             table,
             returning_columns: Some(cols),
             ..
+        }
+        | ClosedStmt::InsertMany {
+            table,
+            returning_columns: Some(cols),
+            ..
         } => {
             let schema = model.schema.table(*table);
             for c in cols {
@@ -1034,7 +1058,9 @@ fn expected_cells(model: &Model, stmt: &ClosedStmt, row: &Row) -> Vec<(String, V
                 ));
             }
         }
-        ClosedStmt::Insert { table, .. } => table_cells(*table, &Value::Row(row.clone()), &mut out),
+        ClosedStmt::Insert { table, .. } | ClosedStmt::InsertMany { table, .. } => {
+            table_cells(*table, &Value::Row(row.clone()), &mut out)
+        }
         _ => {}
     }
     out
@@ -1066,6 +1092,14 @@ impl GenMatch {
             (Value::Gen(g), Json::String(text)) => {
                 match (self.forward.get(g), self.backward.get(text)) {
                     (Some(t), _) => t == text,
+                    // Phase 14: two clock readings the model keeps apart may
+                    // read the same instant at run time (millisecond
+                    // resolution): a clock reading maps to one text, a text
+                    // may stand for several readings.
+                    (None, Some(other)) if crate::db::is_clock(g) && crate::db::is_clock(other) => {
+                        self.forward.insert(*g, text.clone());
+                        true
+                    }
                     (None, Some(_)) => false,
                     (None, None) => {
                         self.forward.insert(*g, text.clone());
@@ -1084,6 +1118,39 @@ impl GenMatch {
             (other, observed) => json_to_value(observed) == *other,
         }
     }
+}
+
+/// Phase 14: a checkpoint's transition, the model's committed rows there,
+/// and the rows the run observed there (if it reached it).
+type Checkpoint<'a> = (
+    usize,
+    &'a BTreeMap<String, Vec<Row>>,
+    Option<&'a BTreeMap<String, Vec<Json>>>,
+);
+
+/// Whether committed rows observed at a checkpoint differ from the
+/// model's, generated values matched through `generated` (extended on
+/// success only).
+fn tables_differ(
+    generated: &mut GenMatch,
+    model: &BTreeMap<String, Vec<Row>>,
+    runtime: &BTreeMap<String, Vec<Row>>,
+) -> bool {
+    if !model.values().flatten().any(row_has_generated) {
+        return runtime != model;
+    }
+    let runtime: BTreeMap<String, Vec<Json>> = runtime
+        .iter()
+        .map(|(t, rows)| {
+            (
+                t.clone(),
+                rows.iter()
+                    .map(|r| value_json(&Value::Row(r.clone())))
+                    .collect(),
+            )
+        })
+        .collect();
+    !tables_match(generated, model, &runtime)
 }
 
 fn row_has_generated(row: &Row) -> bool {
@@ -1167,6 +1234,7 @@ fn compare_statement(
         Expect::Done(StmtResult::Row(Some(r))) => Value::Row(r.clone()).render(),
         Expect::Done(StmtResult::Count(n)) => format!("count {n}"),
         Expect::Done(StmtResult::Affected(n)) => format!("{n} row(s)"),
+        Expect::Done(StmtResult::Rows(rows)) => format!("{} row(s) returned", rows.len()),
         Expect::Blocked(a) => format!("waits for {}", model.actors[*a as usize].name),
         Expect::Error(code) => format!("SQLSTATE {code}"),
         Expect::Ok => "ok".to_owned(),
@@ -1318,6 +1386,37 @@ fn compare_statement(
                         .and_then(Json::as_i64);
                     if got != Some(*n) {
                         diff(format!("count: model {n}, PostgreSQL {got:?}"));
+                    }
+                }
+                // Phase 14: a multi-row `INSERT ... RETURNING`: the rows in
+                // order, each with the cells Drizzle requested.
+                StmtResult::Rows(rows) => {
+                    if o.rows.len() != rows.len() {
+                        diff(format!(
+                            "rows: model {}, PostgreSQL {}",
+                            rows.len(),
+                            o.rows.len()
+                        ));
+                    }
+                    if let Some(stmt) = stmt {
+                        for (i, (row, observed)) in rows.iter().zip(&o.rows).enumerate() {
+                            let Some(observed) = observed.as_object() else {
+                                diff(format!("row {i}: not an object"));
+                                continue;
+                            };
+                            for (key, value) in expected_cells(model, stmt, row) {
+                                match observed.get(&key) {
+                                    Some(v) if generated.matches(&value, v) => {}
+                                    Some(v) => diff(format!(
+                                        "row {i}: {key}: model {}, PostgreSQL {v}",
+                                        value.render()
+                                    )),
+                                    None => diff(format!(
+                                        "row {i}: {key}: not in the result Drizzle requested"
+                                    )),
+                                }
+                            }
+                        }
                     }
                 }
                 StmtResult::Row(row) => {
@@ -1569,6 +1668,10 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
             scope,
             process: shared.then(|| model.process_names[model.process_of[ai]].clone()),
             pool: model.pool_of(ai),
+            response: actor
+                .codes
+                .first()
+                .is_some_and(|c| c.iter().any(|s| matches!(s.op, Op::Respond))),
         });
     }
     let mut plan = match plan(model, req.schedule) {
@@ -1729,6 +1832,46 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
         }
         // Final rows.
         let runtime_tables = rows_of(&run.tables);
+        // Phase 13: a generated value the statements never showed (a
+        // database default without RETURNING) is matched where it is first
+        // observed: at a crash checkpoint, before the final rows, in which
+        // rows that differ only by such a value are interchangeable.
+        // Phase 14: the same at every checkpoint (crash, server completion,
+        // connection loss), in transition order: rows a lost connection's
+        // COMMIT left are seen there first.
+        let mut checkpoints: Vec<Checkpoint<'_>> = Vec::new();
+        for c in &plan.crashes {
+            let observed = run
+                .crashes
+                .iter()
+                .find(|e| e.transition == c.transition && e.actor == c.actor)
+                .map(|e| &e.tables);
+            checkpoints.push((c.transition, &c.tables, observed));
+        }
+        for c in &plan.completions {
+            let observed = run
+                .completions
+                .iter()
+                .find(|e| e.transition == c.transition && e.actor == c.actor)
+                .map(|e| &e.tables);
+            checkpoints.push((c.transition, &c.tables, observed));
+        }
+        for l in &plan.losses {
+            let observed = run
+                .connection_losses
+                .iter()
+                .find(|e| e.transition == l.transition && e.actor == l.actor)
+                .map(|e| &e.tables);
+            checkpoints.push((l.transition, &l.tables, observed));
+        }
+        checkpoints.sort_by_key(|(t, _, _)| *t);
+        for (_, expected, observed) in checkpoints {
+            if let Some(observed) = observed
+                && expected.values().flatten().any(row_has_generated)
+            {
+                tables_match(&mut generated, expected, observed);
+            }
+        }
         let tables_agree = if model_tables.values().flatten().any(row_has_generated) {
             // Phase 12: generated values match this run's concrete values
             // consistently with the statements (one bijection per run);
@@ -1872,21 +2015,8 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
                     });
                 }
                 // Phase 12: generated values match this run's values.
-                let differ = if check.model_tables.values().flatten().any(row_has_generated) {
-                    let runtime: BTreeMap<String, Vec<Json>> = check
-                        .runtime_tables
-                        .iter()
-                        .map(|(t, rows)| {
-                            (
-                                t.clone(),
-                                rows.iter().map(|r| value_json(&Value::Row(r.clone()))).collect(),
-                            )
-                        })
-                        .collect();
-                    !tables_match(&mut generated, &check.model_tables, &runtime)
-                } else {
-                    check.runtime_tables != check.model_tables
-                };
+                let differ =
+                    tables_differ(&mut generated, &check.model_tables, &check.runtime_tables);
                 if differ {
                     check.differences.push(
                         "the committed rows after the crash differ from the model's".to_owned(),
@@ -1951,7 +2081,8 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
                     check.server_answer.clone_from(&e.server_answer);
                     check.session_ended = e.session_ended;
                     check.runtime_tables = rows_of(&e.tables);
-                    if check.runtime_tables != check.model_tables {
+                    // Phase 14: generated values matched as after a crash.
+                    if tables_differ(&mut generated, &check.model_tables, &check.runtime_tables) {
                         check.differences.push(
                             "the committed rows after the server completed the operation differ from the model's".to_owned(),
                         );
@@ -2077,7 +2208,9 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
                         "the application kept using the broken connection's backend".to_owned(),
                     );
                 }
-                if check.runtime_tables != check.model_tables {
+                // Phase 14: generated values matched as after a crash (a
+                // loss in a table with a generated key always "differed").
+                if tables_differ(&mut generated, &check.model_tables, &check.runtime_tables) {
                     check.differences.push(
                         "the committed rows after the loss differ from the model's".to_owned(),
                     );
@@ -2196,6 +2329,19 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
             for (i, a) in observed.actors.iter_mut().enumerate() {
                 a.outcome = req.final_state.actors[i].outcome.clone();
                 a.completions = req.final_state.actors[i].completions;
+                // Phase 13: what the original code returned.
+                if model.tracks_results() {
+                    a.returned = run
+                        .actors
+                        .get(i)
+                        .filter(|r| r.outcome == "returned")
+                        .map(|r| {
+                            serde_json::from_value::<Value>(r.value.clone())
+                                .map_err(|e| format!("returned value: {e}"))
+                        })
+                        .into_iter()
+                        .collect();
+                }
             }
             if req.invariant.holds(model, &observed) {
                 "holds".to_owned()

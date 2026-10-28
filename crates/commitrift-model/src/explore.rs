@@ -947,7 +947,11 @@ fn program_actor(t: &Transition) -> Option<(u16, u16)> {
         | TKind::Deadlock
         | TKind::LostCommitted
         | TKind::LostNotCommitted => Some((t.actor, t.thread)),
-        TKind::Crash | TKind::Retry | TKind::CrashInFlight | TKind::ServerComplete => None,
+        TKind::Crash
+        | TKind::Retry
+        | TKind::CrashInFlight
+        | TKind::ServerComplete
+        | TKind::Replicate => None,
     }
 }
 

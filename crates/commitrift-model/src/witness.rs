@@ -397,6 +397,7 @@ pub fn build_witness(model: &Model, ce: &Counterexample, minimize_it: bool) -> O
                 TKind::Crash | TKind::CrashInFlight => {
                     format!("process {}", model.process_names[t.thread as usize])
                 }
+                TKind::Replicate => "replica".to_owned(),
                 _ => model.actors[t.actor as usize].name.clone(),
             },
             kind: match t.kind {
@@ -409,6 +410,7 @@ pub fn build_witness(model: &Model, ce: &Counterexample, minimize_it: bool) -> O
                 TKind::LostNotCommitted => "ack-lost-not-committed",
                 TKind::CrashInFlight => "crash-in-flight",
                 TKind::ServerComplete => "server-complete",
+                TKind::Replicate => "replicate",
             }
             .to_owned(),
             events: events.clone(),

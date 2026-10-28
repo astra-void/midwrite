@@ -44,11 +44,52 @@ pub enum ClosedStmt {
         returning: bool,
         /// Phase 12: the columns `RETURNING` lists (all when `None`).
         returning_columns: Option<Vec<String>>,
+        /// Phase 13: `ON CONFLICT (target) DO UPDATE`, with closed
+        /// expressions.
+        upsert: Option<crate::ir::Upsert>,
     },
     Delete {
         table: u16,
         pred: Expr,
     },
+    /// Phase 14: a multi-row `INSERT` (a separate variant, so that the
+    /// encoding of single-row inserts is unchanged). Its progress is part of
+    /// the statement: rows before `cursor` are done; `rows[cursor]` has its
+    /// defaults once `row_started`; `out` holds the rows `RETURNING`
+    /// returned so far and `touched` the rows this statement inserted or
+    /// updated (an `ON CONFLICT DO UPDATE` reaching one of them again is
+    /// SQLSTATE 21000).
+    InsertMany {
+        table: u16,
+        rows: Vec<Row>,
+        on_conflict: OnConflict,
+        returning: bool,
+        returning_columns: Option<Vec<String>>,
+        upsert: Option<crate::ir::Upsert>,
+        cursor: usize,
+        row_started: bool,
+        out: Vec<Row>,
+        touched: Vec<RowId>,
+    },
+}
+
+impl ClosedStmt {
+    /// The table the statement runs on.
+    pub fn table(&self) -> u16 {
+        match self {
+            Self::Select { table, .. }
+            | Self::Count { table, .. }
+            | Self::Update { table, .. }
+            | Self::Insert { table, .. }
+            | Self::Delete { table, .. }
+            | Self::InsertMany { table, .. } => *table,
+        }
+    }
+
+    /// Whether the statement writes (`INSERT`, `UPDATE`, `DELETE`).
+    pub fn is_write(&self) -> bool {
+        !matches!(self, Self::Select { .. } | Self::Count { .. })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -73,6 +114,40 @@ pub struct Pending {
     pub blocked_on: Option<TxnId>,
     /// Whether candidate rows have been determined (the snapshot is used).
     pub started: bool,
+    /// Phase 13: foreign-key checks the statement still has to run (its
+    /// AFTER triggers, fired at the end of the statement), first first.
+    pub fk: Vec<FkCheck>,
+    /// Phase 13: the statement's result, while its foreign-key checks run.
+    pub deferred: Option<crate::exec::StmtResult>,
+}
+
+/// One foreign-key check of a statement (Phase 13), as PostgreSQL's RI
+/// triggers run it.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum FkCheck {
+    /// A referencing row was written: the referenced row must exist and is
+    /// locked `FOR KEY SHARE` (`RI_FKey_check`). `row` is the referenced
+    /// row once found (a resumed check re-examines that row's newest
+    /// version, as PostgreSQL's lock-rows node does, instead of scanning
+    /// again).
+    Parent {
+        /// The referencing table and the index of the foreign key in it.
+        table: u16,
+        fk: u16,
+        key: Vec<Value>,
+        row: Option<RowId>,
+    },
+    /// A referenced row was deleted or its key changed (`NO ACTION` /
+    /// `RESTRICT`): no referencing row may remain. `todo` holds the
+    /// candidate referencing rows of the check's scan still to examine (the
+    /// scan's snapshot is fixed when it starts).
+    Children {
+        /// The referencing table and the index of the foreign key in it.
+        table: u16,
+        fk: u16,
+        key: Vec<Value>,
+        todo: Option<Vec<RowId>>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -174,7 +249,18 @@ pub struct ActorState {
     /// (physical outcome and what the application can exclude). Empty unless
     /// `Bounds::max_in_flight` is set; part of the canonical encoding.
     pub ambiguous: Vec<Ambiguity>,
+    /// Phase 13: the value the current attempt's main task returns (set by
+    /// [`crate::ir::Op::ReturnValue`]; `Err` holds why it is unknown). Only
+    /// tracked when an invariant reads return values.
+    pub result: Option<ReturnSlot>,
+    /// Phase 13: the return value of every attempt that completed normally,
+    /// in order: what the callers were told.
+    pub returned: Vec<ReturnSlot>,
 }
+
+/// A return value (Phase 13): known, or unknown with the reason (an
+/// expression the extractor did not understand). `undefined` is `null`.
+pub type ReturnSlot = Result<Value, String>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Txn {
@@ -245,6 +331,11 @@ pub struct State {
     /// Next value of each sequence-backed column (`Model::sequences` order).
     /// Not transactional: an aborted insert does not give its value back.
     pub seqs: Vec<i64>,
+    /// Phase 13: the prefix of the primary's commit sequence the read
+    /// replica has replayed (feature `replicas`; asynchronous streaming
+    /// replication applies commits in commit order). Replica reads see
+    /// exactly the versions committed at or before it.
+    pub replica_seq: u64,
     // Path-dependent bookkeeping (not part of the canonical encoding unless
     // the context-switch bound is active).
     pub steps: u32,
@@ -284,6 +375,10 @@ pub enum TKind {
     /// client that is gone (`actor` the submitting actor, `thread` the
     /// operation's sequence number).
     ServerComplete,
+    /// Phase 13: the read replica replays the next commit of the primary
+    /// (feature `replicas`). Optional: replication lag is unbounded in the
+    /// model, so a replica may stay behind for the whole schedule.
+    Replicate,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -418,8 +513,14 @@ impl State {
                 }
             }
         }
+        // Phase 13: the read replica holds the snapshot of its replayed
+        // prefix.
+        if model.features.replicas {
+            holders.push(((u32::MAX, u16::MAX), self.replica_seq));
+        }
         holders.sort();
         let ser = model.uses_serializable();
+        let replicas = model.features.replicas;
         e.u32(holders.len() as u32);
         for (k, _) in &holders {
             e.u32(k.0);
@@ -441,6 +542,11 @@ impl State {
                         for (_, s) in &holders {
                             e.u8(u8::from(c <= *s));
                         }
+                        // Phase 13: the order in which the replica will
+                        // replay the commits it has not replayed yet.
+                        if replicas {
+                            e.u32(c.saturating_sub(self.replica_seq) as u32);
+                        }
                     }
                     None => {
                         e.u8(0);
@@ -459,9 +565,22 @@ impl State {
         }
         e.u32(self.store.locks.len() as u32);
         e.cut();
-        for (r, t) in &self.store.locks {
+        // Phase 13: lock modes matter only to models that can request a
+        // shared mode (foreign keys, `FOR [KEY] SHARE`); without one, every
+        // two locks conflict, a row has one holder, and the encoding is the
+        // Phase 6-12 one.
+        let modes = model.uses_lock_modes();
+        for (r, holders) in &self.store.locks {
             e.row_id(*r);
-            e.u32(t.0);
+            if modes {
+                e.u32(holders.len() as u32);
+                for (t, m) in holders {
+                    e.u32(t.0);
+                    e.u8(*m as u8);
+                }
+            } else {
+                e.u32(holders.first().map_or(u32::MAX, |(t, _)| t.0));
+            }
             e.cut();
         }
         // Transactions: committed ones matter only for SERIALIZABLE history.
@@ -546,6 +665,13 @@ impl State {
                             None => e.u8(0),
                         }
                         e.u32(p.blocked_on.map_or(u32::MAX, |t| t.0));
+                        // Phase 13: written only while foreign-key checks
+                        // are pending.
+                        if !p.fk.is_empty() || p.deferred.is_some() {
+                            e.u8(0xF4);
+                            e.str(&format!("{:?}", p.fk));
+                            e.str(&format!("{:?}", p.deferred));
+                        }
                     }
                 }
                 e.cut();
@@ -608,6 +734,36 @@ impl State {
             e.u32(self.seqs.len() as u32);
             for n in &self.seqs {
                 e.value(&Value::Int(*n));
+            }
+        }
+        // Phase 13: return values, written only when some are recorded
+        // (models whose invariants read them), so encodings of other models
+        // are unchanged.
+        if self
+            .actors
+            .iter()
+            .any(|a| a.result.is_some() || !a.returned.is_empty())
+        {
+            e.u8(0xD3);
+            for a in &self.actors {
+                let slot = |e: &mut Enc, r: &ReturnSlot| match r {
+                    Ok(v) => {
+                        e.u8(1);
+                        e.value(v);
+                    }
+                    Err(why) => {
+                        e.u8(2);
+                        e.str(why);
+                    }
+                };
+                match &a.result {
+                    Some(r) => slot(e, r),
+                    None => e.u8(0),
+                }
+                e.u32(a.returned.len() as u32);
+                for r in &a.returned {
+                    slot(e, r);
+                }
             }
         }
         // Phase 12: generation counters, written only when an actor has
@@ -778,6 +934,27 @@ impl Enc {
                 self.u16(g.generator);
                 self.u16(g.actor);
                 self.u32(g.n);
+            }
+            // Phase 14 values: new tags, so that states without them keep
+            // their Phase 6-13 bytes.
+            Value::List(items) => {
+                self.u8(6);
+                self.u32(items.len() as u32);
+                items.iter().for_each(|v| self.value(v));
+            }
+            Value::Undefined(_) => self.u8(7),
+            Value::Map(m) => {
+                self.u8(8);
+                self.u32(m.entries.len() as u32);
+                for (k, v) in &m.entries {
+                    self.value(k);
+                    self.value(v);
+                }
+            }
+            Value::Set(s) => {
+                self.u8(9);
+                self.u32(s.items.len() as u32);
+                s.items.iter().for_each(|v| self.value(v));
             }
         }
     }

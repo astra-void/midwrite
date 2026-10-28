@@ -91,6 +91,11 @@ pub struct ActorsRef {
     #[serde(default)]
     pub function: Option<String>,
     pub outcome: OutcomeKind,
+    /// Phase 13: count only completions whose main task returned this
+    /// value (what the caller was told: `"returned": true` for "claimed").
+    /// Needs `outcome: "ok"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub returned: Option<Value>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -139,6 +144,16 @@ pub enum TermOp {
     Sub(Box<Term>, Box<Term>),
 }
 
+/// Whether an actor's function `name` is `f`. Phase 14: an actor built from
+/// an entry selector (`src/a.ts#claim`, `src/a.ts#POST/arg[0]`) also answers
+/// to its export's name (`claim`, `POST`), the name a contract uses.
+fn names_function(name: &str, f: &str) -> bool {
+    name == f
+        || name
+            .rsplit_once('#')
+            .is_some_and(|(_, export)| export == f || export.split('/').next() == Some(f))
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[error("invariant `{invariant}`: {message}")]
 pub struct InvariantError {
@@ -168,8 +183,16 @@ impl Invariant {
                         )
                     }
                     TermOp::Actors(a) => match &a.function {
-                        Some(f) if !model.actors.iter().any(|x| &x.function.name == f) => {
+                        Some(f)
+                            if !model
+                                .actors
+                                .iter()
+                                .any(|x| names_function(&x.function.name, f)) =>
+                        {
                             Err(format!("no actor runs function `{f}`"))
+                        }
+                        _ if a.returned.is_some() && a.outcome != OutcomeKind::Ok => {
+                            Err("`returned` counts completions: it needs `outcome: \"ok\"`".into())
                         }
                         _ => Ok(()),
                     },
@@ -223,6 +246,33 @@ impl Formula {
                 b.walk_terms(f);
             }
         }
+    }
+
+    /// Phase 13: whether the formula reads what main tasks returned.
+    pub fn reads_returned(&self) -> bool {
+        let mut any = false;
+        self.walk_terms(&mut |t| {
+            if let Term::Op(TermOp::Actors(a)) = t
+                && a.returned.is_some()
+            {
+                any = true;
+            }
+        });
+        any
+    }
+
+    /// Phase 13: the functions whose return values the formula reads
+    /// (`None`: every actor's).
+    pub fn returned_functions(&self) -> Vec<Option<String>> {
+        let mut out = Vec::new();
+        self.walk_terms(&mut |t| {
+            if let Term::Op(TermOp::Actors(a)) = t
+                && a.returned.is_some()
+            {
+                out.push(a.function.clone());
+            }
+        });
+        out
     }
 
     /// Whether the formula reads only database rows (initial or committed),
@@ -354,14 +404,21 @@ impl Term {
                 TermOp::Count(r) => format!("count({})", r.render()),
                 TermOp::Sum(r) => format!("sum({})", r.render()),
                 TermOp::Actors(a) => format!(
-                    "{}{:?}",
-                    a.function
-                        .as_deref()
-                        .map(|f| format!("{f}:"))
-                        .unwrap_or_default(),
-                    a.outcome
-                )
-                .to_lowercase(),
+                    "{}{}",
+                    format!(
+                        "{}{:?}",
+                        a.function
+                            .as_deref()
+                            .map(|f| format!("{f}:"))
+                            .unwrap_or_default(),
+                        a.outcome
+                    )
+                    .to_lowercase(),
+                    a.returned
+                        .as_ref()
+                        .map(|v| format!(" returning {}", v.render()))
+                        .unwrap_or_default()
+                ),
                 TermOp::Externals(e) => format!(
                     "externals({}{})",
                     e.channel,
@@ -460,8 +517,18 @@ fn eval_op(op: &TermOp, model: &Model, s: &State) -> Value {
             let mut n = 0i64;
             for (i, st) in s.actors.iter().enumerate() {
                 if let Some(f) = &a.function
-                    && &model.actors[i].function.name != f
+                    && !names_function(&model.actors[i].function.name, f)
                 {
+                    continue;
+                }
+                if let Some(v) = &a.returned {
+                    // Phase 13: completions that returned `v`. An unknown
+                    // value is refused when the scenario is loaded.
+                    n += st
+                        .returned
+                        .iter()
+                        .filter(|r| r.as_ref().is_ok_and(|x| x == v))
+                        .count() as i64;
                     continue;
                 }
                 n += match a.outcome {

@@ -9,13 +9,13 @@
 //! with the *same snapshot* and the remaining candidate rows.
 
 use crate::db::{
-    DbError, INITIAL_TXN, RowId, Snapshot, TableSchema, TxnId, Version, check_row, key_tuple,
-    matches_row, pk_key,
+    DbError, INITIAL_TXN, RowId, RowLock, Snapshot, TableSchema, TxnId, Version, check_row,
+    key_tuple, matches_row, pk_key,
 };
 use crate::footprint::{Access, Footprint};
 use crate::ir::{Isolation, JoinKind, LockMode, OnConflict, ProjItem};
 use crate::model::Model;
-use crate::state::{ClosedJoin, ClosedStmt, Pending, State};
+use crate::state::{ClosedJoin, ClosedStmt, FkCheck, Pending, State};
 use crate::value::{Expr, Locals, Mode, Row, Value};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -23,6 +23,9 @@ pub enum StmtResult {
     Row(Option<Row>),
     Count(i64),
     Affected(i64),
+    /// Phase 14: the rows a multi-row `INSERT ... RETURNING` returned, in
+    /// the order the statement processed them.
+    Rows(Vec<Row>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -285,7 +288,7 @@ fn apply_set(schema: &TableSchema, target: &Row, set: &[(String, Expr)]) -> Resu
         }
         let v = expr
             .eval(&empty, Some(target), Mode::Sql)
-            .map_err(|e| DbError::new("22003", e.to_string()))?;
+            .map_err(|e| crate::db::eval_db_error(&e, "22003", ""))?;
         new.insert(col.clone(), v);
     }
     Ok(new)
@@ -445,17 +448,51 @@ pub fn project(
 fn apply_defaults(
     model: &Model,
     s: &mut State,
-    p_actor: u16,
+    txn: TxnId,
     table: u16,
     values: &mut Row,
     foot: &mut Footprint,
+    pass: Defaults,
 ) {
+    use crate::db::{ColumnDefault, GeneratedSide};
+    let p_actor = txn.actor();
     let schema = model.schema.table(table);
     for c in &schema.columns {
         if values.contains_key(&c.name) {
             continue;
         }
-        match &c.default {
+        // Phase 14: Drizzle computes `$defaultFn` (and, for a column without
+        // a default, `$onUpdate`) while it builds the statement; PostgreSQL
+        // evaluates a row's defaults when it forms that row.
+        let default = c.default.as_ref().or(c.on_update.as_ref());
+        let application = matches!(
+            default,
+            Some(ColumnDefault::Clock)
+                | Some(ColumnDefault::Generated(crate::db::GeneratedSpec {
+                    side: GeneratedSide::Application,
+                    ..
+                }))
+        );
+        match pass {
+            Defaults::All => {}
+            Defaults::Application if !application => continue,
+            Defaults::Database if application => continue,
+            Defaults::Application | Defaults::Database => {}
+        }
+        match default {
+            Some(ColumnDefault::Now) => {
+                values.insert(c.name.clone(), crate::db::now_value(txn));
+            }
+            Some(ColumnDefault::Clock) => {
+                let a = &mut s.actors[p_actor as usize];
+                let id = crate::value::GenId {
+                    generator: crate::db::CLOCK_APP,
+                    actor: p_actor,
+                    n: a.gen_seq,
+                };
+                a.gen_seq += 1;
+                values.insert(c.name.clone(), Value::Gen(id));
+            }
             Some(crate::db::ColumnDefault::Value(v)) => {
                 values.insert(c.name.clone(), v.clone());
             }
@@ -491,6 +528,18 @@ fn apply_defaults(
     }
 }
 
+/// Which column defaults [`apply_defaults`] assigns (Phase 14).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Defaults {
+    /// Every default (a single-row `INSERT`, as in Phase 7-13).
+    All,
+    /// Those Drizzle computes in the application, for every row of a
+    /// multi-row `INSERT` before it is sent.
+    Application,
+    /// Those PostgreSQL computes, when it forms the row.
+    Database,
+}
+
 /// Run (or resume) a statement. `p` carries the progress between calls.
 ///
 /// For SERIALIZABLE transactions the serialization graph is re-checked after
@@ -498,7 +547,16 @@ fn apply_defaults(
 /// completes a dangerous structure (observed on 17.11: the second writer of a
 /// write-skew pair fails at its `UPDATE`, not at `COMMIT`).
 pub fn run_stmt(model: &Model, s: &mut State, p: &mut Pending, foot: &mut Footprint) -> StmtStep {
-    let step = run_stmt_inner(model, s, p, foot);
+    // Phase 13: a statement whose rows are done runs its foreign-key checks
+    // (PostgreSQL's AFTER triggers, at the end of the statement) before it
+    // completes; a check that waits resumes here.
+    let step = match p.deferred.clone() {
+        Some(result) => finish_fk(model, s, p, foot, result),
+        None => match run_stmt_inner(model, s, p, foot) {
+            StmtStep::Done(result) if !p.fk.is_empty() => finish_fk(model, s, p, foot, result),
+            other => other,
+        },
+    };
     if let StmtStep::Done(_) = &step
         && s.txns
             .get(&p.txn)
@@ -516,6 +574,27 @@ pub fn run_stmt(model: &Model, s: &mut State, p: &mut Pending, foot: &mut Footpr
 
 fn run_stmt_inner(model: &Model, s: &mut State, p: &mut Pending, foot: &mut Footprint) -> StmtStep {
     let iso = s.txns[&p.txn].iso;
+    // Phase 14: a predicate comparing a JSON column is not modeled.
+    if !p.started {
+        let pred = match &p.stmt {
+            ClosedStmt::Select { pred, joins, .. } if joins.is_empty() => Some(pred),
+            ClosedStmt::Count { pred, .. }
+            | ClosedStmt::Update { pred, .. }
+            | ClosedStmt::Delete { pred, .. } => Some(pred),
+            ClosedStmt::Insert {
+                upsert: Some(u), ..
+            }
+            | ClosedStmt::InsertMany {
+                upsert: Some(u), ..
+            } => u.filter.as_ref(),
+            _ => None,
+        };
+        if let Some(why) =
+            pred.and_then(|e| crate::db::json_comparison(model.schema.table(p.stmt.table()), e))
+        {
+            return StmtStep::Failed(DbError::unsupported(why));
+        }
+    }
     let snap = Snapshot {
         seq: p.snapshot,
         own: p.txn,
@@ -527,15 +606,27 @@ fn run_stmt_inner(model: &Model, s: &mut State, p: &mut Pending, foot: &mut Foot
             on_conflict,
             returning,
             returning_columns,
+            upsert,
         } => {
             if !p.started {
                 p.started = true;
-                apply_defaults(model, s, p.txn.actor(), table, &mut values, foot);
+                apply_defaults(model, s, p.txn, table, &mut values, foot, Defaults::All);
                 if let ClosedStmt::Insert { values: v, .. } = &mut p.stmt {
                     v.clone_from(&values);
                 }
             }
-            let step = run_insert(model, s, p, foot, table, values, on_conflict, iso);
+            let step = run_insert(
+                model,
+                s,
+                p,
+                foot,
+                table,
+                values,
+                on_conflict,
+                upsert.as_ref(),
+                iso,
+                &mut InsertProgress::default(),
+            );
             match step {
                 StmtStep::Done(StmtResult::Affected(n)) if returning => {
                     let row = if n > 0 { p.found.take() } else { None };
@@ -553,6 +644,7 @@ fn run_stmt_inner(model: &Model, s: &mut State, p: &mut Pending, foot: &mut Foot
                 other => other,
             }
         }
+        ClosedStmt::InsertMany { .. } => run_insert_many(model, s, p, foot, iso),
         ClosedStmt::Count { table, pred } => {
             let rows = match scan(model, s, table, &pred, snap) {
                 Ok(r) => r,
@@ -700,11 +792,19 @@ fn run_rows(
         seq: p.snapshot,
         own: p.txn,
     };
+    let referencing = model.referencing(table);
     while let Some(&row) = p.todo.first() {
+        // Phase 13: the row-lock mode. Without shared modes in the model
+        // every two locks conflict, so the mode changes nothing.
+        let mode = match select_lock {
+            Some(l) => l.row_lock().unwrap_or(RowLock::Update),
+            None if delete => RowLock::Update,
+            None => update_lock_mode(schema, s, row, snap, p.txn, set, iso),
+        };
         foot.push(Access::LockCheck(row));
-        if let Some(&holder) = s.store.locks.get(&row)
-            && holder != p.txn
-            && s.txn_active(holder)
+        if let Some(holder) = s
+            .store
+            .conflicting_holder(row, p.txn, mode, |t| s.txn_active(t))
         {
             match select_lock {
                 Some(LockMode::SkipLocked) => {
@@ -742,7 +842,19 @@ fn run_rows(
                 .expect("a visible row has a committed version");
             if Some(latest_idx) != vis_idx {
                 foot.push(Access::RowRead(row));
+                // Phase 13: `FOR KEY SHARE` is not disturbed by an update
+                // that left the key alone.
+                let tolerated = mode == RowLock::KeyShare
+                    && latest.values.as_ref().is_some_and(|new| {
+                        vis_idx
+                            .and_then(|i| chain[i].values.as_ref())
+                            .is_some_and(|old| !key_columns_changed(schema, old, new))
+                    });
                 match iso {
+                    _ if tolerated => {
+                        target = latest.values.clone().expect("checked above");
+                        replaced_creator = Some(latest.creator);
+                    }
                     Isolation::ReadCommitted => match &latest.values {
                         None => {
                             p.todo.remove(0);
@@ -775,7 +887,7 @@ fn run_rows(
             }
         }
         if select_lock.is_some() {
-            s.store.locks.insert(row, p.txn);
+            s.store.grant(row, p.txn, mode);
             foot.push(Access::LockChange(row));
             p.found = Some(target);
             p.todo.clear();
@@ -783,8 +895,21 @@ fn run_rows(
         }
         if delete {
             write_version(s, p.txn, row, None);
-            s.store.locks.insert(row, p.txn);
+            s.store.grant(row, p.txn, mode);
             foot.push(Access::LockChange(row));
+            // Phase 13: referencing rows must not remain (NO ACTION).
+            for &(ct, fi) in &referencing {
+                let fk = &model.schema.table(ct).foreign_keys[fi as usize];
+                let key = key_tuple(&target, &fk.referenced_columns);
+                if !key.iter().any(Value::is_null) {
+                    p.fk.push(FkCheck::Children {
+                        table: ct,
+                        fk: fi,
+                        key,
+                        todo: None,
+                    });
+                }
+            }
             foot.push(Access::RowWrite {
                 row,
                 old: Some(target.clone()),
@@ -799,6 +924,9 @@ fn run_rows(
             Ok(n) => n,
             Err(e) => return StmtStep::Failed(e),
         };
+        if let Some(why) = crate::db::typed_row_problem(schema, &new) {
+            return StmtStep::Failed(DbError::unsupported(why));
+        }
         // As for inserts: the outcome depends on rows sharing a key.
         foot.push(Access::RowWrite {
             row,
@@ -827,8 +955,10 @@ fn run_rows(
             }
         }
         write_version(s, p.txn, row, Some(new.clone()));
-        s.store.locks.insert(row, p.txn);
+        s.store.grant(row, p.txn, mode);
         foot.push(Access::LockChange(row));
+        // Phase 13: the foreign-key checks the update fires.
+        enqueue_update_fk(model, p, table, &target, &new, replaced_creator.is_none());
         foot.push(Access::RowWrite {
             row,
             old: Some(target.clone()),
@@ -853,6 +983,15 @@ fn run_rows(
     }
 }
 
+/// Phase 14: what one row of an `INSERT` reports to its statement: the
+/// rows the statement wrote before (an `ON CONFLICT DO UPDATE` reaching one
+/// of them again is SQLSTATE 21000), and the row this one wrote.
+#[derive(Default)]
+struct InsertProgress {
+    touched: Vec<RowId>,
+    wrote: Option<RowId>,
+}
+
 #[allow(clippy::too_many_arguments)]
 fn run_insert(
     model: &Model,
@@ -862,11 +1001,52 @@ fn run_insert(
     table: u16,
     mut values: Row,
     on_conflict: OnConflict,
+    upsert: Option<&crate::ir::Upsert>,
     iso: Isolation,
+    progress: &mut InsertProgress,
 ) -> StmtStep {
     let schema = model.schema.table(table);
     for c in &schema.columns {
         values.entry(c.name.clone()).or_insert(Value::Null);
+    }
+    // Phase 14: a value of a typed column the model does not represent.
+    if let Some(why) = crate::db::typed_row_problem(schema, &values) {
+        return StmtStep::Failed(DbError::unsupported(why));
+    }
+    // Phase 13: `ON CONFLICT (target) DO UPDATE` checks its arbiter first.
+    if let Some(u) = upsert {
+        foot.push(Access::RowWrite {
+            row: RowId {
+                table,
+                actor: u16::MAX - 1,
+                n: 0,
+            },
+            old: None,
+            new: Some(values.clone()),
+        });
+        match arbiter(s, p.txn, table, &values, &u.target) {
+            Arbiter::None => {}
+            Arbiter::Block(c) => {
+                foot.push(Access::Wait);
+                return StmtStep::Blocked(c);
+            }
+            Arbiter::Row(r) => {
+                // Phase 14: a row this statement inserted or updated
+                // (PostgreSQL: the tuple is invisible to the command, or
+                // updated by it).
+                if progress.touched.contains(&r) {
+                    return StmtStep::Failed(DbError::new(
+                        "21000",
+                        "ON CONFLICT DO UPDATE command cannot affect row a second time",
+                    ));
+                }
+                let step = upsert_row(model, s, p, foot, table, &values, u, r, iso);
+                if matches!(step, StmtStep::Done(StmtResult::Affected(1))) {
+                    progress.wrote = Some(r);
+                }
+                return step;
+            }
+        }
     }
     // The outcome of an insert (new row, conflict, wait) depends on every
     // row sharing a unique key with it, so its footprint is its intent to
@@ -940,12 +1120,661 @@ fn run_insert(
     };
     a.insert_seq += 1;
     write_version(s, p.txn, row, Some(values.clone()));
+    progress.wrote = Some(row);
     foot.push(Access::RowWrite {
         row,
         old: None,
         new: Some(values.clone()),
     });
     ser_write(s, p.txn, row, None, None, Some(&values), foot);
+    // Phase 13: the referenced rows must exist (`MATCH SIMPLE`: a NULL in
+    // the key skips the check).
+    for (fi, fk) in schema.foreign_keys.iter().enumerate() {
+        let key = key_tuple(&values, &fk.columns);
+        if !key.iter().any(Value::is_null) {
+            p.fk.push(FkCheck::Parent {
+                table,
+                fk: fi as u16,
+                key,
+                row: None,
+            });
+        }
+    }
     p.found = Some(values);
     StmtStep::Done(StmtResult::Affected(1))
+}
+
+/// Phase 14: a multi-row `INSERT`, as PostgreSQL's `ModifyTable` runs it:
+/// the rows one after the other, each formed (its database defaults
+/// evaluated) when the previous one is done, inserted with the single-row
+/// semantics (unique checks and waits, `ON CONFLICT`); the statement's
+/// foreign-key checks run after the last row (AFTER ROW triggers fire at the
+/// end of the statement, in row order). Drizzle's application defaults are
+/// computed for every row when the statement starts. A failure of any row
+/// fails the statement, and with it its transaction: no row stays.
+fn run_insert_many(
+    model: &Model,
+    s: &mut State,
+    p: &mut Pending,
+    foot: &mut Footprint,
+    iso: Isolation,
+) -> StmtStep {
+    let ClosedStmt::InsertMany {
+        table,
+        mut rows,
+        on_conflict,
+        returning,
+        returning_columns,
+        upsert,
+        mut cursor,
+        mut row_started,
+        mut out,
+        mut touched,
+    } = p.stmt.clone()
+    else {
+        unreachable!("run_insert_many on another statement");
+    };
+    if !p.started {
+        p.started = true;
+        for row in &mut rows {
+            apply_defaults(model, s, p.txn, table, row, foot, Defaults::Application);
+        }
+    }
+    let mut outcome = None;
+    while cursor < rows.len() {
+        if !row_started {
+            row_started = true;
+            apply_defaults(
+                model,
+                s,
+                p.txn,
+                table,
+                &mut rows[cursor],
+                foot,
+                Defaults::Database,
+            );
+        }
+        let mut progress = InsertProgress {
+            touched: touched.clone(),
+            wrote: None,
+        };
+        p.found = None;
+        let step = run_insert(
+            model,
+            s,
+            p,
+            foot,
+            table,
+            rows[cursor].clone(),
+            on_conflict,
+            upsert.as_ref(),
+            iso,
+            &mut progress,
+        );
+        match step {
+            StmtStep::Done(StmtResult::Affected(n)) => {
+                if n > 0 {
+                    p.affected += n;
+                    if let Some(r) = progress.wrote {
+                        touched.push(r);
+                    }
+                    if returning && let Some(r) = p.found.take() {
+                        out.push(match &returning_columns {
+                            Some(cols) => cols
+                                .iter()
+                                .map(|c| (c.clone(), r.get(c).cloned().unwrap_or(Value::Null)))
+                                .collect(),
+                            None => r,
+                        });
+                    }
+                }
+                p.found = None;
+                cursor += 1;
+                row_started = false;
+            }
+            other => {
+                outcome = Some(other);
+                break;
+            }
+        }
+    }
+    let result = if returning {
+        StmtResult::Rows(out.clone())
+    } else {
+        StmtResult::Affected(p.affected)
+    };
+    p.stmt = ClosedStmt::InsertMany {
+        table,
+        rows,
+        on_conflict,
+        returning,
+        returning_columns,
+        upsert,
+        cursor,
+        row_started,
+        out,
+        touched,
+    };
+    outcome.unwrap_or(StmtStep::Done(result))
+}
+
+enum Arbiter {
+    None,
+    Block(TxnId),
+    Row(RowId),
+}
+
+/// The row of `table` that conflicts with `new` on the arbiter columns, or
+/// the transaction to wait for (as [`unique_check`] decides it).
+fn arbiter(s: &State, own: TxnId, table: u16, new: &Row, cols: &[String]) -> Arbiter {
+    let key = key_tuple(new, cols);
+    if key.iter().any(Value::is_null) {
+        return Arbiter::None;
+    }
+    for rid in s.store.table_rows(table) {
+        let chain = &s.store.rows[&rid];
+        let Some(last) = chain.last() else { continue };
+        let has_key = |v: Option<&Version>| {
+            v.and_then(|v| v.values.as_ref())
+                .is_some_and(|r| key_tuple(r, cols) == key)
+        };
+        if last.commit.is_none() && last.creator != own {
+            let prev = chain.len().checked_sub(2).map(|i| &chain[i]);
+            if has_key(Some(last)) || has_key(prev) {
+                return Arbiter::Block(last.creator);
+            }
+        } else if has_key(Some(last)) {
+            return Arbiter::Row(rid);
+        }
+    }
+    Arbiter::None
+}
+
+/// Phase 13: the `DO UPDATE` arm on the conflicting row `r`, as PostgreSQL's
+/// `ExecOnConflictUpdate`: under REPEATABLE READ / SERIALIZABLE a row the
+/// snapshot does not see as it is now is a serialization failure; the row is
+/// locked (`FOR UPDATE` when a key column changes, else `FOR NO KEY
+/// UPDATE`), even when `WHERE` then rejects the update; `SET` and `WHERE`
+/// read the existing row and `excluded`.
+#[allow(clippy::too_many_arguments)]
+fn upsert_row(
+    model: &Model,
+    s: &mut State,
+    p: &mut Pending,
+    foot: &mut Footprint,
+    table: u16,
+    proposed: &Row,
+    u: &crate::ir::Upsert,
+    r: RowId,
+    iso: Isolation,
+) -> StmtStep {
+    let schema = model.schema.table(table);
+    foot.push(Access::RowRead(r));
+    let chain = &s.store.rows[&r];
+    let own = chain
+        .last()
+        .is_some_and(|v| v.creator == p.txn && v.commit.is_none());
+    let replaced_creator = (!own)
+        .then(|| s.store.latest_committed(r).map(|(_, v)| v.creator))
+        .flatten();
+    if iso != Isolation::ReadCommitted && !own {
+        let snap = Snapshot {
+            seq: p.snapshot,
+            own: p.txn,
+        };
+        let vis = chain.iter().rposition(|v| snap.sees(v));
+        let latest = s.store.latest_committed(r).map(|(i, _)| i);
+        if vis != latest {
+            return StmtStep::Failed(DbError::serialization());
+        }
+    }
+    let Some(target) = newest_image(s, r, p.txn) else {
+        return StmtStep::Failed(DbError::new("XX000", "the conflicting row is gone"));
+    };
+    let mut env = target.clone();
+    for (c, v) in proposed {
+        env.insert(format!("excluded.{c}"), v.clone());
+    }
+    let new = match apply_set(schema, &env, &u.set) {
+        Ok(n) => n
+            .into_iter()
+            .filter(|(c, _)| !c.starts_with("excluded."))
+            .collect::<Row>(),
+        Err(e) => return StmtStep::Failed(e),
+    };
+    if let Some(why) = crate::db::typed_row_problem(schema, &new) {
+        return StmtStep::Failed(DbError::unsupported(why));
+    }
+    let mode = if key_columns_changed(schema, &target, &new) {
+        RowLock::Update
+    } else {
+        RowLock::NoKeyUpdate
+    };
+    foot.push(Access::LockCheck(r));
+    if let Some(h) = s
+        .store
+        .conflicting_holder(r, p.txn, mode, |t| s.txn_active(t))
+    {
+        foot.push(Access::Wait);
+        return StmtStep::Blocked(h);
+    }
+    s.store.grant(r, p.txn, mode);
+    foot.push(Access::LockChange(r));
+    if iso == Isolation::Serializable {
+        let snap = Snapshot {
+            seq: p.snapshot,
+            own: p.txn,
+        };
+        ser_read(
+            s,
+            p.txn,
+            table,
+            &key_pred(&u.target, &key_tuple(&target, &u.target)),
+            snap,
+            foot,
+        );
+    }
+    if let Some(f) = &u.filter {
+        match f.eval(&Locals::new(), Some(&env), Mode::Sql) {
+            Ok(Value::Bool(true)) => {}
+            Ok(_) => return StmtStep::Done(StmtResult::Affected(0)),
+            Err(e) => return StmtStep::Failed(crate::db::eval_db_error(&e, "XX000", "")),
+        }
+    }
+    foot.push(Access::RowWrite {
+        row: r,
+        old: Some(target.clone()),
+        new: Some(new.clone()),
+    });
+    if let Err(e) = check_row(schema, &new) {
+        return StmtStep::Failed(e);
+    }
+    match unique_check(model, s, p.txn, table, &new, Some(r)) {
+        UCheck::Ok => {}
+        UCheck::Violation(name) => {
+            return StmtStep::Failed(DbError::new(
+                "23505",
+                format!("duplicate key value violates unique constraint \"{name}\""),
+            ));
+        }
+        UCheck::Block(c) => {
+            foot.push(Access::Wait);
+            return StmtStep::Blocked(c);
+        }
+    }
+    write_version(s, p.txn, r, Some(new.clone()));
+    ser_write(
+        s,
+        p.txn,
+        r,
+        replaced_creator,
+        Some(&target),
+        Some(&new),
+        foot,
+    );
+    enqueue_update_fk(model, p, table, &target, &new, own);
+    p.found = Some(new);
+    StmtStep::Done(StmtResult::Affected(1))
+}
+
+/// Phase 13: the foreign-key checks an update of `old` to `new` in `table`
+/// fires: its own foreign keys whose key changed (or whose old version this
+/// transaction wrote, as `RI_FKey_fk_upd_check_required` decides), and the
+/// referencing rows of a changed referenced key.
+fn enqueue_update_fk(model: &Model, p: &mut Pending, table: u16, old: &Row, new: &Row, own: bool) {
+    let schema = model.schema.table(table);
+    for (fi, fk) in schema.foreign_keys.iter().enumerate() {
+        let key = key_tuple(new, &fk.columns);
+        if !key.iter().any(Value::is_null) && (own || key != key_tuple(old, &fk.columns)) {
+            p.fk.push(FkCheck::Parent {
+                table,
+                fk: fi as u16,
+                key,
+                row: None,
+            });
+        }
+    }
+    for (ct, fi) in model.referencing(table) {
+        let fk = &model.schema.table(ct).foreign_keys[fi as usize];
+        let old_key = key_tuple(old, &fk.referenced_columns);
+        if !old_key.iter().any(Value::is_null) && old_key != key_tuple(new, &fk.referenced_columns)
+        {
+            p.fk.push(FkCheck::Children {
+                table: ct,
+                fk: fi,
+                key: old_key,
+                todo: None,
+            });
+        }
+    }
+}
+
+/// Whether an update from `old` to `new` changes a column of a unique key
+/// (PostgreSQL's "key columns": those of unique indexes a foreign key can
+/// reference). Such an update locks the row `FOR UPDATE`, other updates
+/// `FOR NO KEY UPDATE`.
+fn key_columns_changed(schema: &TableSchema, old: &Row, new: &Row) -> bool {
+    schema
+        .key_sets()
+        .iter()
+        .flat_map(|(_, cols)| cols)
+        .any(|c| old.get(c) != new.get(c))
+}
+
+/// The lock an `UPDATE` takes on `row` (Phase 13): computed from the
+/// version it would change (the newest under READ COMMITTED, as after
+/// EvalPlanQual; the snapshot's otherwise).
+fn update_lock_mode(
+    schema: &TableSchema,
+    s: &State,
+    row: RowId,
+    snap: Snapshot,
+    own: TxnId,
+    set: &[(String, Expr)],
+    iso: Isolation,
+) -> RowLock {
+    let Some(chain) = s.store.rows.get(&row) else {
+        return RowLock::NoKeyUpdate;
+    };
+    let base = match chain.last() {
+        Some(v) if v.creator == own && v.commit.is_none() => v.values.as_ref(),
+        _ if iso == Isolation::ReadCommitted => s
+            .store
+            .latest_committed(row)
+            .and_then(|(_, v)| v.values.as_ref()),
+        _ => s.store.visible_values(row, snap),
+    };
+    match base.map(|b| (b, apply_set(schema, b, set))) {
+        Some((b, Ok(new))) if key_columns_changed(schema, b, &new) => RowLock::Update,
+        _ => RowLock::NoKeyUpdate,
+    }
+}
+
+enum FkStep {
+    Ok,
+    Blocked(TxnId),
+    Failed(DbError),
+}
+
+/// Run the pending foreign-key checks of a statement whose rows are done,
+/// then complete it with `result`.
+fn finish_fk(
+    model: &Model,
+    s: &mut State,
+    p: &mut Pending,
+    foot: &mut Footprint,
+    result: StmtResult,
+) -> StmtStep {
+    p.deferred = Some(result);
+    match run_fk(model, s, p, foot) {
+        FkStep::Ok => StmtStep::Done(p.deferred.take().expect("set above")),
+        FkStep::Blocked(t) => StmtStep::Blocked(t),
+        FkStep::Failed(e) => StmtStep::Failed(e),
+    }
+}
+
+fn key_pred(cols: &[String], key: &[Value]) -> Expr {
+    cols.iter()
+        .zip(key)
+        .map(|(c, v)| Expr::eq(Expr::Col(c.clone()), Expr::Lit(v.clone())))
+        .reduce(|a, b| Expr::bin(crate::value::BinOp::And, a, b))
+        .unwrap_or_else(|| Expr::lit(true))
+}
+
+/// The newest image of a row as this transaction's lock-rows node sees it
+/// after locking: its own uncommitted version, else the latest committed
+/// one (`None`: deleted or absent).
+fn newest_image(s: &State, row: RowId, own: TxnId) -> Option<Row> {
+    let chain = s.store.rows.get(&row)?;
+    match chain.last() {
+        Some(v) if v.creator == own && v.commit.is_none() => v.values.clone(),
+        _ => s
+            .store
+            .latest_committed(row)
+            .and_then(|(_, v)| v.values.clone()),
+    }
+}
+
+/// PostgreSQL's RI triggers for `NO ACTION`/`RESTRICT` foreign keys
+/// (`docs/phase13/POSTGRESQL-FK-LOCKS.md`):
+///
+/// * referencing side (`RI_FKey_check`): `SELECT 1 FROM parent WHERE key =
+///   $1 FOR KEY SHARE`, on a new snapshot under READ COMMITTED and on the
+///   transaction's snapshot otherwise; no row is SQLSTATE 23503. The lock
+///   waits for a holder of `FOR UPDATE` (a `SELECT ... FOR UPDATE`, a
+///   `DELETE`, a key-changing `UPDATE`); afterwards the row's newest version
+///   decides: gone or re-keyed is 23503 under READ COMMITTED and 40001
+///   otherwise; an update that kept the key does not matter.
+/// * referenced side (`RI_FKey_noaction_del/upd`): `SELECT 1 FROM child
+///   WHERE fk = $1 FOR KEY SHARE` on the newest snapshot; a remaining row is
+///   23503, and under REPEATABLE READ / SERIALIZABLE a row the transaction's
+///   own snapshot does not see is 40001.
+fn run_fk(model: &Model, s: &mut State, p: &mut Pending, foot: &mut Footprint) -> FkStep {
+    let iso = s.txns[&p.txn].iso;
+    let txn_snap = Snapshot {
+        seq: p.snapshot,
+        own: p.txn,
+    };
+    while let Some(check) = p.fk.first().cloned() {
+        match check {
+            FkCheck::Parent {
+                table,
+                fk,
+                key,
+                row,
+            } => {
+                let child = model.schema.table(table);
+                let def = &child.foreign_keys[fk as usize];
+                let parent = model
+                    .schema
+                    .index(&def.references)
+                    .expect("validated: the referenced table is modeled");
+                let pschema = model.schema.table(parent);
+                let cols = &def.referenced_columns;
+                let violation = || {
+                    DbError::new(
+                        "23503",
+                        format!(
+                            "insert or update on table \"{}\" violates foreign key constraint \"{}\"",
+                            child.name,
+                            def.name(&child.name)
+                        ),
+                    )
+                };
+                let rid = match row {
+                    Some(r) => r,
+                    None => {
+                        let snap = if iso == Isolation::ReadCommitted {
+                            Snapshot {
+                                seq: s.commit_seq,
+                                own: p.txn,
+                            }
+                        } else {
+                            txn_snap
+                        };
+                        let pred = key_pred(cols, &key);
+                        foot.push(Access::Pred {
+                            table: parent,
+                            pred: pred.clone(),
+                        });
+                        if iso == Isolation::Serializable {
+                            ser_read(s, p.txn, parent, &pred, snap, foot);
+                        }
+                        let found = s.store.table_rows(parent).find(|id| {
+                            s.store
+                                .visible_values(*id, snap)
+                                .is_some_and(|r| key_tuple(r, cols) == key)
+                        });
+                        let Some(r) = found else {
+                            return FkStep::Failed(violation());
+                        };
+                        if let Some(FkCheck::Parent { row, .. }) = p.fk.first_mut() {
+                            *row = Some(r);
+                        }
+                        r
+                    }
+                };
+                foot.push(Access::LockCheck(rid));
+                if let Some(h) = s
+                    .store
+                    .conflicting_holder(rid, p.txn, RowLock::KeyShare, |t| s.txn_active(t))
+                {
+                    foot.push(Access::Wait);
+                    return FkStep::Blocked(h);
+                }
+                foot.push(Access::RowRead(rid));
+                let newest = newest_image(s, rid, p.txn);
+                if iso == Isolation::ReadCommitted {
+                    // EvalPlanQual: the newest version must still carry the
+                    // key.
+                    if !newest.as_ref().is_some_and(|r| key_tuple(r, cols) == key) {
+                        return FkStep::Failed(violation());
+                    }
+                } else {
+                    // The snapshot's version must be the newest, or differ
+                    // from it by an update that changed no key column (of
+                    // ANY unique key, not only the referenced one: such an
+                    // update sets PostgreSQL's "keys updated" bit).
+                    let seen = s.store.visible_values(rid, txn_snap);
+                    let disturbed = match (seen, newest.as_ref()) {
+                        (Some(old), Some(new)) => {
+                            old != new && key_columns_changed(pschema, old, new)
+                        }
+                        (Some(_), None) => true,
+                        _ => false,
+                    };
+                    if disturbed {
+                        return FkStep::Failed(DbError::serialization());
+                    }
+                }
+                s.store.grant(rid, p.txn, RowLock::KeyShare);
+                foot.push(Access::LockChange(rid));
+                p.fk.remove(0);
+            }
+            FkCheck::Children {
+                table,
+                fk,
+                key,
+                todo,
+            } => {
+                let child = model.schema.table(table);
+                let def = &child.foreign_keys[fk as usize];
+                let cols = &def.columns;
+                let mut todo = match todo {
+                    Some(t) => t,
+                    None => {
+                        let test = Snapshot {
+                            seq: s.commit_seq,
+                            own: p.txn,
+                        };
+                        let pred = key_pred(cols, &key);
+                        foot.push(Access::Pred {
+                            table,
+                            pred: pred.clone(),
+                        });
+                        if iso == Isolation::Serializable {
+                            ser_read(s, p.txn, table, &pred, txn_snap, foot);
+                        }
+                        match scan(model, s, table, &pred, test) {
+                            Ok(rows) => rows.into_iter().map(|r| r.0).collect(),
+                            Err(e) => return FkStep::Failed(e),
+                        }
+                    }
+                };
+                let parent_name = &def.references;
+                let mut outcome = None;
+                while let Some(&cid) = todo.first() {
+                    foot.push(Access::LockCheck(cid));
+                    if let Some(h) =
+                        s.store
+                            .conflicting_holder(cid, p.txn, RowLock::KeyShare, |t| s.txn_active(t))
+                    {
+                        foot.push(Access::Wait);
+                        outcome = Some(FkStep::Blocked(h));
+                        break;
+                    }
+                    foot.push(Access::RowRead(cid));
+                    let still =
+                        newest_image(s, cid, p.txn).is_some_and(|r| key_tuple(&r, cols) == key);
+                    if !still {
+                        todo.remove(0);
+                        continue;
+                    }
+                    // A referencing row the transaction's snapshot does not
+                    // see is a violation too: the cross-check snapshot that
+                    // `ri_PerformCheck` passes applies to row updates and
+                    // deletions (cascading actions), not to this probe's
+                    // `FOR KEY SHARE` (measured: `LOCK-DIFFERENTIAL.md`).
+                    outcome = Some(FkStep::Failed(DbError::new(
+                        "23503",
+                        format!(
+                            "update or delete on table \"{parent_name}\" violates foreign key constraint \"{}\" on table \"{}\"",
+                            def.name(&child.name),
+                            child.name
+                        ),
+                    )));
+                    break;
+                }
+                match outcome {
+                    Some(o) => {
+                        if let Some(FkCheck::Children { todo: t, .. }) = p.fk.first_mut() {
+                            *t = Some(todo);
+                        }
+                        return o;
+                    }
+                    None => {
+                        p.fk.remove(0);
+                    }
+                }
+            }
+        }
+    }
+    FkStep::Ok
+}
+
+/// Phase 13: a read on the read replica: the versions committed at or
+/// before the replica's replayed prefix, without locks (a replica is read
+/// only; the loader refuses locking reads there).
+pub fn replica_read(
+    model: &Model,
+    s: &State,
+    stmt: &ClosedStmt,
+    _foot: &mut Footprint,
+) -> Result<StmtResult, DbError> {
+    let snap = Snapshot {
+        seq: s.replica_seq,
+        own: INITIAL_TXN,
+    };
+    match stmt {
+        ClosedStmt::Select {
+            table,
+            pred,
+            joins,
+            projection,
+            ..
+        } if !joins.is_empty() => {
+            let rows = join_rows(model, s, *table, joins, pred, snap)?;
+            Ok(StmtResult::Row(rows.first().map(|r| {
+                project(model, *table, joins, projection.as_deref(), r)
+            })))
+        }
+        ClosedStmt::Select {
+            table,
+            pred,
+            projection,
+            ..
+        } => {
+            let rows = scan(model, s, *table, pred, snap)?;
+            Ok(StmtResult::Row(rows.into_iter().next().map(|r| {
+                project(model, *table, &[], projection.as_deref(), &r.1)
+            })))
+        }
+        ClosedStmt::Count { table, pred } => Ok(StmtResult::Count(
+            scan(model, s, *table, pred, snap)?.len() as i64,
+        )),
+        _ => Err(DbError::new(
+            "25006",
+            "cannot execute a write in a read-only transaction (replica)",
+        )),
+    }
 }

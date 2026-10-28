@@ -148,6 +148,52 @@ pub struct ExtractRequest {
     pub selector: Option<String>,
     /// Declared invocation assumptions for a wrapped callback.
     pub contract: Option<InvocationContract>,
+    /// Phase 13: model reads through a replicated database (`withReplicas`)
+    /// as replica reads ([`crate::ir::Conn::Replica`]). When false such
+    /// reads stay unknown operations, as before Phase 13.
+    pub replicas: bool,
+    /// Phase 13: project functions declared to build a replicated database.
+    pub replica_factories: Vec<ReplicaFactoryBinding>,
+    /// Phase 13: emit [`crate::ir::Op::ReturnValue`] before the main task's
+    /// returns (requested when an invariant reads return values; otherwise
+    /// the extracted code is the Phase 12 code).
+    pub return_values: bool,
+    /// Phase 14: lower with JavaScript value semantics (scenario feature
+    /// `js-values`): `undefined` distinct from `null` (missing properties,
+    /// out-of-range indices, `?.`, `??`, `== null`), strings (template
+    /// literals, `+` with a string operand, string methods), arrays (literals,
+    /// indexing, `.length`, `includes`/`indexOf`/`join`, pure-callback
+    /// `map`/`filter`/`find`/..., destructuring, `for...of`), `Map` and `Set`
+    /// (`docs/phase14/VALUE-SEMANTICS.md`). When false the extracted code is
+    /// the Phase 13 code: `undefined` is `null` and these forms stay unknown.
+    pub js_values: bool,
+}
+
+/// Phase 13: a project function DECLARED (by the scenario or the project's
+/// contract file) to return a replicated database with drizzle-orm
+/// `withReplicas` routing: `select`/`selectDistinct`/`$count`/`query`/`with`
+/// read from a replica; `insert`/`update`/`delete`/`execute`/`transaction`
+/// use the primary. The declaration is an assumption, reported as such; the
+/// factory's body is not interpreted.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ReplicaFactoryBinding {
+    /// `module#export` relative to the project root
+    /// (`packages/db/src/replicas.ts#withReplicas`).
+    pub factory: String,
+    /// Index of the primary database argument.
+    #[serde(default)]
+    pub primary_argument: usize,
+    /// Methods of the result that return a database routing every
+    /// operation, reads included, to the primary (`usePrimaryOnly`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub primary_only_methods: Vec<String>,
+    /// Properties of the result holding the primary database (`$primary`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub primary_properties: Vec<String>,
+    /// Why the author believes the routing holds.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub reason: String,
 }
 
 #[derive(Clone, Debug, Default)]

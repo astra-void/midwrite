@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 use crate::db::ColumnDefault;
 use crate::engine::{Action, Expect, Recorder, apply, initial_state};
 use crate::exec::StmtResult;
-use crate::ir::{Conn, JoinKind, LockMode, OnConflict, Op, Origin, ProjItem, StmtKind};
+use crate::ir::{Conn, JoinKind, OnConflict, Op, Origin, ProjItem, StmtKind};
 use crate::model::Model;
 pub use crate::oracle_types::Observation;
 use crate::state::{ClosedJoin, ClosedStmt, TKind, Transition};
@@ -49,6 +49,28 @@ fn quote_ident(name: &str) -> String {
 }
 
 /// `table.column` (a joined query's qualified column) or a plain column.
+/// Phase 13: columns of the existing row qualified with the table name (in
+/// `ON CONFLICT ... DO UPDATE`, an unqualified column is ambiguous with
+/// `excluded`).
+fn qualify(e: &Expr, table: &str) -> Expr {
+    match e {
+        Expr::Col(c) if !c.contains('.') => Expr::Col(format!("{table}.{c}")),
+        Expr::Not(x) => Expr::Not(Box::new(qualify(x, table))),
+        Expr::IsNull(x) => Expr::IsNull(Box::new(qualify(x, table))),
+        Expr::Bin(op, a, b) => Expr::Bin(
+            *op,
+            Box::new(qualify(a, table)),
+            Box::new(qualify(b, table)),
+        ),
+        // Phase 14: SQL built-ins (`inArray`).
+        Expr::Call { func, args } => Expr::Call {
+            func: *func,
+            args: args.iter().map(|a| qualify(a, table)).collect(),
+        },
+        other => other.clone(),
+    }
+}
+
 fn qualified_ident(name: &str) -> String {
     match name.split_once('.') {
         Some((t, c)) => format!("{}.{}", quote_ident(t), quote_ident(c)),
@@ -137,14 +159,202 @@ fn gen_of_text(s: &str) -> Option<crate::value::GenId> {
     })
 }
 
+// ---------------------------------------------------------------------
+// Phase 14: clock readings and explicit time values
+// ---------------------------------------------------------------------
+
+/// Days since 1970-01-01 of a civil date (proleptic Gregorian).
+fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let mp = (m + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146_097 + doe - 719_468
+}
+
+/// The civil date of a day count since 1970-01-01.
+fn civil_from_days(z: i64) -> (i64, i64, i64) {
+    let z = z + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    (yoe + era * 400 + i64::from(m <= 2), m, d)
+}
+
+/// Seconds of the clock encodings: `now()` of a transaction in 2001-2013,
+/// application readings in 2051-2063, one second per (actor, event), with
+/// the microsecond digit `1` that no millisecond-precision explicit value
+/// has.
+const CLOCK_DB_BASE: i64 = 978_307_200; // 2001-01-01T00:00:00Z
+const CLOCK_APP_BASE: i64 = 2_556_144_000; // 2051-01-01T00:00:00Z
+const CLOCK_SPAN: i64 = 100_000;
+
+/// The timestamp a clock reading stands for in the oracle's database: the
+/// model decides every reading, the oracle sends it explicitly and reads it
+/// back as the same reading (as for generated values, `gen_text`).
+fn clock_text(g: crate::value::GenId) -> String {
+    let base = if g.generator == crate::db::CLOCK_DB {
+        CLOCK_DB_BASE
+    } else {
+        CLOCK_APP_BASE
+    };
+    let secs = base + i64::from(g.actor) * CLOCK_SPAN + i64::from(g.n);
+    let (y, m, d) = civil_from_days(secs.div_euclid(86_400));
+    let t = secs.rem_euclid(86_400);
+    format!(
+        "{y:04}-{m:02}-{d:02} {:02}:{:02}:{:02}.000001+00",
+        t / 3600,
+        t % 3600 / 60,
+        t % 60
+    )
+}
+
+/// `YYYY-MM-DD[T ]HH:MM:SS[.ffffff][+00[:00]|Z]` → (seconds since the
+/// epoch, fraction digits), for UTC texts only.
+fn parse_utc(text: &str) -> Option<(i64, String)> {
+    let b = text.as_bytes();
+    if b.len() < 19 || !(b[10] == b'T' || b[10] == b' ') {
+        return None;
+    }
+    let num = |r: std::ops::Range<usize>| -> Option<i64> { text.get(r)?.parse::<i64>().ok() };
+    let (y, mo, d) = (num(0..4)?, num(5..7)?, num(8..10)?);
+    let (h, mi, se) = (num(11..13)?, num(14..16)?, num(17..19)?);
+    let mut rest = &text[19..];
+    let mut frac = String::new();
+    if let Some(r) = rest.strip_prefix('.') {
+        let n = r.bytes().take_while(u8::is_ascii_digit).count();
+        frac = r[..n].to_owned();
+        rest = &r[n..];
+    }
+    if !matches!(rest, "" | "Z" | "+00" | "+00:00") {
+        return None;
+    }
+    Some((
+        days_from_civil(y, mo, d) * 86_400 + h * 3600 + mi * 60 + se,
+        frac,
+    ))
+}
+
+/// A clock reading read back from PostgreSQL.
+fn clock_of_text(text: &str) -> Option<crate::value::GenId> {
+    let (secs, frac) = parse_utc(text)?;
+    if frac != "000001" {
+        return None;
+    }
+    let (generator, base) = if (CLOCK_DB_BASE..CLOCK_APP_BASE).contains(&secs) {
+        (crate::db::CLOCK_DB, CLOCK_DB_BASE)
+    } else if secs >= CLOCK_APP_BASE {
+        (crate::db::CLOCK_APP, CLOCK_APP_BASE)
+    } else {
+        return None;
+    };
+    let off = secs - base;
+    Some(crate::value::GenId {
+        generator,
+        actor: u16::try_from(off / CLOCK_SPAN).ok()?,
+        n: u32::try_from(off % CLOCK_SPAN).ok()?,
+    })
+}
+
+/// An explicit time value read back from PostgreSQL, in the model's
+/// canonical form (`YYYY-MM-DDTHH:MM:SS.sssZ`); `None` when the text is not
+/// a UTC timestamp with millisecond precision.
+fn canonical_time(text: &str) -> Option<String> {
+    let (secs, frac) = parse_utc(text)?;
+    if frac.len() > 3 && frac[3..].bytes().any(|c| c != b'0') {
+        return None;
+    }
+    let ms: String = format!("{frac:0<3}").chars().take(3).collect();
+    let (y, m, d) = civil_from_days(secs.div_euclid(86_400));
+    let t = secs.rem_euclid(86_400);
+    Some(format!(
+        "{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}.{ms}Z",
+        t / 3600,
+        t % 3600 / 60,
+        t % 60
+    ))
+}
+
+/// Phase 14: a model row read back from PostgreSQL, with the values of time
+/// columns in the model's form (other columns are left as read).
+fn fix_row(model: &Model, table: u16, row: &mut Row) {
+    for c in &model.schema.table(table).columns {
+        if !crate::db::is_time_type(c.sql_type.as_deref()) || c.sql_type.as_deref() == Some("date")
+        {
+            continue;
+        }
+        if let Some(Value::Str(text)) = row.get(&c.name)
+            && let Some(canonical) = canonical_time(text)
+        {
+            row.insert(c.name.clone(), Value::Str(canonical));
+        }
+    }
+}
+
+/// The JSON text of a model value stored in a `json`/`jsonb` column.
+fn json_text(v: &Value) -> Result<serde_json::Value, String> {
+    Ok(match v {
+        Value::Null => serde_json::Value::Null,
+        Value::Bool(b) => serde_json::Value::Bool(*b),
+        Value::Int(n) => serde_json::Value::from(*n),
+        Value::Str(s) => serde_json::Value::String(s.clone()),
+        Value::Row(r) => serde_json::Value::Object(
+            r.iter()
+                .map(|(k, v)| Ok((k.clone(), json_text(v)?)))
+                .collect::<Result<_, String>>()?,
+        ),
+        Value::List(items) => {
+            serde_json::Value::Array(items.iter().map(json_text).collect::<Result<_, _>>()?)
+        }
+        other => return Err(format!("{} is not a JSON value", other.render())),
+    })
+}
+
+/// Phase 14: a value written to column `col` of `table`: JSON columns take
+/// a JSON literal; other columns `value_sql`.
+fn column_value_sql(model: &Model, table: u16, col: &str, v: &Value) -> Result<String, String> {
+    let ty = model
+        .schema
+        .table(table)
+        .columns
+        .iter()
+        .find(|c| c.name == col)
+        .and_then(|c| c.sql_type.clone());
+    match (ty.as_deref(), v) {
+        (Some(t @ ("json" | "jsonb")), v) if !v.is_null() => Ok(format!(
+            "{}::{t}",
+            quote_literal(&json_text(v)?.to_string())
+        )),
+        _ => value_sql(v),
+    }
+}
+
+fn column_expr_sql(model: &Model, table: u16, col: &str, e: &Expr) -> Result<String, String> {
+    match e {
+        Expr::Lit(v) => column_value_sql(model, table, col, v),
+        other => expr_sql(other),
+    }
+}
+
 fn value_sql(v: &Value) -> Result<String, String> {
     Ok(match v {
         Value::Null => "NULL".into(),
         Value::Bool(b) => if *b { "TRUE" } else { "FALSE" }.into(),
         Value::Int(n) => n.to_string(),
         Value::Str(s) => quote_literal(s),
+        // Phase 14: a clock reading is a timestamp.
+        Value::Gen(g) if crate::db::is_clock(g) => quote_literal(&clock_text(*g)),
         Value::Gen(g) => quote_literal(&gen_text(*g)),
         Value::Row(_) => return Err("a row value cannot be used in SQL".into()),
+        Value::List(_) | Value::Map(_) | Value::Set(_) | Value::Undefined(_) => {
+            return Err(format!("the value {} cannot be used in SQL", v.render()));
+        }
     })
 }
 
@@ -173,6 +383,10 @@ pub fn expr_sql(e: &Expr) -> Result<String, String> {
         Expr::Local(n) => return Err(format!("unresolved local `{n}`")),
         Expr::Field(..) => return Err("property access in SQL".into()),
         Expr::Object(..) => return Err("an object value in SQL".into()),
+        Expr::Call { func, args } => crate::sqlfn::render(*func, args)?,
+        Expr::Array(..) | Expr::Each { .. } => {
+            return Err("an array value in SQL".into());
+        }
         Expr::Unknown(d) => return Err(format!("unsupported expression: {d}")),
     })
 }
@@ -246,12 +460,7 @@ pub fn stmt_sql(model: &Model, stmt: &ClosedStmt) -> Result<String, String> {
             name(*table),
             expr_sql(pred)?,
             pk_order(model, *table),
-            match lock {
-                LockMode::None => "",
-                LockMode::ForUpdate => " FOR UPDATE",
-                LockMode::SkipLocked => " FOR UPDATE SKIP LOCKED",
-                LockMode::NoWait => " FOR UPDATE NOWAIT",
-            }
+            lock.sql()
         ),
         ClosedStmt::Select {
             table, pred, lock, ..
@@ -260,12 +469,7 @@ pub fn stmt_sql(model: &Model, stmt: &ClosedStmt) -> Result<String, String> {
             name(*table),
             expr_sql(pred)?,
             pk_order(model, *table),
-            match lock {
-                LockMode::None => "",
-                LockMode::ForUpdate => " FOR UPDATE",
-                LockMode::SkipLocked => " FOR UPDATE SKIP LOCKED",
-                LockMode::NoWait => " FOR UPDATE NOWAIT",
-            }
+            lock.sql()
         ),
         ClosedStmt::Count { table, pred } => {
             format!(
@@ -277,7 +481,13 @@ pub fn stmt_sql(model: &Model, stmt: &ClosedStmt) -> Result<String, String> {
         ClosedStmt::Update { table, pred, set } => {
             let sets: Result<Vec<String>, String> = set
                 .iter()
-                .map(|(c, e)| Ok(format!("{} = {}", quote_ident(c), expr_sql(e)?)))
+                .map(|(c, e)| {
+                    Ok(format!(
+                        "{} = {}",
+                        quote_ident(c),
+                        column_expr_sql(model, *table, c, e)?
+                    ))
+                })
                 .collect();
             format!(
                 "WITH r AS (UPDATE {} SET {} WHERE {} RETURNING 1) SELECT count(*) FROM r;",
@@ -292,9 +502,13 @@ pub fn stmt_sql(model: &Model, stmt: &ClosedStmt) -> Result<String, String> {
             on_conflict,
             returning,
             returning_columns,
+            upsert,
         } => {
             let cols: Vec<String> = values.keys().map(|c| quote_ident(c)).collect();
-            let vals: Result<Vec<String>, String> = values.values().map(value_sql).collect();
+            let vals: Result<Vec<String>, String> = values
+                .iter()
+                .map(|(c, v)| column_value_sql(model, *table, c, v))
+                .collect();
             let insert = if values.is_empty() {
                 format!("INSERT INTO {} DEFAULT VALUES", name(*table))
             } else {
@@ -305,21 +519,74 @@ pub fn stmt_sql(model: &Model, stmt: &ClosedStmt) -> Result<String, String> {
                     vals?.join(", ")
                 )
             };
-            let conflict = if *on_conflict == OnConflict::DoNothing {
-                " ON CONFLICT DO NOTHING"
-            } else {
-                ""
-            };
+            let conflict = conflict_sql(model, *table, *on_conflict, upsert.as_ref())?;
             if *returning {
-                let list = returning_columns.as_ref().map_or_else(
-                    || "*".to_owned(),
-                    |cols| {
-                        cols.iter()
-                            .map(|c| quote_ident(c))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    },
-                );
+                let list = returning_list(returning_columns.as_deref());
+                format!(
+                    "WITH r AS ({insert}{conflict} RETURNING {list}) SELECT row_to_json(r) FROM r;"
+                )
+            } else {
+                format!("WITH r AS ({insert}{conflict} RETURNING 1) SELECT count(*) FROM r;")
+            }
+        }
+        // Phase 14: one statement with every row; a column a row does not
+        // (yet) carry is `DEFAULT` (the lockstep run sends the rows as the
+        // model completed them: a row the statement never formed is never
+        // formed by PostgreSQL either).
+        ClosedStmt::InsertMany {
+            table,
+            rows,
+            on_conflict,
+            returning,
+            returning_columns,
+            upsert,
+            ..
+        } => {
+            let mut cols: Vec<String> = Vec::new();
+            for r in rows {
+                for c in r.keys() {
+                    if !cols.contains(c) {
+                        cols.push(c.clone());
+                    }
+                }
+            }
+            cols.sort();
+            let tuples = rows
+                .iter()
+                .map(|r| {
+                    let vals = cols
+                        .iter()
+                        .map(|c| match r.get(c) {
+                            Some(v) => column_value_sql(model, *table, c, v),
+                            None => Ok("DEFAULT".to_owned()),
+                        })
+                        .collect::<Result<Vec<_>, String>>()?;
+                    Ok(format!("({})", vals.join(", ")))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            let insert = if cols.is_empty() {
+                // `INSERT ... VALUES (DEFAULT), (DEFAULT)` needs a column.
+                let first = &model.schema.table(*table).columns[0].name;
+                format!(
+                    "INSERT INTO {} ({}) VALUES {}",
+                    name(*table),
+                    quote_ident(first),
+                    vec!["(DEFAULT)"; rows.len()].join(", ")
+                )
+            } else {
+                format!(
+                    "INSERT INTO {} ({}) VALUES {}",
+                    name(*table),
+                    cols.iter()
+                        .map(|c| quote_ident(c))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    tuples.join(", ")
+                )
+            };
+            let conflict = conflict_sql(model, *table, *on_conflict, upsert.as_ref())?;
+            if *returning {
+                let list = returning_list(returning_columns.as_deref());
                 format!(
                     "WITH r AS ({insert}{conflict} RETURNING {list}) SELECT row_to_json(r) FROM r;"
                 )
@@ -333,6 +600,56 @@ pub fn stmt_sql(model: &Model, stmt: &ClosedStmt) -> Result<String, String> {
             expr_sql(pred)?
         ),
     })
+}
+
+/// The `ON CONFLICT` clause of an insert.
+fn conflict_sql(
+    model: &Model,
+    table: u16,
+    on_conflict: OnConflict,
+    upsert: Option<&crate::ir::Upsert>,
+) -> Result<String, String> {
+    let tname = &model.schema.table(table).name;
+    Ok(match upsert {
+        // Phase 13.
+        Some(u) => format!(
+            " ON CONFLICT ({}) DO UPDATE SET {}{}",
+            u.target
+                .iter()
+                .map(|c| quote_ident(c))
+                .collect::<Vec<_>>()
+                .join(", "),
+            u.set
+                .iter()
+                .map(|(c, e)| {
+                    Ok(format!(
+                        "{} = {}",
+                        quote_ident(c),
+                        column_expr_sql(model, table, c, &qualify(e, tname))?
+                    ))
+                })
+                .collect::<Result<Vec<_>, String>>()?
+                .join(", "),
+            match &u.filter {
+                Some(f) => format!(" WHERE {}", expr_sql(&qualify(f, tname))?),
+                None => String::new(),
+            }
+        ),
+        None if on_conflict == OnConflict::DoNothing => " ON CONFLICT DO NOTHING".to_owned(),
+        None => String::new(),
+    })
+}
+
+fn returning_list(cols: Option<&[String]>) -> String {
+    cols.map_or_else(
+        || "*".to_owned(),
+        |cols| {
+            cols.iter()
+                .map(|c| quote_ident(c))
+                .collect::<Vec<_>>()
+                .join(", ")
+        },
+    )
 }
 
 fn value_type(v: &Value) -> Option<&'static str> {
@@ -396,6 +713,22 @@ fn column_types(model: &Model) -> Vec<Vec<&'static str>> {
                 Some("bool") => {
                     types.insert(c.name.clone(), "boolean");
                 }
+                // Phase 14.
+                Some("timestamp") => {
+                    types.insert(c.name.clone(), "timestamp");
+                }
+                Some("timestamptz") => {
+                    types.insert(c.name.clone(), "timestamptz");
+                }
+                Some("date") => {
+                    types.insert(c.name.clone(), "date");
+                }
+                Some("json") => {
+                    types.insert(c.name.clone(), "json");
+                }
+                Some("jsonb") => {
+                    types.insert(c.name.clone(), "jsonb");
+                }
                 _ => {}
             }
         }
@@ -417,8 +750,10 @@ fn column_types(model: &Model) -> Vec<Vec<&'static str>> {
                     continue;
                 }
                 match &stmt.kind {
-                    StmtKind::Insert { values, .. } => {
-                        for (c, e) in values {
+                    StmtKind::Insert {
+                        values, more_rows, ..
+                    } => {
+                        for (c, e) in values.iter().chain(more_rows.iter().flatten()) {
                             hint(c, expr_type(e, &args));
                         }
                     }
@@ -462,8 +797,11 @@ fn ddl(model: &Model) -> Result<String, String> {
                         .map_or(1, |(_, _, n)| *n);
                     format!(" GENERATED BY DEFAULT AS IDENTITY (START WITH {start})")
                 }
-                // The model supplies generated values explicitly (`gen_text`).
-                Some(ColumnDefault::Generated(_)) => String::new(),
+                // The model supplies generated values explicitly (`gen_text`),
+                // Phase 14: and clock readings (`clock_text`).
+                Some(ColumnDefault::Generated(_) | ColumnDefault::Now | ColumnDefault::Clock) => {
+                    String::new()
+                }
             };
             parts.push(format!(
                 "{} {}{}{default}",
@@ -500,7 +838,62 @@ fn ddl(model: &Model) -> Result<String, String> {
             parts.join(", ")
         ));
     }
+    // Phase 13: foreign keys, once every table exists.
+    for t in &model.schema.tables {
+        for fk in &t.foreign_keys {
+            let cols = |c: &[String]| {
+                c.iter()
+                    .map(|c| quote_ident(c))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            };
+            out.push_str(&format!(
+                "ALTER TABLE {} ADD CONSTRAINT {} FOREIGN KEY ({}) REFERENCES {} ({}) ON DELETE {} ON UPDATE {}{};\n",
+                quote_ident(&t.name),
+                quote_ident(&fk.name(&t.name)),
+                cols(&fk.columns),
+                quote_ident(&fk.references),
+                cols(&fk.referenced_columns),
+                fk.on_delete.sql(),
+                fk.on_update.sql(),
+                if fk.initially_deferred {
+                    " DEFERRABLE INITIALLY DEFERRED"
+                } else {
+                    ""
+                }
+            ));
+        }
+    }
     Ok(out)
+}
+
+/// Tables in an order that inserts referenced rows first (Phase 13).
+fn seed_order(model: &Model) -> Vec<usize> {
+    let n = model.schema.tables.len();
+    let mut out: Vec<usize> = Vec::new();
+    while out.len() < n {
+        let before = out.len();
+        for (ti, t) in model.schema.tables.iter().enumerate() {
+            if out.contains(&ti) {
+                continue;
+            }
+            let ready = t.foreign_keys.iter().all(|fk| {
+                fk.references == t.name
+                    || model
+                        .schema
+                        .index(&fk.references)
+                        .is_none_or(|p| out.contains(&(p as usize)))
+            });
+            if ready {
+                out.push(ti);
+            }
+        }
+        if out.len() == before {
+            // A cycle: the remaining tables in schema order.
+            out.extend((0..n).filter(|i| !out.contains(i)).collect::<Vec<_>>());
+        }
+    }
+    out
 }
 
 fn seed_sql(model: &Model) -> Result<String, String> {
@@ -512,10 +905,14 @@ fn seed_sql(model: &Model) -> Result<String, String> {
         .map(|t| quote_ident(&t.name))
         .collect();
     out.push_str(&format!("TRUNCATE {};\n", names.join(", ")));
-    for (ti, t) in model.schema.tables.iter().enumerate() {
+    for ti in seed_order(model) {
+        let t = &model.schema.tables[ti];
         for row in &model.initial_rows[ti] {
             let cols: Vec<String> = row.keys().map(|c| quote_ident(c)).collect();
-            let vals: Result<Vec<String>, String> = row.values().map(value_sql).collect();
+            let vals: Result<Vec<String>, String> = row
+                .iter()
+                .map(|(c, v)| column_value_sql(model, ti as u16, c, v))
+                .collect();
             out.push_str(&format!(
                 "INSERT INTO {} ({}) VALUES ({});\n",
                 quote_ident(&t.name),
@@ -609,6 +1006,8 @@ impl Session {
         init.push_str(&format!(
             "SET deadlock_timeout = '{DEADLOCK_TIMEOUT_MS}ms';\n"
         ));
+        // Phase 14: time values are read back in UTC.
+        init.push_str("SET TimeZone = 'UTC';\n");
         if let Some(iso) = default_iso {
             init.push_str(&format!("SET default_transaction_isolation = '{iso}';\n"));
         }
@@ -711,21 +1110,46 @@ fn json_to_value(v: &serde_json::Value) -> Value {
         serde_json::Value::Null => Value::Null,
         serde_json::Value::Bool(b) => Value::Bool(*b),
         serde_json::Value::Number(n) => Value::Int(n.as_i64().unwrap_or(i64::MAX)),
-        serde_json::Value::String(s) => {
-            gen_of_text(s).map_or_else(|| Value::Str(s.clone()), Value::Gen)
-        }
+        serde_json::Value::String(s) => gen_of_text(s)
+            .or_else(|| clock_of_text(s))
+            .map_or_else(|| Value::Str(s.clone()), Value::Gen),
         serde_json::Value::Object(o) => Value::Row(
             o.iter()
                 .map(|(k, v)| (k.clone(), json_to_value(v)))
                 .collect(),
         ),
-        serde_json::Value::Array(_) => Value::Null,
+        // Phase 14: a JSON array (a `json`/`jsonb` value).
+        serde_json::Value::Array(items) => Value::List(items.iter().map(json_to_value).collect()),
     }
 }
 
-fn parse_result(stmt: &ClosedStmt, lines: &[String]) -> Result<StmtResult, String> {
+fn parse_result(model: &Model, stmt: &ClosedStmt, lines: &[String]) -> Result<StmtResult, String> {
     let data = data_lines(lines);
+    let row = |line: &String| -> Result<Row, String> {
+        let json: serde_json::Value =
+            serde_json::from_str(line).map_err(|e| format!("bad row JSON `{line}`: {e}"))?;
+        match json_to_value(&json) {
+            Value::Row(mut r) => {
+                fix_row(model, stmt.table(), &mut r);
+                Ok(r)
+            }
+            other => Err(format!("unexpected row value {other:?}")),
+        }
+    };
     match stmt {
+        // Phase 14.
+        ClosedStmt::InsertMany {
+            returning: true, ..
+        } => Ok(StmtResult::Rows(
+            data.iter().map(|l| row(l)).collect::<Result<_, _>>()?,
+        )),
+        ClosedStmt::Select {
+            joins, projection, ..
+        } if joins.is_empty() && projection.is_none() => match data.as_slice() {
+            [] => Ok(StmtResult::Row(None)),
+            [one] => Ok(StmtResult::Row(Some(row(one)?))),
+            more => Err(format!("{} rows for LIMIT 1", more.len())),
+        },
         ClosedStmt::Select { .. } => match data.as_slice() {
             [] => Ok(StmtResult::Row(None)),
             [one] => {
@@ -743,14 +1167,7 @@ fn parse_result(stmt: &ClosedStmt, lines: &[String]) -> Result<StmtResult, Strin
             returning: true, ..
         } => match data.as_slice() {
             [] => Ok(StmtResult::Row(None)),
-            [one] => {
-                let json: serde_json::Value =
-                    serde_json::from_str(one).map_err(|e| format!("bad row JSON `{one}`: {e}"))?;
-                match json_to_value(&json) {
-                    Value::Row(r) => Ok(StmtResult::Row(Some(r))),
-                    other => Err(format!("unexpected row value {other:?}")),
-                }
-            }
+            [one] => Ok(StmtResult::Row(Some(row(one)?))),
             more => Err(format!("{} rows for a single-row INSERT", more.len())),
         },
         _ => parse_count(&data).map(StmtResult::Affected),
@@ -835,6 +1252,28 @@ impl PgEnv {
         let mut s = self.open(&db.name, None, None)?;
         read_tables(&mut s, model)
     }
+
+    /// Phase 14: restore the model's initial rows (what every lockstep run
+    /// starts from).
+    pub fn reset(&self, db: &Database) -> Result<(), String> {
+        let mut s = self.open(&db.name, None, None)?;
+        let lines = s.exec(&db.seed, Duration::from_secs(10))?;
+        match error_code(&lines) {
+            Some(code) => Err(format!("cannot seed the database: SQLSTATE {code}")),
+            None => Ok(()),
+        }
+    }
+
+    /// Phase 14: run one SQL text (tests comparing SQL forms): the data
+    /// lines (fields separated by U+001F), or the SQLSTATE of an error.
+    pub fn query(&self, db: &Database, sql: &str) -> Result<Vec<String>, String> {
+        let mut s = self.open(&db.name, None, None)?;
+        let lines = s.exec(sql, Duration::from_secs(10))?;
+        if let Some(code) = error_code(&lines) {
+            return Err(format!("SQLSTATE {code}: {lines:?}"));
+        }
+        Ok(data_lines(&lines).into_iter().cloned().collect())
+    }
 }
 
 fn read_tables(s: &mut Session, model: &Model) -> Result<BTreeMap<String, Vec<Row>>, String> {
@@ -852,7 +1291,8 @@ fn read_tables(s: &mut Session, model: &Model) -> Result<BTreeMap<String, Vec<Ro
         for l in data_lines(&lines) {
             let json: serde_json::Value =
                 serde_json::from_str(l).map_err(|e| format!("bad row JSON `{l}`: {e}"))?;
-            if let Value::Row(r) = json_to_value(&json) {
+            if let Value::Row(mut r) = json_to_value(&json) {
+                fix_row(model, i as u16, &mut r);
                 rows.push(r);
             }
         }
@@ -907,6 +1347,13 @@ fn describe_result(r: &StmtResult) -> String {
         StmtResult::Row(None) => "no row".into(),
         StmtResult::Count(n) => format!("count {n}"),
         StmtResult::Affected(n) => format!("{n} row(s)"),
+        StmtResult::Rows(rows) => format!(
+            "rows [{}]",
+            rows.iter()
+                .map(|r| Value::Row(r.clone()).render())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
     }
 }
 
@@ -1036,7 +1483,7 @@ impl Run<'_> {
     ) -> Result<bool, String> {
         let key = match conn {
             Conn::Tx => Key::Tx(actor),
-            Conn::Pool => Key::Pool(actor, thread),
+            Conn::Pool | Conn::Replica => Key::Pool(actor, thread),
         };
         let sql = stmt_sql(self.model, stmt)?;
         self.session(key, actor)?;
@@ -1094,7 +1541,7 @@ impl Run<'_> {
                     (Expect::Error(want), Some(got)) => (format!("error {got}"), *want == got),
                     (Expect::Error(_), None) => ("completed without error".into(), false),
                     (_, Some(got)) => (format!("error {got}"), false),
-                    (Expect::Done(want), None) => match parse_result(stmt, lines) {
+                    (Expect::Done(want), None) => match parse_result(self.model, stmt, lines) {
                         Ok(got) => (describe_result(&got), got == *want),
                         Err(e) => (format!("unparsable: {e}"), false),
                     },
@@ -1242,7 +1689,7 @@ impl Run<'_> {
             } => {
                 let key = match conn {
                     Conn::Tx => Key::Tx(*actor),
-                    Conn::Pool => Key::Pool(*actor, *thread),
+                    Conn::Pool | Conn::Replica => Key::Pool(*actor, *thread),
                 };
                 let Some(s) = self.sessions.get_mut(&key) else {
                     return Ok(false);
@@ -1274,7 +1721,7 @@ impl Run<'_> {
             }
             // Effects are not database operations: the model SQL replay
             // has nothing to run for them.
-            Action::External { .. } => Ok(true),
+            Action::External { .. } | Action::Respond { .. } => Ok(true),
             Action::Crash { actor } => {
                 let keys: Vec<Key> = self
                     .sessions
@@ -1336,6 +1783,12 @@ pub fn run_schedule(
     model: &Model,
     schedule: &[Transition],
 ) -> Result<OracleRun, String> {
+    if model.features.replicas {
+        return Err(
+            "the lockstep oracle has one PostgreSQL server: a model with a read replica is not replayed"
+                .to_owned(),
+        );
+    }
     // Execute the model first to learn every transition's physical actions.
     let mut state = initial_state(model);
     let mut per_transition: Vec<Vec<Action>> = Vec::new();
@@ -1349,6 +1802,37 @@ pub fn run_schedule(
             victims.push((i, t.actor, t.thread));
         }
         per_transition.push(rec.actions);
+    }
+    // Phase 14: a multi-row INSERT is sent once, with its rows as the model
+    // completed them (a row the model formed only after a lock wait gets its
+    // database defaults then; PostgreSQL forms it then too, and the oracle
+    // sends the values the model chose, as it does for single-row inserts).
+    let mut open: BTreeMap<(u16, u16), (usize, usize)> = BTreeMap::new();
+    let mut completed: Vec<((usize, usize), ClosedStmt)> = Vec::new();
+    for (i, actions) in per_transition.iter().enumerate() {
+        for (j, a) in actions.iter().enumerate() {
+            if let Action::Stmt {
+                actor,
+                thread,
+                stmt: stmt @ ClosedStmt::InsertMany { .. },
+                resumed,
+                ..
+            } = a
+            {
+                if *resumed {
+                    if let Some(at) = open.get(&(*actor, *thread)) {
+                        completed.push((*at, stmt.clone()));
+                    }
+                } else {
+                    open.insert((*actor, *thread), (i, j));
+                }
+            }
+        }
+    }
+    for ((i, j), done) in completed {
+        if let Action::Stmt { stmt, .. } = &mut per_transition[i][j] {
+            *stmt = done;
+        }
     }
     // Reset the data.
     let mut setup = env.open(&db.name, None, None)?;

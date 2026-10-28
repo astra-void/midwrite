@@ -354,6 +354,7 @@ pub fn explore_sdpor(model: &Model, opts: &ExploreOptions, cfg: SdporConfig) -> 
                     TKind::LostNotCommitted => "LN",
                     TKind::CrashInFlight => "XF",
                     TKind::ServerComplete => "SC",
+                    TKind::Replicate => "RP",
                 };
                 format!("{k}{}.{}", t.actor, t.thread)
             };

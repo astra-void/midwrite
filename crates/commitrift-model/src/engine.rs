@@ -10,7 +10,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::db::{DbError, RowId, TxnId};
+use crate::db::{DbError, TxnId};
 use crate::epistemic::{Ambiguity, InFlightOp, OutcomeSet, Via, World};
 use crate::exec::{StmtResult, StmtStep, run_stmt, ser_would_fail};
 use crate::footprint::{Access, Footprint};
@@ -117,6 +117,10 @@ pub enum Action {
         conn: Conn,
     },
     Crash {
+        actor: u16,
+    },
+    /// Phase 13: a request handler's response reaches the client.
+    Respond {
         actor: u16,
     },
     /// Phase 9: the actor's COMMIT reached the server, which holds it
@@ -235,6 +239,8 @@ pub fn initial_state(model: &Model) -> State {
             gen_seq: 0,
             touched: false,
             ambiguous: Vec::new(),
+            result: None,
+            returned: Vec::new(),
         })
         .collect();
     let mut s = State {
@@ -254,6 +260,7 @@ pub fn initial_state(model: &Model) -> State {
             Vec::new()
         },
         deps: Default::default(),
+        replica_seq: 0,
         seqs: model.sequences().into_iter().map(|(_, _, n)| n).collect(),
         steps: 0,
         last_thread: None,
@@ -411,9 +418,11 @@ pub fn enabled(model: &Model, s: &State) -> Vec<Transition> {
             let visible = !matches!(
                 step.op,
                 Op::Let { .. }
+                    | Op::Generate { .. }
                     | Op::JumpIf { .. }
                     | Op::Jump { .. }
                     | Op::Return
+                    | Op::ReturnValue { .. }
                     | Op::Throw { .. }
                     | Op::Try { .. }
                     | Op::EndTry
@@ -421,7 +430,11 @@ pub fn enabled(model: &Model, s: &State) -> Vec<Transition> {
                     | Op::Join
                     | Op::Spawn { .. }
             );
-            if !visible {
+            // Phase 14: a thread rests on a local step only when its
+            // evaluation is not determined (`settle_thread`): a step that
+            // reports it as unsupported.
+            let unsupported_local = matches!(step.op, Op::Let { .. } | Op::JumpIf { .. });
+            if !visible && !unsupported_local {
                 continue; // blocked at a join
             }
             if uses_tx(&step.op) && tx_busy(actor) {
@@ -538,6 +551,13 @@ pub fn enabled(model: &Model, s: &State) -> Vec<Transition> {
             thread: th as u16,
         });
     }
+    if model.features.replicas && s.replica_seq < s.commit_seq {
+        out.push(Transition {
+            kind: TKind::Replicate,
+            actor: 0,
+            thread: 0,
+        });
+    }
     out.sort();
     out
 }
@@ -554,9 +574,11 @@ pub fn is_quiescent(model: &Model, enabled: &[Transition]) -> bool {
             .retry
             .as_ref()
             .is_some_and(|r| r.guaranteed),
-        TKind::Crash | TKind::LostCommitted | TKind::LostNotCommitted | TKind::CrashInFlight => {
-            false
-        }
+        TKind::Crash
+        | TKind::LostCommitted
+        | TKind::LostNotCommitted
+        | TKind::CrashInFlight
+        | TKind::Replicate => false,
     })
 }
 
@@ -652,7 +674,7 @@ pub fn apply(
                     t.thread as usize,
                     &mut foot,
                     rec,
-                );
+                )?;
             }
         }
         TKind::Crash => {
@@ -701,6 +723,22 @@ pub fn apply(
         TKind::Retry => {
             foot.push(Access::Global);
             retry_actor(model, &mut s, t.actor as usize, &mut foot, rec);
+        }
+        TKind::Replicate => {
+            // Changes what replica reads see (which take a snapshot: they
+            // conflict with `CommitWrite`); commutes with primary commits.
+            foot.push(Access::CommitWrite);
+            s.replica_seq += 1;
+            let seq = s.replica_seq;
+            rec.add(
+                0,
+                0,
+                EventKind::Local,
+                None,
+                || format!("REPLICA replays commit #{seq} of the primary"),
+                None,
+                None,
+            );
         }
         TKind::Deadlock => {
             foot.push(Access::Global);
@@ -846,7 +884,7 @@ fn step_thread(
             rec.act(|| Action::Rollback { actor: a as u16 });
             advance(model, s, a, th, foot, rec);
         }
-        Op::Db { stmt } => db_step(model, s, a, th, stmt, &step.src, foot, rec),
+        Op::Db { stmt } => db_step(model, s, a, th, stmt, &step.src, foot, rec)?,
         Op::External {
             channel,
             payload,
@@ -868,6 +906,13 @@ fn step_thread(
                 Ok::<_, crate::value::EvalError>((row, key))
             })();
             match evaluated {
+                Err(crate::value::EvalError::Unknown(detail)) => {
+                    return Err(Unsupported {
+                        actor: a,
+                        detail,
+                        src: step.src.clone(),
+                    });
+                }
                 Err(e) => fail_thread(model, s, a, th, e.to_string(), foot, rec),
                 Ok((payload, key)) => {
                     let dedup = model
@@ -966,13 +1011,51 @@ fn step_thread(
                     s.apps[p].insert(var.clone(), v);
                     advance(model, s, a, th, foot, rec);
                 }
+                Err(crate::value::EvalError::Unknown(detail)) => {
+                    return Err(Unsupported {
+                        actor: a,
+                        detail,
+                        src: step.src.clone(),
+                    });
+                }
                 Err(e) => fail_thread(model, s, a, th, e.to_string(), foot, rec),
             }
+        }
+        Op::Respond => {
+            // Phase 13: the response leaves the process; the client learns
+            // the outcome. A crash before this step (after the last
+            // statement committed) leaves the client without an answer.
+            rec.add(
+                a,
+                th,
+                EventKind::Local,
+                src,
+                || match &s.actors[a].result {
+                    Some(Ok(v)) => format!("RESPONSE delivered ({})", v.render()),
+                    _ => "RESPONSE delivered".into(),
+                },
+                None,
+                None,
+            );
+            rec.act(|| Action::Respond { actor: a as u16 });
+            advance(model, s, a, th, foot, rec);
         }
         Op::Unknown { detail, .. } => {
             return Err(Unsupported {
                 actor: a,
                 detail: detail.clone(),
+                src: step.src.clone(),
+            });
+        }
+        // Phase 14: a local step the thread rests on (see `settle_thread`).
+        Op::Let { expr: e, .. } | Op::JumpIf { cond: e, .. } => {
+            let detail = match e.eval(&s.actors[a].locals, None, Mode::Js) {
+                Err(crate::value::EvalError::Unknown(d)) => d,
+                other => format!("a local step reached as a visible step ({other:?})"),
+            };
+            return Err(Unsupported {
+                actor: a,
+                detail,
                 src: step.src.clone(),
             });
         }
@@ -1058,28 +1141,68 @@ fn close_stmt(model: &Model, locals: &Locals, stmt: &Stmt) -> Result<ClosedStmt,
             on_conflict,
             returning,
             returning_columns,
+            upsert,
+            more_rows,
             ..
         } => {
-            let mut row = Row::new();
-            for (c, e) in values {
-                match close(e)? {
-                    Expr::Lit(v) => {
-                        row.insert(c.clone(), v);
-                    }
-                    other => {
-                        return Err(format!(
-                            "insert value for `{c}` is not closed: {}",
-                            other.render()
-                        ));
+            let close_row = |values: &[(String, Expr)]| -> Result<Row, String> {
+                let mut row = Row::new();
+                for (c, e) in values {
+                    match close(e)? {
+                        Expr::Lit(v) => {
+                            row.insert(c.clone(), v);
+                        }
+                        other => {
+                            return Err(format!(
+                                "insert value for `{c}` is not closed: {}",
+                                other.render()
+                            ));
+                        }
                     }
                 }
-            }
-            ClosedStmt::Insert {
-                table: table(t)?,
-                values: row,
-                on_conflict: *on_conflict,
-                returning: returning.is_some(),
-                returning_columns: returning_columns.clone(),
+                Ok(row)
+            };
+            let row = close_row(values)?;
+            let upsert = match upsert {
+                None => None,
+                Some(u) => Some(crate::ir::Upsert {
+                    target: u.target.clone(),
+                    set: u
+                        .set
+                        .iter()
+                        .map(|(c, e)| Ok((c.clone(), close(e)?)))
+                        .collect::<Result<_, String>>()?,
+                    filter: u.filter.as_ref().map(&close).transpose()?,
+                }),
+            };
+            if more_rows.is_empty() {
+                ClosedStmt::Insert {
+                    table: table(t)?,
+                    values: row,
+                    on_conflict: *on_conflict,
+                    returning: returning.is_some(),
+                    returning_columns: returning_columns.clone(),
+                    upsert,
+                }
+            } else {
+                // Phase 14: a multi-row INSERT (JavaScript evaluates every
+                // row's object literal before Drizzle builds the statement).
+                let mut rows = vec![row];
+                for more in more_rows {
+                    rows.push(close_row(more)?);
+                }
+                ClosedStmt::InsertMany {
+                    table: table(t)?,
+                    rows,
+                    on_conflict: *on_conflict,
+                    returning: returning.is_some(),
+                    returning_columns: returning_columns.clone(),
+                    upsert,
+                    cursor: 0,
+                    row_started: false,
+                    out: Vec::new(),
+                    touched: Vec::new(),
+                }
             }
         }
         StmtKind::Delete { table: t, pred, .. } => ClosedStmt::Delete {
@@ -1115,12 +1238,7 @@ pub fn describe(model: &Model, c: &ClosedStmt) -> String {
                 ))
                 .collect::<String>(),
             pred.render(),
-            match lock {
-                crate::ir::LockMode::None => "",
-                crate::ir::LockMode::ForUpdate => " FOR UPDATE",
-                crate::ir::LockMode::SkipLocked => " FOR UPDATE SKIP LOCKED",
-                crate::ir::LockMode::NoWait => " FOR UPDATE NOWAIT",
-            }
+            lock.sql()
         ),
         ClosedStmt::Count { table, pred } => {
             format!("COUNT {} WHERE {}", name(*table), pred.render())
@@ -1152,10 +1270,216 @@ pub fn describe(model: &Model, c: &ClosedStmt) -> String {
         ClosedStmt::Delete { table, pred } => {
             format!("DELETE {} WHERE {}", name(*table), pred.render())
         }
+        ClosedStmt::InsertMany {
+            table,
+            rows,
+            on_conflict,
+            upsert,
+            ..
+        } => format!(
+            "INSERT {} {}{}",
+            name(*table),
+            rows.iter()
+                .map(|r| Value::Row(r.clone()).render())
+                .collect::<Vec<_>>()
+                .join(", "),
+            match upsert {
+                Some(u) => format!(" ON CONFLICT ({}) DO UPDATE", u.target.join(", ")),
+                None if *on_conflict == crate::ir::OnConflict::DoNothing => {
+                    " ON CONFLICT DO NOTHING".to_owned()
+                }
+                None => String::new(),
+            }
+        ),
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Phase 14: replace the clock placeholders of a closed statement (`new
+/// Date()` written in its arguments, ``sql`now()` ``) by the readings of this
+/// execution, and add the `$onUpdate` columns Drizzle sets when an `UPDATE`
+/// (or an upsert's `DO UPDATE SET`) does not assign them. `now()` is the
+/// transaction's; each distinct application placeholder is one new reading
+/// (a generation event of the actor), in placeholder order.
+pub fn bind_clocks(model: &Model, s: &mut State, txn: crate::db::TxnId, stmt: &mut ClosedStmt) {
+    use crate::db::{CLOCK_APP, CLOCK_DB, CLOCK_PLACEHOLDER};
+    fn values_of(stmt: &ClosedStmt, out: &mut Vec<crate::value::GenId>) {
+        fn expr(e: &Expr, out: &mut Vec<crate::value::GenId>) {
+            match e {
+                Expr::Lit(v) => deep(v, out),
+                Expr::Field(x, _) | Expr::Not(x) | Expr::IsNull(x) => expr(x, out),
+                Expr::Bin(_, a, b) => {
+                    expr(a, out);
+                    expr(b, out);
+                }
+                Expr::Object(f) => f.iter().for_each(|(_, x)| expr(x, out)),
+                Expr::Array(xs) | Expr::Call { args: xs, .. } => {
+                    xs.iter().for_each(|x| expr(x, out))
+                }
+                Expr::Each { list, body, .. } => {
+                    expr(list, out);
+                    expr(body, out);
+                }
+                Expr::Local(_) | Expr::Col(_) | Expr::Unknown(_) => {}
+            }
+        }
+        match stmt {
+            ClosedStmt::Select { pred, .. }
+            | ClosedStmt::Count { pred, .. }
+            | ClosedStmt::Delete { pred, .. } => expr(pred, out),
+            ClosedStmt::Update { pred, set, .. } => {
+                expr(pred, out);
+                set.iter().for_each(|(_, e)| expr(e, out));
+            }
+            ClosedStmt::Insert { values, upsert, .. } => {
+                values.values().for_each(|v| deep(v, out));
+                if let Some(u) = upsert {
+                    u.set.iter().for_each(|(_, e)| expr(e, out));
+                    u.filter.iter().for_each(|e| expr(e, out));
+                }
+            }
+            ClosedStmt::InsertMany { rows, upsert, .. } => {
+                rows.iter()
+                    .for_each(|r| r.values().for_each(|v| deep(v, out)));
+                if let Some(u) = upsert {
+                    u.set.iter().for_each(|(_, e)| expr(e, out));
+                    u.filter.iter().for_each(|e| expr(e, out));
+                }
+            }
+        }
+    }
+    fn deep(v: &Value, out: &mut Vec<crate::value::GenId>) {
+        match v {
+            Value::Gen(g) if g.actor == CLOCK_PLACEHOLDER => out.push(*g),
+            Value::Row(r) => r.values().for_each(|x| deep(x, out)),
+            Value::List(xs) => xs.iter().for_each(|x| deep(x, out)),
+            _ => {}
+        }
+    }
+    let table = stmt.table();
+    let columns = &model.schema.table(table).columns;
+    let on_update: Vec<String> = if columns.iter().any(|c| c.on_update.is_some()) {
+        columns
+            .iter()
+            .filter(|c| c.on_update == Some(crate::db::ColumnDefault::Clock))
+            .map(|c| c.name.clone())
+            .collect()
+    } else {
+        Vec::new()
+    };
+    // Drizzle's `buildUpdateSet`: every `$onUpdate` column the `SET` does
+    // not assign gets a fresh value (a placeholder here, bound below).
+    let next_placeholder = |stmt: &ClosedStmt| {
+        let mut gens = Vec::new();
+        values_of(stmt, &mut gens);
+        gens.iter()
+            .filter(|g| g.generator == CLOCK_APP)
+            .map(|g| g.n + 1)
+            .max()
+            .unwrap_or(0)
+    };
+    if !on_update.is_empty() {
+        let mut k = next_placeholder(stmt);
+        let add = |set: &mut Vec<(String, Expr)>, k: &mut u32| {
+            for c in &on_update {
+                if !set.iter().any(|(x, _)| x == c) {
+                    set.push((c.clone(), Expr::Lit(crate::db::clock_placeholder(*k))));
+                    *k += 1;
+                }
+            }
+        };
+        match stmt {
+            ClosedStmt::Update { set, .. } => add(set, &mut k),
+            ClosedStmt::Insert {
+                upsert: Some(u), ..
+            }
+            | ClosedStmt::InsertMany {
+                upsert: Some(u), ..
+            } => add(&mut u.set, &mut k),
+            _ => {}
+        }
+    }
+    let mut gens = Vec::new();
+    values_of(stmt, &mut gens);
+    if gens.is_empty() {
+        return;
+    }
+    gens.sort();
+    gens.dedup();
+    let mut map: std::collections::BTreeMap<crate::value::GenId, Value> =
+        std::collections::BTreeMap::new();
+    for g in gens {
+        let v = if g.generator == CLOCK_DB {
+            crate::db::now_value(txn)
+        } else {
+            let a = &mut s.actors[txn.actor() as usize];
+            let id = crate::value::GenId {
+                generator: CLOCK_APP,
+                actor: txn.actor(),
+                n: a.gen_seq,
+            };
+            a.gen_seq += 1;
+            Value::Gen(id)
+        };
+        map.insert(g, v);
+    }
+    fn sub_v(v: &mut Value, map: &std::collections::BTreeMap<crate::value::GenId, Value>) {
+        match v {
+            Value::Gen(g) => {
+                if let Some(x) = map.get(g) {
+                    *v = x.clone();
+                }
+            }
+            Value::Row(r) => r.values_mut().for_each(|x| sub_v(x, map)),
+            Value::List(xs) => xs.iter_mut().for_each(|x| sub_v(x, map)),
+            _ => {}
+        }
+    }
+    fn sub_e(e: &mut Expr, map: &std::collections::BTreeMap<crate::value::GenId, Value>) {
+        match e {
+            Expr::Lit(v) => sub_v(v, map),
+            Expr::Field(x, _) | Expr::Not(x) | Expr::IsNull(x) => sub_e(x, map),
+            Expr::Bin(_, a, b) => {
+                sub_e(a, map);
+                sub_e(b, map);
+            }
+            Expr::Object(f) => f.iter_mut().for_each(|(_, x)| sub_e(x, map)),
+            Expr::Array(xs) | Expr::Call { args: xs, .. } => {
+                xs.iter_mut().for_each(|x| sub_e(x, map))
+            }
+            Expr::Each { list, body, .. } => {
+                sub_e(list, map);
+                sub_e(body, map);
+            }
+            Expr::Local(_) | Expr::Col(_) | Expr::Unknown(_) => {}
+        }
+    }
+    match stmt {
+        ClosedStmt::Select { pred, .. }
+        | ClosedStmt::Count { pred, .. }
+        | ClosedStmt::Delete { pred, .. } => sub_e(pred, &map),
+        ClosedStmt::Update { pred, set, .. } => {
+            sub_e(pred, &map);
+            set.iter_mut().for_each(|(_, e)| sub_e(e, &map));
+        }
+        ClosedStmt::Insert { values, upsert, .. } => {
+            values.values_mut().for_each(|v| sub_v(v, &map));
+            if let Some(u) = upsert {
+                u.set.iter_mut().for_each(|(_, e)| sub_e(e, &map));
+                u.filter.iter_mut().for_each(|e| sub_e(e, &map));
+            }
+        }
+        ClosedStmt::InsertMany { rows, upsert, .. } => {
+            rows.iter_mut()
+                .for_each(|r| r.values_mut().for_each(|v| sub_v(v, &map)));
+            if let Some(u) = upsert {
+                u.set.iter_mut().for_each(|(_, e)| sub_e(e, &map));
+                u.filter.iter_mut().for_each(|e| sub_e(e, &map));
+            }
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments, clippy::result_large_err)]
 fn db_step(
     model: &Model,
     s: &mut State,
@@ -1165,12 +1489,12 @@ fn db_step(
     src: &SourceRef,
     foot: &mut Footprint,
     rec: &mut Recorder,
-) {
-    let closed = match close_stmt(model, &s.actors[a].locals, stmt) {
+) -> Result<(), Unsupported> {
+    let mut closed = match close_stmt(model, &s.actors[a].locals, stmt) {
         Ok(c) => c,
         Err(e) => {
             fail_thread(model, s, a, th, e, foot, rec);
-            return;
+            return Ok(());
         }
     };
     let txn = match stmt.conn {
@@ -1186,7 +1510,7 @@ fn db_step(
                     foot,
                     rec,
                 );
-                return;
+                return Ok(());
             }
         },
         Conn::Pool => {
@@ -1197,7 +1521,35 @@ fn db_step(
             }
             id
         }
+        Conn::Replica => {
+            // Phase 13: a read on the replica, outside any primary
+            // transaction, on the replica's replayed prefix.
+            foot.push(Access::Snapshot);
+            let text = if rec.on {
+                describe(model, &closed)
+            } else {
+                String::new()
+            };
+            match crate::exec::replica_read(model, s, &closed, foot) {
+                Ok(result) => {
+                    let text = format!("{text} (on the replica, commit #{})", s.replica_seq);
+                    deliver(model, s, a, th, &result, src, &text, rec);
+                    advance(model, s, a, th, foot, rec);
+                }
+                Err(e) if e.is_unsupported() => {
+                    return Err(Unsupported {
+                        actor: a,
+                        detail: e.message,
+                        src: src.clone(),
+                    });
+                }
+                Err(e) => fail_thread(model, s, a, th, e.to_string(), foot, rec),
+            }
+            return Ok(());
+        }
     };
+    // Phase 14: the clock readings of this execution.
+    bind_clocks(model, s, txn, &mut closed);
     let snapshot = open_snapshot(s, txn, foot);
     let mut p = Pending {
         stmt: closed,
@@ -1209,8 +1561,10 @@ fn db_step(
         found: None,
         blocked_on: None,
         started: false,
+        fk: Vec::new(),
+        deferred: None,
     };
-    run_pending(model, s, a, th, &mut p, false, src, foot, rec);
+    run_pending(model, s, a, th, &mut p, false, src, foot, rec)
 }
 
 /// The snapshot a statement of `txn` runs on (taken now, for the isolation
@@ -1230,6 +1584,7 @@ fn open_snapshot(s: &mut State, txn: TxnId, foot: &mut Footprint) -> u64 {
     }
 }
 
+#[allow(clippy::result_large_err)]
 fn resume_thread(
     model: &Model,
     s: &mut State,
@@ -1237,7 +1592,7 @@ fn resume_thread(
     th: usize,
     foot: &mut Footprint,
     rec: &mut Recorder,
-) {
+) -> Result<(), Unsupported> {
     let mut p = s.actors[a].threads[th]
         .pending
         .take()
@@ -1254,10 +1609,11 @@ fn resume_thread(
         None,
         None,
     );
-    run_pending(model, s, a, th, &mut p, true, &step.src, foot, rec);
+    let src = step.src.clone();
+    run_pending(model, s, a, th, &mut p, true, &src, foot, rec)
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::result_large_err)]
 fn run_pending(
     model: &Model,
     s: &mut State,
@@ -1268,13 +1624,24 @@ fn run_pending(
     src: &SourceRef,
     foot: &mut Footprint,
     rec: &mut Recorder,
-) {
+) -> Result<(), Unsupported> {
     let text = if rec.on {
         describe(model, &p.stmt)
     } else {
         String::new()
     };
     let step = run_stmt(model, s, p, foot);
+    // Phase 14: an evaluation the model does not represent ends the path as
+    // unsupported; it is never turned into a database error.
+    if let StmtStep::Failed(e) = &step
+        && e.is_unsupported()
+    {
+        return Err(Unsupported {
+            actor: a,
+            detail: e.message.clone(),
+            src: src.clone(),
+        });
+    }
     let stmt_action = |expect: Expect, p: &Pending| Action::Stmt {
         actor: a as u16,
         thread: th as u16,
@@ -1300,7 +1667,7 @@ fn run_pending(
                 );
                 rec.act(|| stmt_action(Expect::Error(e.sqlstate.clone()), p));
                 db_failure(model, s, a, th, p.txn, p.conn, e, foot, rec);
-                return;
+                return Ok(());
             }
             rec.act(|| stmt_action(Expect::Done(result.clone()), p));
             deliver(model, s, a, th, &result, src, &text, rec);
@@ -1344,6 +1711,7 @@ fn run_pending(
             db_failure(model, s, a, th, p.txn, p.conn, e, foot, rec);
         }
     }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1376,6 +1744,11 @@ fn deliver(
         ),
         StmtResult::Count(n) => (Value::Int(*n), EventKind::Read),
         StmtResult::Affected(n) => (Value::Int(*n), EventKind::Write),
+        // Phase 14: a multi-row `INSERT ... RETURNING`: a JavaScript array.
+        StmtResult::Rows(rows) => (
+            Value::List(rows.iter().cloned().map(Value::Row).collect()),
+            EventKind::Write,
+        ),
     };
     let target = match &stmt.kind {
         StmtKind::Select { into, .. } | StmtKind::SelectCount { into, .. } => Some(into.clone()),
@@ -1387,7 +1760,10 @@ fn deliver(
             // `INSERT ... RETURNING *`: the row (or null) and the count.
             std::sync::Arc::make_mut(&mut s.actors[a].locals).insert(row.clone(), value.clone());
             if let Some(count) = affected {
-                let n = i64::from(!value.is_null());
+                let n = match &value {
+                    Value::List(items) => items.len() as i64,
+                    other => i64::from(!other.is_null()),
+                };
                 std::sync::Arc::make_mut(&mut s.actors[a].locals)
                     .insert(count.clone(), Value::Int(n));
             }
@@ -1616,15 +1992,7 @@ pub fn commit_txn(
 }
 
 fn release_locks(s: &mut State, id: TxnId, foot: &mut Footprint) {
-    let held: Vec<RowId> = s
-        .store
-        .locks
-        .iter()
-        .filter(|(_, t)| **t == id)
-        .map(|(r, _)| *r)
-        .collect();
-    for r in held {
-        s.store.locks.remove(&r);
+    for r in s.store.release(id) {
         foot.push(Access::LockChange(r));
     }
 }
@@ -1741,11 +2109,36 @@ fn settle_thread(
                     std::sync::Arc::make_mut(&mut s.actors[a].locals).insert(local.clone(), v);
                     s.actors[a].threads[th].pc += 1;
                 }
+                // Phase 14: behavior the model does not determine is not an
+                // exception the application could catch: the thread stays
+                // on the step, which `step_thread` reports as unsupported.
+                Err(crate::value::EvalError::Unknown(_)) => return,
                 Err(e) => {
                     fail_thread(model, s, a, th, e.to_string(), foot, rec);
                     return;
                 }
             },
+            Op::Generate { local, source } => {
+                let actor = &mut s.actors[a];
+                let id = crate::value::GenId {
+                    generator: crate::ir::CALL_GENERATOR,
+                    actor: a as u16,
+                    n: actor.gen_seq,
+                };
+                actor.gen_seq += 1;
+                let v = Value::Gen(id);
+                rec.add(
+                    a,
+                    th,
+                    EventKind::Local,
+                    src,
+                    || format!("{local} = {} (generated by `{source}`)", v.render()),
+                    Some(v.clone()),
+                    None,
+                );
+                std::sync::Arc::make_mut(&mut s.actors[a].locals).insert(local.clone(), v);
+                s.actors[a].threads[th].pc += 1;
+            }
             Op::JumpIf { cond, target } => match cond.eval(&s.actors[a].locals, None, Mode::Js) {
                 Ok(v) => {
                     let taken = v.truthy();
@@ -1767,6 +2160,7 @@ fn settle_thread(
                     let t = &mut s.actors[a].threads[th];
                     t.pc = if taken { *target as u32 } else { t.pc + 1 };
                 }
+                Err(crate::value::EvalError::Unknown(_)) => return,
                 Err(e) => {
                     fail_thread(model, s, a, th, e.to_string(), foot, rec);
                     return;
@@ -1796,6 +2190,30 @@ fn settle_thread(
             Op::Return => {
                 finish_ok(model, s, a, th, foot, rec);
                 return;
+            }
+            Op::ReturnValue { expr } => {
+                // Phase 13: recorded only when an invariant reads it; an
+                // expression that cannot be evaluated makes the value
+                // unknown, never the task fail.
+                if model.tracks_results() && th == 0 {
+                    let slot = expr
+                        .eval(&s.actors[a].locals, None, Mode::Js)
+                        .map_err(|e| e.to_string());
+                    rec.add(
+                        a,
+                        th,
+                        EventKind::Local,
+                        src,
+                        || match &slot {
+                            Ok(v) => format!("returns {}", v.render()),
+                            Err(why) => format!("returns an unknown value ({why})"),
+                        },
+                        slot.as_ref().ok().cloned(),
+                        None,
+                    );
+                    s.actors[a].result = Some(slot);
+                }
+                s.actors[a].threads[th].pc += 1;
             }
             Op::Throw { message } => {
                 rec.add(
@@ -1907,6 +2325,10 @@ fn finish_ok(
         }
         s.actors[a].outcome = Outcome::Ok;
         s.actors[a].completions += 1;
+        if model.tracks_results() {
+            let slot = s.actors[a].result.take().unwrap_or(Ok(Value::Null));
+            s.actors[a].returned.push(slot);
+        }
         rec.add(
             a,
             th,
@@ -2126,6 +2548,17 @@ fn in_flight_effect(
                 return Err("not a statement".into());
             };
             let closed = close_stmt(model, &s.actors[a].locals, stmt)?;
+            // Phase 14: multi-row inserts and statements that read a clock
+            // are not modeled in flight.
+            if matches!(closed, ClosedStmt::InsertMany { .. }) {
+                return Err("a multi-row INSERT in flight is not modeled".into());
+            }
+            let mut trial_state = s.clone();
+            let mut trial = closed.clone();
+            bind_clocks(model, &mut trial_state, TxnId((a as u32) << 12), &mut trial);
+            if trial != closed {
+                return Err("a statement that reads a clock in flight is not modeled".into());
+            }
             let seq = s.actors[a].txn_seq;
             s.actors[a].txn_seq += 1;
             let attempt = s.actors[a].attempt;
@@ -2166,6 +2599,8 @@ fn orphan_ready(model: &Model, s: &State, o: &crate::state::Orphan) -> bool {
         found: None,
         blocked_on: None,
         started: false,
+        fk: Vec::new(),
+        deferred: None,
     };
     !matches!(
         run_stmt(model, &mut trial, &mut p, &mut foot),
@@ -2226,6 +2661,8 @@ fn server_complete(
                 found: None,
                 blocked_on: None,
                 started: false,
+                fk: Vec::new(),
+                deferred: None,
             };
             let label = describe(model, stmt);
             let thread = 0x4000 + seq as u16;
@@ -2259,6 +2696,7 @@ fn server_complete(
                             format!("the server rejects the statement it received: {label} ({e})");
                     }
                 },
+                StmtStep::Failed(e) if e.is_unsupported() => return Err(e.message),
                 StmtStep::Failed(e) => {
                     abort_txn(model, s, txn, foot);
                     rec.act(|| Action::Stmt {
@@ -2558,6 +2996,7 @@ fn retry_actor(model: &Model, s: &mut State, a: usize, foot: &mut Footprint, rec
     st.outcome = Outcome::Running;
     st.attempt += 1;
     st.touched = false;
+    st.result = None;
     let attempt = st.attempt;
     rec.add(
         a,

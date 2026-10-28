@@ -69,6 +69,13 @@ struct RawScenario {
     /// (`commitrift model-check --verify-source`).
     #[serde(default)]
     source_verification: Option<crate::source_types::SourceSpec>,
+    /// Phase 13: model features beyond the Phase 12 semantics, opted into
+    /// explicitly so that earlier scenarios keep their meaning:
+    /// `foreign-keys` (enforce the source schema's foreign keys and their
+    /// row locks), `replicas` (reads through a replicated database see a
+    /// lagging replica).
+    #[serde(default)]
+    features: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -109,6 +116,11 @@ struct RawTable {
     /// Phase 8: declared facts that intentionally differ from the source.
     #[serde(default)]
     overrides: Option<RawOverrides>,
+    /// Phase 13: declared foreign keys (tables written in the scenario; a
+    /// table read from the source gets its foreign keys from the source,
+    /// with the `foreign-keys` feature).
+    #[serde(default)]
+    foreign_keys: Vec<crate::db::ForeignKeySchema>,
 }
 
 /// Facts a scenario states against its source, with the reason (Phase 8).
@@ -165,6 +177,10 @@ struct RawExtraction {
     #[serde(default)]
     transaction_retries: Vec<RawTransactionRetry>,
     max_inline_depth: Option<usize>,
+    /// Phase 13: project functions declared to return a replicated
+    /// database (`withReplicas` routing).
+    #[serde(default)]
+    replica_factories: Vec<crate::provider::ReplicaFactoryBinding>,
 }
 
 #[derive(Deserialize, Clone)]
@@ -237,6 +253,12 @@ struct RawActor {
     retry: Option<OperationRetry>,
     #[serde(default)]
     description: String,
+    /// Phase 13: the actor is a request handler whose response is a
+    /// separate step after its last operation ([`Op::Respond`]): a crash can
+    /// happen after the work committed and before the client got the
+    /// response.
+    #[serde(default)]
+    response: bool,
 }
 
 #[derive(Deserialize, Clone)]
@@ -318,9 +340,33 @@ fn build(
             raw.database.isolation
         ),
     })?;
-    let (tables, schema_facts, extracted_schema) =
-        link_source_schema(&raw.database.tables, &raw.extraction, base_dir, provider)?;
-    let schema = build_schema(&tables)?;
+    let mut features = crate::model::Features::default();
+    for (i, f) in raw.features.iter().enumerate() {
+        match f.as_str() {
+            "foreign-keys" => features.foreign_keys = true,
+            "replicas" => features.replicas = true,
+            // Phase 14.
+            "js-values" => features.js_values = true,
+            "timestamps" => features.timestamps = true,
+            "json" => features.json = true,
+            other => {
+                return bad(
+                    format!("features[{i}]"),
+                    format!(
+                        "unknown feature `{other}` (foreign-keys, replicas, js-values, timestamps, json)"
+                    ),
+                );
+            }
+        }
+    }
+    let (tables, schema_facts, extracted_schema) = link_source_schema(
+        &raw.database.tables,
+        &raw.extraction,
+        base_dir,
+        provider,
+        features,
+    )?;
+    let schema = build_schema(&tables, features)?;
     let initial_rows = build_initial(&schema, &raw.database.initial_state)?;
     if raw.actors.is_empty() {
         return bad("actors", "a scenario needs at least one actor");
@@ -376,6 +422,11 @@ fn build(
                 "an actor needs `function` or `entry`",
             );
         }
+        let wants = Wants {
+            replicas: features.replicas,
+            js_values: features.js_values,
+            return_values: raw.invariants.iter().any(|i| i.formula.reads_returned()),
+        };
         let (params, mut codes, arguments, assumptions, entry) = actor_program(
             a,
             &path,
@@ -384,8 +435,12 @@ fn build(
             &report.schema,
             base_dir,
             provider,
+            wants,
         )?;
         seal_unknowns(&mut codes);
+        if a.response {
+            insert_responses(&mut codes);
+        }
         if !assumptions.is_empty() {
             report.assumptions.push((name.clone(), assumptions));
         }
@@ -461,6 +516,7 @@ fn build(
         bounds: raw.bounds,
         options,
         assumptions: Vec::new(),
+        features,
     };
     for (name, cap) in &raw_pools {
         let Some(i) = model.process_names.iter().position(|p| p == name) else {
@@ -497,6 +553,9 @@ fn build(
         });
     }
     validate(&model)?;
+    check_replica_reads(&model)?;
+    check_foreign_keys(&model)?;
+    check_return_values(&model)?;
     model.assumptions = standard_assumptions(&model, &report);
     Ok((model, report))
 }
@@ -506,14 +565,42 @@ fn build(
 // ---------------------------------------------------------------------------
 
 /// The model type of an extracted column, if the model represents it.
-fn model_type(c: &crate::schema_facts::SchemaColumn) -> Option<&'static str> {
+/// Phase 14: time and JSON columns with the features `timestamps` / `json`
+/// (Drizzle's default modes only: a `Date` for `timestamp`, a string for
+/// `date`, a parsed value for `json`/`jsonb`).
+fn model_type(
+    c: &crate::schema_facts::SchemaColumn,
+    features: crate::model::Features,
+) -> Option<&'static str> {
     match c.builder.as_str() {
         "serial" | "bigserial" | "smallserial" | "integer" | "smallint" | "bigint" => Some("int"),
         "text" | "varchar" | "char" | "uuid" => Some("text"),
         "boolean" => Some("bool"),
+        "timestamp" if features.timestamps && matches!(c.mode.as_deref(), None | Some("date")) => {
+            Some(if c.sql_type == "timestamp with time zone" {
+                "timestamptz"
+            } else {
+                "timestamp"
+            })
+        }
+        "date" if features.timestamps && matches!(c.mode.as_deref(), None | Some("string")) => {
+            Some("date")
+        }
+        "json" if features.json && c.mode.is_none() => Some("json"),
+        "jsonb" if features.json && c.mode.is_none() => Some("jsonb"),
         _ if c.sql_type.starts_with("enum ") => Some("text"),
         _ => None,
     }
+}
+
+/// Phase 14: `() => new Date()` (a Drizzle `$defaultFn` / `$onUpdate`
+/// callback reading the application clock), as the extractor recorded it.
+fn is_clock_callback(text: &str) -> bool {
+    let t: String = text.chars().filter(|c| !c.is_whitespace()).collect();
+    matches!(
+        t.as_str(),
+        "()=>newDate()" | "()=>{returnnewDate();}" | "()=>{returnnewDate()}"
+    )
 }
 
 fn literal_value(l: &crate::schema_facts::SchemaLiteral) -> Value {
@@ -540,7 +627,9 @@ fn link_source_schema(
     extraction: &RawExtraction,
     base_dir: &Path,
     provider: &dyn ActorProvider,
+    features: crate::model::Features,
 ) -> Result<Linked, ScenarioError> {
+    let foreign_keys = features.foreign_keys;
     if raw.iter().all(|t| t.from.is_none()) {
         for (i, t) in raw.iter().enumerate() {
             if t.overrides.is_some() {
@@ -579,7 +668,16 @@ fn link_source_schema(
     let mut tables = Vec::new();
     let mut facts = Vec::new();
     let mut used: Vec<(String, String)> = Vec::new();
+    // Phase 13: (index in `tables`, index in `facts`, module, declaration)
+    // of every table read from the source.
+    let mut linked: Vec<(usize, usize, String, crate::schema_facts::SchemaTable)> = Vec::new();
     for (i, t) in raw.iter().enumerate() {
+        if t.from.is_some() && !t.foreign_keys.is_empty() {
+            return bad(
+                format!("database.tables[{i}].foreignKeys"),
+                "a table read from the source takes its foreign keys from the source (feature `foreign-keys`)",
+            );
+        }
         match &t.from {
             None => tables.push(t.clone()),
             Some(from) => {
@@ -634,12 +732,13 @@ fn link_source_schema(
                     );
                 }
                 used.push(key);
-                let (table, mut table_facts) = link_table(t, i, x, file)?;
+                let (table, mut table_facts) = link_table(t, i, x, file, features)?;
                 // Reported for a list of modules only: single-module reports
                 // stay as they were.
                 if matches!(extraction.schema, Some(SchemaModules::Many(_))) {
                     table_facts.module = Some(file.clone());
                 }
+                linked.push((tables.len(), facts.len(), file.clone(), x.clone()));
                 tables.push(table);
                 facts.push(table_facts);
             }
@@ -665,6 +764,11 @@ fn link_source_schema(
             }
         }
     }
+    if foreign_keys {
+        // The frontend resolves imports relative to the canonical root.
+        let canonical = std::fs::canonicalize(&root).unwrap_or_else(|_| root.clone());
+        link_foreign_keys(&mut tables, &mut facts, &linked, &canonical, provider);
+    }
     let mut merged = crate::schema_facts::ExtractedSchema::default();
     for (_, x) in modules {
         merged.tables.extend(x.tables);
@@ -680,6 +784,7 @@ fn link_table(
     i: usize,
     x: &crate::schema_facts::SchemaTable,
     file: &str,
+    features: crate::model::Features,
 ) -> Result<(RawTable, crate::schema_facts::TableFacts), ScenarioError> {
     use crate::db::{ColumnDefault, SequenceSpec};
     use crate::schema_facts::{FactOrigin, SchemaDefault, SchemaFact, TableFacts};
@@ -759,7 +864,7 @@ fn link_table(
             );
             continue;
         }
-        let Some(ty) = model_type(c) else {
+        let Some(ty) = model_type(c, features) else {
             if explicit {
                 return bad(
                     format!("{path}.columns"),
@@ -795,7 +900,50 @@ fn link_table(
             .generation
             .as_ref()
             .and_then(|g| g.fresh_identifier().map(|id| (g, id)));
+        // Phase 14: clock defaults of time columns (feature `timestamps`).
+        let time = crate::db::is_time_type(Some(ty));
+        let clock_default = match &c.default {
+            Some(SchemaDefault::Expression { text })
+                if time && ty != "date" && text.trim().eq_ignore_ascii_case("now()") =>
+            {
+                Some(ColumnDefault::Now)
+            }
+            Some(SchemaDefault::Application { text })
+                if time && ty != "date" && is_clock_callback(text) =>
+            {
+                Some(ColumnDefault::Clock)
+            }
+            _ => None,
+        };
+        let on_update = match &c.on_update {
+            None => None,
+            Some(text) if time && ty != "date" && is_clock_callback(text) => {
+                Some(ColumnDefault::Clock)
+            }
+            Some(text) => {
+                if explicit {
+                    return bad(
+                        format!("{path}.columns"),
+                        format!(
+                            "column `{}` has `$onUpdate({text})`, which the model does not represent",
+                            c.property
+                        ),
+                    );
+                }
+                fact(
+                    &mut facts,
+                    format!(
+                        "column `{}`: `$onUpdate({text})` is not modeled",
+                        c.sql_name
+                    ),
+                    FactOrigin::NotModeled,
+                    at(c.line),
+                );
+                continue;
+            }
+        };
         let default = match &c.default {
+            Some(_) if clock_default.is_some() => clock_default.clone(),
             // Phase 12: a recognized identifier generator, database side
             // (`defaultRandom()`) or application side (`$defaultFn` with a
             // recognized callback). Other defaults keep their earlier
@@ -923,7 +1071,18 @@ fn link_table(
                         },
                         g.generator
                     ),
+                    // Phase 14.
+                    Some(ColumnDefault::Now) =>
+                        " DEFAULT now() (the transaction's start time, an opaque clock reading)"
+                            .to_owned(),
+                    Some(ColumnDefault::Clock) =>
+                        " computed by the application (`$defaultFn(() => new Date())`, an opaque clock reading)"
+                            .to_owned(),
                     None => String::new(),
+                } + if on_update.is_some() {
+                    " ON UPDATE application clock (`$onUpdate(() => new Date())`)"
+                } else {
+                    ""
                 }
             ),
             if declared_column.is_some_and(|(_, d)| d.is_some()) {
@@ -951,6 +1110,7 @@ fn link_table(
             sql_type: Some(ty.to_owned()),
             default,
             sql_name: (c.sql_name != c.property).then(|| c.sql_name.clone()),
+            on_update,
         });
     }
     let property = |sql: &str| -> Option<String> {
@@ -1120,6 +1280,7 @@ fn link_table(
             checks: t.checks.clone(),
             from: None,
             overrides: None,
+            foreign_keys: Vec::new(),
         },
         TableFacts {
             table: x.name.clone(),
@@ -1130,7 +1291,10 @@ fn link_table(
     ))
 }
 
-fn build_schema(raw: &[RawTable]) -> Result<Schema, ScenarioError> {
+fn build_schema(
+    raw: &[RawTable],
+    features: crate::model::Features,
+) -> Result<Schema, ScenarioError> {
     let mut tables = Vec::new();
     let mut names = BTreeSet::new();
     for (i, t) in raw.iter().enumerate() {
@@ -1154,22 +1318,61 @@ fn build_schema(raw: &[RawTable]) -> Result<Schema, ScenarioError> {
                     sql_type: None,
                     default: None,
                     sql_name: None,
+                    on_update: None,
                 },
                 RawColumn::Full(c) => c.clone(),
             })
             .collect();
         let mut seen = BTreeSet::new();
         for c in &columns {
+            let time = crate::db::is_time_type(c.sql_type.as_deref());
+            let json = crate::db::is_json_type(c.sql_type.as_deref());
             if let Some(ty) = &c.sql_type
                 && !matches!(ty.as_str(), "int" | "text" | "bool")
+                && !(time && features.timestamps)
+                && !(json && features.json)
             {
                 return bad(
                     format!("{path}.columns"),
                     format!(
-                        "column `{}`: unsupported type `{ty}` (int, text or bool)",
+                        "column `{}`: unsupported type `{ty}` (int, text or bool; timestamp, timestamptz and date with the feature `timestamps`; json and jsonb with the feature `json`)",
                         c.name
                     ),
                 );
+            }
+            // Phase 14: clock defaults belong to `timestamp`/`timestamptz`
+            // columns.
+            let clock_ok = time && c.sql_type.as_deref() != Some("date");
+            if matches!(
+                c.default,
+                Some(crate::db::ColumnDefault::Now | crate::db::ColumnDefault::Clock)
+            ) && !clock_ok
+            {
+                return bad(
+                    format!("{path}.columns"),
+                    format!(
+                        "column `{}`: a clock default needs a timestamp or timestamptz column",
+                        c.name
+                    ),
+                );
+            }
+            match &c.on_update {
+                None => {}
+                Some(crate::db::ColumnDefault::Clock) if clock_ok => {}
+                Some(_) => {
+                    return bad(
+                        format!("{path}.columns"),
+                        format!(
+                            "column `{}`: only `onUpdate: \"clock\"` on a timestamp or timestamptz column is modeled",
+                            c.name
+                        ),
+                    );
+                }
+            }
+            if let Some(crate::db::ColumnDefault::Value(v)) = &c.default
+                && let Some(why) = crate::db::typed_value_problem(c, v)
+            {
+                return bad(format!("{path}.columns"), why);
             }
             if !seen.insert(c.name.clone()) {
                 return bad(
@@ -1223,9 +1426,281 @@ fn build_schema(raw: &[RawTable]) -> Result<Schema, ScenarioError> {
             primary_key: t.primary_key.clone(),
             unique: t.unique.clone(),
             checks,
+            foreign_keys: t.foreign_keys.clone(),
         });
     }
-    Ok(Schema { tables })
+    let schema = Schema { tables };
+    // Phase 13: a foreign key references a key of a modeled table.
+    for (i, t) in schema.tables.iter().enumerate() {
+        for (j, fk) in t.foreign_keys.iter().enumerate() {
+            let path = format!("database.tables[{i}].foreignKeys[{j}]");
+            let Some(parent) = schema.by_name(&fk.references) else {
+                return bad(path, format!("unknown table `{}`", fk.references));
+            };
+            if fk.columns.is_empty() || fk.columns.len() != fk.referenced_columns.len() {
+                return bad(
+                    path,
+                    "`columns` and `referencedColumns` need the same, non-zero length",
+                );
+            }
+            if let Some(c) = fk.columns.iter().find(|c| !t.has_column(c)) {
+                return bad(path, format!("unknown column `{c}`"));
+            }
+            if let Some(c) = fk.referenced_columns.iter().find(|c| !parent.has_column(c)) {
+                return bad(path, format!("unknown column `{c}` of `{}`", fk.references));
+            }
+            let mut wanted = fk.referenced_columns.clone();
+            wanted.sort();
+            if !parent.key_sets().into_iter().any(|(_, mut k)| {
+                k.sort();
+                k == wanted
+            }) {
+                return bad(
+                    path,
+                    format!(
+                        "({}) is not the primary key or a unique set of `{}` (PostgreSQL requires one)",
+                        fk.referenced_columns.join(", "),
+                        fk.references
+                    ),
+                );
+            }
+        }
+    }
+    Ok(schema)
+}
+
+/// Phase 13: the source schema's foreign keys between modeled tables
+/// (feature `foreign-keys`). A foreign key whose referenced table or
+/// columns are not modeled stays a `not-modeled` fact.
+fn link_foreign_keys(
+    tables: &mut [RawTable],
+    facts: &mut [crate::schema_facts::TableFacts],
+    linked: &[(usize, usize, String, crate::schema_facts::SchemaTable)],
+    root: &Path,
+    provider: &dyn ActorProvider,
+) {
+    use crate::schema_facts::{FactOrigin, SchemaFact};
+    let names: Vec<String> = tables.iter().map(|t| t.name.clone()).collect();
+    for (ti, fi, file, x) in linked {
+        for fk in &x.foreign_keys {
+            let written = format!(
+                "foreign key ({}) → {}({})",
+                fk.columns.join(", "),
+                fk.table,
+                fk.foreign_columns.join(", ")
+            );
+            // The referenced declaration: a binding of the same module, or
+            // an import resolved by the frontend.
+            let target = linked
+                .iter()
+                .find(|(_, _, f, t)| f == file && t.binding == fk.table)
+                .or_else(|| {
+                    let (m, b) = provider.resolve_reference(root, file, &fk.table)?;
+                    linked.iter().find(|(_, _, f, t)| *f == m && t.binding == b)
+                });
+            let columns: Option<Vec<String>> = fk
+                .columns
+                .iter()
+                .map(|c| x.column_by_sql(c).map(|c| c.property.clone()))
+                .collect();
+            let action = |a: &Option<String>| match a {
+                None => Ok(crate::db::RefAction::NoAction),
+                Some(text) => crate::db::RefAction::parse(text).ok_or(text.clone()),
+            };
+            let outcome: Result<crate::db::ForeignKeySchema, String> = (|| {
+                let (pi, _, _, _) =
+                    target.ok_or("the referenced table is not modeled".to_owned())?;
+                let columns = columns.ok_or("a column is not understood".to_owned())?;
+                let has = |t: &RawTable, c: &String| {
+                    t.columns.iter().any(|rc| match rc {
+                        RawColumn::Name(n) => n == c,
+                        RawColumn::Full(f) => &f.name == c,
+                    })
+                };
+                if let Some(c) = columns.iter().find(|c| !has(&tables[*ti], c)) {
+                    return Err(format!("column `{c}` is not modeled"));
+                }
+                if let Some(c) = fk.foreign_columns.iter().find(|c| !has(&tables[*pi], c)) {
+                    return Err(format!("referenced column `{c}` is not modeled"));
+                }
+                Ok(crate::db::ForeignKeySchema {
+                    columns,
+                    references: names[*pi].clone(),
+                    referenced_columns: fk.foreign_columns.clone(),
+                    on_delete: action(&fk.on_delete)
+                        .map_err(|a| format!("ON DELETE `{a}` is not understood"))?,
+                    on_update: action(&fk.on_update)
+                        .map_err(|a| format!("ON UPDATE `{a}` is not understood"))?,
+                    initially_deferred: false,
+                })
+            })();
+            let table_facts = &mut facts[*fi];
+            let source = format!("{file}:{}", fk.line);
+            table_facts
+                .facts
+                .retain(|f| !(f.source == source && f.fact.starts_with(&written)));
+            match outcome {
+                Ok(model_fk) => {
+                    table_facts.facts.push(SchemaFact {
+                        fact: format!(
+                            "{written}{}{}: enforced (the check locks the referenced row FOR KEY SHARE; a violation is SQLSTATE 23503)",
+                            if model_fk.on_delete == crate::db::RefAction::NoAction {
+                                String::new()
+                            } else {
+                                format!(" ON DELETE {}", model_fk.on_delete.sql())
+                            },
+                            if model_fk.on_update == crate::db::RefAction::NoAction {
+                                String::new()
+                            } else {
+                                format!(" ON UPDATE {}", model_fk.on_update.sql())
+                            },
+                        ),
+                        origin: FactOrigin::ExtractedFromSource,
+                        source,
+                    });
+                    tables[*ti].foreign_keys.push(model_fk);
+                }
+                Err(why) => table_facts.facts.push(SchemaFact {
+                    fact: format!("{written}: not modeled ({why})"),
+                    origin: FactOrigin::NotModeled,
+                    source,
+                }),
+            }
+        }
+    }
+}
+
+/// Phase 13: reads routed to the replica need the `replicas` feature and
+/// are plain reads (a replica refuses writes and row locks).
+fn check_replica_reads(model: &Model) -> Result<(), ScenarioError> {
+    for (ai, a) in model.actors.iter().enumerate() {
+        for (ci, code) in a.codes.iter().enumerate() {
+            for (pc, step) in code.iter().enumerate() {
+                let Op::Db { stmt } = &step.op else { continue };
+                if stmt.conn != crate::ir::Conn::Replica {
+                    continue;
+                }
+                let path = format!("actors[{ai}].codes[{ci}][{pc}]");
+                if !model.features.replicas {
+                    return bad(
+                        path,
+                        "a read routed to a read replica needs the feature `replicas` (otherwise it is not modeled)",
+                    );
+                }
+                let plain = match &stmt.kind {
+                    StmtKind::Select { lock, .. } => *lock == crate::ir::LockMode::None,
+                    StmtKind::SelectCount { .. } => true,
+                    _ => false,
+                };
+                if !plain {
+                    return bad(
+                        path,
+                        "only plain reads run on a read replica (writes and row locks are refused there)",
+                    );
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Phase 13: an invariant may read what an actor returned only if every
+/// return value of its main task is modeled; an unknown one is reported,
+/// never guessed.
+fn check_return_values(model: &Model) -> Result<(), ScenarioError> {
+    for (i, inv) in model.invariants.iter().enumerate() {
+        for f in inv.formula.returned_functions() {
+            for a in &model.actors {
+                if f.as_ref().is_some_and(|f| *f != a.function.name) {
+                    continue;
+                }
+                let Some(main) = a.codes.first() else {
+                    continue;
+                };
+                for step in main {
+                    if let Op::ReturnValue { expr } = &step.op
+                        && let Some(detail) = expr.unknown_detail()
+                    {
+                        return bad(
+                            format!("invariants[{i}]"),
+                            format!(
+                                "`{}` reads what `{}` returns, but the return value at {} is not modeled: {detail}",
+                                inv.name,
+                                a.name,
+                                step.src.label()
+                            ),
+                        );
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Phase 13: refuse scenarios whose statements would run a foreign-key
+/// behavior the model does not execute (a referential action other than NO
+/// ACTION / RESTRICT, a check deferred to COMMIT).
+fn check_foreign_keys(model: &Model) -> Result<(), ScenarioError> {
+    let writes = |table: &str| {
+        let mut out = (false, false, Vec::<String>::new());
+        for a in &model.actors {
+            for step in a.codes.iter().flatten() {
+                if let Op::Db { stmt } = &step.op {
+                    if stmt.kind.table() != table {
+                        continue;
+                    }
+                    match &stmt.kind {
+                        StmtKind::Insert { .. } => out.0 = true,
+                        StmtKind::Update { set, .. } => {
+                            out.0 = true;
+                            out.2.extend(set.iter().map(|(c, _)| c.clone()));
+                        }
+                        StmtKind::Delete { .. } => out.1 = true,
+                        _ => {}
+                    }
+                }
+            }
+        }
+        out
+    };
+    for t in &model.schema.tables {
+        for fk in &t.foreign_keys {
+            let name = fk.name(&t.name);
+            if fk.initially_deferred && writes(&t.name).0 {
+                return bad(
+                    "database",
+                    format!(
+                        "`{name}` is DEFERRABLE INITIALLY DEFERRED (checked at COMMIT): not modeled"
+                    ),
+                );
+            }
+            let (_, deletes, updated) = writes(&fk.references);
+            if deletes && !fk.on_delete.supported() {
+                return bad(
+                    "database",
+                    format!(
+                        "`{name}` is ON DELETE {} and `{}` rows are deleted: only NO ACTION and RESTRICT are modeled",
+                        fk.on_delete.sql(),
+                        fk.references
+                    ),
+                );
+            }
+            if !fk.on_update.supported()
+                && updated.iter().any(|c| fk.referenced_columns.contains(c))
+            {
+                return bad(
+                    "database",
+                    format!(
+                        "`{name}` is ON UPDATE {} and the referenced key of `{}` is updated: only NO ACTION and RESTRICT are modeled",
+                        fk.on_update.sql(),
+                        fk.references
+                    ),
+                );
+            }
+        }
+    }
+    Ok(())
 }
 
 fn contains_generated(v: &Value) -> bool {
@@ -1283,6 +1758,11 @@ fn build_initial(
                 path: path.clone(),
                 message: e.message,
             })?;
+            // Phase 14: time and JSON columns hold the values the model
+            // represents.
+            if let Some(why) = crate::db::typed_row_problem(table, &full) {
+                return bad(&path, why);
+            }
             for (cname, cols) in table.key_sets() {
                 let key = crate::db::key_tuple(&full, &cols);
                 if key.iter().any(Value::is_null) {
@@ -1311,6 +1791,52 @@ type ActorBuild = (
     Option<crate::provider::EntryInfo>,
 );
 
+/// Phase 13: what the extraction of an actor must produce beyond Phase 12.
+#[derive(Clone, Copy)]
+struct Wants {
+    replicas: bool,
+    js_values: bool,
+    return_values: bool,
+}
+
+/// Phase 13: insert [`Op::Respond`] before every return of the main task
+/// (code 0), keeping jump targets: a jump to a return now reaches its
+/// response first.
+fn insert_responses(codes: &mut [Vec<Step>]) {
+    let Some(main) = codes.first_mut() else {
+        return;
+    };
+    let returns: Vec<usize> = main
+        .iter()
+        .enumerate()
+        .filter(|(_, s)| matches!(s.op, Op::Return))
+        .map(|(i, _)| i)
+        .collect();
+    // New index of an old position `t` that is a jump target: shifted by
+    // the responses inserted strictly before it (a response inserted AT `t`
+    // takes `t`'s place, so a jump to the return reaches it first).
+    let moved = |t: usize| t + returns.iter().filter(|r| **r < t).count();
+    for step in main.iter_mut() {
+        match &mut step.op {
+            Op::Jump { target } | Op::JumpIf { target, .. } => *target = moved(*target),
+            Op::Try { handler, .. } => *handler = moved(*handler),
+            _ => {}
+        }
+    }
+    for (k, r) in returns.iter().enumerate() {
+        let at = r + k;
+        let src = main[at].src.clone();
+        main.insert(
+            at,
+            Step {
+                op: Op::Respond,
+                src,
+            },
+        );
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn actor_program(
     a: &RawActor,
     path: &str,
@@ -1319,6 +1845,7 @@ fn actor_program(
     facts: &[crate::schema_facts::TableFacts],
     base_dir: &Path,
     provider: &dyn ActorProvider,
+    wants: Wants,
 ) -> Result<ActorBuild, ScenarioError> {
     if a.program.is_some() && a.codes.is_some() {
         return bad(path, "give either `program` or `codes`, not both");
@@ -1439,6 +1966,10 @@ fn actor_program(
                 }
             })
         }),
+        replicas: wants.replicas,
+        replica_factories: extraction.replica_factories.clone(),
+        return_values: wants.return_values,
+        js_values: wants.js_values,
     };
     let extracted = provider.extract(&request).map_err(|e| ScenarioError {
         path: path.to_owned(),
@@ -1500,7 +2031,12 @@ pub fn seal_unknowns(codes: &mut [Vec<Step>]) {
                         exprs.push(pred);
                         exprs.extend(set.iter().map(|(_, e)| e));
                     }
-                    StmtKind::Insert { values, .. } => exprs.extend(values.iter().map(|(_, e)| e)),
+                    StmtKind::Insert {
+                        values, more_rows, ..
+                    } => {
+                        exprs.extend(values.iter().map(|(_, e)| e));
+                        exprs.extend(more_rows.iter().flatten().map(|(_, e)| e));
+                    }
                 },
                 _ => {}
             }
@@ -1544,7 +2080,7 @@ pub fn validate(model: &Model) -> Result<(), ScenarioError> {
         for code in &actor.codes {
             for step in code {
                 match &step.op {
-                    Op::Let { local, .. } => {
+                    Op::Let { local, .. } | Op::Generate { local, .. } => {
                         defined.insert(local.clone());
                     }
                     Op::AppRead { into, .. } => {
@@ -1724,6 +2260,11 @@ fn check_step(
             Ok(())
         }
         Op::AppWrite { expr, .. } => check_expr(model, expr, None, defined, at),
+        // Phase 13: an unknown return value is allowed here (it is refused
+        // only when an invariant reads it).
+        Op::ReturnValue { expr } if expr.unknown_detail().is_none() => {
+            check_expr(model, expr, None, defined, at)
+        }
         Op::Db { stmt } => match &stmt.kind {
             StmtKind::Select {
                 table,
@@ -1800,13 +2341,31 @@ fn check_step(
                 }
                 Ok(())
             }
-            StmtKind::Insert { table, values, .. } => {
+            StmtKind::Insert {
+                table,
+                values,
+                more_rows,
+                ..
+            } => {
                 let t = table_of(table)?;
-                for (c, e) in values {
-                    if !t.has_column(c) {
-                        return bad(at, format!("unknown column `{table}.{c}`"));
+                // Phase 14: a multi-row insert, bounded.
+                if more_rows.len() + 1 > crate::ir::MAX_INSERT_ROWS {
+                    return bad(
+                        at,
+                        format!(
+                            "a multi-row insert of {} rows exceeds the bound of {}",
+                            more_rows.len() + 1,
+                            crate::ir::MAX_INSERT_ROWS
+                        ),
+                    );
+                }
+                for row in std::iter::once(values).chain(more_rows.iter()) {
+                    for (c, e) in row {
+                        if !t.has_column(c) {
+                            return bad(at, format!("unknown column `{table}.{c}`"));
+                        }
+                        check_expr(model, e, None, defined, at)?;
                     }
-                    check_expr(model, e, None, defined, at)?;
                 }
                 Ok(())
             }
@@ -1856,6 +2415,17 @@ fn standard_assumptions(model: &Model, report: &LoadReport) -> Vec<String> {
             names.join(", ")
         ));
         v.push("generated values have no known order: rows with generated keys are ordered by generation event where a LIMIT 1 read needs an order (PostgreSQL orders them by their random value)".into());
+    }
+    // Phase 14: clock readings.
+    if model
+        .schema
+        .tables
+        .iter()
+        .flat_map(|t| &t.columns)
+        .any(|c| crate::db::is_time_type(c.sql_type.as_deref()))
+    {
+        v.push("clock-readings-opaque: `now()` is the transaction's start time (the same value for every statement of one transaction, PostgreSQL's transaction_timestamp()); an application clock reading (`new Date()`, `$defaultFn`/`$onUpdate(() => new Date())`) is one value per evaluation; readings are opaque: they have no known order (an order comparison is unsupported) and two different readings are assumed to differ from each other and from every explicit value (clock-readings-distinct)".into());
+        v.push("explicit time values are canonical text (`YYYY-MM-DDTHH:MM:SS.sssZ` for timestamp/timestamptz, what a Drizzle `Date` serializes to; `YYYY-MM-DD` for date) and compare as the instants they denote; any other value written to a time column is unsupported".into());
     }
     for a in &model.actors {
         if a.codes
