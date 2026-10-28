@@ -1321,21 +1321,36 @@ impl super::TsActorProvider {
         root: &std::path::Path,
         selector: &str,
     ) -> std::collections::BTreeMap<String, String> {
+        self.param_signature(root, selector).0
+    }
+
+    /// Phase 15: [`Self::param_annotations`] and the parameter paths that
+    /// may be omitted (`x?: T`, a member `x?: T`, or a parameter with a
+    /// default value): those accept `undefined` whatever their annotation.
+    pub fn param_signature(
+        &self,
+        root: &std::path::Path,
+        selector: &str,
+    ) -> (
+        std::collections::BTreeMap<String, String>,
+        std::collections::BTreeSet<String>,
+    ) {
         let mut out = std::collections::BTreeMap::new();
+        let mut optional = std::collections::BTreeSet::new();
         let Ok(sel) = crate::identity::Selector::parse(selector) else {
-            return out;
+            return (out, optional);
         };
         let abs = crate::resolve::absolute(&root.join(&sel.module));
         let Ok(source) = std::fs::read_to_string(&abs) else {
-            return out;
+            return (out, optional);
         };
         let allocator = oxc_allocator::Allocator::default();
         let Ok(program) = super::load(&allocator, &abs, &source) else {
-            return out;
+            return (out, optional);
         };
         let lines = commitrift_core::location::LineIndex::new(&source);
         let Ok(found) = crate::identity::resolve(&program, &lines, &sel) else {
-            return out;
+            return (out, optional);
         };
         for (index, item) in found.node.params().items.iter().enumerate() {
             let base = match &item.pattern {
@@ -1343,12 +1358,28 @@ impl super::TsActorProvider {
                 BindingPattern::ObjectPattern(_) => format!("_param{index}"),
                 _ => continue,
             };
+            if item.optional || item.initializer.is_some() {
+                optional.insert(base.clone());
+            }
             if let Some(t) = &item.type_annotation {
-                annotate(&program, &source, &base, &t.type_annotation, 0, &mut out);
+                let mut sink = Sink {
+                    out: &mut out,
+                    optional: &mut optional,
+                    file: &abs,
+                };
+                annotate(&program, &source, &base, &t.type_annotation, 0, &mut sink);
             }
         }
-        out
+        (out, optional)
     }
+}
+
+/// Where [`annotate`] records annotations and optional members.
+struct Sink<'s> {
+    out: &'s mut std::collections::BTreeMap<String, String>,
+    optional: &'s mut std::collections::BTreeSet<String>,
+    /// The module being read (Phase 15: imported aliases are followed).
+    file: &'s std::path::Path,
 }
 
 fn annotate(
@@ -1357,12 +1388,12 @@ fn annotate(
     path: &str,
     t: &oxc_ast::ast::TSType<'_>,
     depth: u32,
-    out: &mut std::collections::BTreeMap<String, String>,
+    out: &mut Sink<'_>,
 ) {
     use oxc_ast::ast::{TSSignature, TSType, TSTypeName};
     let span = t.span();
     if let Some(text) = source.get(span.start as usize..span.end as usize) {
-        out.insert(
+        out.out.insert(
             path.to_owned(),
             text.split_whitespace().collect::<Vec<_>>().join(" "),
         );
@@ -1370,14 +1401,16 @@ fn annotate(
     if depth >= 3 {
         return;
     }
-    let members = |signatures: &[TSSignature<'_>],
-                   out: &mut std::collections::BTreeMap<String, String>| {
+    let members = |signatures: &[TSSignature<'_>], out: &mut Sink<'_>| {
         for s in signatures {
             if let TSSignature::TSPropertySignature(p) = s
                 && !p.computed
                 && let Some(key) = super::static_key(&p.key)
                 && let Some(t) = &p.type_annotation
             {
+                if p.optional {
+                    out.optional.insert(format!("{path}.{key}"));
+                }
                 annotate(
                     program,
                     source,
@@ -1413,13 +1446,131 @@ fn annotate(
                     {
                         if let TSType::TSTypeLiteral(lit) = &a.type_annotation {
                             members(&lit.members, out);
+                        } else if let Some(text) = literal_union(&a.type_annotation) {
+                            // Phase 15: `type Kind = "a" | "b"` types the path.
+                            out.out.insert(path.to_owned(), text);
                         }
                         return;
                     }
                     _ => {}
                 }
             }
+            // Phase 15: an alias imported from a project module.
+            if let Some(text) = imported_literal_union(program, out.file, name, 0) {
+                out.out.insert(path.to_owned(), text);
+            }
         }
         _ => {}
     }
+}
+
+/// Phase 15: `"a" | "b"` for a type that is a union of string literals.
+fn literal_union(t: &oxc_ast::ast::TSType<'_>) -> Option<String> {
+    use oxc_ast::ast::{TSLiteral, TSType};
+    let one = |t: &TSType<'_>| match t {
+        TSType::TSLiteralType(l) => match &l.literal {
+            TSLiteral::StringLiteral(s) => Some(format!("{:?}", s.value.as_str()?)),
+            _ => None,
+        },
+        _ => None,
+    };
+    match t {
+        TSType::TSUnionType(u) => {
+            let parts: Option<Vec<String>> = u.types.iter().map(one).collect();
+            parts.map(|p| p.join(" | "))
+        }
+        other => one(other),
+    }
+}
+
+/// Phase 15: a relative import specifier as a project file.
+fn relative_module(from: &std::path::Path, specifier: &str) -> Option<std::path::PathBuf> {
+    if !(specifier.starts_with("./") || specifier.starts_with("../")) {
+        return None;
+    }
+    let base = crate::resolve::normalize(&from.parent()?.join(specifier));
+    let text = base.to_string_lossy().into_owned();
+    let stem = text
+        .strip_suffix(".js")
+        .or_else(|| text.strip_suffix(".mjs"))
+        .unwrap_or(&text)
+        .to_owned();
+    [
+        format!("{stem}.ts"),
+        format!("{stem}.tsx"),
+        text.clone(),
+        format!("{text}/index.ts"),
+    ]
+    .into_iter()
+    .map(std::path::PathBuf::from)
+    .find(|p| p.is_file())
+}
+
+/// Phase 15: the literal union an imported type name stands for, following
+/// relative imports and re-exports (`export *`, `export { X } from`) up to
+/// a small depth.
+fn imported_literal_union(
+    program: &Program<'_>,
+    file: &std::path::Path,
+    name: &str,
+    depth: u32,
+) -> Option<String> {
+    use oxc_ast::ast::ImportDeclarationSpecifier;
+    for s in &program.body {
+        let Statement::ImportDeclaration(d) = s else {
+            continue;
+        };
+        for spec in d.specifiers.iter().flatten() {
+            if let ImportDeclarationSpecifier::ImportSpecifier(x) = spec
+                && x.local.name.as_str() == name
+            {
+                let target = relative_module(file, d.source.value.as_str().unwrap_or_default())?;
+                return alias_in_module(&target, x.imported.name().as_str(), depth + 1);
+            }
+        }
+    }
+    None
+}
+
+fn alias_in_module(file: &std::path::Path, name: &str, depth: u32) -> Option<String> {
+    if depth > 4 {
+        return None;
+    }
+    let source = std::fs::read_to_string(file).ok()?;
+    let allocator = oxc_allocator::Allocator::default();
+    let program = super::load(&allocator, file, &source).ok()?;
+    for s in &program.body {
+        let declaration = match s {
+            Statement::ExportDeclaration(e) => Some(&e.declaration),
+            other => other.as_declaration(),
+        };
+        if let Some(oxc_ast::ast::Declaration::TSTypeAliasDeclaration(a)) = declaration
+            && a.id.name.as_str() == name
+        {
+            return literal_union(&a.type_annotation);
+        }
+    }
+    for s in &program.body {
+        match s {
+            Statement::ExportFromDeclaration(e) => {
+                for spec in &e.specifiers {
+                    if spec.exported.name().as_str() == name {
+                        let target =
+                            relative_module(file, e.source.value.as_str().unwrap_or_default())?;
+                        return alias_in_module(&target, spec.local.name().as_str(), depth + 1);
+                    }
+                }
+            }
+            Statement::ExportAllDeclaration(e) if e.exported.is_none() => {
+                if let Some(target) =
+                    relative_module(file, e.source.value.as_str().unwrap_or_default())
+                    && let Some(found) = alias_in_module(&target, name, depth + 1)
+                {
+                    return Some(found);
+                }
+            }
+            _ => {}
+        }
+    }
+    imported_literal_union(&program, file, name, depth)
 }
