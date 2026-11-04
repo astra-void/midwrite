@@ -330,8 +330,12 @@ impl Lowerer<'_> {
             Expression::Identifier(id) => match self.lookup(id.name.as_str()) {
                 Some(Binding::Local(_) | Binding::Object(_)) => true,
                 Some(_) => false,
-                // A module constant (`const PREFIX = "x"`).
-                None => module_constant(m, id.name.as_str()).is_some(),
+                // A module constant (`const PREFIX = "x"`); Phase 16: or a
+                // module-level array of literals (`RETRYABLE.includes(code)`).
+                None => {
+                    module_constant(m, id.name.as_str()).is_some()
+                        || super::module_list_constant(m, id.name.as_str()).is_some()
+                }
             },
             Expression::StaticMemberExpression(member) => {
                 !member.optional && self.value_root(m, &member.object)

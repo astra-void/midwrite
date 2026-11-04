@@ -827,7 +827,16 @@ impl Extractor<'_, '_, '_> {
                                 .and_then(Argument::as_expression)
                                 .map(|e| source_text(source, e).to_owned());
                         }
-                        "nullsNotDistinct" => nulls_not_distinct = true,
+                        "nullsNotDistinct" if root == "unique" => nulls_not_distinct = true,
+                        // Phase 16: Drizzle 0.45's index builders have no
+                        // `nullsNotDistinct()` (a TypeError when the schema
+                        // module loads); only `unique().on(...)` has it.
+                        "nullsNotDistinct" => {
+                            table.unsupported.push(format!(
+                                "line {line}: `{text}`: `{root}().on(...)` has no `nullsNotDistinct()` in Drizzle (only `unique().on(...)` does)"
+                            ));
+                            return;
+                        }
                         "using" | "concurrently" | "with" | "asc" | "desc" | "nullsFirst"
                         | "nullsLast" => {}
                         _ => ok = false,

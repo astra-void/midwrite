@@ -49,6 +49,8 @@ use crate::wrapper;
 
 /// Phase 14: the JavaScript value domain (`ExtractRequest::js_values`).
 mod js_values;
+/// Phase 16: bounded loops, caught errors, request bodies.
+mod loops;
 
 /// Lowers functions of a TypeScript project to the concurrency IR.
 #[derive(Clone, Debug)]
@@ -240,6 +242,9 @@ impl ActorProvider for TsActorProvider {
             alias_hops: 0,
             cached_calls: HashSet::new(),
             pending_scopes: None,
+            const_decl: false,
+            pred_helpers: HashMap::new(),
+            p16: Default::default(),
         };
         for error in lowerer.prov.errors.clone() {
             lowerer.assume(format!("declared replica factory not applied: {error}"));
@@ -531,6 +536,60 @@ fn find_export<'a>(module: &Module<'a>, export_name: &str) -> Result<FnInfo<'a>,
 
 /// Phase 12: the initializer of a top-level `const name = ...` (exported or
 /// not).
+/// Phase 16: the strings of the `const` array `name` denotes in `m` (a
+/// module-level `const NAME = ["a", "b"] as const`, here or imported through
+/// the project's resolver; spreads of such arrays included), or `None`.
+fn const_string_array(
+    ctx: &ProjectContext,
+    m: &Module<'_>,
+    name: &str,
+    depth: u32,
+) -> Option<Vec<String>> {
+    fn strings(
+        ctx: &ProjectContext,
+        m: &Module<'_>,
+        init: &Expression<'_>,
+        depth: u32,
+    ) -> Option<Vec<String>> {
+        let Expression::ArrayExpression(items) = init.get_inner_expression() else {
+            return None;
+        };
+        let mut out = Vec::new();
+        for item in &items.elements {
+            match item {
+                oxc_ast::ast::ArrayExpressionElement::SpreadElement(s) => {
+                    let Expression::Identifier(id) = s.argument.get_inner_expression() else {
+                        return None;
+                    };
+                    out.extend(const_string_array(ctx, m, id.name.as_str(), depth + 1)?);
+                }
+                _ => match item.as_expression().map(|e| e.get_inner_expression()) {
+                    Some(Expression::StringLiteral(s)) => out.push(s.value.as_str()?.to_owned()),
+                    _ => return None,
+                },
+            }
+        }
+        Some(out)
+    }
+    if depth > 4 {
+        return None;
+    }
+    if let Some(init) = const_initializer(m.program, name) {
+        return strings(ctx, m, init, depth);
+    }
+    let file = ctx.index_of(&m.abs)?;
+    let Ok(Resolved::Binding { file, local }) = ctx.resolve_local(file, name) else {
+        return None;
+    };
+    let abs = ctx.files[file].clone();
+    let text = ctx.source(&abs).ok()?;
+    let allocator = Allocator::default();
+    let program = load(&allocator, &abs, &text).ok()?;
+    let module = Module::new(&abs, ctx.rel(&abs), &text, &program);
+    let init = const_initializer(module.program, &local)?;
+    strings(ctx, &module, init, depth)
+}
+
 fn const_initializer<'a>(program: &'a Program<'a>, name: &str) -> Option<&'a Expression<'a>> {
     for statement in &program.body {
         let declaration = match statement {
@@ -1043,12 +1102,154 @@ enum Binding {
     /// Phase 14: a zod schema passed to an inlined function (its
     /// `parse`/`safeParse` are modeled by `crate::zod`), or why it is not
     /// modeled.
-    Zod(Box<Result<crate::zod::Schema, String>>),
+    Zod(Box<Result<crate::zod::Validated, String>>),
     /// Phase 14: a function value (an arrow function or function
     /// expression passed to an inlined project function). Calling it
     /// inlines its body where the call happens, with the bindings of its
     /// definition (`docs/phase14/SOURCE-COVERAGE.md`).
     Closure(Box<Closure>),
+    /// Phase 16: a Drizzle predicate held in a local (`const p = and(eq(..),
+    /// ..)`), lowered where it is declared: its JavaScript operands are
+    /// locals assigned there (Drizzle captures their values when `eq()` is
+    /// called), its columns stay columns. `.where(p)` and `and(p, ..)` use
+    /// it (`docs/phase16/DRIZZLE-PREDICATES.md`).
+    Pred(Box<HeldPred>),
+    /// Phase 16: a caught error a handler inspects: the local holding the
+    /// error object (`docs/phase16/LOOP-SEMANTICS.md`).
+    Caught(String),
+    /// Phase 16: a route handler's `Request` parameter: `await
+    /// request.json()` is the local (the actor's argument) holding the
+    /// parsed body (`docs/phase16/FRAMEWORK-REQUESTS.md`).
+    Request(String),
+}
+
+/// Phase 16: a Drizzle predicate held in a local ([`Binding::Pred`]).
+#[derive(Clone, Debug)]
+struct HeldPred {
+    /// The predicate, or an `Expr::Unknown` saying why the declaration is
+    /// not modeled.
+    expr: Expr,
+    /// When the local may hold `undefined` (`c ? eq(..) : undefined`): a
+    /// boolean expression over locals, true when it holds the predicate.
+    /// Drizzle's `and`/`or`/`where` drop an `undefined` operand.
+    defined: Option<Expr>,
+    /// Where it was declared (`file:line:column`).
+    at: String,
+}
+
+/// Phase 16: the Drizzle operators a predicate is built from (as
+/// [`Lowerer::pred_in`] lowers them).
+const PRED_OPS: [&str; 13] = [
+    "eq",
+    "ne",
+    "gt",
+    "gte",
+    "lt",
+    "lte",
+    "and",
+    "or",
+    "not",
+    "isNull",
+    "isNotNull",
+    "inArray",
+    "notInArray",
+];
+
+/// Phase 16: `undefined` or `void x` (what Drizzle's `and`/`or` drop; `null`
+/// is not dropped).
+fn undefined_like(e: &Expression<'_>) -> bool {
+    let e = e.get_inner_expression();
+    is_nullish(e) && !matches!(e, Expression::NullLiteral(_))
+        || matches!(e, Expression::UnaryExpression(u) if u.operator == UnaryOperator::Void)
+}
+
+/// Phase 16: whether a `select(...)` projection is `{ name: count() }`.
+fn is_count_projection(argument: &Argument<'_>) -> bool {
+    matches!(argument.as_expression().map(Expression::get_inner_expression),
+        Some(Expression::ObjectExpression(object))
+            if object.properties.len() == 1
+                && matches!(&object.properties[0], ObjectPropertyKind::ObjectProperty(p)
+                    if matches!(p.value.get_inner_expression(), Expression::CallExpression(c)
+                        if c.arguments.is_empty()
+                            && matches!(c.callee.get_inner_expression(), Expression::Identifier(i) if i.name.as_str() == "count"))))
+}
+
+/// Phase 16: the expression a non-async function returns when its body is
+/// that one `return` (or an arrow's expression body).
+fn returned_expr<'a>(info: &FnInfo<'a>) -> Option<&'a Expression<'a>> {
+    if info.is_async {
+        return None;
+    }
+    match &info.body {
+        FnBody::Expr(e) => Some(e),
+        FnBody::Block(body) => match body.statements.as_slice() {
+            [Statement::ReturnStatement(r)] => r.argument.as_ref(),
+            _ => None,
+        },
+    }
+}
+
+/// Phase 16: whether a lowered predicate reads a clock placeholder (bound per
+/// statement execution, not where a held predicate was built).
+fn reads_clock(e: &Expr) -> bool {
+    fn value(v: &Value) -> bool {
+        match v {
+            Value::Gen(g) => {
+                commitrift_model::db::is_clock(g)
+                    && g.actor == commitrift_model::db::CLOCK_PLACEHOLDER
+            }
+            Value::Row(r) => r.values().any(value),
+            Value::List(items) => items.iter().any(value),
+            _ => false,
+        }
+    }
+    match e {
+        Expr::Lit(v) => value(v),
+        Expr::Field(x, _) | Expr::Not(x) | Expr::IsNull(x) => reads_clock(x),
+        Expr::Bin(_, a, b) => reads_clock(a) || reads_clock(b),
+        Expr::Object(fields) => fields.iter().any(|(_, x)| reads_clock(x)),
+        Expr::Array(xs) | Expr::Call { args: xs, .. } => xs.iter().any(reads_clock),
+        Expr::Each { list, body, .. } => reads_clock(list) || reads_clock(body),
+        Expr::Local(_) | Expr::Col(_) | Expr::Unknown(_) => false,
+    }
+}
+
+/// Phase 16: whether the module's text assigns `name` more than once
+/// (`name = ...` beyond its declaration, compound assignments, `++`/`--`).
+/// Conservative: a same-named variable anywhere in the module counts.
+fn reassigned(text: &str, name: &str) -> bool {
+    let bytes = text.as_bytes();
+    let is_ident = |b: u8| b.is_ascii_alphanumeric() || b == b'_' || b == b'$';
+    let mut assignments = 0;
+    let mut start = 0;
+    while let Some(found) = text[start..].find(name) {
+        let at = start + found;
+        start = at + name.len();
+        if at > 0 && (is_ident(bytes[at - 1]) || bytes[at - 1] == b'.') {
+            continue;
+        }
+        if bytes.get(at + name.len()).is_some_and(|b| is_ident(*b)) {
+            continue;
+        }
+        let before = text[..at].trim_end();
+        if before.ends_with("++") || before.ends_with("--") {
+            return true;
+        }
+        let after = text[at + name.len()..].trim_start();
+        if after.starts_with("++") || after.starts_with("--") {
+            return true;
+        }
+        let compound = [
+            "+=", "-=", "*=", "/=", "%=", "??=", "||=", "&&=", "|=", "&=",
+        ];
+        if compound.iter().any(|op| after.starts_with(op)) {
+            return true;
+        }
+        if after.starts_with('=') && !after.starts_with("==") && !after.starts_with("=>") {
+            assignments += 1;
+        }
+    }
+    assignments > 1
 }
 
 /// Phase 14: a closure: where its function node is, and the scopes it
@@ -1201,6 +1402,13 @@ struct Lowerer<'r> {
     cached_calls: HashSet<(PathBuf, String)>,
     /// Phase 14: the scopes the next inlined function closed over.
     pending_scopes: Option<Vec<HashMap<String, Binding>>>,
+    /// Phase 16: the declaration being lowered is a `const`.
+    const_decl: bool,
+    /// Phase 16: imported functions already examined as predicate helpers
+    /// (module, export) → whether their body is `return <predicate>`.
+    pred_helpers: HashMap<(PathBuf, String), bool>,
+    /// Phase 16: loop unrolling, caught errors and request state.
+    p16: loops::Phase16,
 }
 
 struct ChainStep<'a, 'b> {
@@ -1271,6 +1479,9 @@ impl<'r> Lowerer<'r> {
     }
 
     fn emit(&mut self, module: &Module<'_>, span: Span, op: Op) -> (usize, usize) {
+        if let Op::Let { local, expr } = &op {
+            self.p16.note_let(local, expr);
+        }
         let step = Step {
             op,
             src: self.src(module, span),
@@ -1758,6 +1969,15 @@ impl<'r> Lowerer<'r> {
                 // Phase 12: a parameter declared with a Drizzle database type
                 // (`db: Database` where `Database` is a drizzle-orm
                 // `...Database` type) is the root database handle.
+                // Phase 16: a route handler's `request: Request`.
+                if let Some(annotation) = &item.type_annotation
+                    && let Some(t) = crate::context::reference_name(&annotation.type_annotation)
+                    && self.request_param(module, &t)
+                {
+                    self.declare(&name, Binding::Request(name.clone()));
+                    params.push(name);
+                    continue;
+                }
                 if let Some(annotation) = &item.type_annotation {
                     let file = self.ctx.index_of(&module.abs);
                     let span = annotation.type_annotation.span();
@@ -1901,7 +2121,9 @@ impl<'r> Lowerer<'r> {
             }
             Statement::VariableDeclaration(d) => {
                 for declarator in &d.declarations {
+                    self.const_decl = d.kind == oxc_ast::ast::VariableDeclarationKind::Const;
                     self.declarator(m, declarator);
+                    self.const_decl = false;
                 }
             }
             Statement::IfStatement(s) => {
@@ -1948,12 +2170,19 @@ impl<'r> Lowerer<'r> {
                 self.return_value(m, s.argument.as_ref(), s.span);
             }
             Statement::ThrowStatement(s) => {
-                let message = throw_message(&s.argument);
-                self.emit(m, s.span, Op::Throw { message });
+                // Phase 16: re-throws and inspected `Error`s keep the error.
+                if !self.structured_throw(m, s) {
+                    let message = throw_message(&s.argument);
+                    self.emit(m, s.span, Op::Throw { message });
+                }
             }
             Statement::TryStatement(t) => self.try_statement(m, t),
             Statement::SwitchStatement(sw) => self.switch_statement(m, sw),
             Statement::ForOfStatement(f) => self.for_of(m, f),
+            // Phase 16: bounded loops (JavaScript values only).
+            Statement::ForStatement(f) if self.for_statement(m, f) => {}
+            Statement::WhileStatement(w) if self.while_statement(m, w) => {}
+            Statement::DoWhileStatement(d) if self.do_while_statement(m, d) => {}
             Statement::BreakStatement(b)
                 if b.label.is_none() && !self.frame().breaks.is_empty() =>
             {
@@ -2028,18 +2257,43 @@ impl<'r> Lowerer<'r> {
             return;
         }
         let rethrow = (t.handler.is_none()).then(|| self.tmp("err"));
+        // Phase 16: a handler that uses the caught error (other than to
+        // re-throw it) receives the error object.
+        let inspected = self.js()
+            && t.handler.as_ref().is_some_and(|h| {
+                matches!(&h.param, Some(p) if matches!(&p.pattern,
+                    BindingPattern::BindingIdentifier(id) if loops::catch_inspects(&h.body.body, id.name.as_str())))
+            });
+        let caught = inspected.then(|| self.tmp("caught"));
+        let shape = if inspected {
+            self.p16.caught_seen = true;
+            Some(self.caught_shape(m))
+        } else if self.p16.inspecting > 0 && rethrow.is_some() {
+            // A `finally` inside an inspected block re-throws the error
+            // object unchanged.
+            Some(self.caught_shape(m))
+        } else {
+            None
+        };
         let enter = self.emit(
             m,
             t.block.span,
             Op::Try {
                 handler: usize::MAX,
-                error: rethrow.clone(),
+                error: rethrow.clone().or_else(|| caught.clone()),
+                inspect: shape,
             },
         );
         self.frame_mut().tries += 1;
         self.frame_mut().scopes.push(HashMap::new());
+        if inspected {
+            self.p16.inspecting += 1;
+        }
         for statement in &t.block.body {
             self.statement(m, statement);
+        }
+        if inspected {
+            self.p16.inspecting -= 1;
         }
         self.frame_mut().scopes.pop();
         self.frame_mut().tries -= 1;
@@ -2060,14 +2314,15 @@ impl<'r> Lowerer<'r> {
         match (&t.handler, &rethrow) {
             (Some(catch), _) => {
                 // The catch body may throw: run `finally`, then re-throw.
-                let caught = t.finalizer.is_some().then(|| self.tmp("err"));
-                let inner = caught.as_ref().map(|err| {
+                let caught_after = t.finalizer.is_some().then(|| self.tmp("err"));
+                let inner = caught_after.as_ref().map(|err| {
                     self.emit(
                         m,
                         catch.span,
                         Op::Try {
                             handler: usize::MAX,
                             error: Some(err.clone()),
+                            inspect: shape,
                         },
                     )
                 });
@@ -2077,9 +2332,12 @@ impl<'r> Lowerer<'r> {
                 self.frame_mut().scopes.push(HashMap::new());
                 if let Some(param) = &catch.param {
                     match &param.pattern {
-                        BindingPattern::BindingIdentifier(id) => {
-                            self.declare(id.name.as_str(), Binding::Opaque);
-                        }
+                        BindingPattern::BindingIdentifier(id) => match &caught {
+                            Some(local) => {
+                                self.declare(id.name.as_str(), Binding::Caught(local.clone()));
+                            }
+                            None => self.declare(id.name.as_str(), Binding::Opaque),
+                        },
                         _ => {
                             self.unknown_op(
                                 m,
@@ -2093,7 +2351,7 @@ impl<'r> Lowerer<'r> {
                     self.statement(m, statement);
                 }
                 self.frame_mut().scopes.pop();
-                if let (Some(inner), Some(err)) = (inner, caught) {
+                if let (Some(inner), Some(err)) = (inner, caught_after) {
                     self.frame_mut().tries -= 1;
                     self.emit(m, catch.span, Op::EndTry);
                     finally(self);
@@ -2275,6 +2533,12 @@ impl<'r> Lowerer<'r> {
         self.frame_mut()
             .breaks
             .push((Vec::new(), Some(Vec::new()), tries));
+        // Phase 16: the loop's classification (JavaScript values only).
+        self.for_of_completed(
+            m,
+            f.span,
+            &format!("an array literal of {} element(s)", elements.len()),
+        );
         for (value, span) in elements {
             self.frame_mut().scopes.push(HashMap::new());
             let local = self.fresh(&name);
@@ -2381,6 +2645,10 @@ impl<'r> Lowerer<'r> {
     }
 
     fn expression_statement(&mut self, m: &Module<'_>, expression: &Expression<'_>, span: Span) {
+        // Phase 16: `x++`, `x += k` on locals (JavaScript values only).
+        if self.update_statement(m, expression, span) {
+            return;
+        }
         match expression.get_inner_expression() {
             Expression::AwaitExpression(a) => {
                 self.call_value(m, &a.argument, true, Want::Discard, span);
@@ -2439,6 +2707,15 @@ impl<'r> Lowerer<'r> {
         match &d.id {
             BindingPattern::BindingIdentifier(id) => {
                 let name = id.name.as_str();
+                // Phase 16: `const p = and(eq(..), ..)` (a Drizzle predicate,
+                // an alias of one, a conditional choosing one, or a call of a
+                // project helper returning one): lowered here, used by
+                // `where(p)`.
+                if self.predicate_shaped(m, inner) {
+                    let held = self.held_predicate(m, d, name, inner);
+                    self.declare(name, Binding::Pred(held));
+                    return;
+                }
                 // Phase 12: `const db = getDb()` (or `await getDb()`) of a
                 // database factory binds a root database handle. Phase 13:
                 // also `db.$primary`, `db.usePrimaryOnly()` of a replicated
@@ -2707,6 +2984,18 @@ impl<'r> Lowerer<'r> {
 
     fn expr(&mut self, m: &Module<'_>, e: &Expression<'_>, cx: Cx) -> Expr {
         let e = e.get_inner_expression();
+        // Phase 16: `++x` in a value, `new Response(...)`.
+        if self.js() {
+            match e {
+                Expression::UpdateExpression(u) => return self.update_value(m, u, cx),
+                Expression::NewExpression(new) => {
+                    if let Some(value) = self.new_response(m, new) {
+                        return value;
+                    }
+                }
+                _ => {}
+            }
+        }
         // Phase 14: JavaScript values (inactive without `js_values`).
         if let Some(value) = self.js_expr(m, e, cx) {
             return value;
@@ -2907,6 +3196,14 @@ impl<'r> Lowerer<'r> {
             Some(Binding::Opaque) => Expr::Unknown(format!(
                 "the caught error `{name}` is not modeled (only that it was thrown)"
             )),
+            // Phase 16: an error object is truthy; as a value it is the
+            // object (whose unknown properties stay unknown).
+            Some(Binding::Caught(_)) if cx.truthy => Expr::lit(true),
+            Some(Binding::Caught(local)) => Expr::Local(local),
+            Some(Binding::Request(_)) if cx.truthy => Expr::lit(true),
+            Some(Binding::Request(_)) => Expr::Unknown(format!(
+                "the request `{name}` is only modeled through `await {name}.json()`"
+            )),
             Some(Binding::Zod(_)) if cx.truthy => Expr::lit(true),
             Some(Binding::Zod(_)) => Expr::Unknown(format!(
                 "the zod schema `{name}` is only modeled through `parse`/`safeParse`"
@@ -2921,6 +3218,12 @@ impl<'r> Lowerer<'r> {
             Some(Binding::Object(_)) if cx.truthy => Expr::lit(true),
             Some(Binding::Object(_)) => Expr::Unknown(format!(
                 "the object `{name}` is only modeled through its properties"
+            )),
+            // Phase 16: a Drizzle predicate (an SQL object) is truthy; its
+            // value is only used by the queries it is passed to.
+            Some(Binding::Pred(_)) if cx.truthy => Expr::lit(true),
+            Some(Binding::Pred(_)) => Expr::Unknown(format!(
+                "the Drizzle predicate `{name}` is only modeled where a query uses it (`where`, `and`, `or`, `not`)"
             )),
             None => {
                 if let Some(constant) = module_constant(m, name) {
@@ -2973,6 +3276,21 @@ impl<'r> Lowerer<'r> {
                 Some(Binding::Opaque) => {
                     return Expr::Unknown(format!(
                         "`{name}.{property}`: the caught error's properties are not modeled"
+                    ));
+                }
+                // Phase 16: a property of an error object (never nullish, so
+                // `e?.p` is `e.p`).
+                Some(Binding::Caught(local)) => {
+                    if property.starts_with('$') {
+                        return Expr::Unknown(format!(
+                            "`{name}.{property}`: this property of a caught error is not modeled"
+                        ));
+                    }
+                    return self.read_prop(Expr::Local(local), property);
+                }
+                Some(Binding::Request(_)) => {
+                    return Expr::Unknown(format!(
+                        "`{name}.{property}`: only `await {name}.json()` of a request is modeled"
                     ));
                 }
                 Some(Binding::Rows { length, .. }) => {
@@ -3028,6 +3346,28 @@ impl<'r> Lowerer<'r> {
                     Some(Binding::Local(local)) => Expr::Local(local),
                     _ => return Expr::Unknown("`?.` on a non-local base".to_owned()),
                 },
+                // Phase 16: `e.cause?.code` on a caught error: the base (a
+                // property read) is evaluated first, into a local.
+                _ if self.js() && self.caught_root(object) => {
+                    let value = self.expr(
+                        m,
+                        object,
+                        Cx {
+                            truthy: false,
+                            ..cx
+                        },
+                    );
+                    let tmp = self.tmp("base");
+                    self.emit(
+                        m,
+                        object.span(),
+                        Op::Let {
+                            local: tmp.clone(),
+                            expr: value,
+                        },
+                    );
+                    Expr::Local(tmp)
+                }
                 _ => return Expr::Unknown("`?.` on a non-identifier base".to_owned()),
             };
             let tmp = self.tmp("opt");
@@ -3170,6 +3510,10 @@ impl<'r> Lowerer<'r> {
 
     fn binary(&mut self, m: &Module<'_>, b: &oxc_ast::ast::BinaryExpression<'_>, cx: Cx) -> Expr {
         use BinaryOperator as B;
+        // Phase 16: `e instanceof Error` of a caught error.
+        if let Some(value) = self.caught_instanceof(m, b) {
+            return value;
+        }
         let op = match b.operator {
             B::StrictEquality | B::Equality => BinOp::Eq,
             B::StrictInequality | B::Inequality => BinOp::Ne,
@@ -3293,6 +3637,10 @@ impl<'r> Lowerer<'r> {
         if let Some(res) = self.value_method(m, call, want, call.span) {
             return res;
         }
+        // Phase 16: `await request.json()`, `Response.json(...)`.
+        if let Some(res) = self.http_call(m, call, awaited) {
+            return res;
+        }
         let text = callee_text(&call.callee);
         if text.as_deref() == Some("Promise.all") {
             return self.promise_all(m, call, awaited, want);
@@ -3377,16 +3725,39 @@ impl<'r> Lowerer<'r> {
             && let Some(schema) = self.zod_schema(m, &member.object)
         {
             let safe = member.property.name == "safeParse";
+            // Phase 16: the Phase 14 subset keeps its explicit lowering
+            // (zod 3 semantics, verified identical in zod 4 by the
+            // differential matrix) unless the schema was built with zod 4;
+            // everything else is validated with the version's semantics.
+            let schema = schema.and_then(|v| {
+                if v.schema.is_phase14() && v.version != Ok(crate::zod::Version::V4) {
+                    // The object type test needs the version (zod 4 takes a
+                    // Map or Set for an object): unknown → both.
+                    let version = v.version.unwrap_or(crate::zod::Version::Either);
+                    return Ok((true, version, v.schema));
+                }
+                let version = v.version?;
+                self.zod_static_facts(version, &v.schema)?;
+                Ok((false, version, v.schema))
+            });
             return match schema {
-                Ok(schema) => match call.arguments.first().and_then(|a| a.as_expression()) {
-                    Some(input) if call.arguments.len() == 1 => {
-                        let input = self.expr(m, input, TOP);
-                        self.zod_parse(m, call.span, &schema, input, safe)
+                Ok((phase14, version, schema)) => {
+                    match call.arguments.first().and_then(|a| a.as_expression()) {
+                        Some(input) if call.arguments.len() == 1 => {
+                            let input = self.expr(m, input, TOP);
+                            match phase14 {
+                                true => self.zod_parse(m, call.span, version, &schema, input, safe),
+                                false => self
+                                    .zod_parse_checked(m, call.span, version, &schema, input, safe),
+                            }
+                        }
+                        _ => self.unknown_op(
+                            m,
+                            call.span,
+                            "a zod `parse` with other than one argument",
+                        ),
                     }
-                    _ => {
-                        self.unknown_op(m, call.span, "a zod `parse` with other than one argument")
-                    }
-                },
+                }
                 Err(why) => {
                     let detail = match self.package_contract(m, &call.callee) {
                         Some(contract) => format!("{contract}; the schema is not modeled: {why}"),
@@ -4231,20 +4602,35 @@ impl<'r> Lowerer<'r> {
         &mut self,
         m: &Module<'_>,
         e: &Expression<'_>,
-    ) -> Option<Result<crate::zod::Schema, String>> {
+    ) -> Option<Result<crate::zod::Validated, String>> {
         struct InModule<'m, 'a> {
             module: &'m Module<'a>,
+            /// Phase 16: the project root (where the version lookup stops).
+            root: &'m Path,
+            /// Phase 16: imported `const` arrays (`z.enum(KINDS)`).
+            ctx: &'m ProjectContext,
         }
         impl<'a> crate::zod::Names<'a> for InModule<'_, 'a> {
-            fn is_zod(&self, name: &str) -> bool {
-                matches!(find_import(self.module, name),
-                    Some(ImportRef::Named { source, .. } | ImportRef::Namespace { source })
-                        if crate::packages::is_zod(&source))
+            fn zod_import(&self, name: &str) -> Option<String> {
+                match find_import(self.module, name)? {
+                    ImportRef::Named { source, name } if name == "z" => Some(source),
+                    ImportRef::Namespace { source } | ImportRef::Default { source } => Some(source),
+                    ImportRef::Named { .. } => None,
+                }
+                .filter(|s| crate::packages::is_zod(s))
+            }
+            fn version(&self, specifier: &str) -> Result<crate::zod::Version, String> {
+                crate::zod::resolve_version(&self.module.abs, self.root, specifier)
             }
             fn constant(&self, name: &str) -> Option<&'a Expression<'a>> {
                 const_initializer(self.module.program, name)
             }
+            fn string_array(&self, name: &str) -> Option<Vec<String>> {
+                const_string_array(self.ctx, self.module, name, 0)
+            }
         }
+        let root = self.ctx.root.clone();
+        let ctx = self.ctx.clone();
         let is_zod_chain = |module: &Module<'_>, init: &Expression<'_>| {
             package_chain_root(module, init).is_some_and(|s| crate::packages::is_zod(&s))
         };
@@ -4257,8 +4643,16 @@ impl<'r> Lowerer<'r> {
                     None => {}
                 }
                 if let Some(init) = const_initializer(m.program, name) {
-                    return is_zod_chain(m, init)
-                        .then(|| crate::zod::interpret(init, &InModule { module: m }));
+                    return is_zod_chain(m, init).then(|| {
+                        crate::zod::interpret(
+                            init,
+                            &InModule {
+                                module: m,
+                                root: &root,
+                                ctx: &ctx,
+                            },
+                        )
+                    });
                 }
                 // An imported schema.
                 let file = self.ctx.index_of(&m.abs)?;
@@ -4272,8 +4666,16 @@ impl<'r> Lowerer<'r> {
                 let program = load(&allocator, &abs, &text).ok()?;
                 let module = Module::new(&abs, self.ctx.rel(&abs), &text, &program);
                 let init = const_initializer(module.program, &local)?;
-                is_zod_chain(&module, init)
-                    .then(|| crate::zod::interpret(init, &InModule { module: &module }))
+                is_zod_chain(&module, init).then(|| {
+                    crate::zod::interpret(
+                        init,
+                        &InModule {
+                            module: &module,
+                            root: &root,
+                            ctx: &ctx,
+                        },
+                    )
+                })
             }
             Expression::CallExpression(_) if is_zod_chain(m, e) => {
                 let _ = e;
@@ -4292,6 +4694,7 @@ impl<'r> Lowerer<'r> {
         &mut self,
         m: &Module<'_>,
         span: Span,
+        version: crate::zod::Version,
         schema: &crate::zod::Schema,
         input: Expr,
         safe: bool,
@@ -4317,7 +4720,7 @@ impl<'r> Lowerer<'r> {
             );
         }
         let mut fails = Vec::new();
-        let out = self.zod_validate(m, span, schema, Expr::Local(value), &mut fails);
+        let out = self.zod_validate(m, span, version, schema, Expr::Local(value), &mut fails);
         self.emit(
             m,
             span,
@@ -4375,6 +4778,7 @@ impl<'r> Lowerer<'r> {
         &mut self,
         m: &Module<'_>,
         span: Span,
+        version: crate::zod::Version,
         schema: &crate::zod::Schema,
         value: Expr,
         fails: &mut Vec<(usize, usize)>,
@@ -4444,6 +4848,13 @@ impl<'r> Lowerer<'r> {
                             );
                             cur = Expr::Local(next);
                         }
+                        // Phase 16: lowered by `zod_parse_checked` only.
+                        StrCheck::Uuid | StrCheck::Email | StrCheck::Regex { .. } => require(
+                            self,
+                            Expr::Unknown(
+                                "a zod string format outside the Phase 14 lowering".to_owned(),
+                            ),
+                        ),
                     }
                 }
                 cur
@@ -4456,6 +4867,15 @@ impl<'r> Lowerer<'r> {
                         NumCheck::Gt(n) => (BinOp::Gt, n),
                         NumCheck::Le(n) => (BinOp::Le, n),
                         NumCheck::Lt(n) => (BinOp::Lt, n),
+                        NumCheck::Int => {
+                            require(
+                                self,
+                                Expr::Unknown(
+                                    "zod 4 `.int()` outside the Phase 14 lowering".to_owned(),
+                                ),
+                            );
+                            continue;
+                        }
                     };
                     require(self, Expr::bin(op, value.clone(), Expr::lit(*n)));
                 }
@@ -4480,16 +4900,23 @@ impl<'r> Lowerer<'r> {
                 value
             }
             Schema::Object(fields) => {
+                // Phase 16: the exact object test of the version (`z.object({})`
+                // accepts plain objects only; zod 4 also takes a Map or Set,
+                // which the model refuses). Phase 14 tested `typeof` and
+                // assumed the input was not an array; the differential
+                // matrix showed arrays, Maps and Sets were then accepted.
                 require(
                     self,
-                    Expr::bin(
-                        BinOp::And,
-                        type_of(&value, "object"),
-                        Expr::bin(BinOp::Ne, value.clone(), Expr::Lit(Value::Null)),
+                    call(
+                        B::ZodCheck,
+                        vec![
+                            Expr::Lit(commitrift_model::zodfn::to_value(
+                                version,
+                                &Schema::Object(Vec::new()),
+                            )),
+                            value.clone(),
+                        ],
                     ),
-                );
-                self.assume(
-                    "a zod object schema's input is assumed not to be an array (zod rejects arrays; the model's object test does not distinguish them)",
                 );
                 let mut out = Vec::new();
                 for (key, sub) in fields {
@@ -4502,10 +4929,362 @@ impl<'r> Lowerer<'r> {
                             expr: Expr::field(value.clone(), key),
                         },
                     );
-                    let parsed = self.zod_validate(m, span, sub, Expr::Local(field), fails);
+                    let parsed =
+                        self.zod_validate(m, span, version, sub, Expr::Local(field), fails);
                     out.push((key.clone(), parsed));
                 }
                 Expr::Object(out)
+            }
+            // Phase 16: lowered by `zod_parse_checked` only.
+            _ => {
+                require(
+                    self,
+                    Expr::Unknown("a zod schema outside the Phase 14 lowering".to_owned()),
+                );
+                value
+            }
+        }
+    }
+
+    /// Phase 16: the static facts the output of `schema` needs (what a
+    /// wrapper yields for `undefined`/`null`, what an object yields for an
+    /// absent key), or why they are not modeled (zod 3 and zod 4 differ and
+    /// the version is unknown, ...). Checked before anything is emitted.
+    fn zod_static_facts(
+        &self,
+        version: crate::zod::Version,
+        schema: &crate::zod::Schema,
+    ) -> Result<(), String> {
+        use crate::zod::Schema;
+        use commitrift_model::zodfn;
+        match schema {
+            Schema::Optional(inner) | Schema::Nullable(inner) | Schema::Default(inner, _) => {
+                let special = if matches!(schema, Schema::Nullable(_)) {
+                    Value::Null
+                } else {
+                    Value::undefined()
+                };
+                zodfn::parse(version, schema, &special)
+                    .map_err(|why| format!("`{}`: {why}", zodfn::render(schema)))?;
+                self.zod_static_facts(version, inner)
+            }
+            Schema::Object(fields) | Schema::StrictObject(fields) | Schema::LooseObject(fields) => {
+                for (key, field) in fields {
+                    if zodfn::PROTOTYPE_KEYS.contains(&key.as_str()) {
+                        return Err(format!(
+                            "the zod object key `{key}` (a property of Object.prototype, read through the prototype by zod)"
+                        ));
+                    }
+                    zodfn::absent(version, field).map_err(|why| {
+                        format!("an absent `{key}` (`{}`): {why}", zodfn::render(field))
+                    })?;
+                    self.zod_static_facts(version, field)?;
+                }
+                Ok(())
+            }
+            Schema::Array(item, _) => self.zod_static_facts(version, item),
+            Schema::Str(_)
+            | Schema::Num(_)
+            | Schema::Bool
+            | Schema::Literal(_)
+            | Schema::Enum(_) => Ok(()),
+        }
+    }
+
+    /// Phase 16: `schema.parse(input)` (`safe`: `safeParse`) of a schema
+    /// outside the Phase 14 subset or built with zod 4. The validation is
+    /// one `ZodCheck` of the whole schema with the version's semantics
+    /// (`commitrift_model::zodfn`); the parsed value is then built from the
+    /// input as explicit steps (string transforms, defaults, the keys an
+    /// object keeps, the unknown keys a passthrough object copies), so the
+    /// values the code goes on to use stay traceable to the input's paths.
+    /// `parse` throws when the check fails; `safeParse` yields `{ success,
+    /// data }` with `data` undefined on failure (its `error` is not
+    /// modeled).
+    fn zod_parse_checked(
+        &mut self,
+        m: &Module<'_>,
+        span: Span,
+        version: crate::zod::Version,
+        schema: &crate::zod::Schema,
+        input: Expr,
+        safe: bool,
+    ) -> Res {
+        use commitrift_model::value::Builtin as B;
+        let value = self.tmp("zin");
+        self.emit(
+            m,
+            span,
+            Op::Let {
+                local: value.clone(),
+                expr: input,
+            },
+        );
+        let (ok, success, data) = (self.tmp("zok"), self.tmp("zok"), self.tmp("zout"));
+        self.emit(
+            m,
+            span,
+            Op::Let {
+                local: ok.clone(),
+                expr: Expr::call(
+                    B::ZodCheck,
+                    vec![
+                        Expr::Lit(commitrift_model::zodfn::to_value(version, schema)),
+                        Expr::Local(value.clone()),
+                    ],
+                ),
+            },
+        );
+        if safe {
+            self.emit(
+                m,
+                span,
+                Op::Let {
+                    local: data.clone(),
+                    expr: Expr::undefined(),
+                },
+            );
+        }
+        let fail = self.emit(
+            m,
+            span,
+            Op::JumpIf {
+                cond: Expr::not(Expr::Local(ok)),
+                target: 0,
+            },
+        );
+        let out = self.zod_output(m, span, version, schema, Expr::Local(value));
+        self.emit(
+            m,
+            span,
+            Op::Let {
+                local: data.clone(),
+                expr: out,
+            },
+        );
+        if safe {
+            self.emit(
+                m,
+                span,
+                Op::Let {
+                    local: success.clone(),
+                    expr: Expr::lit(true),
+                },
+            );
+        }
+        let done = self.emit(m, span, Op::Jump { target: 0 });
+        let failed = self.here();
+        self.patch(fail, failed);
+        if safe {
+            self.emit(
+                m,
+                span,
+                Op::Let {
+                    local: success.clone(),
+                    expr: Expr::lit(false),
+                },
+            );
+        } else {
+            self.emit(
+                m,
+                span,
+                Op::Throw {
+                    message: "ZodError: the input does not match the schema".to_owned(),
+                },
+            );
+        }
+        let end = self.here();
+        self.patch(done, end);
+        if safe {
+            let mut fields = BTreeMap::new();
+            fields.insert("success".to_owned(), success);
+            fields.insert("data".to_owned(), data);
+            Res::Fields(fields)
+        } else {
+            Res::Value(Expr::Local(data))
+        }
+    }
+
+    /// Phase 16: the parsed value of `x`, which `schema` accepts (the
+    /// `ZodCheck` before it passed). Facts were checked by
+    /// [`Self::zod_static_facts`].
+    fn zod_output(
+        &mut self,
+        m: &Module<'_>,
+        span: Span,
+        version: crate::zod::Version,
+        schema: &crate::zod::Schema,
+        x: Expr,
+    ) -> Expr {
+        use crate::zod::{Schema, StrCheck};
+        use commitrift_model::value::Builtin as B;
+        use commitrift_model::zodfn::{self, Absent, Unknown};
+        let jump_unless = |this: &mut Self, cond: Expr| {
+            this.emit(
+                m,
+                span,
+                Op::JumpIf {
+                    cond: Expr::not(cond),
+                    target: 0,
+                },
+            )
+        };
+        match schema {
+            Schema::Str(checks) => {
+                let mut cur = x;
+                for c in checks {
+                    let func = match c {
+                        StrCheck::Trim => B::Trim,
+                        StrCheck::Lower => B::ToLowerCase,
+                        StrCheck::Upper => B::ToUpperCase,
+                        _ => continue,
+                    };
+                    cur = Expr::call(func, vec![cur]);
+                }
+                cur
+            }
+            Schema::Num(_) | Schema::Bool | Schema::Literal(_) | Schema::Enum(_) => x,
+            // Elements rebuilt (objects, transforms, defaults): the array's
+            // parsed value, computed whole by the zod semantics.
+            Schema::Array(item, _) if !item.output_is_input() => Expr::call(
+                B::ZodData,
+                vec![Expr::Lit(zodfn::to_value(version, schema)), x],
+            ),
+            Schema::Array(..) => x,
+            Schema::Optional(inner) | Schema::Nullable(inner) | Schema::Default(inner, _) => {
+                let special = if matches!(schema, Schema::Nullable(_)) {
+                    Value::Null
+                } else {
+                    Value::undefined()
+                };
+                // What the wrapper yields for its special value (a failure:
+                // the check rejected it, the value is never used).
+                let at_special = match zodfn::parse(version, schema, &special) {
+                    Ok(Some(v)) => v,
+                    _ => Value::undefined(),
+                };
+                if inner.output_is_input() && at_special == special {
+                    return x;
+                }
+                let o = self.tmp("zval");
+                self.emit(
+                    m,
+                    span,
+                    Op::Let {
+                        local: o.clone(),
+                        expr: Expr::Lit(at_special),
+                    },
+                );
+                let skip = self.emit(
+                    m,
+                    span,
+                    Op::JumpIf {
+                        cond: Expr::eq(x.clone(), Expr::Lit(special)),
+                        target: 0,
+                    },
+                );
+                let inner_out = self.zod_output(m, span, version, inner, x);
+                self.emit(
+                    m,
+                    span,
+                    Op::Let {
+                        local: o.clone(),
+                        expr: inner_out,
+                    },
+                );
+                let end = self.here();
+                self.patch(skip, end);
+                Expr::Local(o)
+            }
+            Schema::Object(_) | Schema::StrictObject(_) | Schema::LooseObject(_) => {
+                let Some((fields, unknown)) = schema.object() else {
+                    return x;
+                };
+                let property = |k: &str| Expr::call(B::At, vec![x.clone(), Expr::lit(k)]);
+                let has = |k: &str| Expr::call(B::HasOwn, vec![x.clone(), Expr::lit(k)]);
+                let mut pairs = Vec::new();
+                let mut omitted = Vec::new();
+                for (key, field) in fields {
+                    match zodfn::absent(version, field) {
+                        Ok(Absent::Omit) => omitted.push((key, field)),
+                        Ok(Absent::Set(u)) => {
+                            let f = self.tmp("zfield");
+                            self.emit(
+                                m,
+                                span,
+                                Op::Let {
+                                    local: f.clone(),
+                                    expr: Expr::Lit(u),
+                                },
+                            );
+                            let skip = jump_unless(self, has(key));
+                            let v = self.zod_output(m, span, version, field, property(key));
+                            self.emit(
+                                m,
+                                span,
+                                Op::Let {
+                                    local: f.clone(),
+                                    expr: v,
+                                },
+                            );
+                            let end = self.here();
+                            self.patch(skip, end);
+                            pairs.push((key.clone(), Expr::Local(f)));
+                        }
+                        // Required (or not modeled, refused before).
+                        _ => {
+                            let v = self.zod_output(m, span, version, field, property(key));
+                            pairs.push((key.clone(), v));
+                        }
+                    }
+                }
+                let o = self.tmp("zobj");
+                self.emit(
+                    m,
+                    span,
+                    Op::Let {
+                        local: o.clone(),
+                        expr: Expr::Object(pairs),
+                    },
+                );
+                for (key, field) in omitted {
+                    let skip = jump_unless(self, has(key));
+                    let v = self.zod_output(m, span, version, field, property(key));
+                    self.emit(
+                        m,
+                        span,
+                        Op::Let {
+                            local: o.clone(),
+                            expr: Expr::call(
+                                B::ObjectAssign,
+                                vec![Expr::Local(o.clone()), Expr::Object(vec![(key.clone(), v)])],
+                            ),
+                        },
+                    );
+                    let end = self.here();
+                    self.patch(skip, end);
+                }
+                if unknown == Unknown::Passthrough {
+                    let keys = Expr::Lit(Value::List(
+                        fields.iter().map(|(k, _)| Value::str(k.as_str())).collect(),
+                    ));
+                    let mut rest = Expr::call(B::OmitKeys, vec![x.clone(), keys]);
+                    // zod 3 drops unknown keys whose value is undefined
+                    // (with an unknown version, `ZodCheck` refuses inputs
+                    // where the versions' outputs differ).
+                    if version != crate::zod::Version::V4 {
+                        rest = Expr::call(B::DefinedEntries, vec![rest]);
+                    }
+                    self.emit(
+                        m,
+                        span,
+                        Op::Let {
+                            local: o.clone(),
+                            expr: Expr::call(B::ObjectAssign, vec![rest, Expr::Local(o.clone())]),
+                        },
+                    );
+                }
+                Expr::Local(o)
             }
         }
     }
@@ -4659,6 +5438,12 @@ impl<'r> Lowerer<'r> {
                 Some(expression) => {
                     if let Some(closure) = self.closure_value(caller, expression) {
                         args.push(ArgVal::Handle(closure));
+                    } else if let Expression::Identifier(id) = expression.get_inner_expression()
+                        && let Some(caught @ Binding::Caught(_)) = self.lookup(id.name.as_str())
+                    {
+                        // Phase 16: a caught error passed to a helper stays
+                        // an error object there.
+                        args.push(ArgVal::Handle(caught));
                     } else if let Some(schema) = self.zod_schema(caller, expression) {
                         args.push(ArgVal::Handle(Binding::Zod(Box::new(schema))));
                     } else if let Some(handle) = self.handle_expr(caller, expression) {
@@ -5144,6 +5929,465 @@ impl<'r> Lowerer<'r> {
         }
     }
 
+    // -- Phase 16: predicates held in locals --------------------------------
+
+    /// Phase 16: whether `e` is a Drizzle predicate a local can hold: an
+    /// operator call (`eq`, `and`, ... imported from `drizzle-orm`), a local
+    /// already holding one, a conditional choosing between two (or between
+    /// one and `undefined`), or a call of a project function whose body is
+    /// `return <predicate>`.
+    fn predicate_shaped(&mut self, m: &Module<'_>, e: &Expression<'_>) -> bool {
+        self.shaped_in(m, e, 0, false)
+    }
+
+    /// `helper`: `e` is a helper's returned expression (its identifiers are
+    /// the helper's, not the caller's).
+    fn shaped_in(&mut self, m: &Module<'_>, e: &Expression<'_>, depth: u32, helper: bool) -> bool {
+        if depth > 4 || self.frames.is_empty() {
+            return false;
+        }
+        match e.get_inner_expression() {
+            Expression::Identifier(id) => {
+                !helper && matches!(self.lookup(id.name.as_str()), Some(Binding::Pred(_)))
+            }
+            Expression::ConditionalExpression(c) => {
+                let a = self.shaped_in(m, &c.consequent, depth + 1, helper);
+                let b = self.shaped_in(m, &c.alternate, depth + 1, helper);
+                (a || undefined_like(&c.consequent))
+                    && (b || undefined_like(&c.alternate))
+                    && (a || b)
+            }
+            Expression::CallExpression(call) => {
+                let Expression::Identifier(id) = call.callee.get_inner_expression() else {
+                    return false;
+                };
+                let name = id.name.as_str();
+                if !helper && self.lookup(name).is_some() {
+                    return false;
+                }
+                if PRED_OPS.contains(&name) {
+                    return matches!(find_import(m, name),
+                        Some(ImportRef::Named { source, name: imported })
+                            if imported == name
+                                && (source == "drizzle-orm" || source.starts_with("drizzle-orm/")));
+                }
+                self.helper_returns_predicate(m, name, depth)
+            }
+            _ => false,
+        }
+    }
+
+    /// Phase 16: whether `name` (a function of the module or imported from
+    /// an analyzed one) is a non-async function whose body is `return
+    /// <predicate>`.
+    fn helper_returns_predicate(&mut self, m: &Module<'_>, name: &str, depth: u32) -> bool {
+        if let Some(info) = find_function(m, name) {
+            return returned_expr(&info).is_some_and(|ret| self.shaped_in(m, ret, depth + 1, true));
+        }
+        let Some(ImportRef::Named {
+            source,
+            name: export,
+        }) = find_import(m, name)
+        else {
+            return false;
+        };
+        if source.starts_with("drizzle-orm") {
+            return false;
+        }
+        let Callee::Imported {
+            abs, rel, export, ..
+        } = self.callee_import(m, &source, export, name)
+        else {
+            return false;
+        };
+        // Each imported function is parsed for this question once.
+        let key = (abs.clone(), export.clone());
+        if let Some(known) = self.pred_helpers.get(&key) {
+            return *known;
+        }
+        let shaped = (|| {
+            let text = self.ctx.source(&abs).ok()?;
+            let allocator = Allocator::default();
+            let program = load(&allocator, &abs, &text).ok()?;
+            let module = Module::new(&abs, rel, &text, &program);
+            let info = find_resolved(&module, &export).ok()?;
+            let ret = returned_expr(&info)?;
+            Some(self.shaped_in(&module, ret, depth + 1, true))
+        })()
+        .unwrap_or(false);
+        self.pred_helpers.insert(key, shaped);
+        shaped
+    }
+
+    /// Phase 16: the predicate held by the declaration `d` of `name`,
+    /// lowered where it is declared.
+    fn held_predicate(
+        &mut self,
+        m: &Module<'_>,
+        d: &VariableDeclarator<'_>,
+        name: &str,
+        init: &Expression<'_>,
+    ) -> Box<HeldPred> {
+        let at = self.src(m, d.span).label();
+        if !self.const_decl && reassigned(m.source, name) {
+            return Box::new(HeldPred {
+                expr: Expr::Unknown(format!(
+                    "the predicate `{name}` is held in a variable that is assigned again (only a `const`, or a `let` assigned once, holding a predicate is modeled)"
+                )),
+                defined: None,
+                at,
+            });
+        }
+        let mut held = self.lower_held(m, init);
+        held.at = at;
+        Box::new(held)
+    }
+
+    fn lower_held(&mut self, m: &Module<'_>, e: &Expression<'_>) -> HeldPred {
+        let unknown = |why: String| HeldPred {
+            expr: Expr::Unknown(why),
+            defined: None,
+            at: String::new(),
+        };
+        let e = e.get_inner_expression();
+        if let Expression::Identifier(id) = e
+            && let Some(Binding::Pred(held)) = self.lookup(id.name.as_str())
+        {
+            // An alias: the same predicate (its operands were captured at
+            // its own declaration).
+            return *held;
+        }
+        if let Expression::ConditionalExpression(c) = e
+            && (undefined_like(&c.consequent) || undefined_like(&c.alternate))
+        {
+            return self.optional_held(m, c);
+        }
+        if let Expression::CallExpression(call) = e
+            && let Expression::Identifier(id) = call.callee.get_inner_expression()
+            && !PRED_OPS.contains(&id.name.as_str())
+        {
+            return self.predicate_helper(m, call).unwrap_or_else(unknown);
+        }
+        match self.pred_in(m, e, None, false) {
+            Ok((expr, _)) => self.capture(m, e.span(), expr, None),
+            Err(why) => unknown(why),
+        }
+    }
+
+    /// Phase 16: the JavaScript operands of a held predicate, assigned to
+    /// locals now (Drizzle builds the SQL object when `eq()` is called).
+    fn capture(
+        &mut self,
+        m: &Module<'_>,
+        span: Span,
+        expr: Expr,
+        defined: Option<Expr>,
+    ) -> HeldPred {
+        let refuse = |why: String| HeldPred {
+            expr: Expr::Unknown(why),
+            defined: None,
+            at: String::new(),
+        };
+        if let Some(why) = expr.unknown_detail() {
+            return refuse(why.to_owned());
+        }
+        if reads_clock(&expr) {
+            return refuse(
+                "a clock reading (`new Date()`, ``sql`now()` ``) in a predicate held in a local is not modeled"
+                    .to_owned(),
+            );
+        }
+        let mut hoisted = Vec::new();
+        let expr = self.hoist_operands(expr, &mut hoisted);
+        for (local, value) in hoisted {
+            self.emit(m, span, Op::Let { local, expr: value });
+        }
+        HeldPred {
+            expr,
+            defined,
+            at: String::new(),
+        }
+    }
+
+    /// Phase 16: `c ? pred : undefined` (or `c ? undefined : pred`): the
+    /// predicate's operands are evaluated only when the test chooses it;
+    /// `defined` records which way the test went.
+    fn optional_held(
+        &mut self,
+        m: &Module<'_>,
+        c: &oxc_ast::ast::ConditionalExpression<'_>,
+    ) -> HeldPred {
+        let refuse = |why: String| HeldPred {
+            expr: Expr::Unknown(why),
+            defined: None,
+            at: String::new(),
+        };
+        let then_pred = !undefined_like(&c.consequent);
+        let branch = if then_pred {
+            &c.consequent
+        } else {
+            &c.alternate
+        };
+        let test = self.expr(
+            m,
+            &c.test,
+            Cx {
+                truthy: true,
+                ..TOP
+            },
+        );
+        if let Some(why) = test.unknown_detail() {
+            return refuse(why.to_owned());
+        }
+        let which = self.tmp("which");
+        self.emit(
+            m,
+            c.test.span(),
+            Op::Let {
+                local: which.clone(),
+                expr: Expr::not(Expr::not(test)),
+            },
+        );
+        let (pred, _) = match self.pred_in(m, branch, None, true) {
+            Ok(p) => p,
+            Err(why) => return refuse(why),
+        };
+        if let Some(why) = pred.unknown_detail() {
+            return refuse(why.to_owned());
+        }
+        if reads_clock(&pred) {
+            return refuse(
+                "a clock reading (`new Date()`, ``sql`now()` ``) in a predicate held in a local is not modeled"
+                    .to_owned(),
+            );
+        }
+        let mut hoisted = Vec::new();
+        let pred = self.hoist_operands(pred, &mut hoisted);
+        for (local, _) in &hoisted {
+            self.emit(
+                m,
+                c.span,
+                Op::Let {
+                    local: local.clone(),
+                    expr: Expr::Lit(Value::Null),
+                },
+            );
+        }
+        let chosen = if then_pred {
+            Expr::Local(which.clone())
+        } else {
+            Expr::not(Expr::Local(which.clone()))
+        };
+        let skip = self.emit(
+            m,
+            c.test.span(),
+            Op::JumpIf {
+                cond: Expr::not(chosen.clone()),
+                target: usize::MAX,
+            },
+        );
+        for (local, value) in hoisted {
+            self.emit(m, branch.span(), Op::Let { local, expr: value });
+        }
+        let end = self.here();
+        self.patch(skip, end);
+        HeldPred {
+            expr: pred,
+            defined: Some(chosen),
+            at: String::new(),
+        }
+    }
+
+    /// Phase 16: a held predicate used where `pred_in` lowers one (`ident`
+    /// as there: what an `undefined` operand stands for).
+    fn use_held(
+        &mut self,
+        name: &str,
+        held: &HeldPred,
+        ident: Option<bool>,
+    ) -> Result<(Expr, bool), String> {
+        if let Some(why) = held.expr.unknown_detail() {
+            return Err(why.to_owned());
+        }
+        self.assume(format!(
+            "the Drizzle predicate `{name}` ({}) is built where it is declared: its operands keep the values they had there",
+            held.at
+        ));
+        match (&held.defined, ident) {
+            (None, _) => Ok((held.expr.clone(), false)),
+            // With a boolean `defined`, `(defined AND p) OR (NOT defined AND
+            // v)` is `p` or `v` in three-valued logic, NULL included.
+            (Some(defined), Some(v)) => Ok((
+                Expr::bin(
+                    BinOp::Or,
+                    Expr::bin(BinOp::And, defined.clone(), held.expr.clone()),
+                    Expr::bin(BinOp::And, Expr::not(defined.clone()), Expr::lit(v)),
+                ),
+                true,
+            )),
+            (Some(_), None) => Err(format!(
+                "the predicate `{name}` may be `undefined` here, which is not modeled"
+            )),
+        }
+    }
+
+    /// Phase 16: a call of a project function whose body is `return
+    /// <predicate>`: its arguments are evaluated at the call, its returned
+    /// predicate lowered with its parameters bound to them.
+    fn predicate_helper(
+        &mut self,
+        m: &Module<'_>,
+        call: &oxc_ast::ast::CallExpression<'_>,
+    ) -> Result<HeldPred, String> {
+        let Expression::Identifier(id) = call.callee.get_inner_expression() else {
+            return Err("the predicate is not a call of a named function".to_owned());
+        };
+        let name = id.name.as_str();
+        let unsupported = || {
+            format!(
+                "predicate operator `{name}` is not supported (supported: eq ne gt gte lt lte and or not isNull isNotNull inArray notInArray, and project functions whose body is `return <predicate>`)"
+            )
+        };
+        if let Some(info) = find_function(m, name) {
+            return self
+                .helper_pred(m, &info, m, call)
+                .unwrap_or_else(|| Err(unsupported()));
+        }
+        let Some(ImportRef::Named {
+            source,
+            name: export,
+        }) = find_import(m, name)
+        else {
+            return Err(unsupported());
+        };
+        if source.starts_with("drizzle-orm") {
+            return Err(unsupported());
+        }
+        let Callee::Imported {
+            abs, rel, export, ..
+        } = self.callee_import(m, &source, export, name)
+        else {
+            return Err(unsupported());
+        };
+        let text = self
+            .ctx
+            .source(&abs)
+            .map_err(|e| format!("call to `{name}`: {e}"))?;
+        let allocator = Allocator::default();
+        let program =
+            load(&allocator, &abs, &text).map_err(|e| format!("call to `{name}`: {e}"))?;
+        let module = Module::new(&abs, rel, &text, &program);
+        let info =
+            find_resolved(&module, &export).map_err(|why| format!("call to `{name}`: {why}"))?;
+        self.helper_pred(m, &info, &module, call)
+            .unwrap_or_else(|| Err(unsupported()))
+    }
+
+    /// `None` when `info` is not a predicate helper.
+    fn helper_pred(
+        &mut self,
+        caller: &Module<'_>,
+        info: &FnInfo<'_>,
+        callee_module: &Module<'_>,
+        call: &oxc_ast::ast::CallExpression<'_>,
+    ) -> Option<Result<HeldPred, String>> {
+        let ret = returned_expr(info)?;
+        if !self.shaped_in(callee_module, ret, 1, true) {
+            return None;
+        }
+        let key = (callee_module.abs.clone(), info.name.clone());
+        if self.frames.iter().any(|f| f.key == key) {
+            return Some(Err(format!(
+                "recursive call of `{}` is not inlined",
+                info.name
+            )));
+        }
+        if self.frames.len() > self.request.max_inline_depth {
+            return Some(Err(format!(
+                "call of `{}` exceeds the inline depth limit ({})",
+                info.name, self.request.max_inline_depth
+            )));
+        }
+        // The arguments, in the caller's frame.
+        let mut args = Vec::new();
+        for argument in &call.arguments {
+            let Some(e) = argument.as_expression() else {
+                return Some(Err("spread argument in a predicate helper call".to_owned()));
+            };
+            match e.get_inner_expression() {
+                Expression::Identifier(x)
+                    if matches!(self.lookup(x.name.as_str()), Some(Binding::Pred(_))) =>
+                {
+                    args.push(ArgVal::Handle(
+                        self.lookup(x.name.as_str()).expect("checked"),
+                    ));
+                }
+                _ => args.push(ArgVal::Expr(self.expr(caller, e, TOP))),
+            }
+        }
+        self.counter += 1;
+        self.frames.push(Frame {
+            function: info.name.clone(),
+            file: callee_module.rel.clone(),
+            prefix: format!("h{}$", self.counter),
+            scopes: vec![HashMap::new()],
+            rets: Vec::new(),
+            used: HashSet::new(),
+            key,
+            tries: 0,
+            breaks: Vec::new(),
+            this: None,
+        });
+        let mut args = args.into_iter();
+        let mut bad = None;
+        for item in &info.params.items {
+            let BindingPattern::BindingIdentifier(id) = &item.pattern else {
+                bad = Some("a destructured parameter of a predicate helper".to_owned());
+                break;
+            };
+            match args.next() {
+                Some(ArgVal::Handle(h)) => self.declare(id.name.as_str(), h),
+                other => {
+                    let value = match other {
+                        Some(ArgVal::Expr(e)) => e,
+                        _ => match &item.initializer {
+                            Some(default) => self.expr(callee_module, default, TOP),
+                            None => self.undef(),
+                        },
+                    };
+                    let local = self.fresh(id.name.as_str());
+                    self.emit(
+                        callee_module,
+                        item.span,
+                        Op::Let {
+                            local: local.clone(),
+                            expr: value,
+                        },
+                    );
+                    self.declare(id.name.as_str(), Binding::Local(local));
+                }
+            }
+        }
+        if info.params.rest.is_some() {
+            bad = Some("rest parameters of a predicate helper".to_owned());
+        }
+        let held = match bad {
+            None => self.lower_held(callee_module, ret),
+            Some(why) => HeldPred {
+                expr: Expr::Unknown(why),
+                defined: None,
+                at: String::new(),
+            },
+        };
+        self.frames.pop();
+        let at = format!(
+            "returned by `{}` at {}",
+            info.name,
+            self.src(caller, call.span).label()
+        );
+        Some(Ok(HeldPred { at, ..held }))
+    }
+
     /// Phase 14: a Drizzle predicate. `ident` is what an operand that is
     /// `undefined` at run time stands for where it occurs: Drizzle's `and()`
     /// and `or()` drop `undefined` operands (`true` resp. `false` in
@@ -5169,6 +6413,16 @@ impl<'r> Lowerer<'r> {
             return match ident {
                 Some(v) => Ok((Expr::lit(v), true)),
                 None => Err("an `undefined` predicate here is not modeled".to_owned()),
+            };
+        }
+        // Phase 16: a predicate held in a local (`const p = eq(..)`).
+        if let Expression::Identifier(id) = e {
+            let name = id.name.as_str();
+            return match self.lookup(name) {
+                Some(Binding::Pred(held)) => self.use_held(name, &held, ident),
+                _ => Err(format!(
+                    "`{name}` is not a Drizzle predicate the model resolves (a `const` holding `eq(..)`, `and(..)`, ... is)"
+                )),
             };
         }
         // Phase 14: `test ? predA : predB` (for example `parentId === null ?
@@ -5368,6 +6622,22 @@ impl<'r> Lowerer<'r> {
                     },
                     false,
                 ))
+            }
+            // Phase 16: a project function whose body is `return
+            // <predicate>` (evaluated where it is called).
+            other
+                if self.lookup(other).is_none()
+                    && (find_function(m, other).is_some()
+                        || matches!(find_import(m, other),
+                            Some(ImportRef::Named { source, .. }) if !source.starts_with("drizzle-orm"))) =>
+            {
+                if cond {
+                    return Err(format!(
+                        "a call of `{other}` inside a conditional predicate is not modeled"
+                    ));
+                }
+                let held = self.predicate_helper(m, call)?;
+                self.use_held(other, &held, ident)
             }
             other => Err(format!(
                 "predicate operator `{other}` is not supported (supported: eq ne gt gte lt lte and or not isNull isNotNull inArray notInArray)"
@@ -5574,6 +6844,7 @@ impl<'r> Lowerer<'r> {
             into: into.clone(),
             joins: Vec::new(),
             projection: None,
+            many: None,
         };
         match self.emit_db(m, span, conn, kind, &[&pred]) {
             Some(()) => Res::Row(into),
@@ -5589,12 +6860,11 @@ impl<'r> Lowerer<'r> {
         steps: &[ChainStep<'_, '_>],
         want: Want,
     ) -> Res {
-        if want == Want::Discard {
-            return self.unknown_op(
-                m,
-                span,
-                "a select result is only supported as `const [row] = await db.select()...`, `const rows = await db.select()...limit(1)` (or a count)",
-            );
+        const DISCARDED: &str = "a select result is only supported as `const [row] = await db.select()...`, `const rows = await db.select()...limit(1)` (or a count)";
+        // Phase 16: with JavaScript values, an awaited locking select whose
+        // result is not used still locks its rows (the multi-row mode).
+        if want == Want::Discard && !self.js() {
+            return self.unknown_op(m, span, DISCARDED);
         }
         let mut table: Option<&TableBinding> = None;
         let mut joins: Vec<(JoinKind, &TableBinding, &ChainStep<'_, '_>)> = Vec::new();
@@ -5602,6 +6872,7 @@ impl<'r> Lowerer<'r> {
         let mut limit: Option<i64> = None;
         let mut lock = LockMode::None;
         let mut ordered = false;
+        let mut order_step: Option<&ChainStep<'_, '_>> = None;
         for step in &steps[1..] {
             if !step.path.is_empty() {
                 return self.unknown_op(m, span, "unsupported select chain");
@@ -5660,7 +6931,10 @@ impl<'r> Lowerer<'r> {
                         return self.unknown_op(m, span, "`limit` is not an integer literal");
                     }
                 }
-                "orderBy" => ordered = true,
+                "orderBy" => {
+                    ordered = true;
+                    order_step = Some(step);
+                }
                 "for" => {
                     let mode = step
                         .args
@@ -5737,7 +7011,84 @@ impl<'r> Lowerer<'r> {
             return self.unknown_op(m, span, "select without `from`");
         };
         let joined = !joins.is_empty();
-        if lock != LockMode::None && limit != Some(1) {
+        // Phase 16: the multi-row mode (JavaScript values: the result is an
+        // array of rows): a lock without `.limit(1)` (every matching row is
+        // locked, one at a time in primary-key order), a result bound to a
+        // variable without `.limit(1)`, or an awaited select whose result is
+        // not used.
+        let counting = steps[0].args.first().is_some_and(is_count_projection);
+        let many = self.js()
+            && !joined
+            && !counting
+            && ((lock != LockMode::None && limit != Some(1))
+                || want == Want::Discard
+                || (want == Want::Scalar && limit != Some(1)));
+        if want == Want::Discard && !many {
+            return self.unknown_op(m, span, DISCARDED);
+        }
+        // `.orderBy(t.column)` / `.orderBy(asc(t.column))`: the loader
+        // accepts it when the column is the primary key (the model's order).
+        let mut order_by = None;
+        if many && let Some(step) = order_step {
+            let column = match step
+                .args
+                .iter()
+                .map(Argument::as_expression)
+                .collect::<Vec<_>>()
+                .as_slice()
+            {
+                [Some(e)] => {
+                    let e = match e.get_inner_expression() {
+                        Expression::CallExpression(c)
+                            if c.arguments.len() == 1
+                                && matches!(c.callee.get_inner_expression(),
+                                    Expression::Identifier(i) if i.name.as_str() == "asc"
+                                        && matches!(find_import(m, "asc"),
+                                            Some(ImportRef::Named { source, .. }) if source.starts_with("drizzle-orm"))) =>
+                        {
+                            c.arguments[0].as_expression()
+                        }
+                        other => Some(other),
+                    };
+                    match e.map(Expression::get_inner_expression) {
+                        Some(Expression::StaticMemberExpression(member)) => {
+                            match member.object.get_inner_expression() {
+                                Expression::Identifier(id)
+                                    if self.table(id.name.as_str()).is_some_and(|t| {
+                                        t.table == table.table
+                                            && t.columns
+                                                .iter()
+                                                .any(|c| c == member.property.name.as_str())
+                                    }) =>
+                                {
+                                    Some(member.property.name.as_str().to_owned())
+                                }
+                                _ => None,
+                            }
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            };
+            let Some(column) = column else {
+                return self.unknown_op(
+                    m,
+                    span,
+                    "`orderBy` on a multi-row select is modeled only as `.orderBy(t.<primary key>)` (ascending)",
+                );
+            };
+            order_by = Some(column);
+        }
+        let many_limit = match limit {
+            _ if !many => None,
+            None => None,
+            Some(n) => match u32::try_from(n) {
+                Ok(n) => Some(n),
+                Err(_) => return self.unknown_op(m, span, "a negative `limit` is not modeled"),
+            },
+        };
+        if !many && lock != LockMode::None && limit != Some(1) {
             return self.unknown_op(
                 m,
                 span,
@@ -5751,7 +7102,7 @@ impl<'r> Lowerer<'r> {
         // `rows[0]` are modeled (exact: 0 or 1 row). Without `.limit(1)` the
         // array could hold any number of rows, which the model does not
         // represent.
-        if want == Want::Scalar && limit != Some(1) && steps[0].args.is_empty() {
+        if !many && want == Want::Scalar && limit != Some(1) && steps[0].args.is_empty() {
             return self.unknown_op(
                 m,
                 span,
@@ -5829,7 +7180,7 @@ impl<'r> Lowerer<'r> {
                 projection = Some(items);
             }
         }
-        if want == Want::Scalar && aggregate.is_none() && limit != Some(1) {
+        if !many && want == Want::Scalar && aggregate.is_none() && limit != Some(1) {
             return self.unknown_op(
                 m,
                 span,
@@ -5877,15 +7228,25 @@ impl<'r> Lowerer<'r> {
                 None => Res::Value(Expr::Unknown("count predicate".to_owned())),
             };
         }
-        self.assume(if ordered {
-            "orderBy is not modeled: rows are taken in primary-key order"
+        if many && order_by.is_some() {
+            self.assume(
+                "a multi-row select ordered by the primary key returns its rows, and locks them one row at a time, in key order (PostgreSQL locks above the sort)",
+            );
+        } else if many {
+            self.assume(
+                "a multi-row select without orderBy is modeled in primary-key order (rows returned and locked one row at a time in that order); PostgreSQL uses its plan's order: key order for an index scan, physical order for a bitmap or sequential scan (docs/phase16/MULTI-ROW-LOCKS.md), so lock-order outcomes (waits, deadlocks) of such a statement are approximate",
+            );
         } else {
-            "select without orderBy: the first row in primary-key order is used"
-        });
+            self.assume(if ordered {
+                "orderBy is not modeled: rows are taken in primary-key order"
+            } else {
+                "select without orderBy: the first row in primary-key order is used"
+            });
+        }
         if joined {
             self.assume("a join without orderBy: rows are taken in primary-key order of the first table, then of each joined table");
         }
-        let into = self.tmp("row");
+        let into = self.tmp(if many { "rows" } else { "row" });
         let kind = StmtKind::Select {
             table: table.table.clone(),
             pred: pred.clone(),
@@ -5893,8 +7254,22 @@ impl<'r> Lowerer<'r> {
             into: into.clone(),
             joins: ir_joins,
             projection,
+            many: many.then_some(commitrift_model::ir::ManyRows {
+                limit: many_limit,
+                order_by,
+            }),
         };
         match self.emit_db(m, span, conn, kind, &[&pred]) {
+            // Phase 16: the array of rows; `const [row] = ...` reads its
+            // first element (`undefined` when it is empty).
+            Some(()) if many => match want {
+                Want::Discard => Res::Unit,
+                Want::Single => Res::Value(Expr::Call {
+                    func: commitrift_model::value::Builtin::At,
+                    args: vec![Expr::Local(into), Expr::lit(0)],
+                }),
+                Want::Scalar => Res::Value(Expr::Local(into)),
+            },
             Some(()) if want == Want::Scalar => {
                 let length = self.length_of(m, span, &into);
                 Res::Rows { row: into, length }
