@@ -1,5 +1,5 @@
 // Operations started together with Promise.all have no defined completion order.
-// @expect CP1001 line=9 confidence=low
+// @expect MW1001 line=9 confidence=low
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 

@@ -8,7 +8,7 @@ describe constructs instead of pasting source.
 
 * Stack (framework, Drizzle version, zod version, PostgreSQL version):
 * Size (approximate number of server functions / route handlers):
-* CommitRift revision (`git rev-parse --short HEAD`) and OS:
+* Midwrite revision (`git rev-parse --short HEAD`) and OS:
 
 ## What you ran
 
@@ -35,7 +35,7 @@ commands, exactly as typed
 * Did the coverage section make clear what was not explored? (1–5)
 * Did you try `--emit-scenarios` / `model-check` on a counterexample? Did
   the schedule make sense?
-* Did you declare a property in `commitrift-contracts.json`? What was hard?
+* Did you declare a property in `midwrite-contracts.json`? What was hard?
 * Did you run original-code verification (`--verify-source
   --allow-execution`)? With which harness effort?
 

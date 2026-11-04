@@ -1,9 +1,9 @@
-// The database handle is obtained from a call: fixtures/commitrift.json lists
+// The database handle is obtained from a call: fixtures/midwrite.json lists
 // `getDb()` imported from "@/server/db". Direct chains, `const` aliases and
 // arguments are recognized; a call with arguments or from another module is not.
-// @expect CP1001 line=12 confidence=high function=markPaid
-// @expect CP1003 line=19 confidence=high function=checkout
-// @expect CP1004 line=26 confidence=high function=recordPayment
+// @expect MW1001 line=12 confidence=high function=markPaid
+// @expect MW1003 line=19 confidence=high function=checkout
+// @expect MW1004 line=26 confidence=high function=recordPayment
 import { getDb } from "@/server/db";
 import { getDb as otherDb } from "@/legacy/db";
 

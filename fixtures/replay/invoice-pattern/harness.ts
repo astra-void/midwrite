@@ -1,4 +1,4 @@
-import { runScenarios } from "../../../runtime/typescript/commitrift-replay.ts";
+import { runScenarios } from "../../../runtime/typescript/midwrite-replay.ts";
 import { db } from "../shared/db.ts";
 import { finalizeInvoice } from "./src/routers/invoices.ts";
 

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "kind": "midwrite.contracts",
+  "description": "Evaluation application: the client resubmits recordSignup; one signup event per account is a business rule; one login event per account is the rule the login recorders are judged by.",
+  "entries": {
+    "src/services/accounts.ts#recordSignup": { "retry": "on-crash", "description": "Resubmitted after a lost response." }
+  },
+  "invariants": [
+    {
+      "name": "one-signup-event",
+      "description": "An account has at most one signup event.",
+      "entries": ["src/services/accounts.ts#recordSignup"],
+      "property": { "template": "atMostOne", "table": "events", "key": ["accountId", "kind"] }
+    },
+    {
+      "name": "one-login-event-per-attempt",
+      "description": "One login attempt records at most one login event.",
+      "entries": ["src/services/accounts.ts#recordLogin", "src/services/accounts.ts#recordLoginOnce"],
+      "property": { "template": "atMostOne", "table": "events", "key": ["accountId", "kind"] }
+    }
+  ]
+}

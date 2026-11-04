@@ -1,15 +1,15 @@
 {
-  "name": "commitrift-fixture-team-app",
+  "name": "midwrite-fixture-team-app",
   "private": true,
   "version": "0.0.0",
-  "description": "CommitRift Phase 7 first-party application: team invitations behind a Server-Action-style validation/authentication wrapper, real Drizzle ORM and node-postgres.",
+  "description": "Midwrite Phase 7 first-party application: team invitations behind a Server-Action-style validation/authentication wrapper, real Drizzle ORM and node-postgres.",
   "type": "module",
   "engines": { "node": ">=22" },
   "scripts": {
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@commitrift/replay": "file:../../../runtime/node",
+    "@midwrite/replay": "file:../../../runtime/node",
     "drizzle-orm": "0.45.4",
     "pg": "8.23.1"
   },

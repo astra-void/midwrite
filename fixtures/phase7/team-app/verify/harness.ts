@@ -5,7 +5,7 @@
 // the framework would: inside a request with a session, with a FormData
 // body. The action, its wrapper and its helpers are imported unchanged.
 // What the harness provides is what a framework provides: the database
-// pool (coordinated by CommitRift) and the request session.
+// pool (coordinated by Midwrite) and the request session.
 import * as drizzle from "drizzle-orm";
 import * as pgCore from "drizzle-orm/pg-core";
 import pg from "pg";
@@ -14,7 +14,7 @@ import {
   instrumentDrizzle,
   runSourceActor,
   sourcePoolConfig,
-} from "@commitrift/replay/source";
+} from "@midwrite/replay/source";
 
 import { usePool } from "../src/lib/db/pool.js";
 import { runWithSession } from "../src/lib/auth/session.js";

@@ -1,6 +1,6 @@
 # Concurrency model
 
-The model checker (`crates/commitrift-model`) is an explicit-state,
+The model checker (`crates/midwrite-model`) is an explicit-state,
 bounded model checker. A **scenario** fixes everything it explores: the
 actors and their arguments, the schema and initial rows, the isolation
 level, the faults, the bounds and the invariants. A result holds for that

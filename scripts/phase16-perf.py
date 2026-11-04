@@ -9,7 +9,7 @@ Usage: scripts/phase16-perf.py OUT_DIR --old BIN [--new BIN] [--runs N]
 """
 import argparse, json, os, re, statistics, subprocess, sys, tempfile, time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NEW = os.environ.get("COMMITRIFT_BIN", os.path.join(ROOT, "target", "release", "commitrift"))
+NEW = os.environ.get("MIDWRITE_BIN", os.path.join(ROOT, "target", "release", "midwrite"))
 APPS = ["fixtures/phase13/eval-app", "fixtures/phase14/eval-app", "fixtures/phase15/eval-app",
         "fixtures/phase15/worlds-app", "fixtures/phase11/commerce-app", "fixtures/phase16/eval-app",
         "fixtures/phase16/retry", "fixtures/phase16/locks", "fixtures/phase16/nulls",

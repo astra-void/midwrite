@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "kind": "midwrite.contracts",
+  "description": "What the Phase 16 zod application's source cannot say: its business rules.",
+  "invariants": [
+    {
+      "name": "one-invite-per-address",
+      "description": "A team has at most one invitation per address.",
+      "entries": ["src/actions/invites.ts#inviteMember"],
+      "property": { "template": "atMostOne", "table": "invites", "key": ["teamId", "email"] }
+    },
+    {
+      "name": "one-member-per-address",
+      "description": "A team has at most one member per address.",
+      "entries": ["src/actions/invites.ts#addMember"],
+      "property": { "template": "atMostOne", "table": "members", "key": ["teamId", "email"] }
+    }
+  ]
+}

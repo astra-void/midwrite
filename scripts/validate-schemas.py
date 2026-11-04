@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate CommitRift JSON reports against their published JSON Schemas.
+"""Validate Midwrite JSON reports against their published JSON Schemas.
 
     scripts/validate-schemas.py [--sarif-schema FILE] [--schema FILE] [--builtin] REPORT...
 
@@ -9,7 +9,7 @@ instead (to show that a report of another kind or version is rejected).
 Every report is also checked to be *rejected* after a deliberate
 corruption, so that a schema that accepts anything cannot pass.
 Uses the `jsonschema` package. Without it, `--builtin` selects a small
-built-in validator for the draft-07 subset the CommitRift schemas use; it
+built-in validator for the draft-07 subset the Midwrite schemas use; it
 refuses (exit 2) any schema keyword it does not implement, so it can never
 accept a report by ignoring a rule. Exit status 1 on any error.
 """
@@ -43,7 +43,7 @@ SCHEMAS = {
 
 
 def registry():
-    """Every CommitRift schema by its `$id` (they reference each other)."""
+    """Every Midwrite schema by its `$id` (they reference each other)."""
     from referencing import Registry, Resource
     from referencing.jsonschema import DRAFT7
 

@@ -1,8 +1,8 @@
 // Differential test: two publications started together after the commit.
 // Statically their completion order is undetermined (low confidence); at
 // runtime the slower one completes last.
-// @expect CP1001 line=14 confidence=low function=completeOrder
-// @expect CP1005 line=14 confidence=low function=completeOrder
+// @expect MW1001 line=14 confidence=low function=completeOrder
+// @expect MW1005 line=14 confidence=low function=completeOrder
 import { db, orders, queue } from "./runtime.ts";
 
 async function announce(topic: string) {

@@ -48,19 +48,19 @@ Sources: each phase's `FINAL-REPORT.md` and `BASELINE.md`
 
 ## 1. Static-analysis accuracy
 
-`commitrift check` findings on real projects. No recall is claimed for
+`midwrite check` findings on real projects. No recall is claimed for
 any row.
 
 | phase | benchmark | binary | baseline | result | scope | limitations | raw evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2 | manual review of corpus findings | Phase 2 | Phase 1 (0 cross-resource findings in midday vs 49) | 103 findings reviewed, 97 with a decided label; window existed in 92; 27 judged likely bugs. Real window / likely bug (95 % Wilson): CP1001 (38) 0.97 (0.87–1.00) / 0.34 (0.21–0.50); CP1002 (8) 0.75 (0.41–0.93) / 0.25 (0.07–0.59); CP1004 (43) 0.98 (0.88–1.00) / 0.28 (0.17–0.43); CP1005 (8) 0.88 (0.53–0.98) / 0.00 (0.00–0.32) | saas-starter `6e33e58b`, midday `51587319`, two private projects | reviewer = Phase 2 implementer, from source; no maintainer confirmation; nothing reproduced | `reports/phase2/precision.txt`, `corpora/labels/` |
+| 2 | manual review of corpus findings | Phase 2 | Phase 1 (0 cross-resource findings in midday vs 49) | 103 findings reviewed, 97 with a decided label; window existed in 92; 27 judged likely bugs. Real window / likely bug (95 % Wilson): MW1001 (38) 0.97 (0.87–1.00) / 0.34 (0.21–0.50); MW1002 (8) 0.75 (0.41–0.93) / 0.25 (0.07–0.59); MW1004 (43) 0.98 (0.88–1.00) / 0.28 (0.17–0.43); MW1005 (8) 0.88 (0.53–0.98) / 0.00 (0.00–0.32) | saas-starter `6e33e58b`, midday `51587319`, two private projects | reviewer = Phase 2 implementer, from source; no maintainer confirmation; nothing reproduced | `reports/phase2/precision.txt`, `corpora/labels/` |
 | 3 | blind automated re-review | Phase 3 | Phase 2 labels | 18 findings: 11/18 agreement (κ 0.38); 3 of 7 "likely bug" labels confirmed (midday 1/5) | sample of Phase 2 findings | a separate model session, not a human | `reports/phase3/blind-review.txt`, `blind-review-reasons.json` |
 | 4 | human review workflow | Phase 4 | — | 0 human reviews; review packets for 12 midday findings prepared | — | unreviewed | `reports/phase4/review/` |
 | 8 | review packets | Phase 8 | — | 10 blind review packets for first-party recovery findings, unreviewed | — | unreviewed | `reports/phase8/review-packets/` |
 
 ## 2. Candidate-discovery accuracy
 
-`commitrift discover`, scored against labeled entries. "Model prediction"
+`midwrite discover`, scored against labeled entries. "Model prediction"
 = an entry has its own candidate whose actual scenario has a validated
 model counterexample. "Static" = a hazard candidate exists.
 
@@ -114,7 +114,7 @@ Reductions compared with the unreduced search; none is a proof.
 | 10 | metamorphic transformations; regression fixtures; dependence audit | Phase 10 (`59275b50…`; `dac5dae3…` differs only in a Python report checker) | 208 cases preserved; 7 fixtures handled by every algorithm; 144 workloads, 84 077 independent pairs, 31 286 enabling pairs, 0 violations | — | deleting `RowRead`, `LockCheck`, `Wait`, `Seq` or `Budget` accesses is noticed by no workload | [Phase 10 final report § 3](../phase10/FINAL-REPORT.md#3-correctness) |
 | 10 | defects found | — | 4: two source-DPOR development defects, the Phase 9 classic DPOR "only the last race" defect, the Phase 9 pool-claim defect | — | — | regression fixtures |
 | 11 | counterexample validity on generated scenarios | `6141d12d…` | commerce: 22 candidates, 31 scenarios, 781 states; every counterexample replays strictly and violates its invariant; every emitted scenario gives `model-check` the same verdict and state count | first-party | — | `reports/phase11/evidence/` |
-| 13 | reductions with the new operations (FK checks, lock modes, upserts, replica reads/replication, response step) | Phase 13 tree | independence audit clean; sleep sets, classic DPOR and source-DPOR give the same terminal states, verdicts, stuck states and unsupported behavior as the unreduced search | 20 FK workloads × 3 levels, a three-actor FK workload × 3, claim/atomic-claim × 3, signup with response, 6 upsert workloads × with/without a row × 2 levels, two writers and a replica reader | no counts of states recorded in the doc | `crates/commitrift-model/tests/phase13.rs` |
+| 13 | reductions with the new operations (FK checks, lock modes, upserts, replica reads/replication, response step) | Phase 13 tree | independence audit clean; sleep sets, classic DPOR and source-DPOR give the same terminal states, verdicts, stuck states and unsupported behavior as the unreduced search | 20 FK workloads × 3 levels, a three-actor FK workload × 3, claim/atomic-claim × 3, signup with response, 6 upsert workloads × with/without a row × 2 levels, two writers and a replica reader | no counts of states recorded in the doc | `crates/midwrite-model/tests/phase13.rs` |
 
 ## 4. PostgreSQL differential fidelity
 
@@ -140,7 +140,7 @@ was executed in any phase.**
 
 | phase | application(s) | environment | result | scope | limitations | raw evidence |
 | --- | --- | --- | --- | --- | --- | --- |
-| 3 | `fixtures/replay/order-vulnerable` (replay harness) | macOS, 2026-10-25 | CP1001 window `RUNTIME_REPRODUCED` 5 of 5 runs (SIGKILL after a verified commit); outbox variant does not reproduce at any of 5 failure points (25 runs) | single request | — | `reports/phase3/replay/` |
+| 3 | `fixtures/replay/order-vulnerable` (replay harness) | macOS, 2026-10-25 | MW1001 window `RUNTIME_REPRODUCED` 5 of 5 runs (SIGKILL after a verified commit); outbox variant does not reproduce at any of 5 failure points (25 runs) | single request | — | `reports/phase3/replay/` |
 | 3 | `fixtures/replay/invoice-pattern` | macOS | isolated re-write of a midday finding's pattern, 5/5 | not midday | maintainers not contacted | same |
 | 4 | `fixtures/replay/drizzle-node` (real Drizzle) | macOS and Linux | 16/16 cases as declared; generated harness 5/5 | single request | — | `reports/phase4/replay/` |
 | 7 | `team-app` `inviteTeamMember`, `acceptInvitation` | macOS, PostgreSQL 17.11, Drizzle 0.45.4 | `original-code-reproduced`, 5/5 each | first-party; concurrency | saas-starter's original not executed (model SQL confirmed only) | `reports/phase7/model-check/` |

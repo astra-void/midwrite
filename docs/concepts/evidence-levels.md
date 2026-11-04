@@ -1,6 +1,6 @@
 # Evidence levels
 
-Every CommitRift result states how it was established. Levels are never
+Every Midwrite result states how it was established. Levels are never
 merged: a stronger level is reached only by running the step that produces
 it, and a failed step never upgrades or downgrades another step's result.
 
@@ -25,9 +25,9 @@ production frequency.
 | `NO_COUNTEREXAMPLE_WITHIN_BOUNDS` / `NO_VIOLATION_WITHIN_BOUNDS` (`none`) | no violation in the explored bounded behaviors; not a proof |
 | `original-code-recovery-reproduced` | no counterexample within bounds; a recovery schedule with a real crash and retry ran on the original code and the invariant held |
 | `original-code-invariant-held` | no counterexample within bounds; a probe schedule without crash ran on the original code and the invariant held |
-| `postgres-did-not-reproduce` (`CP7101`) | PostgreSQL disagreed with the model on that schedule; the first disagreement is reported; do not call it a race |
-| `runtime-inconclusive` (`CP7102`) | validation was requested but could not be carried out |
-| source status `diverged` / `not-reproduced` / `inconclusive` / `unstable` (`CP7103`) | the original code did not reproduce; the model counterexample keeps its level |
+| `postgres-did-not-reproduce` (`MW7101`) | PostgreSQL disagreed with the model on that schedule; the first disagreement is reported; do not call it a race |
+| `runtime-inconclusive` (`MW7102`) | validation was requested but could not be carried out |
+| source status `diverged` / `not-reproduced` / `inconclusive` / `unstable` (`MW7103`) | the original code did not reproduce; the model counterexample keeps its level |
 | `INCONCLUSIVE` | a bound or budget ended the search, or no valid initial state was found |
 | `UNSUPPORTED` | a reachable operation is not modeled; the result is withheld, not approximated |
 
@@ -55,7 +55,7 @@ Within a static finding, `evidenceStrength` (`provenance`,
 ## Where the levels are defined
 
 * Model checker levels: `EvidenceLevel` in
-  `crates/commitrift-model/src/report.rs`; history in
+  `crates/midwrite-model/src/report.rs`; history in
   [Phase 6 counterexamples](../phase6/COUNTEREXAMPLES.md#evidence-levels),
   [Phase 7 differential verification](../phase7/DIFFERENTIAL-VERIFICATION.md#evidence-levels),
   [Phase 8 original-code recovery](../phase8/ORIGINAL-CODE-RECOVERY.md),

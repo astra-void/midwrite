@@ -5,7 +5,7 @@
 > limitations later phases lifted. This page is kept as the detailed record
 > for the static analyzer (Phases 1–7) and is not updated per phase.
 
-CommitRift is a narrow analysis. This page lists what it gets wrong or does
+Midwrite is a narrow analysis. This page lists what it gets wrong or does
 not attempt, so that a clean run is not mistaken for a guarantee. Many
 entries are pinned by tests or fixtures (named in parentheses). Measured
 rates on real projects are in `docs/phase2/CORPUS-EVALUATION.md`.
@@ -13,7 +13,7 @@ rates on real projects are in `docs/phase2/CORPUS-EVALUATION.md`.
 ## What a result means
 
 * A diagnostic is a **potential** partial-completion hazard derived from code
-  structure. CommitRift cannot know whether the application tolerates the
+  structure. Midwrite cannot know whether the application tolerates the
   partial state, or whether a retry, reconciliation job or idempotent consumer
   outside the function repairs it.
 * No diagnostic is reproduced at runtime (`"reproduced": false`). Runtime
@@ -24,7 +24,7 @@ rates on real projects are in `docs/phase2/CORPUS-EVALUATION.md`.
   first-party fixtures (including one on the real Drizzle ORM) and of one
   real-world pattern in an isolated re-write; no bug in an original
   application has been runtime-confirmed.
-* No result proves consistency. CommitRift does not replace database
+* No result proves consistency. Midwrite does not replace database
   constraints, integration tests, or fault-injection testing.
 * In the Phase 2 review of 103 findings on four real projects (97 with a
   decided label), the reported window existed in 92 cases, but only 27 were
@@ -58,33 +58,33 @@ rates on real projects are in `docs/phase2/CORPUS-EVALUATION.md`.
 | Correlation through return values other than literals and object-literal properties (`return computeOk()`), or when the result escapes (`audit(result)`) | Phase 5 correlates a summarized helper's returned literals and literal properties with the caller's `const` binding (`vulnerable/return_value_correlation.ts`); anything else is not a fact (`phase5.rs: an_escaping_result_is_not_correlated`). | — |
 | An object service whose properties are changed outside its file, or through `Object.assign` | Only assignments and `delete` of its properties in its own file disable it. | — |
 | Adjacent but unrelated operations (a notification, then an unrelated update; a write in one loop and an enqueue for other records in a later loop) | A failure between *any* two adjacent durable or visible points is reported; whether the second is owed because of the first is not known (four reviewed false positives). | — |
-| Effects already compensated elsewhere (job retries, webhook redelivery, idempotent relays, documented manual recovery) | Not visible to the analysis (most of the reviewed "intended risk" findings). | Declare them (`externalEffects[].recovery`, function-level `recoveryContracts` with cited evidence: the finding stays, as `info` under `recommended`), baseline them, or use the `recommended` policy for CP1004/CP1005. |
+| Effects already compensated elsewhere (job retries, webhook redelivery, idempotent relays, documented manual recovery) | Not visible to the analysis (most of the reviewed "intended risk" findings). | Declare them (`externalEffects[].recovery`, function-level `recoveryContracts` with cited evidence: the finding stays, as `info` under `recommended`), baseline them, or use the `recommended` policy for MW1004/MW1005. |
 | Swallowed failures | An error caught and ignored is treated like any other path. | — |
-| Test setup and seed scripts | They commit in sequence on purpose; in one project they produced all CP1004 findings. | `"exclude": ["tests/**", "scripts/**"]`. |
+| Test setup and seed scripts | They commit in sequence on purpose; in one project they produced all MW1004 findings. | `"exclude": ["tests/**", "scripts/**"]`. |
 
 ## Known false negatives
 
 | Case | Behavior |
 | --- | --- |
-| Effects inside methods whose receiver's class is not known (`service.save()` with `service` a parameter or a factory result), methods with an analyzed override or dynamic reassignment, callbacks run by unanalyzed code | Not followed. A call after a recognized commit becomes CP9001 with the reason; one before the first commit is silent (reported under `--policy audit`). Known receivers are followed since Phase 5 (`vulnerable/class_this_dispatch.ts`, `unsupported/class_override_dispatch.ts`, `projects/class_hierarchy`). |
+| Effects inside methods whose receiver's class is not known (`service.save()` with `service` a parameter or a factory result), methods with an analyzed override or dynamic reassignment, callbacks run by unanalyzed code | Not followed. A call after a recognized commit becomes MW9001 with the reason; one before the first commit is silent (reported under `--policy audit`). Known receivers are followed since Phase 5 (`vulnerable/class_this_dispatch.ts`, `unsupported/class_override_dispatch.ts`, `projects/class_hierarchy`). |
 | Callees that are resolved but not inert and perform no recognized operation (`render()` returning a package call, `BaseProcessor.updateProgress` calling BullMQ) | One unknown effect for the call, as in Phase 4; the detail says which inner call prevents inertness, but the inner unknown is not shown as its own trace step. |
 | Captured values in callbacks (`items.map((i) => tx.update(...))`, `{ id }` from the enclosing function) | The callback's own lowering does not know the enclosing frame: a captured transaction handle is not recognized (the call stays unknown) and captured values have unknown provenance. |
 | Effects more than `--max-call-depth` (3) calls deep | Still unknown unless the chain is inert. Measured on school-ledger: depth 6 would add 261 findings; the default is unchanged pending review (`phase5/CORPUS-EVALUATION.md`). |
 | Imports that do not resolve: packages outside the analyzed files, unsupported aliases, ambiguous modules or exports, exports that are not function declarations (`export const f = wrap(...)`) | The call stays an unknown effect whose detail says why (`projects/missing_module`, `projects/ambiguous_exports`, `phase2.rs: ambiguous_module_candidates_are_not_chosen`). |
 | Calls neither awaited nor returned from an `async` function (`notify(id);`) | Not summarized: silent (`unsupported/unawaited_helper.ts`, `projects/unawaited`). Resolved calls inside `Promise.all` are summarized since Phase 5 (concurrent, low confidence). |
-| Callees without a recognized operation that are not proven inert, recursive calls, calls more than `--max-call-depth` (default 3) levels deep, callees with unsupported control flow | Not summarized; the call stays an unknown effect, CP9001 after a commit (`unsupported/local_helper_unknown.ts`, `unsupported/recursive_helper.ts`, `unsupported/deep_helpers.ts`). Inert callees are resolved at any depth and in recursion since Phase 5 (`safe/inert_helpers.ts`, `projects/pure_helper`). A recursive call cut inside an inlined callee is not reported separately (`projects/recursive_imports`). |
-| Helpers that return an unexecuted query builder for the caller to await | The helper executes nothing itself, so its summary is empty: CP9001 after a commit. |
+| Callees without a recognized operation that are not proven inert, recursive calls, calls more than `--max-call-depth` (default 3) levels deep, callees with unsupported control flow | Not summarized; the call stays an unknown effect, MW9001 after a commit (`unsupported/local_helper_unknown.ts`, `unsupported/recursive_helper.ts`, `unsupported/deep_helpers.ts`). Inert callees are resolved at any depth and in recursion since Phase 5 (`safe/inert_helpers.ts`, `projects/pure_helper`). A recursive call cut inside an inlined callee is not reported separately (`projects/recursive_imports`). |
+| Helpers that return an unexecuted query builder for the caller to await | The helper executes nothing itself, so its summary is empty: MW9001 after a commit. |
 | Handle arguments that are not a direct identifier, configured path or configured call (`save(tx ?? db)`, `save(getDb())` without a `"getDb()"` entry, spread arguments) | The callee's writes on that parameter become unknown effects (`projects/unknown_handle`); never assumed to be root writes. |
 | `tx.rollback()`, raw SQL and transactions on an *unconfigured* parameter of an inlined callee | Not modeled through the parameter. |
 | Database handles obtained from a call that is not configured (`getDb().insert(...)` without a `"getDb()"` entry), or from a call with arguments | Not recognized. With `"getDb()"` in `databaseReceivers`, direct chains, `const` aliases and arguments are recognized (`vulnerable/call_returned_handle.ts`). |
 | Unconfigured external effects before the first recognized commit | Silent by default; `--policy audit` reports unknown calls before the first recognized operation. |
-| Member receivers whose path is not configured (`this.repo.db`) | CP9001 with the path to configure (`unsupported/unconfigured_member_receivers.ts`). |
+| Member receivers whose path is not configured (`this.repo.db`) | MW9001 with the path to configure (`unsupported/unconfigured_member_receivers.ts`). |
 | Member receivers reached through aliases or destructuring (`const database = this.db`), computed or private members | Not matched against member paths. |
-| Loops | Effects modeled as zero or one iteration (no CP1004 between iterations); values are iterated to a fixpoint with widening. |
+| Loops | Effects modeled as zero or one iteration (no MW1004 between iterations); values are iterated to a fixpoint with widening. |
 | Top-level module code | Not analyzed. |
-| Raw SQL (`db.execute(sql\`...\`)`), `db.batch(...)` | CP9001; the SQL is not parsed. |
+| Raw SQL (`db.execute(sql\`...\`)`), `db.batch(...)` | MW9001; the SQL is not parsed. |
 | Writes via `let`-bound aliases or reassigned variables | Only `const` aliases are followed. |
-| Destructured transaction handles, non-inline transaction callbacks | CP9001 (`unsupported/destructured_handle.ts`, `unsupported/opaque_transaction.ts`). |
+| Destructured transaction handles, non-inline transaction callbacks | MW9001 (`unsupported/destructured_handle.ts`, `unsupported/opaque_transaction.ts`). |
 | Implicit failure points inside a `try` | The catch handler is entered as if the failure happened before the block's first effect, or at an explicit `throw`. |
 | Other ORMs, other databases, SQLite executors (`.run()`, `.all()`, `.get()`) | Not recognized. Drizzle on PostgreSQL only. |
 
@@ -92,8 +92,8 @@ rates on real projects are in `docs/phase2/CORPUS-EVALUATION.md`.
 
 | Construct | Handling |
 | --- | --- |
-| Labeled `break` / `continue` | The path stops and CP9001 is reported if the function has recognized effects (`unsupported/labeled_break.ts`). |
-| More than `--max-paths` paths in a function (default 512) | The first paths are analyzed, the function is counted in `summary.analysis.truncatedFunctions`, and CP9001 is reported. Findings from such a function are partial. Inlined callees count toward the caller's budget. |
+| Labeled `break` / `continue` | The path stops and MW9001 is reported if the function has recognized effects (`unsupported/labeled_break.ts`). |
+| More than `--max-paths` paths in a function (default 512) | The first paths are analyzed, the function is counted in `summary.analysis.truncatedFunctions`, and MW9001 is reported. Findings from such a function are partial. Inlined callees count toward the caller's budget. |
 | Optional calls (`queue?.publish()`) | Treated as unconditional. |
 | Generators, `yield` | Analyzed like ordinary functions; resumption is not modeled. |
 | `with` statements | Lowered without special scoping. |
@@ -198,16 +198,16 @@ rates on real projects are in `docs/phase2/CORPUS-EVALUATION.md`.
   outlive the run. Neither platform limits CPU or memory.
 * Linux CI on GitHub-hosted runners and the release workflow have not run
   yet; Linux was exercised in an unprivileged Debian container.
-* `commitrift init-replay` generates a skeleton; observations, invariants,
+* `midwrite init-replay` generates a skeleton; observations, invariants,
   schema, inputs and the scenario call are always manual. Its `tsconfig.json`
   suits projects that compile with plain `NodeNext` settings.
-* Recovery contracts are assertions with cited evidence; CommitRift does not
+* Recovery contracts are assertions with cited evidence; Midwrite does not
   verify that the mechanism exists, covers the window or runs after a crash.
   Runtime recovery observations hold for the harness only.
 * The 140 incomplete corpus traces are all caused by unknown calls inside the
   failure window; their number did not change in Phase 4.
 * No human review of corpus findings exists yet (a blind review workflow is
-  ready: `commitrift-corpus review-packet`).
+  ready: `midwrite-corpus review-packet`).
 
 ## Kinds of evidence (Phase 5)
 
@@ -218,9 +218,9 @@ rates on real projects are in `docs/phase2/CORPUS-EVALUATION.md`.
 | May-effect | performed on some modeled paths | ≤ medium, "only on some of its paths" note |
 | Inferred call target | resolved by name/import (Phase 2), or by dispatch, callback context or IIFE (Phase 5) | `CallSite.resolution` in IR and traces |
 | Assumed target | dispatch that relies on an unanalyzed superclass or an escaped receiver | `resolution.assumption`, ≤ medium, limitation note |
-| Proven inert | the callee and everything it may run perform nothing durable or visible on any modeled path, given the modeled builtins | `CallScope.inert`; no CP9001 |
+| Proven inert | the callee and everything it may run perform nothing durable or visible on any modeled path, given the modeled builtins | `CallScope.inert`; no MW9001 |
 | Configured assumption | `databaseReceivers`, `externalEffects`, `bestEffort`, `recovery`, `recoveryContracts` | evidence and limitations; never verified |
-| Unknown behavior | an operation whose semantics are not known | `Unknown` effect, CP9001, incomplete trace |
+| Unknown behavior | an operation whose semantics are not known | `Unknown` effect, MW9001, incomplete trace |
 | Abstract execution prediction | everything above: a static, bounded model of some paths | every diagnostic and trace (`STATIC_CANDIDATE`) |
 | Runtime-observed evidence | observed PostgreSQL state in an authorized replay | verification reports only; never feeds back into static confidence |
 
@@ -243,7 +243,7 @@ rates on real projects are in `docs/phase2/CORPUS-EVALUATION.md`.
 
 ## Phase 6: concurrency model checking
 
-`commitrift model-check` is opt-in and separate from `check`. Its results
+`midwrite model-check` is opt-in and separate from `check`. Its results
 hold only for the declared scenario (actors, data, isolation level, bounds)
 and the model's semantics; SERIALIZABLE is a conservative serialization-graph
 abstraction, and the TypeScript and SQL subsets are small. Full list:

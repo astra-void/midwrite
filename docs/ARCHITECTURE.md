@@ -1,11 +1,11 @@
 # Architecture
 
 > **Current overview:** [`architecture/overview.md`](architecture/overview.md)
-> (all crates, including `commitrift-model` and `commitrift-discover`). This
+> (all crates, including `midwrite-model` and `midwrite-discover`). This
 > page remains the detailed design of the static analyzer (`check`,
 > `trace`, `ir`; Phases 1–7).
 
-CommitRift is a pipeline with one job: for every function, find the points at
+Midwrite is a pipeline with one job: for every function, find the points at
 which state becomes durable or externally visible, and report where a failure
 between two of them leaves partial state.
 
@@ -21,34 +21,34 @@ between two of them leaves partial state.
 
 | Crate | Responsibility | Depends on |
 | --- | --- | --- |
-| `commitrift-core` | Effect IR, failure-path analysis, diagnostics and code catalog, configuration, report model, line/column mapping. Language independent. | `serde`, `thiserror` |
-| `commitrift-analyzer` | TypeScript frontend: file discovery, Oxc parsing and semantic analysis, identifier provenance, effect recognition, branch facts, lowering to IR, export collection, module resolution (`resolve.rs`), project analysis (`project.rs`), and the `Analyzer` driver. | `commitrift-core`, Oxc, `serde_json` (tsconfig/package.json) |
-| `commitrift-replay` | Opt-in runtime replay (Phase 3): manifest validation, disposable PostgreSQL clusters, the checkpoint-protocol supervisor, observations and invariants; Phase 4: OS isolation backends (`isolation.rs`: macOS sandbox-exec, Linux bubblewrap), runtime preflight (Node.js/Bun). Never used by `check`. | `commitrift-core`, `libc` |
-| `commitrift-cli` | Argument parsing, configuration discovery (`commitrift.json`, legacy `crashproof.json`), text/JSON/SARIF/HTML rendering, baselines, exit codes, the `trace`, `report` and (feature `replay`) `replay` and `init-replay` commands. Builds `commitrift` and the legacy `crashproof` executable. | the above, `clap` |
-| `commitrift-corpus` | Developer tool, not published: corpus runs, run comparison, reviewed precision, per-phase memory profile; Phase 4: trace coverage/validation (`traces`), blind review packets (`review-packet`, `review-check`). | core, analyzer, `clap` |
+| `midwrite-core` | Effect IR, failure-path analysis, diagnostics and code catalog, configuration, report model, line/column mapping. Language independent. | `serde`, `thiserror` |
+| `midwrite-analyzer` | TypeScript frontend: file discovery, Oxc parsing and semantic analysis, identifier provenance, effect recognition, branch facts, lowering to IR, export collection, module resolution (`resolve.rs`), project analysis (`project.rs`), and the `Analyzer` driver. | `midwrite-core`, Oxc, `serde_json` (tsconfig/package.json) |
+| `midwrite-replay` | Opt-in runtime replay (Phase 3): manifest validation, disposable PostgreSQL clusters, the checkpoint-protocol supervisor, observations and invariants; Phase 4: OS isolation backends (`isolation.rs`: macOS sandbox-exec, Linux bubblewrap), runtime preflight (Node.js/Bun). Never used by `check`. | `midwrite-core`, `libc` |
+| `midwrite-cli` | Argument parsing, configuration discovery (`midwrite.json`, legacy `crashproof.json`), text/JSON/SARIF/HTML rendering, baselines, exit codes, the `trace`, `report` and (feature `replay`) `replay` and `init-replay` commands. Builds `midwrite` and the legacy `crashproof` executable. | the above, `clap` |
+| `midwrite-corpus` | Developer tool, not published: corpus runs, run comparison, reviewed precision, per-phase memory profile; Phase 4: trace coverage/validation (`traces`), blind review packets (`review-packet`, `review-check`). | core, analyzer, `clap` |
 
-Phase 3 additions to `commitrift-core`: `trace` (Failure Trace IR, crash
+Phase 3 additions to `midwrite-core`: `trace` (Failure Trace IR, crash
 simulation, validation) and `verification` (verification levels and report
 types). How a finding becomes a trace, and a trace runtime evidence, is
 described in [`phase3/ARCHITECTURE.md`](phase3/ARCHITECTURE.md).
 
-Phase 4 additions: `commitrift-core::recovery` (function-level recovery
+Phase 4 additions: `midwrite-core::recovery` (function-level recovery
 contracts, applied after detection; fingerprints and traces unchanged),
 replay regression comparison in `verification` (`compare_with_baseline`,
 verification report schema version 2), the JavaScript replay client and
 driver adapters in `runtime/node`, and the harness generator
-(`commitrift-cli/src/init_replay.rs`). See [`phase4/`](phase4/FINAL-REPORT.md).
+(`midwrite-cli/src/init_replay.rs`). See [`phase4/`](phase4/FINAL-REPORT.md).
 
 The core never sees an AST. A future frontend (another ORM, another language)
 only has to produce `FunctionIr`.
 
-## Frontend (`commitrift-analyzer`)
+## Frontend (`midwrite-analyzer`)
 
 **Parsing.** `oxc_parser` with the source type derived from the file
 extension (`.tsx` enables JSX). Any parser error makes the file a
 `FileFailure` of kind `parse`; a partially recovered AST is never analyzed.
 
-**Semantic analysis.** `oxc_semantic` builds scopes and symbols. CommitRift
+**Semantic analysis.** `oxc_semantic` builds scopes and symbols. Midwrite
 uses it only to resolve identifier references to their declarations, so that
 shadowing, renamed imports and aliases are handled correctly.
 
@@ -182,7 +182,7 @@ exception is an inline callback passed to a recognized transaction method: it
 runs immediately, so it is lowered in place as the transaction body and
 skipped as a separate unit.
 
-## Effect IR (`commitrift-core::ir`)
+## Effect IR (`midwrite-core::ir`)
 
 The IR is a tree that mirrors the source's structured control flow:
 
@@ -228,9 +228,9 @@ Design choices:
   `SummaryOrigin`: the chain of calls they are reached through and whether
   the outermost callee performs them on every path.
 
-`commitrift ir` prints the tree; `--format json` serializes it.
+`midwrite ir` prints the tree; `--format json` serializes it.
 
-## Project analysis (`commitrift-analyzer::project`, `resolve`)
+## Project analysis (`midwrite-analyzer::project`, `resolve`)
 
 `Analyzer::analyze_project` (used by the CLI) lowers every discovered file on
 its own (in parallel; results are kept in file order), then:
@@ -262,7 +262,7 @@ its own (in parallel; results are kept in file order), then:
 `Analyzer::analyze_source` and `lower_source` keep the single-file behavior:
 imported calls are not followed.
 
-## Call summaries (`commitrift-core::analysis::summary`)
+## Call summaries (`midwrite-core::analysis::summary`)
 
 The analysis stays intraprocedural except for calls the frontend linked to a
 function of the table (same file, or imported in project analysis).
@@ -312,7 +312,7 @@ ordering, transactions (including a helper that writes on `db` inside the
 caller's transaction) and branches inside the callee are handled by the same
 path enumeration and replay as the caller's own code.
 
-## Value layer and Phase 5 summaries (`commitrift-core::absint`, analyzer `values`, `classes`, `link`, `builtins`)
+## Value layer and Phase 5 summaries (`midwrite-core::absint`, analyzer `values`, `classes`, `link`, `builtins`)
 
 Phase 5 adds a bounded abstract interpreter alongside lowering
 ([`phase5/ANALYSIS-DESIGN.md`](phase5/ANALYSIS-DESIGN.md)):
@@ -347,7 +347,7 @@ lowering (per function)                     project / single file
 * Detection: effects reached through an assumed method dispatch cap the
   finding at medium confidence; findings get `valueRelation`.
 
-## Failure-path analysis (`commitrift-core::analysis`)
+## Failure-path analysis (`midwrite-core::analysis`)
 
 **1. Path enumeration** (`paths.rs`). Traces are enumerated forward. Each IR
 node maps the set of traces reaching it to the traces leaving it normally,
@@ -355,7 +355,7 @@ plus traces leaving via `return`, `throw`, `break` and `continue`.
 Since Phase 7 an inlined call whose facts share no variable with facts
 outside it is walked once per effect context and its exit-grouped trace
 fragments are spliced onto every incoming trace (*compact summaries*,
-exact, the default; `COMMITRIFT_PATHS=legacy` walks every trace through the
+exact, the default; `MIDWRITE_PATHS=legacy` walks every trace through the
 body as before — [`phase7/COMPACT-SUMMARIES.md`](phase7/COMPACT-SUMMARIES.md)):
 
 * `Branch`: one copy of the incoming traces per arm, each tagged with a
@@ -385,7 +385,7 @@ body as before — [`phase7/COMPACT-SUMMARIES.md`](phase7/COMPACT-SUMMARIES.md))
 
 The number of traces per function is capped (`--max-paths`, default 512).
 When the cap is hit the analysis keeps going on the explored prefix and adds
-a `CP9001` diagnostic.
+a `MW9001` diagnostic.
 
 **2. Replay and points** (`detect.rs`). Each trace is replayed with a stack of
 open transactions. The replay produces the trace's *points*, the moments at
@@ -403,18 +403,18 @@ which something becomes durable or visible:
 
 **3. Hazards.** A failure between two *adjacent* points leaves the first done
 and the second not. Each adjacent pair is classified by kind (commit/visible ×
-commit/visible → CP1001, CP1002, CP1004, CP1005). Only adjacent pairs are
+commit/visible → MW1001, MW1002, MW1004, MW1005). Only adjacent pairs are
 reported: `A B C` yields the windows `A|B` and `B|C`, not `A|C`, because a
 failure anywhere is already described by the window it falls in. An external
-effect that happens while a root transaction with writes is open is CP1003
-(the pair "effect, that transaction's commit" is not also reported as CP1002).
-Unknown effects become CP9001 when something durable or visible precedes them
+effect that happens while a root transaction with writes is open is MW1003
+(the pair "effect, that transaction's commit" is not also reported as MW1002).
+Unknown effects become MW9001 when something durable or visible precedes them
 on the path, when they run inside a transaction with writes, or when they
 certainly involve the database or a configured receiver.
 
 Operations inlined from a summary take part like the caller's own, with two
 rules that avoid repeating the callee's findings in every caller: a pair (or
-a CP1003 effect and transaction) whose operations both come from the same
+a MW1003 effect and transaction) whose operations both come from the same
 inlined call is skipped, because the callee's own analysis reports it; and an
 unknown effect inside an inlined call is reported only when the nearest
 preceding point lies outside that call, or when it runs inside a transaction
@@ -428,7 +428,7 @@ confidence, then the fewest branch decisions, then the earliest enumeration
 order is kept, which makes output deterministic. Pairs that share their
 primary operation (same reported location and label) are then merged into
 one diagnostic that lists the other partners. Unknown calls inside one
-inlined call are grouped (one CP9001 per call), and under the `recommended`
+inlined call are grouped (one MW9001 per call), and under the `recommended`
 policy all context-only unknown calls of a function are grouped. The path
 certainty starts `straightLine` and confidence `high`; both are lowered by
 what the window between the two points contains:
@@ -438,7 +438,7 @@ what the window between the two points contains:
 | branch decisions between the two points, a loop, an unawaited operation or transaction | `conditional` | at most `medium` |
 | an operation taken from the summary of a callee that performs it only on some of its paths | `conditional` | at most `medium` |
 | concurrent operations, or a path that enters a catch handler by approximation | `approximated` | `low` |
-| CP9001 limitations | `unknown` / `truncated` | always `low` |
+| MW9001 limitations | `unknown` / `truncated` | always `low` |
 
 Then the weakest recognition evidence of the operations caps the confidence:
 a member-path match (`memberPath`) never yields more than `medium`.
@@ -463,7 +463,7 @@ identifiers allocated in traversal order; traces are enumerated in a fixed order
 are keyed in a `BTreeMap`; the final report is sorted by file, position, code
 and related locations. No hash-map iteration order reaches the output.
 Phase 2 lowers files and analyzes files on up to 8 threads
-(`COMMITRIFT_THREADS` overrides); results are collected by index, so the
+(`MIDWRITE_THREADS` overrides); results are collected by index, so the
 output does not depend on scheduling (checked by tests and by comparing
 corpus runs).
 
@@ -483,6 +483,6 @@ corpus runs).
 Function identity by source position shared with the concurrency
 extractor (`analyzer::identity`), wrapper invocation analysis
 (`analyzer::wrapper`), the original-code coordinator
-(`commitrift-replay::source`, `runtime/node/source.js`) and the
-differential comparison (`commitrift-model::source_verify`):
+(`midwrite-replay::source`, `runtime/node/source.js`) and the
+differential comparison (`midwrite-model::source_verify`):
 [`phase7/ARCHITECTURE.md`](phase7/ARCHITECTURE.md).

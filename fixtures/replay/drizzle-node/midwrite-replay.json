@@ -1,0 +1,256 @@
+{
+  "schemaVersion": 1,
+  "harness": "drizzle-node",
+  "description": "Order service on Node.js, the real Drizzle ORM 0.45.4 and node-postgres 8.23.1: dual write (A), transaction rollback (B), external effect inside a transaction (C), transactional outbox (D).",
+  "runtime": "node",
+  "command": ["node", "dist/replay/harness.js"],
+  "timeoutSeconds": 30,
+  "database": {
+    "provider": "ephemeral-postgres",
+    "setup": ["schema.sql"]
+  },
+  "analysis": { "paths": ["src"], "config": "midwrite.json" },
+  "observations": [
+    { "name": "order1Status", "sql": "SELECT status FROM orders WHERE id = 'order-1'" },
+    { "name": "completedEvents", "events": { "topic": "order.completed" } },
+    { "name": "order2Status", "sql": "SELECT status FROM orders WHERE id = 'order-2'" },
+    { "name": "order2Payments", "sql": "SELECT count(*) FROM payments WHERE order_id = 'order-2'" },
+    { "name": "order3Status", "sql": "SELECT status FROM orders WHERE id = 'order-3'" },
+    { "name": "order3Shipments", "sql": "SELECT count(*) FROM shipments WHERE order_id = 'order-3'" },
+    { "name": "shippedEvents", "events": { "topic": "order.shipped" } },
+    { "name": "order4Status", "sql": "SELECT status FROM orders WHERE id = 'order-4'" },
+    { "name": "outboxRows", "sql": "SELECT count(*) FROM outbox" },
+    { "name": "pendingOutbox", "sql": "SELECT count(*) FROM outbox WHERE published_at IS NULL" },
+    { "name": "confirmedEvents", "events": { "topic": "order.confirmed" } },
+    { "name": "confirmedDuplicates", "events": { "topic": "order.confirmed", "measure": "duplicates" } },
+    { "name": "confirmedWithoutId", "events": { "topic": "order.confirmed", "measure": "withoutId" } }
+  ],
+  "invariants": [
+    {
+      "id": "paid-order-has-completed-event",
+      "description": "(A) Application contract: an order marked paid by completeOrder has its order.completed event published; fulfilment only learns about paid orders from that event.",
+      "when": [{ "observation": "order1Status", "equals": "paid" }],
+      "require": [{ "observation": "completedEvents", "atLeast": 1 }]
+    },
+    {
+      "id": "paid-order-has-payment",
+      "description": "(B) An order is paid only together with its payment row.",
+      "when": [{ "observation": "order2Status", "equals": "paid" }],
+      "require": [{ "observation": "order2Payments", "atLeast": 1 }]
+    },
+    {
+      "id": "payment-has-paid-order",
+      "description": "(B) A payment row exists only together with the paid status.",
+      "when": [{ "observation": "order2Payments", "atLeast": 1 }],
+      "require": [{ "observation": "order2Status", "equals": "paid" }]
+    },
+    {
+      "id": "shipped-event-has-shipped-order",
+      "description": "(C) Consumers of order.shipped may rely on the order being shipped in the database.",
+      "when": [{ "observation": "shippedEvents", "atLeast": 1 }],
+      "require": [
+        { "observation": "order3Status", "equals": "shipped" },
+        { "observation": "order3Shipments", "atLeast": 1 }
+      ]
+    },
+    {
+      "id": "confirmed-order-event-published-or-owed",
+      "description": "(D) A confirmed order has its order.confirmed event published, or still owed by a durable outbox row that the relay will publish.",
+      "when": [{ "observation": "order4Status", "equals": "confirmed" }],
+      "requireAny": [
+        { "observation": "confirmedEvents", "atLeast": 1 },
+        { "observation": "pendingOutbox", "atLeast": 1 }
+      ]
+    },
+    {
+      "id": "intent-only-for-committed-state",
+      "description": "(D) An outbox row exists only for an order whose status change committed.",
+      "when": [{ "observation": "outboxRows", "atLeast": 1 }],
+      "require": [{ "observation": "order4Status", "equals": "confirmed" }]
+    },
+    {
+      "id": "confirmed-events-are-deduplicable",
+      "description": "(D) Delivery is at-least-once: every order.confirmed event carries an id so consumers can drop duplicates. Duplicates themselves are allowed.",
+      "require": [{ "observation": "confirmedWithoutId", "atMost": 0 }]
+    }
+  ],
+  "control": { "scenario": "allFlows" },
+  "cases": [
+    {
+      "id": "a-kill-after-db-commit",
+      "description": "(A) Kill the process after Drizzle's auto-commit UPDATE was acknowledged, before publishing.",
+      "finding": { "code": "MW1001", "function": "completeOrder", "file": "src/service.ts" },
+      "scenario": "completeOrder",
+      "input": { "orderId": "order-1" },
+      "inject": { "checkpoint": "after-db-commit", "label": "orders", "mode": "processKill" },
+      "verifyBeforeInjection": [{ "observation": "order1Status", "equals": "paid" }],
+      "predict": { "order1Status": "paid", "completedEvents": 0 },
+      "expect": "RUNTIME_REPRODUCED"
+    },
+    {
+      "id": "a-exception-after-db-commit",
+      "description": "(A) Throw at the same point: completeOrder has no handler, so the exception leaves the same state.",
+      "finding": { "code": "MW1001", "function": "completeOrder", "file": "src/service.ts" },
+      "scenario": "completeOrder",
+      "input": { "orderId": "order-1" },
+      "inject": { "checkpoint": "after-db-commit", "label": "orders", "mode": "exception" },
+      "verifyBeforeInjection": [{ "observation": "order1Status", "equals": "paid" }],
+      "predict": { "order1Status": "paid", "completedEvents": 0 },
+      "expect": "RUNTIME_REPRODUCED"
+    },
+    {
+      "id": "a-kill-before-db-write",
+      "description": "(A) Negative: kill before the UPDATE is sent. Nothing is durable, nothing is inconsistent.",
+      "finding": { "code": "MW1001", "function": "completeOrder", "file": "src/service.ts" },
+      "scenario": "completeOrder",
+      "input": { "orderId": "order-1" },
+      "inject": { "checkpoint": "before-db-write", "label": "orders", "mode": "processKill" },
+      "predict": { "order1Status": "pending", "completedEvents": 0 },
+      "expect": "RUNTIME_NOT_REPRODUCED"
+    },
+    {
+      "id": "a-kill-after-event-publish",
+      "description": "(A) Negative: kill after the event was published. Both effects happened.",
+      "finding": { "code": "MW1001", "function": "completeOrder", "file": "src/service.ts" },
+      "scenario": "completeOrder",
+      "input": { "orderId": "order-1" },
+      "inject": { "checkpoint": "after-event-publish", "label": "order.completed", "mode": "processKill" },
+      "predict": { "order1Status": "paid", "completedEvents": 1 },
+      "expect": "RUNTIME_NOT_REPRODUCED"
+    },
+    {
+      "id": "b-exception-before-tx-commit",
+      "description": "(B) Throw after the transaction callback returned, before COMMIT is sent. Drizzle rolls back; the separate session sees neither staged write.",
+      "scenario": "recordPayment",
+      "input": { "orderId": "order-2", "amountCents": 4200 },
+      "inject": { "checkpoint": "before-tx-commit", "label": "transaction", "mode": "exception" },
+      "verifyBeforeInjection": [
+        { "observation": "order2Status", "equals": "pending" },
+        { "observation": "order2Payments", "equals": 0 }
+      ],
+      "predict": { "order2Status": "pending", "order2Payments": 0 },
+      "expect": "RUNTIME_NOT_REPRODUCED"
+    },
+    {
+      "id": "b-kill-after-tx-write",
+      "description": "(B) Kill after the second write was staged inside the transaction: PostgreSQL rolls back when the connection drops.",
+      "scenario": "recordPayment",
+      "input": { "orderId": "order-2", "amountCents": 4200 },
+      "inject": { "checkpoint": "after-tx-write", "label": "orders", "mode": "processKill" },
+      "verifyBeforeInjection": [{ "observation": "order2Status", "equals": "pending" }],
+      "predict": { "order2Status": "pending", "order2Payments": 0 },
+      "expect": "RUNTIME_NOT_REPRODUCED"
+    },
+    {
+      "id": "b-kill-after-tx-commit",
+      "description": "(B) Kill right after COMMIT was acknowledged: both writes are durable together.",
+      "scenario": "recordPayment",
+      "input": { "orderId": "order-2", "amountCents": 4200 },
+      "inject": { "checkpoint": "after-db-commit", "label": "transaction", "mode": "processKill" },
+      "verifyBeforeInjection": [
+        { "observation": "order2Status", "equals": "paid" },
+        { "observation": "order2Payments", "equals": 1 }
+      ],
+      "predict": { "order2Status": "paid", "order2Payments": 1 },
+      "expect": "RUNTIME_NOT_REPRODUCED"
+    },
+    {
+      "id": "c-exception-after-event-publish",
+      "description": "(C) Throw after the event was published inside the open transaction: Drizzle rolls the transaction back, the event stays out.",
+      "finding": { "code": "MW1003", "function": "shipOrder", "file": "src/service.ts" },
+      "scenario": "shipOrder",
+      "input": { "orderId": "order-3", "trackingNumber": "TRACK-NEW" },
+      "inject": { "checkpoint": "after-event-publish", "label": "order.shipped", "mode": "exception" },
+      "verifyBeforeInjection": [
+        { "observation": "shippedEvents", "equals": 1 },
+        { "observation": "order3Status", "equals": "pending" }
+      ],
+      "predict": { "order3Status": "pending", "order3Shipments": 0, "shippedEvents": 1 },
+      "expect": "RUNTIME_REPRODUCED"
+    },
+    {
+      "id": "c-kill-after-event-publish",
+      "description": "(C) Kill at the same point: PostgreSQL rolls the open transaction back when the connection drops.",
+      "finding": { "code": "MW1003", "function": "shipOrder", "file": "src/service.ts" },
+      "scenario": "shipOrder",
+      "input": { "orderId": "order-3", "trackingNumber": "TRACK-NEW" },
+      "inject": { "checkpoint": "after-event-publish", "label": "order.shipped", "mode": "processKill" },
+      "verifyBeforeInjection": [{ "observation": "shippedEvents", "equals": 1 }],
+      "predict": { "order3Status": "pending", "order3Shipments": 0, "shippedEvents": 1 },
+      "expect": "RUNTIME_REPRODUCED"
+    },
+    {
+      "id": "c-commit-fails-after-publish",
+      "description": "(C) No injection: a duplicate tracking number violates a deferred unique constraint, so PostgreSQL rejects the COMMIT after the event was published. The request handler reports the error and the process keeps running.",
+      "finding": { "code": "MW1003", "function": "shipOrder", "file": "src/service.ts" },
+      "scenario": "shipOrderRequest",
+      "input": { "orderId": "order-3", "trackingNumber": "TRACK-TAKEN" },
+      "predict": { "order3Status": "pending", "order3Shipments": 0, "shippedEvents": 1 },
+      "expect": "RUNTIME_REPRODUCED"
+    },
+    {
+      "id": "c-kill-before-event-publish",
+      "description": "(C) Negative: kill before publishing. The transaction rolls back and nothing was published.",
+      "finding": { "code": "MW1003", "function": "shipOrder", "file": "src/service.ts" },
+      "scenario": "shipOrder",
+      "input": { "orderId": "order-3", "trackingNumber": "TRACK-NEW" },
+      "inject": { "checkpoint": "before-event-publish", "label": "order.shipped", "mode": "processKill" },
+      "predict": { "order3Status": "pending", "order3Shipments": 0, "shippedEvents": 0 },
+      "expect": "RUNTIME_NOT_REPRODUCED"
+    },
+    {
+      "id": "d-kill-before-tx-commit",
+      "description": "(D) Kill while the outbox transaction is open, after both writes were staged: PostgreSQL rolls both back.",
+      "scenario": "confirmOrder",
+      "input": { "orderId": "order-4" },
+      "inject": { "checkpoint": "before-tx-commit", "label": "transaction", "mode": "processKill" },
+      "verifyBeforeInjection": [{ "observation": "order4Status", "equals": "pending" }],
+      "predict": { "order4Status": "pending", "outboxRows": 0, "confirmedEvents": 0 },
+      "expect": "RUNTIME_NOT_REPRODUCED"
+    },
+    {
+      "id": "d-kill-after-tx-commit",
+      "description": "(D) The point that is a bug in scenario A: kill right after the commit. The intent survives in the outbox and the relay publishes it.",
+      "scenario": "confirmOrder",
+      "input": { "orderId": "order-4" },
+      "inject": { "checkpoint": "after-db-commit", "label": "transaction", "mode": "processKill" },
+      "verifyBeforeInjection": [{ "observation": "order4Status", "equals": "confirmed" }],
+      "predict": { "order4Status": "confirmed", "pendingOutbox": 1, "confirmedEvents": 0 },
+      "recovery": [{ "scenario": "relay" }],
+      "expect": "RUNTIME_NOT_REPRODUCED"
+    },
+    {
+      "id": "d-kill-relay-before-publish",
+      "description": "(D) Kill the relay before it publishes: the row stays pending and the next relay run publishes it.",
+      "scenario": "confirmAndRelay",
+      "input": { "orderId": "order-4" },
+      "inject": { "checkpoint": "before-event-publish", "label": "order.confirmed", "mode": "processKill" },
+      "predict": { "order4Status": "confirmed", "pendingOutbox": 1, "confirmedEvents": 0 },
+      "recovery": [{ "scenario": "relay" }],
+      "expect": "RUNTIME_NOT_REPRODUCED"
+    },
+    {
+      "id": "d-kill-relay-after-publish-before-ack",
+      "description": "(D) The relay's own MW1002 window: kill after publishing, before marking the row published. The next relay run publishes a duplicate, which the declared contract accepts because events carry an id.",
+      "finding": { "code": "MW1002", "function": "relayOutbox", "file": "src/relay.ts" },
+      "scenario": "confirmAndRelay",
+      "input": { "orderId": "order-4" },
+      "inject": { "checkpoint": "after-event-publish", "label": "order.confirmed", "mode": "processKill" },
+      "verifyBeforeInjection": [{ "observation": "confirmedEvents", "equals": 1 }],
+      "predict": { "order4Status": "confirmed", "pendingOutbox": 1, "confirmedEvents": 1 },
+      "recovery": [{ "scenario": "relay" }],
+      "expect": "RUNTIME_NOT_REPRODUCED"
+    },
+    {
+      "id": "d-exception-relay-after-publish-before-ack",
+      "description": "(D) The same relay window with an exception instead of a crash.",
+      "finding": { "code": "MW1002", "function": "relayOutbox", "file": "src/relay.ts" },
+      "scenario": "confirmAndRelay",
+      "input": { "orderId": "order-4" },
+      "inject": { "checkpoint": "after-event-publish", "label": "order.confirmed", "mode": "exception" },
+      "predict": { "order4Status": "confirmed", "pendingOutbox": 1, "confirmedEvents": 1 },
+      "recovery": [{ "scenario": "relay" }],
+      "expect": "RUNTIME_NOT_REPRODUCED"
+    }
+  ]
+}

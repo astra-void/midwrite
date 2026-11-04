@@ -108,10 +108,10 @@ async function underFakeSupervisor(script, throwAt) {
   const child = spawn(process.execPath, [file], {
     env: {
       PATH: process.env.PATH,
-      COMMITRIFT_REPLAY: "1",
-      COMMITRIFT_REPLAY_SOCKET: socket,
-      COMMITRIFT_REPLAY_SCENARIO: "main",
-      COMMITRIFT_REPLAY_INPUT: '{"n":1}',
+      MIDWRITE_REPLAY: "1",
+      MIDWRITE_REPLAY_SOCKET: socket,
+      MIDWRITE_REPLAY_SCENARIO: "main",
+      MIDWRITE_REPLAY_INPUT: '{"n":1}',
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -176,7 +176,7 @@ test("an injected exception is reported as an injected throw, distinct from othe
 test("unknown scenarios and prototype keys are refused", async () => {
   const { messages } = await underFakeSupervisor(`
     import { runScenarios } from "@RUNTIME@/index.js";
-    process.env.COMMITRIFT_REPLAY_SCENARIO = "toString";
+    process.env.MIDWRITE_REPLAY_SCENARIO = "toString";
     await runScenarios({});
   `);
   assert.match(messages.at(-1).error, /unknown scenario/);

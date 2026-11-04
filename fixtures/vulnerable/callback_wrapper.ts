@@ -1,8 +1,8 @@
 // Phase 5: `execute` awaits its parameter; at this call it is the inline
 // callback, whose publication runs inside `execute` after the commit.
 // `withRetry` runs a named function the same way.
-// @expect CP1001 line=19 confidence=high function=completeOrder
-// @expect CP1001 line=30 confidence=high function=refundOrder
+// @expect MW1001 line=19 confidence=high function=completeOrder
+// @expect MW1001 line=30 confidence=high function=refundOrder
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 

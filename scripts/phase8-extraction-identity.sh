@@ -8,7 +8,7 @@ set -euo pipefail
 old="$1"
 out="${2:-/dev/stdout}"
 root="$(cd "$(dirname "$0")/.." && pwd)"
-new="$root/target/release/commitrift"
+new="$root/target/release/midwrite"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 status=0

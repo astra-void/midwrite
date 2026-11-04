@@ -1,6 +1,6 @@
 # Evaluation methodology
 
-How CommitRift's results are measured, what each kind of measurement can
+How Midwrite's results are measured, what each kind of measurement can
 support, and the rules every phase report follows. The measured results
 themselves are in the [evidence index](evidence-index.md).
 
@@ -66,7 +66,7 @@ implementer or by AI sessions. The levels of separation that do exist:
 | 12 | the implementer, fresh application frozen before scoring | none |
 | 13 | an AI agent without access to `crates/` or the in-progress Phase 13 code; it read Phase 12 documents and fixtures | independent of the code, not of the project; fresh, not blind |
 | 14–15 | AI agents without `crates/` access, as in Phase 13 | as above |
-| 16 | an AI agent that did not read `crates/`, `runtime/`, `docs/phase16/` or earlier design documents and ran no build or CommitRift command; it read the user-facing reference docs (supported patterns, limitations) and the Phase 15 set's format | independent of the code, not blind to the documented subset; frozen and scored once before feedback |
+| 16 | an AI agent that did not read `crates/`, `runtime/`, `docs/phase16/` or earlier design documents and ran no build or Midwrite command; it read the user-facing reference docs (supported patterns, limitations) and the Phase 15 set's format | independent of the code, not blind to the documented subset; frozen and scored once before feedback |
 
 AI evaluation is not review. Statements in these documents that a result
 is "verified" refer to the measurements above, never to human review.

@@ -1,12 +1,12 @@
 // Receivers reached through members are analyzed when the configuration names
-// their path: fixtures/commitrift.json lists `this.db`, `ctx.db` and
+// their path: fixtures/midwrite.json lists `this.db`, `ctx.db` and
 // `this.queue.publish`. The evidence says the match is member-path based, and
 // confidence is capped at medium because only the names along the path are
 // checked (Phase 2; Phase 1 reported these as high).
-// @expect CP1001 line=18 confidence=medium function=OrderService.complete
-// @expect CP1003 line=25 confidence=medium function=OrderService.completeInTransaction
-// @expect CP1004 line=33 confidence=medium function=OrderService.audit
-// @expect CP1001 line=44 confidence=medium function=completeOrderProcedure
+// @expect MW1001 line=18 confidence=medium function=OrderService.complete
+// @expect MW1003 line=25 confidence=medium function=OrderService.completeInTransaction
+// @expect MW1004 line=33 confidence=medium function=OrderService.audit
+// @expect MW1001 line=44 confidence=medium function=completeOrderProcedure
 import { orders, auditLog } from "@/db/schema";
 
 export class OrderService {

@@ -1,15 +1,15 @@
 {
-  "name": "commitrift-fixture-request-app",
+  "name": "midwrite-fixture-request-app",
   "private": true,
   "version": "0.0.0",
-  "description": "CommitRift Phase 13 first-party application: task claims whose correctness is what the callers are told (return values), and request handlers whose single INSERT can commit before the response is delivered. Drizzle ORM on node-postgres.",
+  "description": "Midwrite Phase 13 first-party application: task claims whose correctness is what the callers are told (return values), and request handlers whose single INSERT can commit before the response is delivered. Drizzle ORM on node-postgres.",
   "type": "module",
   "engines": { "node": ">=22" },
   "scripts": {
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@commitrift/replay": "file:../../../runtime/node",
+    "@midwrite/replay": "file:../../../runtime/node",
     "drizzle-orm": "0.45.4",
     "pg": "8.23.1"
   },

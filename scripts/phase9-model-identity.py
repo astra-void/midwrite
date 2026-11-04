@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase 9 regression: `commitrift model-check` of the Phase 8 binary and of
+"""Phase 9 regression: `midwrite model-check` of the Phase 8 binary and of
 this build must give identical reports (JSON, text) on every model scenario of
 Phases 6-8. The only field allowed to differ is
 `exploration.metrics.visitedBytes`: it measures the visited-state table, which
@@ -17,7 +17,7 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NEW = os.path.join(ROOT, "target", "release", "commitrift")
+NEW = os.path.join(ROOT, "target", "release", "midwrite")
 PATTERNS = [
     "fixtures/concurrency/scenarios/*.json",
     "fixtures/concurrency/corpus/*.json",

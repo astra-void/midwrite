@@ -1,9 +1,9 @@
 // Helpers called inside a transaction callback: one publishes before the
-// transaction commits (CP1003), the other writes on `db` instead of the
-// transaction handle, so its write commits on its own (CP1004). Both
+// transaction commits (MW1003), the other writes on `db` instead of the
+// transaction handle, so its write commits on its own (MW1004). Both
 // diagnostics point at the call inside the callback.
-// @expect CP1003 line=23 confidence=high function=completeOrder
-// @expect CP1004 line=30 confidence=high function=recordPayment
+// @expect MW1003 line=23 confidence=high function=completeOrder
+// @expect MW1004 line=30 confidence=high function=recordPayment
 import { db } from "@/db";
 import { orders, payments } from "@/db/schema";
 

@@ -1,7 +1,7 @@
 # Candidate discovery and scenario synthesis
 
-Crate: `commitrift-discover` (with `commitrift-analyzer::entries` and the
-model checker's own loader and engine). Command: `commitrift discover`.
+Crate: `midwrite-discover` (with `midwrite-analyzer::entries` and the
+model checker's own loader and engine). Command: `midwrite discover`.
 Design record: [Phase 11 architecture](../phase11/ARCHITECTURE.md); this
 page summarizes the current pipeline.
 

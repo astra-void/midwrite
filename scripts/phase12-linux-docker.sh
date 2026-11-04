@@ -14,7 +14,7 @@ repo="$(cd "$(dirname "$0")/.." && pwd)"
 out="${1:-$repo/reports/phase12/linux}"
 mkdir -p "$out"
 out="$(cd "$out" && pwd)"
-image="commitrift-linux-replay:phase4"
+image="midwrite-linux-replay:phase4"
 
 docker build -q -t "$image" -f "$repo/ci/linux-replay.Dockerfile" "$repo/ci" >/dev/null
 
@@ -31,7 +31,7 @@ python3 scripts/phase8-digest.py > /out/digest.txt
   uname -a
   head -2 /etc/os-release
   rustc --version; node --version; bwrap --version
-  "$COMMITRIFT_PG_BIN/postgres" --version
+  "$MIDWRITE_PG_BIN/postgres" --version
 } > /out/environment.txt 2>&1
 {
   (cd fixtures/replay/drizzle-node && npm ci --ignore-scripts --no-audit --no-fund && npm run build)
@@ -48,10 +48,10 @@ python3 scripts/phase8-digest.py > /out/digest.txt
 python3 scripts/phase8-digest.py > /out/digest.txt 2>&1
 cargo fmt --all -- --check > /out/fmt.txt 2>&1; echo "exit $?" >> /out/fmt.txt
 cargo clippy --workspace --all-targets -- -D warnings > /out/clippy.txt 2>&1; echo "exit $?" >> /out/clippy.txt
-COMMITRIFT_REQUIRE_REPLAY=1 cargo test --workspace --no-fail-fast > /out/cargo-test.txt 2>&1; echo "exit $?" >> /out/cargo-test.txt
+MIDWRITE_REQUIRE_REPLAY=1 cargo test --workspace --no-fail-fast > /out/cargo-test.txt 2>&1; echo "exit $?" >> /out/cargo-test.txt
 cargo build --release > /out/build-release.txt 2>&1; echo "exit $?" >> /out/build-release.txt
-sha256sum target/release/commitrift >> /out/build-release.txt
-COMMITRIFT_BIN=$PWD/target/release/commitrift python3 scripts/phase12-evidence.py --repeat 3 > /out/phase12-evidence.txt 2>&1; echo "exit $?" >> /out/phase12-evidence.txt
+sha256sum target/release/midwrite >> /out/build-release.txt
+MIDWRITE_BIN=$PWD/target/release/midwrite python3 scripts/phase12-evidence.py --repeat 3 > /out/phase12-evidence.txt 2>&1; echo "exit $?" >> /out/phase12-evidence.txt
 cp -r reports/phase12/evidence /out/phase12-evidence
 python3 scripts/validate-schemas.py --builtin reports/phase12/evidence/runtime-*.json > /out/phase12-schemas.txt 2>&1; echo "exit $?" >> /out/phase12-schemas.txt
 '

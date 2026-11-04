@@ -7,7 +7,7 @@
 // is written and fsync'ed. Consumers deduplicate by `id` when one is given.
 
 import { closeSync, fsyncSync, openSync, writeSync } from "node:fs";
-import { checkpoint, eventLogPath } from "../../../runtime/typescript/commitrift-replay.ts";
+import { checkpoint, eventLogPath } from "../../../runtime/typescript/midwrite-replay.ts";
 
 export const queue = {
   async publish(topic: string, payload: unknown, options?: { id?: string }): Promise<void> {

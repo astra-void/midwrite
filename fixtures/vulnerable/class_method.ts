@@ -1,6 +1,6 @@
 // Methods of classes and object literals are analyzed; names are qualified.
-// @expect CP1001 line=10 confidence=high function=OrderService.complete
-// @expect CP1002 line=17 confidence=high function=refund
+// @expect MW1001 line=10 confidence=high function=OrderService.complete
+// @expect MW1002 line=17 confidence=high function=refund
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 

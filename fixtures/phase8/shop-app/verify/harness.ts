@@ -5,9 +5,9 @@
 // at process start. The checkout code is imported unchanged. What the
 // harness provides is what the process entry point provides:
 //
-//   * the database pool (coordinated by CommitRift);
+//   * the database pool (coordinated by Midwrite);
 //   * the payment provider, the event bus and the mailer: TEST DOUBLES whose
-//     calls are received by the CommitRift coordinator (`sourceEffect`). A
+//     calls are received by the Midwrite coordinator (`sourceEffect`). A
 //     double's deduplication is the scenario's DECLARED channel contract —
 //     an assumption about the real provider, not evidence about it.
 import * as drizzle from "drizzle-orm";
@@ -19,7 +19,7 @@ import {
   runSourceActor,
   sourceEffect,
   sourcePoolConfig,
-} from "@commitrift/replay/source";
+} from "@midwrite/replay/source";
 
 import type { PayRequest } from "../src/app/checkout.js";
 import type { ReserveRequest } from "../src/app/inventory.js";

@@ -1,6 +1,6 @@
 // A project-defined replica factory modeled after drizzle-orm's own
 // `withReplicas` (routing by getters, an explicit `usePrimaryOnly()` and
-// `$primary`). CommitRift does not interpret this body: the routing is taken
+// `$primary`). Midwrite does not interpret this body: the routing is taken
 // from a declaration (`ExtractRequest.replica_factories`), never inferred.
 import type { PgDatabase } from "drizzle-orm/pg-core";
 

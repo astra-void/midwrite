@@ -1,8 +1,8 @@
 {
-  "name": "commitrift-fixture-values-app",
+  "name": "midwrite-fixture-values-app",
   "private": true,
   "version": "0.0.0",
-  "description": "CommitRift Phase 14 first-party static fixture: Drizzle writes guarded by JavaScript strings, arrays, null/undefined, Map and Set. Analyzed statically; not executed.",
+  "description": "Midwrite Phase 14 first-party static fixture: Drizzle writes guarded by JavaScript strings, arrays, null/undefined, Map and Set. Analyzed statically; not executed.",
   "type": "module",
   "dependencies": {
     "drizzle-orm": "0.45.4",

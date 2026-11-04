@@ -1,8 +1,8 @@
 {
-  "name": "commitrift-fixture-drizzle-app",
+  "name": "midwrite-fixture-drizzle-app",
   "private": true,
   "version": "0.0.0",
-  "description": "CommitRift Phase 14 Track D first-party application: multi-row inserts, inArray/not/or/isNull predicates with NULLs, conditional predicates, timestamp columns (defaultNow, $onUpdate, new Date()) and jsonb columns. Drizzle ORM on node-postgres. probe/ prints the SQL the pinned drizzle-orm generates (no database).",
+  "description": "Midwrite Phase 14 Track D first-party application: multi-row inserts, inArray/not/or/isNull predicates with NULLs, conditional predicates, timestamp columns (defaultNow, $onUpdate, new Date()) and jsonb columns. Drizzle ORM on node-postgres. probe/ prints the SQL the pinned drizzle-orm generates (no database).",
   "type": "module",
   "engines": { "node": ">=22" },
   "scripts": {

@@ -1,7 +1,7 @@
 #!/bin/bash
 # usage: mc.sh scenario [flags...] -> prints one line with verdict/states/transitions/ms/rss
 SC=$1; shift
-BIN=${BIN:-./target/release/commitrift}
+BIN=${BIN:-./target/release/midwrite}
 OUT=$( { /usr/bin/time -l $BIN model-check $SC --format json "$@" 2>/tmp/mc_err.txt; } )
 RSS=$(grep "maximum resident" /tmp/mc_err.txt | awk '{printf "%.1f MiB", $1/1048576}')
 echo "$OUT" | python3 -c "

@@ -1,5 +1,5 @@
 // A switch case that falls through into the next case.
-// @expect CP1001 line=12 confidence=high
+// @expect MW1001 line=12 confidence=high
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 

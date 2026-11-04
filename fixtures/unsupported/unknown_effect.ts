@@ -1,6 +1,6 @@
-// Example F: an unknown call after a database commit. CommitRift does not
+// Example F: an unknown call after a database commit. Midwrite does not
 // claim it is an external effect; it reports an analysis limitation.
-// @expect CP9001 line=10
+// @expect MW9001 line=10
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 import { unknownService } from "@/lib/unknown";

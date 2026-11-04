@@ -1,6 +1,6 @@
 // A hazard entirely inside a helper is reported once, for the helper itself,
 // not again for every caller.
-// @expect CP1001 line=10 confidence=high function=completeOrder
+// @expect MW1001 line=10 confidence=high function=completeOrder
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 

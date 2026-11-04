@@ -6,7 +6,7 @@ private PostgreSQL and, in step 5, execute application code; they are
 described but were **not run** for this documentation.
 
 Outputs were produced by the release binary built from the current tree on
-2026-10-27 (`commitrift 0.1.0`, Phase 13 working tree, pre-Phase 14),
+2026-10-27 (`midwrite 0.1.0`, Phase 13 working tree, pre-Phase 14),
 with `--no-timing` so that they are reproducible.
 
 The workflow and what each step can claim:
@@ -22,7 +22,7 @@ bounds and invariants ([format](../user-guide/model-check.md#scenario-files)).
 `purchase` requests for the last unit of a product:
 
 ```text
-$ commitrift model-check fixtures/concurrency/scenarios/inventory-oversell.json --no-timing
+$ midwrite model-check fixtures/concurrency/scenarios/inventory-oversell.json --no-timing
 inventory-oversell: COUNTEREXAMPLE_FOUND
   isolation read-committed · 2 actor(s) · 11 state(s), 10 transition(s) (sleep-set reduction on)
 ...
@@ -49,14 +49,14 @@ Result:
 
 Evidence: ModelCounterexample — a schedule found by the model checker; it has not been run on a real database
 ...
-warning CP7001: invariant `successful-purchases-within-initial-stock` can be violated by a bounded schedule of 6 transitions (2 context switches); evidence: model-counterexample
+warning MW7001: invariant `successful-purchases-within-initial-stock` can be violated by a bounded schedule of 6 transitions (2 context switches); evidence: model-counterexample
 ```
 
 Exit status 1. The same purchase with `SELECT … FOR UPDATE`
 (`inventory-row-lock.json`) exits 0:
 
 ```text
-$ commitrift model-check fixtures/concurrency/scenarios/inventory-row-lock.json --no-timing
+$ midwrite model-check fixtures/concurrency/scenarios/inventory-row-lock.json --no-timing
 inventory-row-lock: NO_COUNTEREXAMPLE_WITHIN_BOUNDS
   isolation read-committed · 2 actor(s) · 30 state(s), 34 transition(s) (sleep-set reduction on)
 
@@ -68,7 +68,7 @@ Invariants can also read what callers were told (Phase 13). In
 calls both return `true`; the table alone ends in a legal state:
 
 ```text
-$ commitrift model-check fixtures/phase13/request-app/scenarios/claim-race.json --no-timing
+$ midwrite model-check fixtures/phase13/request-app/scenarios/claim-race.json --no-timing
 claim-race: COUNTEREXAMPLE_FOUND
 ...
 Invariant `at-most-one-caller-told-it-claimed` (final state):
@@ -78,14 +78,14 @@ Invariant `at-most-one-caller-told-it-claimed` (final state):
 
 ## 2. Discover candidates without writing a scenario
 
-`commitrift discover` indexes a project, pairs effects that may interact,
+`midwrite discover` indexes a project, pairs effects that may interact,
 attaches a property whose origin is always stated, synthesizes initial
 states and scenarios, and with `--model-check` explores them. It never
 executes application code.
 
 ```text
-$ commitrift discover fixtures/phase13/eval-app --model-check --format text --no-timing
-commitrift discover: eval-app (26 modules, 41 entry candidates, 35 extracted, 22 effectful)
+$ midwrite discover fixtures/phase13/eval-app --model-check --format text --no-timing
+midwrite discover: eval-app (26 modules, 41 entry candidates, 35 extracted, 22 effectful)
 mode: discover+model-check; application code executed: no; search: sleep-set partial-order reduction (default)
 candidates: 13 (5 model counterexamples, 1 against hypotheses; 3 deduplicated findings)
 
@@ -99,7 +99,7 @@ Candidate CR-SYNTH-95604C  [MODEL_COUNTEREXAMPLE]
   Resource: teams(ownerId = $ownerId)
   Property: A user owns at most one team (product rule).
     origin: USER_DECLARED
-    why: declared in commitrift-contracts.json
+    why: declared in midwrite-contracts.json
   Scenario actual [Actual]: synthesis satisfied — COUNTEREXAMPLE_FOUND (16 states, violates `one-team-per-owner`)
   Scenario distinct-key [Control]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (40 states)
   Status: MODEL_COUNTEREXAMPLE
@@ -109,7 +109,7 @@ Important: a model counterexample against a HEURISTIC_HYPOTHESIS is not a confir
 
 The property's origin decides what a counterexample means
 ([invariants](../concepts/invariants.md)): here it is `USER_DECLARED` in
-`fixtures/phase13/eval-app/commitrift-contracts.json`. Without
+`fixtures/phase13/eval-app/midwrite-contracts.json`. Without
 `--model-check` the same command builds the scenarios and stops
 (`STATIC_CANDIDATE`). The 13 candidates and 5 counterexamples above equal
 the `post-feedback-1` scoring recorded in
@@ -118,45 +118,45 @@ the `post-feedback-1` scoring recorded in
 To keep the synthesized scenarios and re-run one by hand:
 
 ```bash
-commitrift discover fixtures/phase13/eval-app --emit-scenarios /tmp/scenarios
-commitrift model-check /tmp/scenarios/<id>-actual.json
+midwrite discover fixtures/phase13/eval-app --emit-scenarios /tmp/scenarios
+midwrite model-check /tmp/scenarios/<id>-actual.json
 ```
 
 ## 3. Explain and render
 
 ```bash
-commitrift explain CP7001
-commitrift model-check SCENARIO.json --format html -o report.html   # script-free HTML timeline
-commitrift discover ROOT --model-check --format html -o discovery.html
+midwrite explain MW7001
+midwrite model-check SCENARIO.json --format html -o report.html   # script-free HTML timeline
+midwrite discover ROOT --model-check --format html -o discovery.html
 ```
 
 ## 4. Optional: replay the model's SQL on PostgreSQL
 
 ```bash
-commitrift model-check fixtures/concurrency/scenarios/inventory-oversell.json --validate-postgres
+midwrite model-check fixtures/concurrency/scenarios/inventory-oversell.json --validate-postgres
 ```
 
 Starts a private, disposable PostgreSQL cluster (Unix socket only) and
 replays the counterexample's statements in lockstep, one session per actor.
 It never runs application code. A matching replay is
-`PostgresConfirmedSchedule`; a mismatch is `CP7101`; a missing server is
-`CP7102`. Needs the PostgreSQL server binaries. Not run for this page.
+`PostgresConfirmedSchedule`; a mismatch is `MW7101`; a missing server is
+`MW7102`. Needs the PostgreSQL server binaries. Not run for this page.
 
 ## 5. Optional: run the counterexample against the original code
 
 ```bash
 (cd fixtures/phase7/team-app && npm ci --ignore-scripts && npm run build)   # as scripts/phase12-linux-docker.sh does
-commitrift model-check fixtures/phase7/scenarios/team-app-invite-double-submit.json \
+midwrite model-check fixtures/phase7/scenarios/team-app-invite-double-submit.json \
   --verify-source --allow-execution --source-repeat 5
 ```
 
 This **executes** the first-party application through its authorized
-harness (`commitrift-source.json`), one isolated worker per actor, holding
+harness (`midwrite-source.json`), one isolated worker per actor, holding
 and releasing each SQL statement Drizzle sends in the counterexample's
 order against a disposable PostgreSQL. The best result is
 `original-code-reproduced` (or `original-code-crash-reproduced` for crash
 and retry schedules); a disagreement is reported statement by statement
-(`CP7103`). Requirements, guarantees and limits:
+(`MW7103`). Requirements, guarantees and limits:
 [source verification](../user-guide/source-verification.md). Not run for
 this page; the recorded runs of this fixture are in
 [Phase 7](../phase7/FINAL-REPORT.md) (5 of 5 runs, `original-code-reproduced`).

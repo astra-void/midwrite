@@ -1,8 +1,8 @@
 {
-  "name": "commitrift-fixture-phase16-loops",
+  "name": "midwrite-fixture-phase16-loops",
   "private": true,
   "version": "0.0.0",
-  "description": "CommitRift Phase 16 loop, caught-error and request shapes (static source: never executed). The declared versions select the verified caught-error shape (drizzle-orm 0.45 on node-postgres).",
+  "description": "Midwrite Phase 16 loop, caught-error and request shapes (static source: never executed). The declared versions select the verified caught-error shape (drizzle-orm 0.45 on node-postgres).",
   "type": "module",
   "dependencies": {
     "drizzle-orm": "0.45.4",

@@ -1,7 +1,7 @@
 # Invariants and properties
 
 A counterexample is only as meaningful as the property it violates.
-CommitRift never infers a business invariant silently: every property is
+Midwrite never infers a business invariant silently: every property is
 either written by a person, enforced by the schema, implied by a declared
 contract, or labeled a hypothesis.
 
@@ -55,7 +55,7 @@ step changes ([Phase 11 invariant synthesis](../phase11/INVARIANT-SYNTHESIS.md))
 | origin | meaning | how a counterexample is reported |
 | --- | --- | --- |
 | `SCHEMA_ENFORCED` | a supported, non-partial unique constraint covers the property | the property is enforced by the schema |
-| `USER_DECLARED` | written in `commitrift-contracts.json` | declared by the user |
+| `USER_DECLARED` | written in `midwrite-contracts.json` | declared by the user |
 | `FRAMEWORK_CONTRACT` | follows from a declared integration contract (at-least-once delivery ⇒ at most one effect per message) | implied by a declared contract |
 | `HEURISTIC_HYPOTHESIS` | suggested by the code, not established | "MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS … not a confirmed defect" |
 | `SOURCE_ASSERTED` | an explicit assertion in source with a stated translation | defined; no rule produces it |
@@ -67,7 +67,7 @@ with its origin, so it travels into `model-check` reports.
 
 ## Templates
 
-Declared invariants (`commitrift-contracts.json`) and synthesized
+Declared invariants (`midwrite-contracts.json`) and synthesized
 properties use templates: `atMostOne {table, key, where}`, `atLeast {table,
 groupBy, where, min}`, `nonNegative {table, column}`, `maxExternal
 {channel, max}`, `formula` (a literal assertion), plus the synthesized

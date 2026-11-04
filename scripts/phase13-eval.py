@@ -5,7 +5,7 @@ the frozen labels (fixtures/phase13/eval-labels.json), stage by stage.
 Usage: scripts/phase13-eval.py OUT.json [--first]
 
 The checksums in fixtures/phase13/FROZEN.json are verified first: a changed
-application or label file refuses the run. COMMITRIFT_BIN selects the
+application or label file refuses the run. MIDWRITE_BIN selects the
 binary (the Phase 12 baseline binary scores the same set for comparison).
 
 With --first, refuses to run when the first scoring already exists (it is
@@ -28,7 +28,7 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BIN = os.environ.get("COMMITRIFT_BIN", os.path.join(ROOT, "target", "release", "commitrift"))
+BIN = os.environ.get("MIDWRITE_BIN", os.path.join(ROOT, "target", "release", "midwrite"))
 APP = os.path.join(ROOT, "fixtures", "phase13", "eval-app")
 LABELS = os.path.join(ROOT, "fixtures", "phase13", "eval-labels.json")
 FROZEN = os.path.join(ROOT, "fixtures", "phase13", "FROZEN.json")

@@ -1,6 +1,6 @@
 // A handle created with `drizzle(...)` in the same file is recognized by
 // provenance, whatever its name.
-// @expect CP1001 line=13 confidence=high
+// @expect MW1001 line=13 confidence=high
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { orders } from "./schema";

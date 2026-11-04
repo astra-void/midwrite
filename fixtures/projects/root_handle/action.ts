@@ -1,7 +1,7 @@
 // The caller passes the root handle `db` inside its own transaction: the
-// helper's write commits on its own (CP1004, a specific bypass: warning under
+// helper's write commits on its own (MW1004, a specific bypass: warning under
 // the default policy).
-// @expect CP1004 line=11 confidence=high function=checkout
+// @expect MW1004 line=11 confidence=high function=checkout
 import { db } from "@/db";
 import { payments } from "@/db/schema";
 import { saveOrder } from "./repository";

@@ -1,11 +1,11 @@
 // Process-lifecycle harness for the source coordinator's own tests
-// (crates/commitrift-replay/tests/source_lifecycle.rs). Not an application:
+// (crates/midwrite-replay/tests/source_lifecycle.rs). Not an application:
 // each entry misbehaves in one way the coordinator must contain.
 import { spawn } from "node:child_process";
 
 import { runSourceActor, sourceAttempt, sourceEffect } from "../../../runtime/node/source.js";
 
-const entry = process.env.COMMITRIFT_SOURCE_ENTRY;
+const entry = process.env.MIDWRITE_SOURCE_ENTRY;
 
 // A retry whose process dies before it connects.
 if (entry === "failRetry" && sourceAttempt() > 1) process.exit(3);
@@ -15,7 +15,7 @@ await runSourceActor({
   // group), then returns.
   detach: async () => {
     // The last argument marks the process so the test can look for it.
-    const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)", "commitrift-lifecycle-grandchild"], {
+    const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)", "midwrite-lifecycle-grandchild"], {
       detached: true,
       stdio: "ignore",
     });

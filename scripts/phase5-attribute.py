@@ -3,8 +3,8 @@
 
     scripts/phase5-attribute.py BEFORE.json AFTER.json IRDIR [--show-private]
 
-BEFORE/AFTER are `commitrift-corpus run` reports; IRDIR holds
-`<project>-4.txt` and `<project>-5.txt`, the text IR (`commitrift ir .`) of
+BEFORE/AFTER are `midwrite-corpus run` reports; IRDIR holds
+`<project>-4.txt` and `<project>-5.txt`, the text IR (`midwrite ir .`) of
 each project produced by the Phase 4 and Phase 5 binaries with the same
 configuration. For every finding added or removed (by fingerprint), the
 function's IR is compared between the two versions and the Phase 5

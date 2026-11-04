@@ -1,4 +1,4 @@
-// node-postgres (`pg`) adapter for CommitRift replay harnesses.
+// node-postgres (`pg`) adapter for Midwrite replay harnesses.
 //
 // `instrumentPgPool(pool)` wraps the query methods of ONE pool instance so
 // that replay checkpoints are emitted at the database effect boundaries of
@@ -31,7 +31,7 @@
 
 import { checkpoint, replayDatabase } from "./index.js";
 
-const INSTRUMENTED = Symbol.for("commitrift.replay.pg.instrumented");
+const INSTRUMENTED = Symbol.for("midwrite.replay.pg.instrumented");
 
 function stripLeadingComments(text) {
   let rest = text;

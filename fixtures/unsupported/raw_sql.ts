@@ -1,5 +1,5 @@
 // Raw SQL is not parsed, so its effects are unknown.
-// @expect CP9001 line=7
+// @expect MW9001 line=7
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 

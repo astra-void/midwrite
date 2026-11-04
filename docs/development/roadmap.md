@@ -65,7 +65,7 @@ From the Phase 13 frozen evaluation set and corpus
   run; a security review; a human-reviewed precision baseline; crates.io
   and npm packaging decisions ([Phase 4 release readiness](../phase4/RELEASE-READINESS.md)).
   A local Git history exists since the start of Phase 7 (first commit
-  `72c789e`, "import CommitRift through Phase 6"); the phase reports record
+  `72c789e`, "import Midwrite through Phase 6"); the phase reports record
   no GitHub CI run, no push and no published package.
 * Windows and x86_64 runs.
 

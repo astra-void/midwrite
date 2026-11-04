@@ -1,6 +1,6 @@
 # Security
 
-What CommitRift reads, executes and writes, and what its isolation does
+What Midwrite reads, executes and writes, and what its isolation does
 and does not protect against. Per-phase reviews:
 [Phase 3](../phase3/SECURITY.md), [Phase 4](../phase4/SECURITY-REVIEW.md),
 [Phase 4 Linux isolation](../phase4/LINUX-ISOLATION.md),
@@ -31,8 +31,8 @@ without `--force`. `--emit-scenarios`, `-o`, `--output`, `--cache` and
 | --- | --- | --- |
 | `model-check --validate-postgres` | a private PostgreSQL cluster and the **model's** SQL; no application code | the flag itself |
 | `schema --migrations … ` | the migration SQL, on a private cluster | `--allow-execution` |
-| `model-check --verify-source` | the application's original code through the named source harness | `--allow-execution` and a `commitrift-source.json` manifest |
-| `replay` | the harness directory you name | `--allow-execution` and a `commitrift-replay.json` manifest; without the flag only the plan is printed |
+| `model-check --verify-source` | the application's original code through the named source harness | `--allow-execution` and a `midwrite-source.json` manifest |
+| `replay` | the harness directory you name | `--allow-execution` and a `midwrite-replay.json` manifest; without the flag only the plan is printed |
 
 Guarantees for executing commands (Phases 3–13):
 
@@ -53,9 +53,9 @@ Guarantees for executing commands (Phases 3–13):
 * **Process control.** Per-worker rlimits, a run-token sweep of detached
   processes, worker self-exit, process-group kills (Phase 8).
 * **Manifest checks.** Files must be inside the harness directory; a
-  harness with a `COMMITRIFT-TODO` marker is refused.
+  harness with a `MIDWRITE-TODO` marker is refused.
 * **Protocol additions are narrow.** The Phase 13 `respond` message is
-  active only when the coordinator sets `COMMITRIFT_SOURCE_RESPONSE=hold`
+  active only when the coordinator sets `MIDWRITE_SOURCE_RESPONSE=hold`
   and only after the harness entry returned; no network listener is
   opened. Replica schedules are refused for original-code runs.
 

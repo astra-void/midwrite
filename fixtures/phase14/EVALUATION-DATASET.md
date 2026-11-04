@@ -11,9 +11,9 @@
   services, a worker, Next.js-style `"use server"` actions and route
   handlers (`export async function POST(req)` and `export const POST =
   withAuth(async (ctx) => …)`), an application `withRetry` wrapper, and
-  `commitrift-contracts.json`.
-* **Frozen before any Phase 14 scoring and before any CommitRift command was
-  run on it** (no `cargo` and no `commitrift` invocation of any kind by the
+  `midwrite-contracts.json`.
+* **Frozen before any Phase 14 scoring and before any Midwrite command was
+  run on it** (no `cargo` and no `midwrite` invocation of any kind by the
   author). `fixtures/phase14/FROZEN.json` records the SHA-256 (`shasum -a
   256`) of all 38 application files and of the labels: manifest digest
   **`b44c7d184aad052270845ba8b6017bff0460b3e066e9342f9391999273977798`**,
@@ -46,14 +46,14 @@ The Phase 13 label format (`schemaVersion` 1; `id`, `entry`, `class`,
 * `requiresDeclaration` / `declaredInContracts` (return-value cases only):
   the property is about what callers are told, cannot be read from the
   source or schema, and is or is not declared in
-  `eval-app/commitrift-contracts.json`.
+  `eval-app/midwrite-contracts.json`.
 * `contractsUsed`: the contract items the environment or property relies on.
 * top-level `families`, and `expectedSchema.nonUniqueIndexes`,
   `jsonColumns`, `timestampColumns` (informational).
 
 Every entry is labeled `effectful: true` (each has a reachable write).
 
-`commitrift-contracts.json` declares: `retry: on-crash` for the two
+`midwrite-contracts.json` declares: `retry: on-crash` for the two
 project-setup entries (E08, E09); `concurrent: false` for the invoice
 finalizer (E16, E17); three `atMostOne` business rules (`credits`,
 `stages`, `priorities`); and three `formula` invariants over return values
@@ -168,11 +168,11 @@ schedule violates the property) of every case are in the labels file.
 # once, by the evaluation lead, after building the Phase 14 binary
 scripts/phase14-eval.py reports/phase14/eval/first-scoring.json --first
 # comparison with an earlier binary (not a first scoring)
-COMMITRIFT_BIN=/path/to/phase13/commitrift scripts/phase14-eval.py reports/phase14/eval/phase13-binary.json
+MIDWRITE_BIN=/path/to/phase13/midwrite scripts/phase14-eval.py reports/phase14/eval/phase13-binary.json
 ```
 
 The script verifies `FROZEN.json` first (changed, missing or added files and
-the manifest digest), runs `commitrift discover eval-app --model-check
+the manifest digest), runs `midwrite discover eval-app --model-check
 --labels eval-labels.json --format json --no-timing`, and writes the Phase 13
 stages (schema, entries, effects, candidates, the tool's `evaluation`,
 validity, unsupported) plus `scoring`: model prediction TP/FP/FN/TN,

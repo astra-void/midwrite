@@ -1,6 +1,6 @@
-# CommitRift documentation
+# Midwrite documentation
 
-CommitRift statically analyzes TypeScript applications that use Drizzle ORM
+Midwrite statically analyzes TypeScript applications that use Drizzle ORM
 on PostgreSQL for crash and concurrency hazards, synthesizes bounded
 scenarios, model-checks them, and can optionally run a counterexample
 against the original code on a disposable PostgreSQL database.
@@ -36,7 +36,7 @@ are not rewritten; this layer links to them for detail.
 | | |
 | --- | --- |
 | [Installation](getting-started/installation.md) | build from source; prerequisites for the optional runtime steps |
-| [Quickstart](getting-started/quickstart.md) | `commitrift check` on one file, with real output |
+| [Quickstart](getting-started/quickstart.md) | `midwrite check` on one file, with real output |
 | [First verification](getting-started/first-verification.md) | model checking, discovery, PostgreSQL replay, original code |
 | [Closed Alpha guide](alpha/README.md) | for invited developers: build, first run, coverage, reproduction, feedback (not distributed) |
 
@@ -48,7 +48,7 @@ are not rewritten; this layer links to them for detail.
 | [`discover`](user-guide/discover.md) | candidates, properties and scenarios from source |
 | [`model-check`](user-guide/model-check.md) | scenarios, verdicts, search options |
 | [Runtime verification](user-guide/source-verification.md) | `--validate-postgres`, `--verify-source`, replay harnesses |
-| [Contracts](user-guide/contracts.md) | what source cannot say: `commitrift-contracts.json` |
+| [Contracts](user-guide/contracts.md) | what source cannot say: `midwrite-contracts.json` |
 | [Interpreting results](user-guide/interpreting-results.md) | the verification workflow and what each result does not say |
 
 ## Reference
@@ -56,9 +56,9 @@ are not rewritten; this layer links to them for detail.
 | | |
 | --- | --- |
 | [CLI reference](reference/cli.md) | every command and flag of the current binary, exit statuses, environment |
-| [Configuration](reference/configuration.md) | `commitrift.json`, recovery declarations, trust model |
+| [Configuration](reference/configuration.md) | `midwrite.json`, recovery declarations, trust model |
 | [Output formats](reference/output-formats.md) | text, JSON kinds and schema versions, SARIF, HTML |
-| [Diagnostics](DIAGNOSTICS.md) | `CP1001`–`CP9001`, `CP7001`–`CP7103`, JSON fields |
+| [Diagnostics](DIAGNOSTICS.md) | `MW1001`–`MW9001`, `MW7001`–`MW7103`, JSON fields |
 | [Supported patterns](reference/supported-patterns.md) | what the analyzer and the extractor recognize |
 | [**Limitations**](reference/limitations.md) | the single current limitations document |
 | [Security](reference/security.md) | what is read, executed and written; isolation; privacy |
@@ -108,7 +108,7 @@ phase.
 | phase | topic | final report |
 | --- | --- | --- |
 | 2 | real-world evaluation, cross-module analysis, policies, baselines | [phase2](phase2/FINAL-REPORT.md) |
-| 3 | rename to CommitRift; failure traces; opt-in runtime replay | [phase3](phase3/FINAL-REPORT.md) |
+| 3 | rename to Midwrite; failure traces; opt-in runtime replay | [phase3](phase3/FINAL-REPORT.md) |
 | 4 | Node.js + Drizzle replay, Linux isolation, harness generation, recovery contracts | [phase4](phase4/FINAL-REPORT.md) |
 | 5 | bounded interprocedural abstract interpretation: values, classes, callbacks, async | [phase5](phase5/FINAL-REPORT.md) |
 | 6 | explicit-state model checker, PostgreSQL isolation model, lockstep validation | [phase6](phase6/FINAL-REPORT.md) |

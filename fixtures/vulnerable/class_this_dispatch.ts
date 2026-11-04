@@ -3,7 +3,7 @@
 // calls dispatch to `OrderService`'s own methods; the commit and the
 // publication they perform are traced through them. (The receivers are
 // configured member paths, so confidence is capped at medium.)
-// @expect CP1001 line=17 confidence=medium function=OrderService.complete
+// @expect MW1001 line=17 confidence=medium function=OrderService.complete
 import { orders } from "@/db/schema";
 
 export class OrderService {

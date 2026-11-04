@@ -1,28 +1,28 @@
-# Contributing to CommitRift
+# Contributing to Midwrite
 
-Thank you for helping. CommitRift is experimental; correctness and honest
+Thank you for helping. Midwrite is experimental; correctness and honest
 reporting matter more than coverage.
 
 ## Ground rules
 
 * **No unearned confidence.** A diagnostic must be backed by recognized
   operations and a path in the supported model. If the analysis cannot decide,
-  it reports `CP9001` or stays silent; it never guesses an effect.
+  it reports `MW9001` or stays silent; it never guesses an effect.
 * **Every behavior change comes with a fixture.** Add a file under
   `fixtures/vulnerable/`, `fixtures/safe/` or `fixtures/unsupported/` with
   `// @expect` annotations, for example:
 
   ```ts
-  // @expect CP1001 line=12 confidence=high function=completeOrder
+  // @expect MW1001 line=12 confidence=high function=completeOrder
   // @expect none
   // @expect parse-error
   ```
 
-  `crates/commitrift-analyzer/tests/fixtures.rs` checks that the set of
+  `crates/midwrite-analyzer/tests/fixtures.rs` checks that the set of
   `(code, line)` pairs matches exactly.
-* **Keep the core independent.** `commitrift-core` must not depend on a parser.
+* **Keep the core independent.** `midwrite-core` must not depend on a parser.
   Frontend concerns (Oxc, TypeScript syntax, Drizzle chains) live in
-  `commitrift-analyzer`.
+  `midwrite-analyzer`.
 * **Keep output deterministic.** No hash-map iteration in anything that reaches
   the report.
 * **Document limitations.** If a change adds an approximation, list it in
@@ -48,21 +48,21 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-Useful while developing: `cargo run -p commitrift-cli -- ir <file>` prints the
+Useful while developing: `cargo run -p midwrite-cli -- ir <file>` prints the
 Effect IR the frontend produced for a file, and `-- trace <file>` the failure
 trace behind each finding.
 
-Runtime replay tests (`crates/commitrift-cli/tests/replay.rs`) run the
+Runtime replay tests (`crates/midwrite-cli/tests/replay.rs`) run the
 harnesses under `fixtures/replay/`. They need Bun, Node.js ≥ 22, the
 PostgreSQL server binaries, an isolation backend (macOS `sandbox-exec`, or
 Linux bubblewrap with unprivileged user namespaces) and the Drizzle fixture's
 pinned dependencies (`cd fixtures/replay/drizzle-node && npm ci`); without
-them they print `SKIPPED` and pass, unless `COMMITRIFT_REQUIRE_REPLAY=1` is
+them they print `SKIPPED` and pass, unless `MIDWRITE_REQUIRE_REPLAY=1` is
 set. A skipped replay test is not runtime verification.
 `scripts/linux-replay-docker.sh` runs fmt, clippy and the full suite with
 required replay on Linux in a container. A change to replay should keep
 `scripts/demo.sh` and `scripts/demo-phase4.sh` working, and the vendored client of
-`fixtures/replay/drizzle-node/generated-harness/commitrift-runtime/` in sync
+`fixtures/replay/drizzle-node/generated-harness/midwrite-runtime/` in sync
 with `runtime/node` (copy the files; do not run `init-replay --force` there,
 which would also overwrite the completed manifest and harness). A test fails
 when they drift.

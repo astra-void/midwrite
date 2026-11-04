@@ -1,6 +1,6 @@
 # Interpreting results
 
-Every CommitRift result carries the strongest evidence it has and no more.
+Every Midwrite result carries the strongest evidence it has and no more.
 This page says how to read each kind of result and what it does **not**
 establish. Definitions: [evidence levels](../concepts/evidence-levels.md),
 [property origins](../concepts/invariants.md#property-origins).
@@ -42,7 +42,7 @@ Each arrow is opt-in, and each step answers a narrower question:
   operations, test and seed scripts. Declare recovery
   ([configuration](../reference/configuration.md#recovery-declarations)),
   baseline, or exclude them.
-* `CP9001` is not a finding: it marks code the analysis did not understand
+* `MW9001` is not a finding: it marks code the analysis did not understand
   next to recognized effects.
 
 ## Discovery candidates

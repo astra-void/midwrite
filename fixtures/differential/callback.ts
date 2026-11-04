@@ -1,6 +1,6 @@
 // Differential test: the publication runs in a callback awaited by a
 // wrapper, after the commit.
-// @expect CP1001 line=12 confidence=high function=completeOrder
+// @expect MW1001 line=12 confidence=high function=completeOrder
 import { db, orders, queue } from "./runtime.ts";
 
 async function execute(action: () => Promise<void>) {

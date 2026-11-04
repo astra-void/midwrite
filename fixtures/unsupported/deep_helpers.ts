@@ -1,7 +1,7 @@
 // Summaries are inlined at most three calls deep. `completeOrder` reaches the
 // publish only through four calls, so the outer call stays an unknown effect
-// and is reported as CP9001 instead of being guessed.
-// @expect CP9001 line=16 function=completeOrder
+// and is reported as MW9001 instead of being guessed.
+// @expect MW9001 line=16 function=completeOrder
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 

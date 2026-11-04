@@ -84,7 +84,7 @@
     }
   ],
   "sourceVerification": {
-    "harness": "../ledger-app/commitrift-source-pool1.json",
+    "harness": "../ledger-app/midwrite-source-pool1.json",
     "actors": {
       "Client": {
         "entry": "settleWithAudit",

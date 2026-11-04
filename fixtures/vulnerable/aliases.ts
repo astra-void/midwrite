@@ -1,5 +1,5 @@
 // Renamed imports and local `const` aliases of recognized receivers are followed.
-// @expect CP1001 line=11 confidence=high
+// @expect MW1001 line=11 confidence=high
 import { db as database } from "@/db";
 import { orders } from "@/db/schema";
 

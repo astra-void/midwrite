@@ -24,7 +24,7 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BIN = os.environ.get("COMMITRIFT_BIN", os.path.join(ROOT, "target", "release", "commitrift"))
+BIN = os.environ.get("MIDWRITE_BIN", os.path.join(ROOT, "target", "release", "midwrite"))
 APP = os.path.join(ROOT, "fixtures", "phase12", "eval-app")
 LABELS = os.path.join(ROOT, "fixtures", "phase12", "eval-labels.json")
 

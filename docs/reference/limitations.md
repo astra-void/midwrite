@@ -29,7 +29,7 @@ Contents:
 ## What any result means
 
 * A static diagnostic is a **potential** hazard (`"reproduced": false`).
-  CommitRift cannot know whether the application tolerates the partial
+  Midwrite cannot know whether the application tolerates the partial
   state or repairs it elsewhere.
 * `NO_COUNTEREXAMPLE_WITHIN_BOUNDS` covers the declared actors, arguments,
   initial rows, isolation level, faults and bounds — nothing else.
@@ -38,7 +38,7 @@ Contents:
 * `original-code-reproduced` holds for the harness inputs and declared
   preconditions, the schedule, the PostgreSQL version and a disposable
   database of the run; not for production traffic.
-* No result proves consistency. CommitRift does not replace database
+* No result proves consistency. Midwrite does not replace database
   constraints, integration tests or fault-injection testing.
 * Invariants are declared or labeled hypotheses; a wrong invariant gives a
   meaningless verdict.
@@ -148,7 +148,7 @@ Phases 6–13, whose static output stayed byte-identical):
 * top-level module code, labeled `break`/`continue`, generator
   resumption; optional calls are treated as unconditional;
 * more than `--max-paths` (512) paths in a function (the rest truncated,
-  `CP9001`);
+  `MW9001`);
 * unconfigured external effects before the first recognized commit
   (silent unless `--policy audit`).
 

@@ -99,7 +99,7 @@
     }
   ],
   "sourceVerification": {
-    "harness": "../shop-app/commitrift-source.json",
+    "harness": "../shop-app/midwrite-source.json",
     "actors": {
       "Worker": {
         "entry": "sendReceipt",

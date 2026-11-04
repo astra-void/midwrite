@@ -1,6 +1,6 @@
 // Phase 5: the method is replaced on the instance (`this.notify = ...`), so
 // dispatch is dynamic and the call is not resolved.
-// @expect CP9001 line=16 function=Service.complete
+// @expect MW9001 line=16 function=Service.complete
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 

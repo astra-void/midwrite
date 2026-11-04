@@ -62,7 +62,7 @@
     }
   ],
   "sourceVerification": {
-    "harness": "../commitrift-source.json",
+    "harness": "../midwrite-source.json",
     "actors": {
       "alice": {
         "entry": "reserveHandle",

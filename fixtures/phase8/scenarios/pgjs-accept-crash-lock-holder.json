@@ -300,7 +300,7 @@
     }
   ],
   "sourceVerification": {
-    "harness": "../pgjs-app/commitrift-source.json",
+    "harness": "../pgjs-app/midwrite-source.json",
     "actors": {
       "Accept1": {
         "entry": "acceptInvitation",

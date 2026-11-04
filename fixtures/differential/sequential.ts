@@ -1,5 +1,5 @@
 // Differential test: a commit, then a publication, in order.
-// @expect CP1001 line=7 confidence=high function=completeOrder
+// @expect MW1001 line=7 confidence=high function=completeOrder
 import { db, orders, queue } from "./runtime.ts";
 
 export async function completeOrder(id: string) {

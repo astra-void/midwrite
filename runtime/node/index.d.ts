@@ -1,4 +1,4 @@
-// Types of the CommitRift replay client (protocol version 1).
+// Types of the Midwrite replay client (protocol version 1).
 
 export declare const PROTOCOL_VERSION: 1;
 
@@ -11,7 +11,7 @@ export declare class InjectedFault extends Error {
 /** The InjectedFault behind `error`, following `cause` chains (libraries wrap driver errors). */
 export declare function injectedFaultIn(error: unknown): InjectedFault | undefined;
 
-/** Whether the process runs under `commitrift replay`. */
+/** Whether the process runs under `midwrite replay`. */
 export declare function replayActive(): boolean;
 
 /**

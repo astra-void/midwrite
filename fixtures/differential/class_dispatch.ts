@@ -1,5 +1,5 @@
 // Differential test: the operations run in methods reached through `this`.
-// @expect CP1001 line=8 confidence=high function=OrderService.complete
+// @expect MW1001 line=8 confidence=high function=OrderService.complete
 import { db, orders, queue } from "./runtime.ts";
 
 export class OrderService {

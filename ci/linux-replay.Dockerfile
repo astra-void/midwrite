@@ -1,4 +1,4 @@
-# Linux test environment for CommitRift replay (Debian bookworm, Node 22).
+# Linux test environment for Midwrite replay (Debian bookworm, Node 22).
 #
 # Used by scripts/linux-replay-docker.sh to run the full test suite,
 # including required replay tests with bubblewrap isolation, on a Linux
@@ -22,7 +22,7 @@ USER tester
 WORKDIR /home/tester
 
 ENV PATH=/home/tester/.cargo/bin:/home/tester/.bun/bin:$PATH \
-    COMMITRIFT_PG_BIN=/usr/lib/postgresql/15/bin
+    MIDWRITE_PG_BIN=/usr/lib/postgresql/15/bin
 
 RUN curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --component rustfmt,clippy --default-toolchain stable \
  && curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.3"

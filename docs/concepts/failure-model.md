@@ -1,6 +1,6 @@
 # Failure model
 
-CommitRift asks one question in two settings: **what state is left when a
+Midwrite asks one question in two settings: **what state is left when a
 process, connection or call fails between two side effects that are durable
 or visible independently of each other?** The static analyzer answers it
 for one function at a time over its paths; the model checker answers it for
@@ -21,11 +21,11 @@ second not. Each adjacent pair is classified:
 
 | first → second | code |
 | --- | --- |
-| commit → external effect | `CP1001` |
-| external effect → commit | `CP1002` |
-| external effect while a transaction with writes is open | `CP1003` |
-| commit → commit (no shared transaction, or `db` used inside a `tx` callback) | `CP1004` |
-| external effect → external effect | `CP1005` |
+| commit → external effect | `MW1001` |
+| external effect → commit | `MW1002` |
+| external effect while a transaction with writes is open | `MW1003` |
+| commit → commit (no shared transaction, or `db` used inside a `tx` callback) | `MW1004` |
+| external effect → external effect | `MW1005` |
 
 Transaction semantics used:
 
@@ -41,8 +41,8 @@ Transaction semantics used:
 Every awaited operation may fail; the crash simulation in a trace models a
 process crash only (exception handlers are not executed in the
 simulation). Unknown calls are never assumed to be effects or to be safe:
-they become `CP9001` when they sit next to recognized effects. Details:
-[`docs/ARCHITECTURE.md` § failure-path analysis](../ARCHITECTURE.md#failure-path-analysis-commitrift-coreanalysis),
+they become `MW9001` when they sit next to recognized effects. Details:
+[`docs/ARCHITECTURE.md` § failure-path analysis](../ARCHITECTURE.md#failure-path-analysis-midwrite-coreanalysis),
 [Phase 3 trace format](../phase3/TRACE-FORMAT.md).
 
 ## Model checker (`model-check`, `discover --model-check`)

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Print findings of a corpus report with source context, for manual review.
 
-    scripts/show-finding.py reports/phase2/corpus-phase2.json midday CP1001 [--start N] [--count N]
+    scripts/show-finding.py reports/phase2/corpus-phase2.json midday MW1001 [--start N] [--count N]
 
 Shows each finding's message, its primary location with surrounding lines,
-and (from a fresh `commitrift check --format json` of the project) the
+and (from a fresh `midwrite check --format json` of the project) the
 related operations with one line of context each. Nothing is labeled.
 """
 
@@ -31,7 +31,7 @@ for m in manifests:
 base, p = entry
 project_root = p["path"] if os.path.isabs(p["path"]) else os.path.normpath(os.path.join(base, p["path"]))
 config = os.path.join(base, p["config"])
-binary = os.path.join(root, "target", "release", "commitrift")
+binary = os.path.join(root, "target", "release", "midwrite")
 full = json.loads(
     subprocess.run(
         [binary, "check", ".", "--config", config, "--format", "json", "--fail-on", "never",

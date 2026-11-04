@@ -1,5 +1,5 @@
 // The write inside the imported `markPaid` commits before the publish.
-// @expect CP1001 line=9 confidence=high function=checkout
+// @expect MW1001 line=9 confidence=high function=checkout
 import { markPaid } from "../services/order";
 import { queue } from "@/lib/queue";
 

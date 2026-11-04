@@ -9,7 +9,7 @@
   3.24.2 is pinned but not used), a Drizzle `pg-core` schema of 28 tables in
   five modules behind a barrel, a primary `db` and a `withReplicas(db,
   [replica])` replica set, 14 service modules, two helpers (`withRetry`,
-  `requireAdmin`) and `commitrift-contracts.json`.
+  `requireAdmin`) and `midwrite-contracts.json`.
 * **Theme: input-domain and initial-state sensitivity.** Every positive is
   violated only for *some* inputs the TypeScript signature permits and/or
   *some* initial database states the schema and the declared invariants
@@ -18,8 +18,8 @@
   `inputSensitivity` field naming the input or initial-state relationship the
   label depends on (for a negative: why no permitted input or state violates
   the property).
-* **Frozen before any Phase 15 scoring and before any CommitRift command was
-  run on it** (no `cargo` and no `commitrift` invocation of any kind by the
+* **Frozen before any Phase 15 scoring and before any Midwrite command was
+  run on it** (no `cargo` and no `midwrite` invocation of any kind by the
   author; `scripts/phase15-eval.py` was written but not run).
   `fixtures/phase15/FROZEN.json` records the SHA-256 (`shasum -a 256`) of all
   25 application files and of the labels: manifest digest
@@ -80,7 +80,7 @@ What counts as an input and a state:
 
 Every entry is labeled `effectful: true`.
 
-`commitrift-contracts.json` declares: `delivery: at-least-once` for the two
+`midwrite-contracts.json` declares: `delivery: at-least-once` for the two
 loyalty consumers (E26, E27); two `formula` read-your-writes invariants over
 return values, in the Phase 14 `{"template": "formula", "assert": …}` shape
 (E01, E02); eight `atMostOne` rules (invitations, carts, wishlists,
@@ -198,7 +198,7 @@ labels file.
 ## Freeze procedure
 
 1. Write the application and the labels; type-check and print SQL in a
-   scratch copy outside the repository; never run `cargo` or `commitrift`.
+   scratch copy outside the repository; never run `cargo` or `midwrite`.
 2. From `fixtures/phase15`:
 
    ```
@@ -215,7 +215,7 @@ labels file.
    and compares its SHA-256, and also refuses a changed, missing or added
    file under `eval-app/` (`.DS_Store` ignored).
 4. The freeze was checked once with an independent re-implementation of that
-   verification (no CommitRift, the scorer not run): 0 changed, 0 added,
+   verification (no Midwrite, the scorer not run): 0 changed, 0 added,
    manifest matches.
 
 ## How to score
@@ -224,11 +224,11 @@ labels file.
 # once, by the evaluation lead, after building the Phase 15 binary
 scripts/phase15-eval.py reports/phase15/eval/first-scoring.json --first
 # comparison with an earlier binary (not a first scoring)
-COMMITRIFT_BIN=/path/to/phase14/commitrift scripts/phase15-eval.py reports/phase15/eval/phase14-binary.json
+MIDWRITE_BIN=/path/to/phase14/midwrite scripts/phase15-eval.py reports/phase15/eval/phase14-binary.json
 ```
 
 The script is `scripts/phase14-eval.py` on the Phase 15 paths with the same
-rule: it verifies `FROZEN.json` first, runs `commitrift discover eval-app
+rule: it verifies `FROZEN.json` first, runs `midwrite discover eval-app
 --model-check --labels eval-labels.json --format json --no-timing`, and
 writes the stages (schema, entries, effects, candidates, the tool's
 `evaluation`, validity, unsupported) plus `scoring`: model prediction

@@ -1,11 +1,11 @@
 # Quickstart: static analysis
 
-`commitrift check` reads TypeScript and reports places where a crash,
+`midwrite check` reads TypeScript and reports places where a crash,
 restart, timeout or failed call between two independently committed side
 effects can leave partial state. It never executes code.
 
 The outputs below were produced by the release binary built from the
-current tree on 2026-10-27 (`commitrift 0.1.0`, Phase 13 working tree,
+current tree on 2026-10-27 (`midwrite 0.1.0`, Phase 13 working tree,
 before any Phase 14 change), run from the repository root.
 
 ## 1. Check one file
@@ -23,8 +23,8 @@ export async function completeOrder(orderId: string) {
 ```
 
 ```text
-$ commitrift check fixtures/vulnerable/db_commit_then_publish.ts
-warning[CP1001]: database commit followed by an independent external effect
+$ midwrite check fixtures/vulnerable/db_commit_then_publish.ts
+warning[MW1001]: database commit followed by an independent external effect
   --> fixtures/vulnerable/db_commit_then_publish.ts:12:9 (in `completeOrder`, confidence: high)
      |
   12 |   await queue.publish("order.completed", { orderId });
@@ -37,8 +37,8 @@ warning[CP1001]: database commit followed by an independent external effect
     4. Result: the database change is durable but the external effect never happens, and nothing records that it is still owed.
   help: Record the intent in the same database transaction as the state change (transactional outbox) and perform the external effect from a relay that retries until it succeeds, or make a reconciliation job derive the missing effect from database state.
 
-commitrift: analyzed 1 of 1 file(s), 1 function(s); 1 warning(s), 0 error(s), 0 info; config: built-in defaults
-Findings are potential hazards, not reproduced failures. Run `commitrift explain <CODE>` for details.
+midwrite: analyzed 1 of 1 file(s), 1 function(s); 1 warning(s), 0 error(s), 0 info; config: built-in defaults
+Findings are potential hazards, not reproduced failures. Run `midwrite explain <CODE>` for details.
 ```
 
 Exit status 1: a diagnostic at or above `--fail-on warning` exists. The
@@ -48,19 +48,19 @@ external effect; a real project needs a [configuration](../reference/configurati
 ## 2. Read the explanation and the trace
 
 ```bash
-commitrift explain CP1001      # documentation of the code
-commitrift explain             # list of codes
+midwrite explain MW1001      # documentation of the code
+midwrite explain             # list of codes
 ```
 
 ```text
-$ commitrift trace fixtures/vulnerable/db_commit_then_publish.ts
-tr-a812981794e25ea1 CP1001 4e50509bec00ca97 in `completeOrder` (fixtures/vulnerable/db_commit_then_publish.ts:12:9) [STATIC_CANDIDATE; Complete]
+$ midwrite trace fixtures/vulnerable/db_commit_then_publish.ts
+tr-a812981794e25ea1 MW1001 4e50509bec00ca97 in `completeOrder` (fixtures/vulnerable/db_commit_then_publish.ts:12:9) [STATIC_CANDIDATE; Complete]
     0. dbWrite     Committed   db.update(orders) @ 9:9 <- completes first
        ---- failure injection boundary (after-db-commit / before-event-publish) ----
     1. external    NotReached  queue.publish("order.completed", { orderId }) @ 12:9 <- not yet performed
   simulated: If the process dies right after step 0: durable or visible: `db.update(orders)` (step 0); never performed: `queue.publish("order.completed", { orderId })` (step 1).
 
-commitrift: 1 finding(s): 1 trace(s) (1 complete, 0 approximated, 0 incomplete), 0 without a trace. Traces are static candidates, not reproduced failures.
+midwrite: 1 finding(s): 1 trace(s) (1 complete, 0 approximated, 0 incomplete), 0 without a trace. Traces are static candidates, not reproduced failures.
 ```
 
 A trace is a static candidate, never runtime evidence
@@ -69,16 +69,16 @@ A trace is a static candidate, never runtime evidence
 ## 3. Check a project
 
 ```bash
-commitrift check .                         # every .ts/.tsx/.mts/.cts below ., one project
-commitrift check src --format json         # JSON report (docs/DIAGNOSTICS.md#json-output)
-commitrift check src --format sarif        # SARIF 2.1.0
-commitrift check . --write-baseline commitrift-baseline.json   # once
-commitrift check . --baseline commitrift-baseline.json         # in CI: fail only on new findings
+midwrite check .                         # every .ts/.tsx/.mts/.cts below ., one project
+midwrite check src --format json         # JSON report (docs/DIAGNOSTICS.md#json-output)
+midwrite check src --format sarif        # SARIF 2.1.0
+midwrite check . --write-baseline midwrite-baseline.json   # once
+midwrite check . --baseline midwrite-baseline.json         # in CI: fail only on new findings
 ```
 
-On the repository's own fixtures: `commitrift check fixtures/vulnerable`
+On the repository's own fixtures: `midwrite check fixtures/vulnerable`
 reports `analyzed 36 of 36 file(s), 87 function(s); 37 warning(s), 0
-error(s), 15 info`, and `commitrift check fixtures/safe` reports `0
+error(s), 15 info`, and `midwrite check fixtures/safe` reports `0
 warning(s), 0 error(s), 1 info` (exit 0).
 
 ## Next
@@ -91,18 +91,18 @@ warning(s), 0 error(s), 1 info` (exit 0).
 
 ## Discover concurrency and retry candidates (Phase 14)
 
-`commitrift discover` indexes a project's entry points and database
+`midwrite discover` indexes a project's entry points and database
 effects, proposes candidates, synthesizes scenarios and, with
 `--model-check`, explores them. It never executes application code. The
 output below was produced by the Phase 14 release binary (2026-10-28) on the
 first-party fixture `fixtures/phase14/request-app`, from the repository root:
 
 ```bash
-commitrift discover fixtures/phase14/request-app --model-check --entry payments.ts
+midwrite discover fixtures/phase14/request-app --model-check --entry payments.ts
 ```
 
 ```text
-commitrift discover: request-app (7 modules, 8 entry candidates, 2 extracted, 2 effectful)
+midwrite discover: request-app (7 modules, 8 entry candidates, 2 extracted, 2 effectful)
 mode: discover+model-check; application code executed: no; search: sleep-set partial-order reduction (default)
 candidates: 2 (1 model counterexamples, 0 against hypotheses; 1 deduplicated findings)
 
@@ -116,11 +116,11 @@ Candidate CR-SYNTH-232519  [MODEL_COUNTEREXAMPLE]
   Resource: payments(orderId, amount)
   Property: An order is paid at most once.
     origin: USER_DECLARED
-    why: declared in commitrift-contracts.json
+    why: declared in midwrite-contracts.json
   Scenario actual [Actual]: synthesis satisfied — COUNTEREXAMPLE_FOUND (11 states, violates `one-payment-per-order`)
   Status: MODEL_COUNTEREXAMPLE
   MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `one-payment-per-order` (USER_DECLARED). The property is declared by the user; the counterexample replays in the model.
-  Next step: write the scenario with `--emit-scenarios <DIR>`, read the counterexample with `commitrift model-check <DIR>/<file>`; with an authorized harness, reproduce it on the original code with `--verify-source --allow-execution` (docs/user-guide/source-verification.md)
+  Next step: write the scenario with `--emit-scenarios <DIR>`, read the counterexample with `midwrite model-check <DIR>/<file>`; with an authorized harness, reproduce it on the original code with `--verify-source --allow-execution` (docs/user-guide/source-verification.md)
 
 Candidate CR-SYNTH-959BBA  [NO_VIOLATION_WITHIN_BOUNDS]
   ...
@@ -129,17 +129,17 @@ Candidate CR-SYNTH-959BBA  [NO_VIOLATION_WITHIN_BOUNDS]
 
 The candidate says where (the INSERT inside the callback that the
 application's own `withRetry` runs twice), what is shared (`payments`),
-which property (declared in the project's `commitrift-contracts.json`) and
+which property (declared in the project's `midwrite-contracts.json`) and
 what to do next. The exit status is 1 because a model counterexample was
 reported (0 when none is; [discover](../user-guide/discover.md)). Follow
 the next step to see the schedule:
 
 ```bash
-commitrift discover fixtures/phase14/request-app --model-check --entry payments.ts#settlePayment --emit-scenarios /tmp/commitrift-quickstart
+midwrite discover fixtures/phase14/request-app --model-check --entry payments.ts#settlePayment --emit-scenarios /tmp/midwrite-quickstart
 ```
 
 ```bash
-commitrift model-check /tmp/commitrift-quickstart/cr-synth-232519-actual.json
+midwrite model-check /tmp/midwrite-quickstart/cr-synth-232519-actual.json
 ```
 
 ```text
@@ -169,7 +169,7 @@ fixture that run reproduces the duplicate payment (`docs/phase14/FINAL-REPORT.md
 under the stated assumption that the server handles node-postgres client
 errors.
 
-A project without `commitrift-contracts.json` still gets candidates, but
+A project without `midwrite-contracts.json` still gets candidates, but
 their properties are hypotheses (`HEURISTIC_HYPOTHESIS`): a counterexample
 against one is not a confirmed defect, and properties about what callers
 are told (return values) are never inferred — declare them
@@ -185,11 +185,11 @@ inputs: a root folder (`parentId = null`) and a quota with one export left.
 2. Analyze and model-check, listing every explored world:
 
    ```bash
-   target/release/commitrift discover fixtures/phase15/worlds-app --model-check --entry createFolder --explain-coverage
+   target/release/midwrite discover fixtures/phase15/worlds-app --model-check --entry createFolder --explain-coverage
    ```
 
    The candidate's property is `USER_DECLARED` (from the app's
-   `commitrift-contracts.json`). The synthesized world (`base`,
+   `midwrite-contracts.json`). The synthesized world (`base`,
    `parentId = 1`) holds; the world `null:parentId` — `null` is allowed by
    the signature `parentId: number | null` — violates the property:
 
@@ -208,7 +208,7 @@ inputs: a root folder (`parentId = null`) and a quota with one export left.
 3. Save the scenarios and the reproduction artifact:
 
    ```bash
-   target/release/commitrift discover fixtures/phase15/worlds-app --model-check --emit-scenarios /tmp/cr-worlds
+   target/release/midwrite discover fixtures/phase15/worlds-app --model-check --emit-scenarios /tmp/cr-worlds
    ```
 
    `/tmp/cr-worlds/cr-synth-438686-actual--null-parentid.counterexample.json`
@@ -217,7 +217,7 @@ inputs: a root folder (`parentId = null`) and a quota with one export left.
 4. Replay it in the model:
 
    ```bash
-   target/release/commitrift model-check /tmp/cr-worlds/cr-synth-438686-actual--null-parentid.json
+   target/release/midwrite model-check /tmp/cr-worlds/cr-synth-438686-actual--null-parentid.json
    ```
 
 5. Optionally, with explicit authorization, run it against the original
@@ -225,7 +225,7 @@ inputs: a root folder (`parentId = null`) and a quota with one export left.
    installed; the fixture's `dist/` is built with `npm run build`):
 
    ```bash
-   target/release/commitrift model-check /tmp/cr-worlds/cr-synth-438686-actual--null-parentid.json --verify-source --allow-execution --source-repeat 3
+   target/release/midwrite model-check /tmp/cr-worlds/cr-synth-438686-actual--null-parentid.json --verify-source --allow-execution --source-repeat 3
    ```
 
    Result in this cycle: `original-code-reproduced`, 3/3.
@@ -243,7 +243,7 @@ application `fixtures/phase16/retry` (a Next.js route handler that reads
 `request.json()` and a `for` loop that retries an insert):
 
 ```bash
-target/release/commitrift discover fixtures/phase16/retry --model-check --explain-coverage
+target/release/midwrite discover fixtures/phase16/retry --model-check --explain-coverage
 ```
 
 The first candidate, `CR-SYNTH-7644DD [MODEL_COUNTEREXAMPLE]` (the route

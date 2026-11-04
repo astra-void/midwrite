@@ -1,7 +1,7 @@
 // Phase 5: a method called on an object created by `new Notifier()` in the
 // same function dispatches exactly to `Notifier.notify` (the receiver's
 // class is known, overrides are irrelevant).
-// @expect CP1001 line=17 confidence=high function=completeOrder
+// @expect MW1001 line=17 confidence=high function=completeOrder
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 

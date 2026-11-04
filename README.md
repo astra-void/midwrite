@@ -1,6 +1,6 @@
-# CommitRift
+# Midwrite
 
-**Failure-path analysis for TypeScript.** CommitRift is a local, open-source
+**Failure-path analysis for TypeScript.** Midwrite is a local, open-source
 static analyzer that looks for places where a crash, restart, timeout or failed
 call *between two independently committed side effects* can leave your system
 half-done: the database says an order is paid, but the `order.completed` event
@@ -21,7 +21,7 @@ export async function completeOrder(orderId: string) {
 ```
 
 ```text
-warning[CP1001]: database commit followed by an independent external effect
+warning[MW1001]: database commit followed by an independent external effect
   --> src/orders.ts:4:9 (in `completeOrder`, confidence: high)
     |
   4 |   await queue.publish("order.completed", { orderId });
@@ -36,7 +36,7 @@ warning[CP1001]: database commit followed by an independent external effect
 ```
 
 > **Status: experimental (Phase 13 working tree; Phase 13 changes are
-> uncommitted).** Beyond the static analysis below, CommitRift model-checks
+> uncommitted).** Beyond the static analysis below, Midwrite model-checks
 > bounded concurrent and crash/retry scenarios against a model of PostgreSQL
 > (Phase 6), runs counterexamples against the original application code on a
 > disposable database (Phases 7–10), discovers candidates and synthesizes
@@ -49,7 +49,7 @@ warning[CP1001]: database commit followed by an independent external effect
 > [`docs/reference/limitations.md`](docs/reference/limitations.md). The
 > history below describes Phases 2–5.
 >
-> The static analysis (`commitrift check`) is deliberately narrow:
+> The static analysis (`midwrite check`) is deliberately narrow:
 > Drizzle ORM on PostgreSQL and configured external effects, one function at a
 > time plus bounded summaries of the functions it calls, in the same file or
 > imported from other analyzed modules. Expect false positives and false
@@ -61,7 +61,7 @@ warning[CP1001]: database commit followed by an independent external effect
 > evidence: [`docs/phase3/`](docs/phase3/FINAL-REPORT.md). Phase 4 made that
 > workflow usable on real code: replay with **Node.js and the real Drizzle
 > ORM**, isolated replay on **Linux** (bubblewrap), a **harness generator**
-> (`commitrift init-replay`), regression comparison of replay results and
+> (`midwrite init-replay`), regression comparison of replay results and
 > function-level recovery contracts: [`docs/phase4/`](docs/phase4/FINAL-REPORT.md).
 > Phase 5 extended the static engine into a bounded interprocedural abstract
 > interpreter: abstract values and a per-function heap, provenance across
@@ -71,14 +71,21 @@ warning[CP1001]: database commit followed by an independent external effect
 > [`docs/phase5/`](docs/phase5/FINAL-REPORT.md).
 > No bug in an external application has been runtime-confirmed.
 
-> **Renamed.** CommitRift was called *CrashProof* until Phase 3. Diagnostic
-> codes (`CP1001`–`CP9001`), finding fingerprints, baseline files and the
-> report schemas are unchanged. A legacy `crashproof` executable (same
-> behavior, plus a deprecation note on stderr), the `crashproof.json`
-> configuration file (read only when `commitrift.json` does not exist; the two
-> are never merged) and the `CRASHPROOF_THREADS` variable still work. Reports
-> under `docs/phase2/` and `reports/phase2/` keep the old name: they are
-> historical records.
+> **Renamed.** Midwrite was called *CommitRift* until 2026-11-04 and
+> *CrashProof* before Phase 3. Diagnostic codes moved from the `CP` prefix to
+> `MW` (`CP1001` is now `MW1001`; `midwrite explain`, recovery contracts and
+> every other code input still accept the `CP` form). Finding fingerprints,
+> baseline files and the report schemas (including their `kind` values such
+> as `commitrift.discovery`) are unchanged. Legacy `commitrift` and
+> `crashproof` executables (same behavior, plus a deprecation note on
+> stderr), the `commitrift.json` and `crashproof.json` configuration files
+> (read only when `midwrite.json` does not exist; files are never merged),
+> `commitrift-contracts.json` (read only when `midwrite-contracts.json` does
+> not exist), the `commitrift.contracts` and `commitrift.source-harness`
+> kinds, and the `COMMITRIFT_THREADS` and `CRASHPROOF_THREADS` variables
+> still work. Other `COMMITRIFT_*` environment variables are now
+> `MIDWRITE_*`. The historical records under `docs/phaseN/` and `reports/`
+> and the frozen evaluation sets keep the old names.
 
 ### Across modules
 
@@ -101,8 +108,8 @@ export async function checkout(id: string) {
 ```
 
 ```text
-$ cd fixtures/projects && commitrift check named_import --config ../commitrift.json
-warning[CP1001]: database commit followed by an independent external effect
+$ cd fixtures/projects && midwrite check named_import --config ../midwrite.json
+warning[MW1001]: database commit followed by an independent external effect
   --> named_import/actions/checkout.ts:9:9 (in `checkout`, confidence: high)
   = `db.update(orders)` (via `markPaid(id)`) commits before `queue.publish("order.paid", { id })` (message-publish); a failure in between leaves the database changed without the external effect
   failure sequence:
@@ -116,7 +123,7 @@ handle inside a transaction is reported as bypassing it. When the argument is
 not a recognized handle, the helper's writes stay unknown instead of being
 guessed.
 
-## What CommitRift does
+## What Midwrite does
 
 1. Parses `.ts`/`.tsx`/`.mts`/`.cts` files with [Oxc](https://oxc.rs) and
    resolves identifiers with Oxc's semantic analysis.
@@ -125,7 +132,7 @@ guessed.
    (`queue.publish`, `mailer.send`, `stripe.charges.create`, ...).
 3. Lowers each function to a small, inspectable **Effect IR** that keeps
    execution order, branches, loops, `try`, early exits and transaction scopes
-   (`commitrift ir <file>` prints it). Awaited calls of functions declared in
+   (`midwrite ir <file>` prints it). Awaited calls of functions declared in
    the same file, or imported from another analyzed file (relative imports,
    `tsconfig` `paths`, workspace packages), are replaced by the callee's
    **summary**, so the callee's commits and external effects are ordered with
@@ -139,10 +146,10 @@ guessed.
    state, with the concrete failure sequence, the evidence for each recognized
    operation, a confidence level, a mitigation and explicit limitations.
 6. On request, describes the path behind each finding as a **failure trace**
-   (`commitrift trace`): the ordered operations, transaction boundaries, the
+   (`midwrite trace`): the ordered operations, transaction boundaries, the
    failure-injection boundary and what the transaction model predicts survives
    a crash there. A trace is a *static candidate*, never runtime evidence.
-7. Only when explicitly asked to (`commitrift replay --allow-execution`), runs
+7. Only when explicitly asked to (`midwrite replay --allow-execution`), runs
    a project-owned, instrumented **replay harness** against a disposable
    PostgreSQL database, kills or fails it at a named checkpoint, observes the
    surviving state and checks it against invariants the harness declares
@@ -157,20 +164,20 @@ is scripted in [`scripts/demo-phase4.sh`](scripts/demo-phase4.sh):
 
 ```bash
 cd fixtures/replay/drizzle-node && npm ci && npm run build
-commitrift check src                                      # CP1001 in completeOrder (and CP1003, CP1002)
-commitrift trace src --format json > trace.json           # the failure trace: a static candidate
-commitrift init-replay --trace trace.json --finding 4f53a6215ac16913 --output my-harness
-# manual: fill in the COMMITRIFT-TODO markers (observations, invariant, schema, scenario call);
+midwrite check src                                      # MW1001 in completeOrder (and MW1003, MW1002)
+midwrite trace src --format json > trace.json           # the failure trace: a static candidate
+midwrite init-replay --trace trace.json --finding 4f53a6215ac16913 --output my-harness
+# manual: fill in the MIDWRITE-TODO markers (observations, invariant, schema, scenario call);
 # replay refuses to run until every marker is gone. A completed example: generated-harness/
-commitrift replay generated-harness                       # the plan; nothing runs
-commitrift replay generated-harness --allow-execution --case kill-after-db-commit --repeat 5
-commitrift replay generated-harness --allow-execution --format json --output v.json
-commitrift report v.json -o v.html
+midwrite replay generated-harness                       # the plan; nothing runs
+midwrite replay generated-harness --allow-execution --case kill-after-db-commit --repeat 5
+midwrite replay generated-harness --allow-execution --format json --output v.json
+midwrite report v.json -o v.html
 ```
 
 ```text
 case kill-after-db-commit: processKill at `after-db-commit`  [RUNTIME_REPRODUCED, as expected]
-  static link: Matched — finding 4f53a6215ac16913 (CP1001 in `completeOrder`, src/service.ts:15); trace tr-2a5439a0b830cdc6 (OnTraceBoundary)
+  static link: Matched — finding 4f53a6215ac16913 (MW1001 in `completeOrder`, src/service.ts:15); trace tr-2a5439a0b830cdc6 (OnTraceBoundary)
   run 1: RUNTIME_REPRODUCED — declared invariant violated: `application-contract` at after: VIOLATED: queuePublishEvents >= 1 (observed 0)
     injected=true outcome=killed exit=signaled (signal 9)
     before injecting: ordersState = "paid" -> ok (observed "paid")
@@ -192,18 +199,18 @@ code has the same bug.
 
 ## Concurrency model checking (opt-in)
 
-`commitrift model-check scenario.json` explores bounded concurrent schedules
+`midwrite model-check scenario.json` explores bounded concurrent schedules
 of the actors a scenario declares — functions extracted from your
 TypeScript (or programs declared in the scenario), their arguments, the
 schema with its constraints, the PostgreSQL isolation level, crashes and
 retries — and reports a counterexample to a declared invariant. With
 `--validate-postgres` the counterexample is replayed in lockstep on a
-private PostgreSQL. `commitrift check` never runs it.
+private PostgreSQL. `midwrite check` never runs it.
 
 ```bash
-commitrift model-check fixtures/concurrency/scenarios/inventory-oversell.json
-commitrift model-check fixtures/concurrency/scenarios/inventory-oversell.json --validate-postgres --format html -o oversell.html
-commitrift explain CP7001
+midwrite model-check fixtures/concurrency/scenarios/inventory-oversell.json
+midwrite model-check fixtures/concurrency/scenarios/inventory-oversell.json --validate-postgres --format html -o oversell.html
+midwrite explain MW7001
 ```
 
 ```text
@@ -225,9 +232,9 @@ Evidence: PostgresConfirmedSchedule — the schedule was replayed on PostgreSQL:
 
 Results are `COUNTEREXAMPLE_FOUND`, `NO_COUNTEREXAMPLE_WITHIN_BOUNDS` (only
 within the declared bounds — not a proof of race freedom), `INCONCLUSIVE`
-or `UNSUPPORTED`, with diagnostics `CP7001` (invariant violated), `CP7002`
-(inconclusive), `CP7003` (unsupported behavior), `CP7101` (PostgreSQL did not
-reproduce), `CP7102` (validation unavailable) and `CP7103` (the original
+or `UNSUPPORTED`, with diagnostics `MW7001` (invariant violated), `MW7002`
+(inconclusive), `MW7003` (unsupported behavior), `MW7101` (PostgreSQL did not
+reproduce), `MW7102` (validation unavailable) and `MW7103` (the original
 code did not reproduce the counterexample, Phase 7). Semantics, supported
 subset, validation against PostgreSQL and limitations:
 [`docs/phase6/`](docs/phase6/FINAL-REPORT.md) and
@@ -250,7 +257,7 @@ PostgreSQL's answers and lock waits observed, and the invariant evaluated
 on the rows the run left.
 
 ```bash
-commitrift model-check fixtures/phase7/scenarios/team-app-invite-double-submit.json \
+midwrite model-check fixtures/phase7/scenarios/team-app-invite-double-submit.json \
   --verify-source --allow-execution --source-repeat 5
 ```
 
@@ -266,7 +273,7 @@ needs `--allow-execution`. Details:
 
 ## Scenario discovery (Phase 11, static)
 
-`commitrift discover <project>` finds concurrency and failure candidates in
+`midwrite discover <project>` finds concurrency and failure candidates in
 the original TypeScript without a hand-written scenario: check-then-act,
 status transitions, read-modify-write, write skew, duplicate processing,
 external-effect gaps, ambiguous commits and lock order. Each candidate
@@ -277,14 +284,14 @@ hypothesis is never reported as a confirmed bug). It never executes
 application code.
 
 ```bash
-commitrift discover . --model-check --emit-scenarios ./commitrift-scenarios
-commitrift model-check ./commitrift-scenarios/<id>-actual.json --verify-source --allow-execution
+midwrite discover . --model-check --emit-scenarios ./midwrite-scenarios
+midwrite model-check ./midwrite-scenarios/<id>-actual.json --verify-source --allow-execution
 ```
 
 `--model-check` explores the synthesized scenarios within budgets;
 `--emit-scenarios` writes them in the `model-check` format. What source
 cannot say (external effects, delivery, retries, business invariants,
-harness inputs) goes in an optional `commitrift-contracts.json`. Details:
+harness inputs) goes in an optional `midwrite-contracts.json`. Details:
 [`docs/phase11/FINAL-REPORT.md`](docs/phase11/FINAL-REPORT.md).
 
 Phase 12 extends what discovery and extraction understand: generated keys
@@ -309,7 +316,7 @@ UPDATE` and the `.for("share" | "key share" | "no key update")` strengths.
 Details: [`docs/phase13/`](docs/phase13/ARCHITECTURE.md) and
 [`docs/reference/limitations.md`](docs/reference/limitations.md).
 
-## What CommitRift does not do
+## What Midwrite does not do
 
 * It does **not** prove business consistency. It knows nothing about your
   invariants; every static finding is a *potential* hazard
@@ -336,7 +343,7 @@ Details: [`docs/phase13/`](docs/phase13/ARCHITECTURE.md) and
   unescaped objects such as a helper's `{ ok: true }` result) are correlated;
   everything else is assumed satisfiable.
 * It does not guess. A call it does not understand is an *unknown effect*; it
-  never becomes a claimed hazard, only an informational `CP9001` note when it
+  never becomes a claimed hazard, only an informational `MW9001` note when it
   sits next to recognized effects.
 
 ## Supported patterns
@@ -348,7 +355,7 @@ Details: [`docs/phase13/`](docs/phase13/ARCHITECTURE.md) and
 | `db.transaction(async (tx) => { ... })` | Writes on `tx` commit when the callback completes. Nested `tx.transaction(...)` (savepoints) commit with the outer transaction. Writes on `db` inside the callback are **not** part of the transaction. `tx.rollback()` is an exit. |
 | Builders stored in a `const` and awaited later | `const q = db.update(t).set(v); await q;` |
 | Receivers | Configured identifiers (`db`, `queue`, ...), renamed imports (`import { db as database }`), `const` aliases, `importedFrom` module checks, handles created by `drizzle(...)` from `drizzle-orm`, and handles returned by a configured call without arguments (`"getDb()"`: `getDb().insert(...)`, `const db = getDb()`, `save(getDb())`). |
-| Member receivers | Configured member paths such as `this.db`, `ctx.db` or `this.queue`, written out at the call (`this.db.update(...)`). Reported as a weaker, `member-path` match. Unconfigured lookalikes (`this.repo.db`) are reported as `CP9001`. |
+| Member receivers | Configured member paths such as `this.db`, `ctx.db` or `this.queue`, written out at the call (`this.db.update(...)`). Reported as a weaker, `member-path` match. Unconfigured lookalikes (`this.repo.db`) are reported as `MW9001`. |
 | External effects | Configured `receiver.method(...)` (member paths like `stripe.charges` or `this.queue` allowed) or plain `function(...)`, optionally followed by `.then/.catch/.finally`. |
 | Control flow | Sequences, `if`/`else`, `?:`, `&&`/`||`/`??`, `switch` with fall-through, `return`, `throw`, `try`/`catch`/`finally`, loops (effects zero or one iteration; values iterated to a fixpoint), `Promise.all/allSettled/race/any` over array literals (resolved calls in them are summarized as concurrent), `Promise.all(xs.map(cb))` and `xs.forEach(cb)` (callback loops, concurrent / fire-and-forget). |
 | Functions | Declarations, expressions, arrows, class and object methods, `export default`, Next.js route handlers and server actions. Nested functions are analyzed as separate units. |
@@ -377,14 +384,14 @@ blocked (exit 3) instead of running unisolated.
 
 ## Installation
 
-CommitRift is a Rust workspace (Rust 1.97 or newer, stable). There are no
+Midwrite is a Rust workspace (Rust 1.97 or newer, stable). There are no
 published binaries or packages yet; build from source:
 
 ```bash
-cargo install --path crates/commitrift-cli
+cargo install --path crates/midwrite-cli
 ```
 
-Or build without installing; the binary is `target/release/commitrift`:
+Or build without installing; the binary is `target/release/midwrite`:
 
 ```bash
 cargo build --release
@@ -397,39 +404,39 @@ checksum.
 ## Usage
 
 ```bash
-commitrift check .
+midwrite check .
 ```
 
 ```bash
-commitrift check ./src --format json
+midwrite check ./src --format json
 ```
 
 ```bash
-commitrift explain CP1001
+midwrite explain MW1001
 ```
 
 | Command | Purpose |
 | --- | --- |
-| `commitrift check [PATHS]...` | Analyze files/directories (default `.`). Directories are searched recursively for `.ts`, `.tsx`, `.mts`, `.cts`, skipping `node_modules`, `.git`, `dist`, `build`, `out`, `.next`, `.nuxt`, `.output`, `.turbo`, `.vercel`, `.svelte-kit`, `coverage`, and `.d.ts` files. Explicitly named files are always analyzed. |
+| `midwrite check [PATHS]...` | Analyze files/directories (default `.`). Directories are searched recursively for `.ts`, `.tsx`, `.mts`, `.cts`, skipping `node_modules`, `.git`, `dist`, `build`, `out`, `.next`, `.nuxt`, `.output`, `.turbo`, `.vercel`, `.svelte-kit`, `coverage`, and `.d.ts` files. Explicitly named files are always analyzed. |
 | `--format text\|json\|sarif` | Human-readable (default), JSON ([schema](docs/DIAGNOSTICS.md#json-output)), or SARIF 2.1.0. |
-| `--config <FILE>` | Configuration file. Default: `./commitrift.json` if present, else the legacy `./crashproof.json`, else built-in defaults. |
+| `--config <FILE>` | Configuration file. Default: `./midwrite.json` if present, else the legacy `./crashproof.json`, else built-in defaults. |
 | `--fail-on error\|warning\|info\|never` | Exit with status 1 when a diagnostic at or above this severity exists (default `warning`). |
-| `--max-paths <N>` | Paths explored per function (default 512); functions with more paths get `CP9001`. |
+| `--max-paths <N>` | Paths explored per function (default 512); functions with more paths get `MW9001`. |
 | `--max-call-depth <N>` | Levels of calls inlined from summaries (default 3; `0` disables summaries). |
 | `--policy recommended\|strict\|audit` | Which findings are warnings (default `recommended`, see [Policies](#policies)). |
 | `--baseline <FILE>` | Findings recorded in the baseline are still reported but do not count toward `--fail-on`. |
 | `--write-baseline <FILE>` | Record every current finding (the run then exits 0 unless files could not be analyzed). |
 | `-v, --verbose` | Text output: also print evidence, path certainty, evidence strength and general limitations. |
-| `commitrift explain [CODE]` | Documentation for a code, or the list of codes. |
-| `commitrift ir [PATHS]... [--format text\|json]` | Print the Effect IR. |
-| `commitrift trace [PATHS]... [--format text\|json] [--finding ID]` | Print the failure trace behind each finding ([format](docs/phase3/TRACE-FORMAT.md)). Static only. |
-| `commitrift replay <HARNESS> [--case ID\|CODE] [--finding ID] [--repeat N] [--allow-execution]` | Run an authorized replay harness ([protocol](docs/phase3/REPLAY-PROTOCOL.md), [Node.js](docs/phase4/NODE-DRIZZLE.md), [security](docs/phase4/SECURITY-REVIEW.md)). Without `--allow-execution` only the plan is printed. Needs PostgreSQL server binaries, Node.js ≥ 22 or Bun ≥ 1.2, and OS isolation (macOS `sandbox-exec`, Linux bubblewrap). |
-| `commitrift replay … --baseline OLD.json [--regression-output R.json]` | Compare every case with an earlier verification report: still / no longer / newly reproduced, inconclusive, not executed. Exit 1 on a change, 3 when a case is inconclusive or was not executed. |
-| `commitrift init-replay --trace T.json --finding ID --output DIR [--runtime node\|bun]` | Generate an editable replay harness skeleton for one finding ([guide](docs/phase4/HARNESS-GENERATION.md)). Writes only into `DIR` (inside the project); executes and installs nothing. |
-| `commitrift report <JSON> [-o FILE]` | Render a trace or verification report as a self-contained, script-free HTML page. |
-| `commitrift model-check <SCENARIO>` | Bounded model checking of a scenario; `--validate-postgres`, `--verify-source --allow-execution` ([guide](docs/user-guide/model-check.md)). |
-| `commitrift discover <ROOT>` | Candidates, properties and synthesized scenarios from source; `--model-check`, `--emit-scenarios` ([guide](docs/user-guide/discover.md)). Never executes application code. |
-| `commitrift schema <ROOT> --file <SCHEMA>` | Schema facts read statically from a Drizzle schema module; `--migrations … --allow-execution` compares them with a disposable database. |
+| `midwrite explain [CODE]` | Documentation for a code, or the list of codes. |
+| `midwrite ir [PATHS]... [--format text\|json]` | Print the Effect IR. |
+| `midwrite trace [PATHS]... [--format text\|json] [--finding ID]` | Print the failure trace behind each finding ([format](docs/phase3/TRACE-FORMAT.md)). Static only. |
+| `midwrite replay <HARNESS> [--case ID\|CODE] [--finding ID] [--repeat N] [--allow-execution]` | Run an authorized replay harness ([protocol](docs/phase3/REPLAY-PROTOCOL.md), [Node.js](docs/phase4/NODE-DRIZZLE.md), [security](docs/phase4/SECURITY-REVIEW.md)). Without `--allow-execution` only the plan is printed. Needs PostgreSQL server binaries, Node.js ≥ 22 or Bun ≥ 1.2, and OS isolation (macOS `sandbox-exec`, Linux bubblewrap). |
+| `midwrite replay … --baseline OLD.json [--regression-output R.json]` | Compare every case with an earlier verification report: still / no longer / newly reproduced, inconclusive, not executed. Exit 1 on a change, 3 when a case is inconclusive or was not executed. |
+| `midwrite init-replay --trace T.json --finding ID --output DIR [--runtime node\|bun]` | Generate an editable replay harness skeleton for one finding ([guide](docs/phase4/HARNESS-GENERATION.md)). Writes only into `DIR` (inside the project); executes and installs nothing. |
+| `midwrite report <JSON> [-o FILE]` | Render a trace or verification report as a self-contained, script-free HTML page. |
+| `midwrite model-check <SCENARIO>` | Bounded model checking of a scenario; `--validate-postgres`, `--verify-source --allow-execution` ([guide](docs/user-guide/model-check.md)). |
+| `midwrite discover <ROOT>` | Candidates, properties and synthesized scenarios from source; `--model-check`, `--emit-scenarios` ([guide](docs/user-guide/discover.md)). Never executes application code. |
+| `midwrite schema <ROOT> --file <SCHEMA>` | Schema facts read statically from a Drizzle schema module; `--migrations … --allow-execution` compares them with a disposable database. |
 
 Every flag of the current binary: [`docs/reference/cli.md`](docs/reference/cli.md).
 
@@ -442,8 +449,8 @@ given files as one project, so imports between them are followed.
 ### Adopting it in CI
 
 ```bash
-commitrift check . --write-baseline commitrift-baseline.json   # once; commit the file
-commitrift check . --baseline commitrift-baseline.json          # in CI: fails only on new findings
+midwrite check . --write-baseline midwrite-baseline.json   # once; commit the file
+midwrite check . --baseline midwrite-baseline.json          # in CI: fails only on new findings
 ```
 
 Baseline entries are matched by a fingerprint of the code, file, function and
@@ -456,8 +463,8 @@ SARIF output carries the same fingerprint (`partialFingerprints`).
 
 | Policy | Warnings | Info |
 | --- | --- | --- |
-| `recommended` (default) | CP1001, CP1002, CP1003; CP1004 when a write bypasses its enclosing transaction | other CP1004 and CP1005 (review candidates), CP9001; unrecognized calls after a commit are grouped into one CP9001 per function |
-| `strict` | every hazard (Phase 1 behavior) | CP9001, one per call |
+| `recommended` (default) | MW1001, MW1002, MW1003; MW1004 when a write bypasses its enclosing transaction | other MW1004 and MW1005 (review candidates), MW9001; unrecognized calls after a commit are grouped into one MW9001 per function |
+| `strict` | every hazard (Phase 1 behavior) | MW9001, one per call |
 | `audit` | as `strict` | as `strict`, plus unknown calls before the first recognized operation (possible unconfigured effects) |
 
 The codes and their meaning are the same under every policy; only the
@@ -465,7 +472,7 @@ severity (and so the CI outcome) changes.
 
 ## Configuration
 
-`commitrift.json` (every field optional; a missing field keeps its default):
+`midwrite.json` (every field optional; a missing field keeps its default):
 
 ```json
 {
@@ -491,15 +498,15 @@ effect is sometimes not performed (rules are tried in order):
 { "function": "triggerJob", "category": "message-publish" }
 ```
 
-Under the `recommended` policy, a CP1001 or CP1005 whose effect that may
-not happen is best-effort is `info` (with a note); CP1002 and CP1003, where
+Under the `recommended` policy, a MW1001 or MW1005 whose effect that may
+not happen is best-effort is `info` (with a note); MW1002 and MW1003, where
 the effect already happened, are unchanged.
 
 A rule may also declare a **recovery property** (`"recovery"`), which is an
 assertion you make, never inferred from names and never verified:
 `"bestEffort"` (same as `"bestEffort": true`), `"reconciled"` (a process
 outside the analyzed code re-derives this effect from committed database
-state when it is missing; CP1001/CP1005 about it become `info` under
+state when it is missing; MW1001/MW1005 about it become `info` under
 `recommended`, the window is still reported) and `"idempotentConsumer"`
 (receivers deduplicate repeats; a note only, severity unchanged). Diagnostics
 list applied declarations in `recovery` with `"source": "configuration"` and
@@ -515,7 +522,7 @@ codes they cover and cite their evidence; they are never inferred:
   "function": "ProcessDocumentProcessor.process",
   "file": "apps/worker/src/processors/documents/process-document.ts",
   "strategy": "retried",
-  "covers": ["CP1001", "CP1002"],
+  "covers": ["MW1001", "MW1002"],
   "evidence": "queues/documents.config.ts:17 attempts 3; stalled jobs are re-run once",
   "limits": "gives up after 3 attempts"
 }]
@@ -524,7 +531,7 @@ codes they cover and cite their evidence; they are never inferred:
 A covered finding is still reported with the same fingerprint; under
 `recommended` a warning becomes `info`, with a `recovery` note
 (`"source": "configuration"`, `"verified": false`) and the cited evidence.
-`reconciled` contracts cannot cover CP1002/CP1003. See
+`reconciled` contracts cannot cover MW1002/MW1003. See
 [`docs/phase4/RECOVERY-SEMANTICS.md`](docs/phase4/RECOVERY-SEMANTICS.md).
 
 Defaults: `databaseReceivers: ["db"]`, `transactionMethods: ["transaction"]`,
@@ -536,7 +543,7 @@ Unknown fields are rejected.
 directory is scanned (a pattern with `/` is matched against the path relative
 to the scanned directory, one without against each file and directory name).
 In the Phase 2 evaluation, test and seed files produced most of the
-`CP1004`/`CP9001` volume of one project.
+`MW1004`/`MW9001` volume of one project.
 
 **Trust model.** Configuration entries are *assertions you make*. A bare name
 (`"db"`) matches any binding of that name unless the file shows otherwise (for
@@ -547,7 +554,7 @@ the call (after following `const` aliases and renamed imports). A receiver may
 also be a **member path** (`this.db`, `ctx.db`, `this.queue`): the root is
 resolved like a bare name (`this` is not resolved at all) and the properties
 are trusted as written, so it is the weakest kind of match. A member receiver
-whose path is not configured (`this.repo.db`) is reported as `CP9001` with
+whose path is not configured (`this.repo.db`) is reported as `MW9001` with
 the path to add, instead of being guessed. Every diagnostic lists which kind
 of match produced it (`name-based`, `member-path`, `import-based`,
 `drizzle(...)` provenance, or transaction handle).
@@ -556,12 +563,12 @@ of match produced it (`name-based`, `member-path`, `import-based`,
 
 | Code | Severity | Meaning |
 | --- | --- | --- |
-| `CP1001` | warning | Database commit followed by an independent external effect |
-| `CP1002` | warning | External effect followed by an independent database commit |
-| `CP1003` | warning | External effect executed inside a database transaction before commit |
-| `CP1004` | warning (`strict`); info unless a write bypasses its transaction (`recommended`) | Independent database commits (no shared transaction, or `db` used inside a `tx` callback) |
-| `CP1005` | warning (`strict`); info (`recommended`) | Independent external effects |
-| `CP9001` | info | Analysis incomplete: unknown or unsupported semantics (not a finding) |
+| `MW1001` | warning | Database commit followed by an independent external effect |
+| `MW1002` | warning | External effect followed by an independent database commit |
+| `MW1003` | warning | External effect executed inside a database transaction before commit |
+| `MW1004` | warning (`strict`); info unless a write bypasses its transaction (`recommended`) | Independent database commits (no shared transaction, or `db` used inside a `tx` callback) |
+| `MW1005` | warning (`strict`); info (`recommended`) | Independent external effects |
+| `MW9001` | info | Analysis incomplete: unknown or unsupported semantics (not a finding) |
 
 Confidence combines two separately reported dimensions:
 `pathCertainty` (`straightLine`, `conditional`, `approximated`, `truncated`,
@@ -571,14 +578,14 @@ operations (`provenance`, `configuredImport`, `configuredName`, `memberPath`,
 match; `medium` when the sequence depends on branch decisions, loops,
 unawaited calls, an operation a callee performs only on some of its paths, or
 a member-path match; `low` for approximations (concurrent operations,
-catch-handler entry) and `CP9001`. When an operation comes from a callee's
+catch-handler entry) and `MW9001`. When an operation comes from a callee's
 summary, the diagnostic points at the call, lists the operation at its own
 location (in its own file), and says so in `evidence`. See
 [`docs/DIAGNOSTICS.md`](docs/DIAGNOSTICS.md).
 
 ## Transaction semantics
 
-CommitRift does not treat every awaited write as committed:
+Midwrite does not treat every awaited write as committed:
 
 * A Drizzle write outside a recognized transaction commits when it executes
   (PostgreSQL auto-commit).
@@ -588,11 +595,11 @@ CommitRift does not treat every awaited write as committed:
 * A nested `tx.transaction(...)` is a savepoint: its writes commit with the
   outermost transaction, and a rolled-back savepoint discards only its own writes.
 * A write on `db` inside a transaction callback runs on a separate connection
-  and commits on its own (reported as `CP1004`). A `db.transaction(...)`
+  and commits on its own (reported as `MW1004`). A `db.transaction(...)`
   started inside another callback is an independent transaction.
 * An external effect inside a transaction with writes is visible before the
-  commit (`CP1003`). Only that the writes share a transaction is established;
-  CommitRift does not check that an outbox table is actually relayed.
+  commit (`MW1003`). Only that the writes share a transaction is established;
+  Midwrite does not check that an outbox table is actually relayed.
 
 ## False positives and false negatives
 
@@ -617,7 +624,7 @@ Known **false negatives** (real hazards that are not reported):
   (`service.save()` with `service` a parameter or a factory result; methods
   of known classes are followed since Phase 5), callbacks run by
   unanalyzed code, packages outside the analyzed files, and functions
-  whose module or export cannot be resolved. A call after a recognized commit becomes `CP9001`; one
+  whose module or export cannot be resolved. A call after a recognized commit becomes `MW9001`; one
   before the first commit is not reported (except under `--policy audit`).
   Calls are followed only when awaited or returned from an `async` function,
   up to `--max-call-depth` calls deep and never recursively.
@@ -627,21 +634,21 @@ Known **false negatives** (real hazards that are not reported):
   recognized commit, for example charging a card through an unconfigured client
   and then writing to the database.
 * Member receivers whose path is not configured, or that are reached through
-  aliases or destructuring (`const { db } = ctx`), are reported as `CP9001`
+  aliases or destructuring (`const { db } = ctx`), are reported as `MW9001`
   or not at all, but not analyzed.
 * Second and later loop iterations, top-level module code, callbacks run by
   other functions (`array.forEach(async ...)`), and raw SQL.
 
 ## Security considerations
 
-* CommitRift only reads the files you point it at and the configuration file.
+* Midwrite only reads the files you point it at and the configuration file.
   It never executes, imports or evaluates project code, makes no network
   requests, has no telemetry, and needs no account or service.
 * Output includes short source excerpts (labels and conditions). Treat JSON and
   SARIF reports like source code when sharing them.
 * It is a static aid, not a security or correctness guarantee. A clean run does
   not mean the code is crash-consistent.
-* `commitrift replay` executes code: the harness directory you name, and only
+* `midwrite replay` executes code: the harness directory you name, and only
   with `--allow-execution`. It gives the harness a private, disposable
   PostgreSQL cluster (Unix socket only) and clears the environment. On macOS
   `sandbox-exec` denies IP networking, other Unix sockets and file writes
@@ -659,14 +666,14 @@ Known **false negatives** (real hazards that are not reported):
 ## Project layout
 
 ```text
-crates/commitrift-core       Effect IR, failure-path analysis, diagnostics, config (no parser dependency)
-crates/commitrift-analyzer   TypeScript frontend: Oxc parsing, provenance, recognition, lowering, module resolution, project analysis; concurrency extractor, schema facts
-crates/commitrift-discover   Candidate discovery and scenario synthesis (`commitrift discover`)
-crates/commitrift-model      Bounded explicit-state model checker, PostgreSQL model, lockstep oracle, original-code differential
-crates/commitrift-cli        The `commitrift` (and legacy `crashproof`) binary: text, JSON, SARIF and HTML output, baselines, every command
-crates/commitrift-replay     Opt-in runtime execution: manifest validation, disposable PostgreSQL, isolation, replay supervisor, source coordinator, fault proxy
-crates/commitrift-corpus     Developer tool (not published): corpus runs, run comparison, reviewed precision, phase memory profile
-runtime/node/                Dependency-free replay client (Node.js and Bun), pg adapter, event-log transport (workspace package @commitrift/replay, unpublished)
+crates/midwrite-core       Effect IR, failure-path analysis, diagnostics, config (no parser dependency)
+crates/midwrite-analyzer   TypeScript frontend: Oxc parsing, provenance, recognition, lowering, module resolution, project analysis; concurrency extractor, schema facts
+crates/midwrite-discover   Candidate discovery and scenario synthesis (`midwrite discover`)
+crates/midwrite-model      Bounded explicit-state model checker, PostgreSQL model, lockstep oracle, original-code differential
+crates/midwrite-cli        The `midwrite` (and legacy `crashproof`) binary: text, JSON, SARIF and HTML output, baselines, every command
+crates/midwrite-replay     Opt-in runtime execution: manifest validation, disposable PostgreSQL, isolation, replay supervisor, source coordinator, fault proxy
+crates/midwrite-corpus     Developer tool (not published): corpus runs, run comparison, reviewed precision, phase memory profile
+runtime/node/                Dependency-free replay client (Node.js and Bun), pg adapter, event-log transport (workspace package @midwrite/replay, unpublished)
 runtime/typescript/          Phase 3 import path for Bun harnesses (re-exports runtime/node)
 ci/, .github/workflows/      Linux test image; CI and release workflows (not yet run on GitHub)
 fixtures/                    vulnerable/, safe/, unsupported/ single-file examples, projects/ multi-file examples, all with `// @expect` annotations; replay/ runnable replay harnesses
@@ -697,12 +704,12 @@ New behavior should come with a fixture under `fixtures/` whose
 `// @expect` annotations state the exact diagnostics (or `none`); behavior
 that spans modules goes in a directory under `fixtures/projects/`.
 
-The runtime replay tests (`crates/commitrift-cli/tests/replay.rs`) need Bun,
+The runtime replay tests (`crates/midwrite-cli/tests/replay.rs`) need Bun,
 Node.js ≥ 22, the PostgreSQL server binaries, the isolation backend (macOS
 `sandbox-exec` or Linux bubblewrap) and the Drizzle fixture's dependencies
 (`npm ci` in `fixtures/replay/drizzle-node`); without them they print
 `SKIPPED` and pass, which is **not** runtime verification. Set
-`COMMITRIFT_REQUIRE_REPLAY=1` to make a missing dependency fail instead (the
+`MIDWRITE_REQUIRE_REPLAY=1` to make a missing dependency fail instead (the
 `replay-linux` CI job does). `scripts/linux-replay-docker.sh` runs the whole
 suite on Linux in a container.
 
@@ -711,14 +718,14 @@ revisions; nothing is executed or modified):
 
 ```bash
 corpora/fetch.sh
-cargo run --release -p commitrift-corpus -- run --manifest corpora/manifest.json --output reports/after.json
-cargo run --release -p commitrift-corpus -- compare reports/phase3/corpus-phase3.json reports/after.json
-cargo run --release -p commitrift-corpus -- precision --report reports/after.json --labels corpora/labels
+cargo run --release -p midwrite-corpus -- run --manifest corpora/manifest.json --output reports/after.json
+cargo run --release -p midwrite-corpus -- compare reports/phase3/corpus-phase3.json reports/after.json
+cargo run --release -p midwrite-corpus -- precision --report reports/after.json --labels corpora/labels
 ```
 
 ## Funding
 
-CommitRift is free for individuals and businesses, with no telemetry and no
+Midwrite is free for individuals and businesses, with no telemetry and no
 hosted service. Voluntary sponsorship is welcome in principle, but no
 funding destination has been set up or verified yet, so none is listed.
 

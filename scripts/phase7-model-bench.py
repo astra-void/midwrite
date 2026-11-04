@@ -20,7 +20,7 @@ import tempfile
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NEW = os.path.join(ROOT, "target", "release", "commitrift")
+NEW = os.path.join(ROOT, "target", "release", "midwrite")
 
 
 def mc(binary, scenario, *extra):

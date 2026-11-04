@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Build a release archive of the `commitrift` executable for the host
-# platform: target/package/commitrift-<version>-<target>.tar.gz plus a
+# Build a release archive of the `midwrite` executable for the host
+# platform: target/package/midwrite-<version>-<target>.tar.gz plus a
 # .sha256 file. Builds with --locked; publishes nothing.
 #
 #   scripts/package-release.sh [target-triple]
@@ -11,15 +11,15 @@ cd "$repo"
 version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
 target="${1:-$(rustc -vV | sed -n 's/^host: //p')}"
 
-cargo build --release --locked --target "$target" -p commitrift-cli --bin commitrift
+cargo build --release --locked --target "$target" -p midwrite-cli --bin midwrite
 
-name="commitrift-${version}-${target}"
+name="midwrite-${version}-${target}"
 stage="target/package/${name}"
 rm -rf "$stage"
 mkdir -p "$stage/runtime"
-cp "target/${target}/release/commitrift" "$stage/"
+cp "target/${target}/release/midwrite" "$stage/"
 cp README.md LICENSE-MIT LICENSE-APACHE "$stage/"
-# The replay client (also vendored by `commitrift init-replay`).
+# The replay client (also vendored by `midwrite init-replay`).
 cp -R runtime/node "$stage/runtime/node"
 rm -rf "$stage/runtime/node/test"
 mkdir -p "$stage/schemas"
@@ -36,5 +36,5 @@ else
   tar --uid 0 --gid 0 -C target/package -czf "target/package/${name}.tar.gz" "$name"
 fi
 (cd target/package && shasum -a 256 "${name}.tar.gz" > "${name}.tar.gz.sha256")
-"$stage/commitrift" --version
+"$stage/midwrite" --version
 cat "target/package/${name}.tar.gz.sha256"

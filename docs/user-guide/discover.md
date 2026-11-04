@@ -1,4 +1,4 @@
-# `commitrift discover`: candidates and scenarios from source
+# `midwrite discover`: candidates and scenarios from source
 
 `discover` finds concurrency and failure candidates in the original
 TypeScript without a hand-written scenario. It indexes entries and their
@@ -17,12 +17,12 @@ response step, read replicas, upserts, row-lock strengths). Internals:
 ## Typical use
 
 ```bash
-commitrift discover .                                     # static index + candidates + synthesized scenarios
-commitrift discover . --model-check                       # also explore them (bounded)
-commitrift discover . --model-check --format html -o discovery.html
-commitrift discover . --emit-scenarios ./commitrift-scenarios
-commitrift discover . --contracts commitrift-contracts.json --entry src/app/checkout
-commitrift discover . --cache .commitrift-cache.json      # cache extractions between runs
+midwrite discover .                                     # static index + candidates + synthesized scenarios
+midwrite discover . --model-check                       # also explore them (bounded)
+midwrite discover . --model-check --format html -o discovery.html
+midwrite discover . --emit-scenarios ./midwrite-scenarios
+midwrite discover . --contracts midwrite-contracts.json --entry src/app/checkout
+midwrite discover . --cache .midwrite-cache.json      # cache extractions between runs
 ```
 
 Exit status: `1` when at least one model counterexample was found, `0`
@@ -79,7 +79,7 @@ route handlers), or `discovery-default` for any other exported function.
 
 Retries, at-least-once delivery, external idempotency, business invariants,
 argument values, read-replica factories and harness inputs go into an
-optional `commitrift-contracts.json`
+optional `midwrite-contracts.json`
 ([contracts guide](contracts.md)). Everything taken from it is reported as
 declared.
 

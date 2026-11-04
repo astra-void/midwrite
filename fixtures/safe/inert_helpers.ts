@@ -1,6 +1,6 @@
 // Phase 5: calls of functions proven inert (no write, transaction, external
 // effect or unknown call on any path, including the callbacks they run) are
-// resolved, not unknown: no CP9001 after the commit. `withTimeout` only
+// resolved, not unknown: no MW9001 after the commit. `withTimeout` only
 // uses modeled builtins (`new Promise`, `setTimeout`, `Promise.race`,
 // `clearTimeout`) and awaits its argument, a builtin here.
 // @expect none

@@ -1,8 +1,8 @@
 {
-  "name": "commitrift-fixture-ledger-live",
+  "name": "midwrite-fixture-ledger-live",
   "private": true,
   "version": "0.0.0",
-  "description": "CommitRift Phase 10 first-party application: the Phase 9 payment ledger plus recovery inside the process that sees a failure (retry in the same process after a broken connection), for live connection-loss verification of original code on real Drizzle ORM and node-postgres.",
+  "description": "Midwrite Phase 10 first-party application: the Phase 9 payment ledger plus recovery inside the process that sees a failure (retry in the same process after a broken connection), for live connection-loss verification of original code on real Drizzle ORM and node-postgres.",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -11,7 +11,7 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@commitrift/replay": "file:../../../runtime/node",
+    "@midwrite/replay": "file:../../../runtime/node",
     "drizzle-orm": "0.45.4",
     "pg": "8.23.1"
   },

@@ -40,7 +40,7 @@ BUCKETS = [
     # Phase 8 keeps visited states in a std HashMap<Vec<u8>, u32>: hash-table
     # frames called from the explorer, not from the engine or the encoder.
     ("visited-table lookup / insert", r"9hashbrown", r"8KeyTable6intern$", r"6engine|5State9canonical$"),
-    ("transition execution (engine)", r"16commitrift_model6engine", r"16commitrift_model6engine", None),
+    ("transition execution (engine)", r"16midwrite_model6engine", r"16midwrite_model6engine", None),
 ]
 LINE = re.compile(r"^(?P<indent>[ +!:|]*)(?P<count>\d+) (?P<sym>\S+)")
 
@@ -87,7 +87,7 @@ def main():
     phase8, out = sys.argv[1], sys.argv[2]
     n = int(sys.argv[3]) if len(sys.argv) > 3 else 3
     lines = ["# Phase 9 storage profile", "",
-             f"{platform.platform()}; Phase 8 binary = {os.path.basename(phase8)} (saved release build of 4dc01af); this build = target/release/commitrift.", ""]
+             f"{platform.platform()}; Phase 8 binary = {os.path.basename(phase8)} (saved release build of 4dc01af); this build = target/release/midwrite.", ""]
     lines += ["## 1. Where exploration time goes (7 actors, sleep sets, `sample` 1 ms for 20 s)", "",
               "| binary | samples on the exploring thread | " + " | ".join(b[0] for b in BUCKETS) + " |",
               "| --- | --- | " + " | ".join("---" for _ in BUCKETS) + " |"]

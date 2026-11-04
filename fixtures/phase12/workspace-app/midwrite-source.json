@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "kind": "midwrite.source-harness",
+  "harness": "workspace-app",
+  "description": "Runs the workspace application's original Server Action and services against a disposable PostgreSQL database, one process per actor.",
+  "command": [
+    "node",
+    "--enable-source-maps",
+    "dist/verify/harness.js"
+  ],
+  "runtime": {
+    "node": ">=22"
+  },
+  "schema": [
+    "drizzle/0000_init.sql"
+  ],
+  "network": "deny",
+  "timeoutMs": 30000,
+  "entries": {
+    "createWorkspaceAction": {
+      "selector": "src/app/actions.ts#createWorkspaceAction/arg[0]",
+      "description": "The Server Action withUser(callback); the harness calls the action inside a session, the model checks the callback."
+    },
+    "createWorkspace": {
+      "selector": "src/services/workspaces.ts#createWorkspace",
+      "description": "Check for an existing workspace of the owner, then create one with a generated id and add the owner's membership."
+    },
+    "createWorkspaceLocked": {
+      "selector": "src/services/workspaces.ts#createWorkspaceLocked",
+      "description": "The same check under SELECT ... FOR UPDATE of the owner's row."
+    },
+    "addWorkspace": {
+      "selector": "src/services/workspaces.ts#addWorkspace",
+      "description": "Create a workspace (generated id) and the owner's membership; resubmitted after a lost response."
+    },
+    "addWorkspaceIdempotent": {
+      "selector": "src/services/workspaces.ts#addWorkspaceIdempotent",
+      "description": "The same with the request id as the workspace's key."
+    },
+    "registerUser": {
+      "selector": "src/services/workspaces.ts#registerUser",
+      "description": "Insert a user (database-generated id), its first workspace and membership from the returned ids."
+    },
+    "inviteToWorkspace": {
+      "selector": "src/services/invites.ts#inviteToWorkspace",
+      "description": "Check for a pending invite in a transaction; UNIQUE(workspace_id, email)."
+    }
+  }
+}

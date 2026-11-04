@@ -111,3 +111,52 @@ the phase owners:
   input-world walk-through validated with the Phase 15 binary),
   `research/evidence-index.md` (Phase 15 rows), this index.
 * No historical `docs/phaseN/` file was changed.
+
+# Rename to Midwrite (2026-11-04)
+
+CommitRift is now **Midwrite** (Linear DEV-146). Before the rename, on
+2026-11-04, the planned name *Faultline* was checked and dropped. It was
+already used by developer tooling: npm `faultline` and `faultline-cli`,
+crates.io `faultline` and `faultline-core`, the GitHub organization
+`faultline`, and the `.dev`, `.sh`, `.io` and `.tools` domains. `midwrite`
+was free on npm, crates.io and GitHub. No formal trademark search has been
+made.
+
+## Changed
+
+* Crates `commitrift-*` → `midwrite-*`, and the executable `commitrift` →
+  `midwrite`.
+* Configuration and contracts files: `midwrite.json` and
+  `midwrite-contracts.json`. Contracts and source-harness kinds:
+  `midwrite.contracts` and `midwrite.source-harness`.
+* Diagnostic codes `CPnnnn` → `MWnnnn`.
+* Environment variables `COMMITRIFT_*` → `MIDWRITE_*`.
+* The current documentation (`README.md`, `CONTRIBUTING.md`, `docs/` outside
+  `docs/phaseN/`), scripts, CI, fixtures and the Node.js runtime package
+  (`midwrite-runtime`).
+
+## Still accepted (compatibility)
+
+* The `commitrift` and `crashproof` executables, which print a deprecation
+  note.
+* `commitrift.json`, then `crashproof.json`, when `midwrite.json` does not
+  exist. Only one file is read.
+* `commitrift-contracts.json` when `midwrite-contracts.json` does not exist.
+* The kinds `commitrift.contracts` and `commitrift.source-harness`.
+* `CP` codes wherever a code is read (`explain`, recovery contracts).
+* `COMMITRIFT_THREADS` and `CRASHPROOF_THREADS`.
+
+## Intentionally unchanged
+
+* Finding fingerprints. They are computed from the pre-rename `CP` code, so
+  existing baselines keep matching.
+* The `kind` values of published report formats (`commitrift.discovery`,
+  `commitrift.model-check`, `commitrift.traces`, `commitrift.verification`,
+  `commitrift.regression`, `commitrift.counterexample`, …) and their
+  schemas. They are a versioned wire format. Renaming them needs new schema
+  versions, which this change does not make.
+* SARIF `partialFingerprints["crashproof/v1"]`.
+* Historical records: `docs/phaseN/`, `reports/`, and every file of the
+  frozen evaluation sets listed in `fixtures/phase13`–`phase16/FROZEN.json`.
+  The frozen sets keep `commitrift-contracts.json` and are read through the
+  compatibility path above, so their checksums still verify.

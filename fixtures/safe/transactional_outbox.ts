@@ -1,5 +1,5 @@
 // Example C: the transactional outbox pattern. Both writes commit atomically.
-// CommitRift only establishes that they share a transaction; it does not check
+// Midwrite only establishes that they share a transaction; it does not check
 // that an outbox relay exists.
 // @expect none
 import { db } from "@/db";

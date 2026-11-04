@@ -7,7 +7,7 @@ Usage: scripts/phase14-eval.py OUT.json [--first]
 
 The checksums in fixtures/phase14/FROZEN.json are verified first: a changed,
 missing or added application file, a changed label file, or a manifest digest
-that does not match refuses the run. COMMITRIFT_BIN selects the binary (an
+that does not match refuses the run. MIDWRITE_BIN selects the binary (an
 earlier binary scores the same set for comparison).
 
 With --first, refuses to run when OUT.json already exists: the first scoring
@@ -49,7 +49,7 @@ import sys
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BIN = os.environ.get("COMMITRIFT_BIN", os.path.join(ROOT, "target", "release", "commitrift"))
+BIN = os.environ.get("MIDWRITE_BIN", os.path.join(ROOT, "target", "release", "midwrite"))
 BASE = os.path.join(ROOT, "fixtures", "phase14")
 APP = os.path.join(BASE, "eval-app")
 LABELS = os.path.join(BASE, "eval-labels.json")
@@ -122,7 +122,7 @@ def discover(labels):
             json.dump(sanitized_labels(labels), f)
         report, p2 = run_discover(path)
     if report is None:
-        sys.exit(f"commitrift produced no JSON report.\n"
+        sys.exit(f"midwrite produced no JSON report.\n"
                  f"with the frozen labels: exit {first_error[0]}: {first_error[1]}\n"
                  f"with the Phase 13 fields only: exit {p2.returncode}: {p2.stderr[-4000:]}")
     return report, "sanitized-phase13-fields", {"exit": first_error[0], "stderr": first_error[1]}

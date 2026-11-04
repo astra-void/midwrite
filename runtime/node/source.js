@@ -1,9 +1,9 @@
-// CommitRift source-execution client (protocol version 4, Phases 7–9).
+// Midwrite source-execution client (protocol version 4, Phases 7–9).
 //
 // Runs ONE actor of a model-checking scenario: an authorized harness calls
 // an original application function (for example an exported Server Action)
 // and every SQL statement the application sends through node-postgres is
-// held until the coordinator (`commitrift model-check --verify-source`)
+// held until the coordinator (`midwrite model-check --verify-source`)
 // releases it. The coordinator releases statements in the order of the
 // model's counterexample and observes what PostgreSQL does.
 //
@@ -20,7 +20,7 @@
 //     attributed to a source location: the application awaits a thenable,
 //     so the driver call itself has no application frame on its stack.
 //
-// Protocol (JSON lines over the Unix socket in COMMITRIFT_SOURCE_SOCKET):
+// Protocol (JSON lines over the Unix socket in MIDWRITE_SOURCE_SOCKET):
 //
 //   worker -> coordinator  {"type":"hello","protocol":3,"actor":"A","attempt":1,"pid":123}
 //   worker -> coordinator  {"type":"query","seq":1,"client":1,"backendPid":456,
@@ -41,14 +41,14 @@
 // An effect is held like a statement. The receiving side of the channel is
 // a TEST DOUBLE hosted by the coordinator (it outlives a killed worker): it
 // records the effect when it releases it and applies the channel's
-// DECLARED deduplication contract. `COMMITRIFT_SOURCE_ATTEMPT` numbers the
+// DECLARED deduplication contract. `MIDWRITE_SOURCE_ATTEMPT` numbers the
 // executions of one actor: a retried actor is a NEW process (attempt 2, 3,
 // ...) with fresh connections; nothing of a killed attempt is reused.
 //
 // Phase 9 (protocol 4) adds tasks that share a process:
 //
 //   * a process may run several tasks of the model concurrently
-//     (`COMMITRIFT_SOURCE_TASKS`: [{actor, entry, input}]); every message of
+//     (`MIDWRITE_SOURCE_TASKS`: [{actor, entry, input}]); every message of
 //     a task carries `"task": <actor name>`, taken from a harness-provided
 //     context (AsyncLocalStorage), never guessed from function names;
 //   * the coordinator's replies carry the `seq` they answer, so concurrent
@@ -57,7 +57,7 @@
 //     (`{"type":"pool","max","total","idle","waiting"}`): which tasks wait
 //     for a connection is observed, not inferred.
 //
-// Phase 13 adds held responses (with COMMITRIFT_SOURCE_RESPONSE=hold, one
+// Phase 13 adds held responses (with MIDWRITE_SOURCE_RESPONSE=hold, one
 // task per process): after the entry returned,
 //
 //   worker -> coordinator  {"type":"respond","seq":3,"value":...}
@@ -81,8 +81,8 @@ export class CoordinatorStop extends Error {
   }
 }
 
-const SITE = Symbol.for("commitrift.source.site");
-const COORDINATED = Symbol.for("commitrift.source.coordinated");
+const SITE = Symbol.for("midwrite.source.site");
+const COORDINATED = Symbol.for("midwrite.source.coordinated");
 const scope = new AsyncLocalStorage();
 
 let channel = null;
@@ -181,14 +181,14 @@ function poolSnapshot() {
   };
 }
 
-/** Whether this process runs under `commitrift model-check --verify-source`. */
+/** Whether this process runs under `midwrite model-check --verify-source`. */
 export function sourceActive() {
-  return process.env.COMMITRIFT_SOURCE === "1" && !!process.env.COMMITRIFT_SOURCE_SOCKET;
+  return process.env.MIDWRITE_SOURCE === "1" && !!process.env.MIDWRITE_SOURCE_SOCKET;
 }
 
 /** Which execution of this actor this process is (1 for the first). */
 export function sourceAttempt() {
-  const n = Number(process.env.COMMITRIFT_SOURCE_ATTEMPT ?? "1");
+  const n = Number(process.env.MIDWRITE_SOURCE_ATTEMPT ?? "1");
   return Number.isInteger(n) && n > 0 ? n : 1;
 }
 
@@ -203,12 +203,12 @@ function insideRoot(path, root) {
  * DATABASE_URL or PG* variables.
  */
 export function sourcePoolConfig(overrides = {}) {
-  const root = process.env.COMMITRIFT_REPLAY_ROOT;
-  const path = process.env.COMMITRIFT_REPLAY_PG_SOCKET;
-  const database = process.env.COMMITRIFT_REPLAY_PG_DATABASE;
-  const user = process.env.COMMITRIFT_REPLAY_PG_USER;
+  const root = process.env.MIDWRITE_REPLAY_ROOT;
+  const path = process.env.MIDWRITE_REPLAY_PG_SOCKET;
+  const database = process.env.MIDWRITE_REPLAY_PG_DATABASE;
+  const user = process.env.MIDWRITE_REPLAY_PG_USER;
   if (!root || !path || !database || !user) {
-    throw new Error("refusing to connect: not running under commitrift source verification");
+    throw new Error("refusing to connect: not running under midwrite source verification");
   }
   if (!insideRoot(path, root)) {
     throw new Error("refusing to connect: the database socket is outside the run directory");
@@ -222,7 +222,7 @@ export function sourcePoolConfig(overrides = {}) {
     port: Number(match[2]),
     database,
     user,
-    application_name: `commitrift-actor-${process.env.COMMITRIFT_SOURCE_ACTOR ?? "?"}#${sourceAttempt()}`,
+    application_name: `midwrite-actor-${process.env.MIDWRITE_SOURCE_ACTOR ?? "?"}#${sourceAttempt()}`,
   };
 }
 
@@ -233,7 +233,7 @@ export function sourcePoolConfig(overrides = {}) {
 const FRAME = /^\s*at (?:(.*?) \()?(.*?):(\d+):(\d+)\)?$/;
 
 function projectRoot() {
-  return process.env.COMMITRIFT_SOURCE_PROJECT ?? "";
+  return process.env.MIDWRITE_SOURCE_PROJECT ?? "";
 }
 
 /** Application frames of the current stack, innermost first. */
@@ -639,7 +639,7 @@ export function coordinatePostgresJs(postgres, version) {
   }
   // A client that never connects, to reach the Query prototype shared by
   // every client of this module instance.
-  const probe = postgres({ host: "/nonexistent-commitrift", max: 1, onnotice: () => {} });
+  const probe = postgres({ host: "/nonexistent-midwrite", max: 1, onnotice: () => {} });
   const prototype = Object.getPrototypeOf(probe.unsafe("select 1"));
   if (prototype[COORDINATED]) return;
   if (typeof prototype.handle !== "function" || typeof prototype.then !== "function") {
@@ -717,14 +717,14 @@ function describe(error) {
  */
 export async function runSourceActor(entries, cleanup) {
   if (!sourceActive()) {
-    console.error("this harness only runs under `commitrift model-check --verify-source`");
+    console.error("this harness only runs under `midwrite model-check --verify-source`");
     process.exit(2);
   }
-  channel = await Channel.open(process.env.COMMITRIFT_SOURCE_SOCKET);
-  const actor = process.env.COMMITRIFT_SOURCE_ACTOR ?? "";
-  const entry = process.env.COMMITRIFT_SOURCE_ENTRY ?? "";
+  channel = await Channel.open(process.env.MIDWRITE_SOURCE_SOCKET);
+  const actor = process.env.MIDWRITE_SOURCE_ACTOR ?? "";
+  const entry = process.env.MIDWRITE_SOURCE_ENTRY ?? "";
   // Several tasks of the model sharing this process (Phase 9).
-  const tasks = process.env.COMMITRIFT_SOURCE_TASKS ? JSON.parse(process.env.COMMITRIFT_SOURCE_TASKS) : null;
+  const tasks = process.env.MIDWRITE_SOURCE_TASKS ? JSON.parse(process.env.MIDWRITE_SOURCE_TASKS) : null;
   await channel.send({
     type: "hello",
     protocol: SOURCE_PROTOCOL_VERSION,
@@ -763,7 +763,7 @@ export async function runSourceActor(entries, cleanup) {
     await channel.close();
     process.exit(outcomes.every((o) => o === "returned") ? 0 : 1);
   }
-  const input = JSON.parse(process.env.COMMITRIFT_SOURCE_INPUT ?? "null");
+  const input = JSON.parse(process.env.MIDWRITE_SOURCE_INPUT ?? "null");
   let outcome = "returned";
   let value = null;
   let error;
@@ -780,7 +780,7 @@ export async function runSourceActor(entries, cleanup) {
   // has returned (its work may be committed); the response is announced and
   // held until the coordinator, which plays the client, receives it. A crash
   // planned here kills the process after the work and before the response.
-  if (outcome === "returned" && process.env.COMMITRIFT_SOURCE_RESPONSE === "hold") {
+  if (outcome === "returned" && process.env.MIDWRITE_SOURCE_RESPONSE === "hold") {
     seq += 1;
     const id = seq;
     const answer = channel.reply(id);

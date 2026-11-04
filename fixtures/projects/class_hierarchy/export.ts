@@ -2,7 +2,7 @@
 // (`ExportProcessor` → `AccountingProcessor` → `BaseProcessor`); no analyzed
 // subclass overrides it, so the call dispatches to `BaseProcessor` and the
 // publication after the commit is traced.
-// @expect CP1001 line=12 confidence=high function=ExportProcessor.process
+// @expect MW1001 line=12 confidence=high function=ExportProcessor.process
 import { db } from "@/db";
 import { AccountingProcessor } from "./accounting";
 

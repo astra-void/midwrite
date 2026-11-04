@@ -1,5 +1,5 @@
 // A Next.js route handler in a .tsx file next to a component.
-// @expect CP1001 line=10 confidence=high function=POST
+// @expect MW1001 line=10 confidence=high function=POST
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 

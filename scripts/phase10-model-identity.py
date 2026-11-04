@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase 10 regression: `commitrift model-check` of the Phase 9 binary and of
+"""Phase 10 regression: `midwrite model-check` of the Phase 9 binary and of
 this build must give identical reports (JSON and text, byte for byte apart
 from nothing) on every model scenario of Phases 6-9, in the default search
 (sleep sets). Phase 10 changed neither the default search nor the state
@@ -20,7 +20,7 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NEW = os.path.join(ROOT, "target", "release", "commitrift")
+NEW = os.path.join(ROOT, "target", "release", "midwrite")
 PATTERNS = [
     "fixtures/concurrency/scenarios/*.json",
     "fixtures/concurrency/corpus/*.json",

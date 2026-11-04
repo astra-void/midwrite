@@ -1,8 +1,8 @@
 // The callee performs its effect only on some paths (a guard clause or a
 // condition), so a hazard through its summary is reported with medium
 // confidence, never high.
-// @expect CP1001 line=23 confidence=medium function=completeOrder
-// @expect CP1002 line=28 confidence=medium function=refundOrder
+// @expect MW1001 line=23 confidence=medium function=completeOrder
+// @expect MW1002 line=28 confidence=medium function=refundOrder
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 

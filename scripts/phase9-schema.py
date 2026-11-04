@@ -13,7 +13,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 v3 = json.loads((ROOT / "docs/phase8/schemas/model-check-report.v3.schema.json").read_text())
 s = copy.deepcopy(v3)
 s["$id"] = "commitrift.model-check.v4"
-s["title"] = "CommitRift model-check report, schema 4"
+s["title"] = "Midwrite model-check report, schema 4"
 s["description"] = (
     "Phase 9: adds the in-flight operation evidence, the application-knowledge (twin world) analysis, "
     "stuck-state observations, the redacted protocol log, shared-process and pool facts. Everything "

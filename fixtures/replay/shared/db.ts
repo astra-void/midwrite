@@ -18,7 +18,7 @@
 // callback resolves and rolls back when it throws or the connection drops.
 
 import { SQL } from "bun";
-import { checkpoint, replayDatabase } from "../../../runtime/typescript/commitrift-replay.ts";
+import { checkpoint, replayDatabase } from "../../../runtime/typescript/midwrite-replay.ts";
 
 export type Column = { readonly table: string; readonly column: string };
 export type Table<C extends Record<string, string>> = { readonly __table: string } & {

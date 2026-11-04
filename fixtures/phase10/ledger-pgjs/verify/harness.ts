@@ -18,7 +18,7 @@ import {
   runSourceActor,
   sourceEffect,
   sourcePostgresUrl,
-} from "@commitrift/replay/source";
+} from "@midwrite/replay/source";
 
 import type { PayInput } from "../src/app/payments.js";
 import { useConfirmations } from "../src/lib/messaging/confirmations.js";

@@ -1,5 +1,5 @@
 // A publication that is started but not awaited.
-// @expect CP1001 line=8 confidence=medium
+// @expect MW1001 line=8 confidence=medium
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 

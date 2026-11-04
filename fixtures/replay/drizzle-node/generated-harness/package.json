@@ -1,8 +1,8 @@
 {
   "dependencies": {
-    "@commitrift/replay": "file:./commitrift-runtime"
+    "@midwrite/replay": "file:./midwrite-runtime"
   },
-  "name": "commitrift-replay-completeorder",
+  "name": "midwrite-replay-completeorder",
   "private": true,
   "scripts": {
     "build": "tsc -p tsconfig.json"

@@ -1,6 +1,6 @@
 // A committed transaction followed by a publication: the transaction and the
 // event are still not atomic.
-// @expect CP1001 line=12 confidence=high
+// @expect MW1001 line=12 confidence=high
 import { db } from "@/db";
 import { orders, payments } from "@/db/schema";
 

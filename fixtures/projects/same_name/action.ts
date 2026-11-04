@@ -1,5 +1,5 @@
 // Two modules export `notify`; only the imported one is used. It performs
-// no recognized operation, so no CP1001 is claimed.
+// no recognized operation, so no MW1001 is claimed.
 // @expect none
 import { notify } from "./quiet";
 

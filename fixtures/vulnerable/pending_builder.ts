@@ -1,5 +1,5 @@
 // A query builder stored in a variable executes when it is awaited.
-// @expect CP1001 line=11 confidence=high
+// @expect MW1001 line=11 confidence=high
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 

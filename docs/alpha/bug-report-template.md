@@ -16,7 +16,7 @@ if you can.
 
 ## Environment
 
-* CommitRift revision and `commitrift --version`:
+* Midwrite revision and `midwrite --version`:
 * OS / architecture:
 * Node, PostgreSQL server, Drizzle, zod versions:
 
@@ -39,6 +39,6 @@ the exact command
 
 ## Severity for you
 
-- [ ] blocks using CommitRift
+- [ ] blocks using Midwrite
 - [ ] misleading result
 - [ ] cosmetic

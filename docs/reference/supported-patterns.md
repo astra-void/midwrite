@@ -1,7 +1,7 @@
 # Supported patterns
 
 What each analysis recognizes, as of the Phase 13 working tree. Anything
-not listed is reported as unknown (`CP9001`, an `Unknown` operation,
+not listed is reported as unknown (`MW9001`, an `Unknown` operation,
 `UNSUPPORTED`) rather than guessed. Gaps: [limitations](limitations.md).
 Concept summary: [supported semantics](../concepts/supported-semantics.md).
 
@@ -14,7 +14,7 @@ Concept summary: [supported semantics](../concepts/supported-semantics.md).
 | `db.transaction(async (tx) => …)` | writes on `tx` commit when the callback completes; nested `tx.transaction` = savepoint; writes on `db` inside are not part of the transaction; `tx.rollback()` is an exit |
 | builders stored in a `const` and awaited later | `const q = db.update(t).set(v); await q;` |
 | receivers | configured names, renamed imports, `const` aliases, `importedFrom` checks, `drizzle(...)` handles, argument-free configured calls (`getDb()`) |
-| member receivers | configured member paths (`this.db`, `ctx.db`, `this.queue`); a weaker `member-path` match; unconfigured lookalikes are `CP9001` |
+| member receivers | configured member paths (`this.db`, `ctx.db`, `this.queue`); a weaker `member-path` match; unconfigured lookalikes are `MW9001` |
 | external effects | configured `receiver.method(...)` or `function(...)`, optionally followed by `.then/.catch/.finally`; first-argument rules; best-effort |
 | control flow | sequences, `if`/`else`, `?:`, `&&`/`\|\|`/`??`, `switch` with fall-through, `return`, `throw`, `try`/`catch`/`finally`, loops (effects zero or one iteration; values to a fixpoint), `Promise.all/allSettled/race/any` over array literals, `Promise.all(xs.map(cb))`, `xs.forEach(cb)` |
 | functions | declarations, expressions, arrows, class and object methods, `export default`, Next.js route handlers and Server Actions; nested functions analyzed separately |

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# CommitRift Phase 4 demo: real TypeScript + Drizzle ORM code ->
-# CP1001 -> failure trace -> generated replay harness -> declared invariant
+# Midwrite Phase 4 demo: real TypeScript + Drizzle ORM code ->
+# MW1001 -> failure trace -> generated replay harness -> declared invariant
 # -> authorized, isolated replay -> surviving PostgreSQL state -> HTML ->
 # comparison with a transactional outbox.
 #
@@ -8,7 +8,7 @@
 #
 # Needs a Rust toolchain; Node.js >= 22 and npm (the fixture's pinned
 # dependencies are installed with `npm ci` from its lockfile); PostgreSQL
-# server binaries (or COMMITRIFT_PG_BIN); OS isolation: macOS sandbox-exec,
+# server binaries (or MIDWRITE_PG_BIN); OS isolation: macOS sandbox-exec,
 # or Linux bubblewrap with unprivileged user namespaces.
 # Only first-party harnesses under fixtures/replay/ are executed.
 #
@@ -29,15 +29,15 @@ trap 'rm -rf "$skeleton"' EXIT
 
 step() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 
-step "0. Build CommitRift and install the fixture's pinned dependencies (npm ci, lockfile)"
+step "0. Build Midwrite and install the fixture's pinned dependencies (npm ci, lockfile)"
 cargo build --release --quiet
-bin="$here/target/release/commitrift"
+bin="$here/target/release/midwrite"
 (cd "$app" && npm ci --ignore-scripts --no-audit --no-fund --silent && npm run build --silent)
 
 step "1. Scan real TypeScript + Drizzle ORM code (nothing is executed)"
 (cd "$app" && "$bin" check src --fail-on never)
 
-step "2./3. The failure trace of the CP1001 finding (a static candidate)"
+step "2./3. The failure trace of the MW1001 finding (a static candidate)"
 (cd "$app" && "$bin" trace src --format json > "$out/trace.json" && "$bin" trace src --finding 4f53a6215ac16913)
 "$bin" report "$out/trace.json" -o "$out/trace.html"
 
@@ -47,7 +47,7 @@ echo "--- replay refuses the unfinished skeleton:"
 "$bin" replay "$skeleton" --allow-execution || true
 
 step "5. MANUAL: the developer fills in the marked integration points (completed version shown)"
-diff -u "$skeleton/commitrift-replay.json" "$app/generated-harness/commitrift-replay.json" | sed -n '1,60p' || true
+diff -u "$skeleton/midwrite-replay.json" "$app/generated-harness/midwrite-replay.json" | sed -n '1,60p' || true
 (cd "$app/generated-harness" && node ../node_modules/typescript/bin/tsc -p tsconfig.json)
 
 step "6./7. Authorized, isolated replay; observe the surviving PostgreSQL state"

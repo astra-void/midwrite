@@ -1,10 +1,10 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "commitrift.discovery.v1",
-  "title": "CommitRift discovery report, schema 1",
+  "title": "Midwrite discovery report, schema 1",
   "definitions": {
     "value": {
-      "description": "A model value (commitrift_model::value::Value, untagged): null, boolean, 64-bit integer, string, a list, or an object. Objects are rows and the tagged forms {\"$generated\": n, \"actor\": a, \"n\": k}, {\"$undefined\": true}, {\"$map\": [[key, value], ...]} and {\"$set\": [item, ...]}, all of which are objects whose members are values. There are no floating-point values.",
+      "description": "A model value (midwrite_model::value::Value, untagged): null, boolean, 64-bit integer, string, a list, or an object. Objects are rows and the tagged forms {\"$generated\": n, \"actor\": a, \"n\": k}, {\"$undefined\": true}, {\"$map\": [[key, value], ...]} and {\"$set\": [item, ...]}, all of which are objects whose members are values. There are no floating-point values.",
       "type": [
         "null",
         "boolean",
@@ -106,7 +106,7 @@
       ]
     },
     "val": {
-      "description": "Where a value comes from (commitrift_discover::effects::Val, tagged by `kind`).",
+      "description": "Where a value comes from (midwrite_discover::effects::Val, tagged by `kind`).",
       "oneOf": [
         {
           "type": "object",
@@ -296,7 +296,7 @@
       ]
     },
     "term": {
-      "description": "An invariant term (commitrift_model::invariant::Term): an integer, a string, null, or one operator. Phase 16 adds countMatching, rowMatching, returned, field and argument.",
+      "description": "An invariant term (midwrite_model::invariant::Term): an integer, a string, null, or one operator. Phase 16 adds countMatching, rowMatching, returned, field and argument.",
       "type": [
         "integer",
         "string",
@@ -424,7 +424,7 @@
       "maxItems": 2
     },
     "formula": {
-      "description": "An invariant formula (commitrift_model::invariant::Formula): exactly one operator. Phase 16 adds generatedBy, sameGenerated, distinctGenerated, same, forEachActor and forEachRow (docs/phase16/GENERATED-ID-INVARIANTS.md).",
+      "description": "An invariant formula (midwrite_model::invariant::Formula): exactly one operator. Phase 16 adds generatedBy, sameGenerated, distinctGenerated, same, forEachActor and forEachRow (docs/phase16/GENERATED-ID-INVARIANTS.md).",
       "type": "object",
       "minProperties": 1,
       "maxProperties": 1,
@@ -1350,7 +1350,7 @@
           "minItems": 1
         },
         "sourceVerification": {
-          "description": "Whether `commitrift model-check <file> --verify-source --allow-execution` can run the scenario against the original code.",
+          "description": "Whether `midwrite model-check <file> --verify-source --allow-execution` can run the scenario against the original code.",
           "type": "boolean"
         },
         "model": {
@@ -2042,7 +2042,7 @@
       ]
     },
     "actorSel": {
-      "description": "Phase 16 (commitrift_model::invariant::ActorSel): the bound actor of an enclosing forEachActor, an actor by name, or the actors of a function.",
+      "description": "Phase 16 (midwrite_model::invariant::ActorSel): the bound actor of an enclosing forEachActor, an actor by name, or the actors of a function.",
       "oneOf": [
         {
           "const": "self"
@@ -2135,7 +2135,8 @@
       "type": "object",
       "properties": {
         "name": {
-          "const": "commitrift"
+          "description": "The producing tool: `midwrite`, or `commitrift` for reports written before the rename (2026-11-04).",
+          "enum": ["midwrite", "commitrift"]
         },
         "version": {
           "type": "string",
@@ -2674,5 +2675,5 @@
       }
     }
   ],
-  "description": "Phase 16: the first published schema of `commitrift discover --format json` (kind commitrift.discovery, schemaVersion 1). Schema version 1 was extended additively by Phase 14 (`nextStep`) and Phase 15 (`coverage`, `world`, world counters in `budgets`) without a version change; the top-level `anyOf` accepts exactly these three generations and rejects mixtures (a world counter without the others, `coverage` without `nextStep`). Any other `schemaVersion` is rejected. See docs/phase16/QUALITY-GATES.md."
+  "description": "Phase 16: the first published schema of `midwrite discover --format json` (kind commitrift.discovery, schemaVersion 1). Schema version 1 was extended additively by Phase 14 (`nextStep`) and Phase 15 (`coverage`, `world`, world counters in `budgets`) without a version change; the top-level `anyOf` accepts exactly these three generations and rejects mixtures (a world counter without the others, `coverage` without `nextStep`). Any other `schemaVersion` is rejected. See docs/phase16/QUALITY-GATES.md."
 }

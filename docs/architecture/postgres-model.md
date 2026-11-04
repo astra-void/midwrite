@@ -1,6 +1,6 @@
 # PostgreSQL model
 
-`crates/commitrift-model/src/{db,exec,state,value}.rs`. The model is a
+`crates/midwrite-model/src/{db,exec,state,value}.rs`. The model is a
 small, explicitly bounded subset of PostgreSQL. **It does not model every
 PostgreSQL feature**; what it models was checked against PostgreSQL 17.11
 (macOS) and 15.19 (Linux container) by lockstep replay, and since Phase 13

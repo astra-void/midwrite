@@ -1,5 +1,5 @@
 // The callee publishes only on some of its paths: medium confidence.
-// @expect CP1001 line=8 confidence=medium function=pay
+// @expect MW1001 line=8 confidence=medium function=pay
 import { db } from "@/db";
 import { maybeNotify } from "./notify";
 

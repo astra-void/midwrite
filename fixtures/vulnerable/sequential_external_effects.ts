@@ -1,5 +1,5 @@
 // Two configured external effects in sequence.
-// @expect CP1005 line=9 confidence=high
+// @expect MW1005 line=9 confidence=high
 import { queue } from "@/lib/queue";
 import { mailer } from "@/lib/mailer";
 

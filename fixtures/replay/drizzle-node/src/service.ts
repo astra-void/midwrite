@@ -6,7 +6,7 @@ import { db } from "./database.js";
 import { queue } from "./queue.js";
 import { orders, outbox, payments, shipments } from "./schema.js";
 
-// Scenario A — vulnerable dual write (CP1001): the status change commits on
+// Scenario A — vulnerable dual write (MW1001): the status change commits on
 // its own, then the event is published. A crash in between leaves a paid
 // order whose `order.completed` event never exists.
 export async function completeOrder(orderId: string) {
@@ -24,7 +24,7 @@ export async function recordPayment(orderId: string, amountCents: number) {
   });
 }
 
-// Scenario C — external effect inside a transaction (CP1003): the event is
+// Scenario C — external effect inside a transaction (MW1003): the event is
 // published before the transaction commits. If the transaction then rolls
 // back (an exception, a crash, or a failing COMMIT), the event is out.
 export async function shipOrder(orderId: string, trackingNumber: string) {

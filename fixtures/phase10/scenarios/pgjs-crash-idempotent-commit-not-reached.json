@@ -80,7 +80,7 @@
     }
   ],
   "sourceVerification": {
-    "harness": "../ledger-pgjs/commitrift-source.json",
+    "harness": "../ledger-pgjs/midwrite-source.json",
     "actors": {
       "Client": {
         "entry": "recordPaymentIdempotent",

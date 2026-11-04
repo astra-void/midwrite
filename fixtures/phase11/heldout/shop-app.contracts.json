@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "kind": "commitrift.contracts",
+  "kind": "midwrite.contracts",
   "description": "Contracts for fixtures/phase8/shop-app, transcribed from what its Phase 8 hand-authored scenarios already declared (externals, channel deduplication, retries, delivery, the transaction-retry helper). Nothing else is declared: no invariant.",
   "externals": [
     { "callee": "chargeCard", "channel": "card-charge", "keyArgument": 1, "dedup": "byKey" },

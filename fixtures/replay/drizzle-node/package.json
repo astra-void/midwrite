@@ -1,15 +1,15 @@
 {
-  "name": "commitrift-fixture-drizzle-node",
+  "name": "midwrite-fixture-drizzle-node",
   "private": true,
   "version": "0.0.0",
-  "description": "CommitRift replay fixture: an order service on Node.js, the real Drizzle ORM and node-postgres.",
+  "description": "Midwrite replay fixture: an order service on Node.js, the real Drizzle ORM and node-postgres.",
   "type": "module",
   "engines": { "node": ">=22" },
   "scripts": {
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@commitrift/replay": "file:../../../runtime/node",
+    "@midwrite/replay": "file:../../../runtime/node",
     "drizzle-orm": "0.45.4",
     "pg": "8.23.1"
   },

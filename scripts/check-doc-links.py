@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check relative links in CommitRift's Markdown documentation.
+"""Check relative links in Midwrite's Markdown documentation.
 
     python3 scripts/check-doc-links.py [--historical {fail,report,skip}] [--quiet] [FILE...]
 

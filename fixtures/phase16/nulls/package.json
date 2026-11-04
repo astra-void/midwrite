@@ -1,8 +1,8 @@
 {
-  "name": "commitrift-fixture-phase16-nulls",
+  "name": "midwrite-fixture-phase16-nulls",
   "private": true,
   "version": "0.0.0",
-  "description": "CommitRift Phase 16 first-party slice: check-then-insert under a nullable UNIQUE key, once with PostgreSQL's default NULLS DISTINCT (two NULL keys coexist: a defect) and once with NULLS NOT DISTINCT (PostgreSQL 15+: the second insert fails with 23505: safe), in both Drizzle spellings. Drizzle ORM on node-postgres.",
+  "description": "Midwrite Phase 16 first-party slice: check-then-insert under a nullable UNIQUE key, once with PostgreSQL's default NULLS DISTINCT (two NULL keys coexist: a defect) and once with NULLS NOT DISTINCT (PostgreSQL 15+: the second insert fails with 23505: safe), in both Drizzle spellings. Drizzle ORM on node-postgres.",
   "type": "module",
   "engines": { "node": ">=22" },
   "scripts": {

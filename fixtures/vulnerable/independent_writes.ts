@@ -1,5 +1,5 @@
 // Two writes to different tables without a shared transaction.
-// @expect CP1004 line=8 confidence=high
+// @expect MW1004 line=8 confidence=high
 import { db } from "@/db";
 import { orders, payments } from "@/db/schema";
 

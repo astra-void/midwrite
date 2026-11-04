@@ -10,7 +10,7 @@ import {
   instrumentDrizzle,
   runSourceActor,
   sourcePoolConfig,
-} from "@commitrift/replay/source";
+} from "@midwrite/replay/source";
 
 import { usePool } from "../src/db/pool.js";
 

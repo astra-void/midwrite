@@ -1,6 +1,6 @@
 # Model checker
 
-Crate: `commitrift-model`. Commands: `model-check`, `discover
+Crate: `midwrite-model`. Commands: `model-check`, `discover
 --model-check`. An explicit-state, bounded model checker over a model IR
 of concurrent actors and a PostgreSQL database model.
 

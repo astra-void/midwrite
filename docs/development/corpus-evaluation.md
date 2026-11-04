@@ -1,8 +1,8 @@
 # Corpus evaluation
 
 The corpus is a set of real TypeScript/Drizzle/PostgreSQL applications that
-CommitRift analyzes **statically only**. It measures recognition, coverage,
-regressions and performance on code nobody wrote for CommitRift. It is not
+Midwrite analyzes **statically only**. It measures recognition, coverage,
+regressions and performance on code nobody wrote for Midwrite. It is not
 a source of confirmed defects.
 
 ## Projects
@@ -24,10 +24,10 @@ projects are cloned at pinned revisions by `corpora/fetch.sh` into
 
 ```bash
 corpora/fetch.sh
-cargo run --release -p commitrift-corpus -- run --manifest corpora/manifest.json --output reports/after.json
-cargo run --release -p commitrift-corpus -- compare reports/phase3/corpus-phase3.json reports/after.json
-cargo run --release -p commitrift-corpus -- precision --report reports/after.json --labels corpora/labels
-commitrift discover .corpora/midday --model-check --contracts corpora/contracts/midday.json --format json -o midday.json
+cargo run --release -p midwrite-corpus -- run --manifest corpora/manifest.json --output reports/after.json
+cargo run --release -p midwrite-corpus -- compare reports/phase3/corpus-phase3.json reports/after.json
+cargo run --release -p midwrite-corpus -- precision --report reports/after.json --labels corpora/labels
+midwrite discover .corpora/midday --model-check --contracts corpora/contracts/midday.json --format json -o midday.json
 python3 scripts/phase13-analyzer-corpus.py      # the Phase 13 measurement (see the script for arguments)
 ```
 

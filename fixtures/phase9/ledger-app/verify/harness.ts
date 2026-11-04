@@ -3,7 +3,7 @@
 // It runs the application's ORIGINAL exported functions the way the server
 // would: with the database pool and the confirmation client configured at
 // process start. The payment code is imported unchanged. The confirmation
-// client is a TEST DOUBLE whose calls are received by the CommitRift
+// client is a TEST DOUBLE whose calls are received by the Midwrite
 // coordinator (`sourceEffect`); its deduplication is the scenario's DECLARED
 // channel contract.
 import * as drizzle from "drizzle-orm";
@@ -15,7 +15,7 @@ import {
   runSourceActor,
   sourceEffect,
   sourcePoolConfig,
-} from "@commitrift/replay/source";
+} from "@midwrite/replay/source";
 
 import type { PayInput } from "../src/app/payments.js";
 import { usePool } from "../src/lib/db/pool.js";

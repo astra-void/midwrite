@@ -1,4 +1,4 @@
-// A Drizzle-style schema. CommitRift's model checker does NOT infer
+// A Drizzle-style schema. Midwrite's model checker does NOT infer
 // constraints from this file: every table, column and constraint it
 // assumes is declared again in the scenario (see ../scenarios/*.json).
 import { boolean, integer, pgTable, text } from "drizzle-orm/pg-core";

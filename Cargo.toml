@@ -7,14 +7,14 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.97"
 license = "MIT OR Apache-2.0"
-authors = ["CommitRift contributors"]
+authors = ["Midwrite contributors"]
 
 [workspace.dependencies]
-commitrift-core = { path = "crates/commitrift-core", version = "0.1.0" }
-commitrift-analyzer = { path = "crates/commitrift-analyzer", version = "0.1.0" }
-commitrift-discover = { path = "crates/commitrift-discover", version = "0.1.0" }
-commitrift-replay = { path = "crates/commitrift-replay", version = "0.1.0" }
-commitrift-model = { path = "crates/commitrift-model", version = "0.1.0", default-features = false }
+midwrite-core = { path = "crates/midwrite-core", version = "0.1.0" }
+midwrite-analyzer = { path = "crates/midwrite-analyzer", version = "0.1.0" }
+midwrite-discover = { path = "crates/midwrite-discover", version = "0.1.0" }
+midwrite-replay = { path = "crates/midwrite-replay", version = "0.1.0" }
+midwrite-model = { path = "crates/midwrite-model", version = "0.1.0", default-features = false }
 oxc_allocator = "0.155.0"
 oxc_ast = "0.155.0"
 oxc_ast_visit = "0.155.0"

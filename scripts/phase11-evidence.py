@@ -24,7 +24,7 @@ import sys
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BIN = os.path.join(ROOT, "target", "release", "commitrift")
+BIN = os.path.join(ROOT, "target", "release", "midwrite")
 OUT = os.path.join(ROOT, "reports", "phase11", "evidence")
 APP = os.path.join(ROOT, "fixtures", "phase11", "commerce-app")
 
@@ -120,15 +120,15 @@ def main():
     tmp = os.path.join(OUT, "no-contracts-copy")
     shutil.rmtree(tmp, ignore_errors=True)
     shutil.copytree(APP, tmp, ignore=shutil.ignore_patterns("node_modules", "dist"))
-    os.remove(os.path.join(tmp, "commitrift-contracts.json"))
+    os.remove(os.path.join(tmp, "midwrite-contracts.json"))
     _, _, _, nr = discover(tmp, "--model-check", "--no-timing")
     shutil.rmtree(tmp)
-    summary += ["## The same application without commitrift-contracts.json", "",
+    summary += ["## The same application without midwrite-contracts.json", "",
                 f"`{json.dumps(nr['summary'], sort_keys=True)}`", ""]
 
     # 4. Original-code runs of the generated counterexamples (first party only).
     summary += ["## Generated counterexamples on the original code", "",
-                f"Each scenario {args.repeat} times, `commitrift model-check <file> --verify-source --allow-execution --source-repeat {args.repeat}`.", "",
+                f"Each scenario {args.repeat} times, `midwrite model-check <file> --verify-source --allow-execution --source-repeat {args.repeat}`.", "",
                 "| scenario | candidate | model | evidence | runs reproduced |", "| --- | --- | --- | --- | --- |"]
     runtime = []
     for c in r["candidates"]:
@@ -198,18 +198,18 @@ def main():
         ("commerce-app: discovery only", [BIN, "discover", APP, "--format", "json"]),
         ("commerce-app: discovery + model checking", [BIN, "discover", APP, "--format", "json", "--model-check"]),
         ("commerce-app: discovery + model checking, source-DPOR", [BIN, "discover", APP, "--format", "json", "--model-check", "--source-dpor"]),
-        ("commerce-app: commitrift check (static analysis)", [BIN, "check", APP, "--format", "json"]),
+        ("commerce-app: midwrite check (static analysis)", [BIN, "check", APP, "--format", "json"]),
     ]
     old = os.path.join(ROOT, "reports/phase11/baseline/commitrift-phase10")
     if os.path.exists(old):
-        rows.append(("commerce-app: commitrift check, Phase 10 binary", [old, "check", APP, "--format", "json"]))
+        rows.append(("commerce-app: midwrite check, Phase 10 binary", [old, "check", APP, "--format", "json"]))
     midday = os.path.join(ROOT, ".corpora/midday")
     if os.path.isdir(midday):
         rows += [
-            ("midday: commitrift check", [BIN, "check", midday, "--config", os.path.join(ROOT, "corpora/configs/midday.json"), "--format", "json"]),
+            ("midday: midwrite check", [BIN, "check", midday, "--config", os.path.join(ROOT, "corpora/configs/midday.json"), "--format", "json"]),
         ]
         if os.path.exists(old):
-            rows.append(("midday: commitrift check, Phase 10 binary", [old, "check", midday, "--config", os.path.join(ROOT, "corpora/configs/midday.json"), "--format", "json"]))
+            rows.append(("midday: midwrite check, Phase 10 binary", [old, "check", midday, "--config", os.path.join(ROOT, "corpora/configs/midday.json"), "--format", "json"]))
         rows.append(("midday: discovery only", [BIN, "discover", midday, "--format", "json"]))
     for label, cmd in rows:
         secs, rss = median_run(cmd)

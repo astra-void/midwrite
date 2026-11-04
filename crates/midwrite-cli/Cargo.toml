@@ -1,0 +1,43 @@
+[package]
+name = "midwrite-cli"
+description = "Command-line interface for the Midwrite failure-path analyzer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lib]
+name = "midwrite_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "midwrite"
+path = "src/main.rs"
+
+# Compatibility executables for automation written before the renames
+# (CrashProof, then CommitRift). Same behavior as `midwrite`, with a
+# deprecation note on standard error.
+[[bin]]
+name = "commitrift"
+path = "src/bin/commitrift.rs"
+
+[[bin]]
+name = "crashproof"
+path = "src/bin/crashproof.rs"
+
+[features]
+default = ["replay"]
+# Runtime replay (`midwrite replay`). Without it the binary contains only
+# static analysis and report rendering.
+replay = ["dep:midwrite-replay", "midwrite-model/postgres"]
+
+[dependencies]
+midwrite-core.workspace = true
+midwrite-analyzer.workspace = true
+midwrite-model.workspace = true
+midwrite-discover.workspace = true
+midwrite-replay = { workspace = true, optional = true }
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true

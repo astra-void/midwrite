@@ -11,17 +11,17 @@ Every phase report records these four gates on its final tree:
 ```bash
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
-COMMITRIFT_REQUIRE_REPLAY=1 cargo test --workspace --no-fail-fast
+MIDWRITE_REQUIRE_REPLAY=1 cargo test --workspace --no-fail-fast
 cargo build --release
 ```
 
-Without `COMMITRIFT_REQUIRE_REPLAY=1`, tests whose runtime prerequisites
+Without `MIDWRITE_REQUIRE_REPLAY=1`, tests whose runtime prerequisites
 are missing print `SKIPPED` and pass — that is **not** runtime
 verification. With it, a missing prerequisite or a blocked isolation
 backend fails the test.
 
 Runtime prerequisites: PostgreSQL server binaries (`initdb`, `pg_ctl`,
-`postgres`; `COMMITRIFT_PG_BIN` selects a directory), Node.js ≥ 22, Bun
+`postgres`; `MIDWRITE_PG_BIN` selects a directory), Node.js ≥ 22, Bun
 (Phase 3/4 replay tests), an isolation backend (macOS `sandbox-exec`, or
 Linux bubblewrap with unprivileged user namespaces), and the fixtures'
 pinned packages and builds, for example:
@@ -36,9 +36,9 @@ static tests also depend on pre-built fixture `dist/` directories
 ([Phase 11 baseline](../phase11/BASELINE.md)).
 
 Phase 16 adds two switches with the same meaning:
-`COMMITRIFT_REQUIRE_ZOD=1` (the zod differential needs Node.js and the
-pinned zod packages, located with `COMMITRIFT_ZOD3_DIR` and
-`COMMITRIFT_ZOD4_DIR`) and `COMMITRIFT_REQUIRE_SCHEMA=1` (report-schema
+`MIDWRITE_REQUIRE_ZOD=1` (the zod differential needs Node.js and the
+pinned zod packages, located with `MIDWRITE_ZOD3_DIR` and
+`MIDWRITE_ZOD4_DIR`) and `MIDWRITE_REQUIRE_SCHEMA=1` (report-schema
 tests). `fixtures/phase16/retry` needs `npm ci && npm run build` for its
 original-code tests.
 
@@ -53,17 +53,17 @@ final count is not yet recorded.
 
 | crate | tests | covers |
 | --- | --- | --- |
-| `commitrift-analyzer` | `tests/fixtures.rs`, `projects.rs`, `analysis.rs`, `traces.rs`, `phase2.rs` … `phase13.rs`, `phase13_resolution.rs`, `concurrency.rs`, `differential.rs` | `@expect` fixtures, multi-file projects, extraction, source resolution |
-| `commitrift-model` | `engine.rs`, `properties.rs`, `por*.rs`, `dpor.rs`, `sdpor.rs`, `pg_matrix.rs`, `postgres.rs`, `lock_ground_truth.rs`, `phase7.rs` … `phase13.rs` | model semantics, reductions vs the unreduced search, PostgreSQL lockstep matrices, ground-truth replay |
-| `commitrift-discover` | `discovery.rs`, `phase13.rs`, `dump.rs` | detectors, synthesis, contracts, cache invalidation |
-| `commitrift-replay` | `source_lifecycle.rs`, `proxy_postgres.rs` | crash/restart, hangs, limits, detached processes, proxy fates |
-| `commitrift-cli` | `cli.rs`, `model_check.rs`, `replay.rs`, `phase7.rs` … `phase13.rs` | end to end: exit codes, reports, HTML escaping, authorization, original-code runs |
+| `midwrite-analyzer` | `tests/fixtures.rs`, `projects.rs`, `analysis.rs`, `traces.rs`, `phase2.rs` … `phase13.rs`, `phase13_resolution.rs`, `concurrency.rs`, `differential.rs` | `@expect` fixtures, multi-file projects, extraction, source resolution |
+| `midwrite-model` | `engine.rs`, `properties.rs`, `por*.rs`, `dpor.rs`, `sdpor.rs`, `pg_matrix.rs`, `postgres.rs`, `lock_ground_truth.rs`, `phase7.rs` … `phase13.rs` | model semantics, reductions vs the unreduced search, PostgreSQL lockstep matrices, ground-truth replay |
+| `midwrite-discover` | `discovery.rs`, `phase13.rs`, `dump.rs` | detectors, synthesis, contracts, cache invalidation |
+| `midwrite-replay` | `source_lifecycle.rs`, `proxy_postgres.rs` | crash/restart, hangs, limits, detached processes, proxy fates |
+| `midwrite-cli` | `cli.rs`, `model_check.rs`, `replay.rs`, `phase7.rs` … `phase13.rs` | end to end: exit codes, reports, HTML escaping, authorization, original-code runs |
 | `runtime/node` | `test/runtime.test.js`, `test/postgres-js.test.js` | run by the CLI tests with `node --test` |
 
 ## Fixtures
 
 * `fixtures/vulnerable/`, `safe/`, `unsupported/`: single files with
-  `// @expect CP1001 line=12 confidence=high function=completeOrder`,
+  `// @expect MW1001 line=12 confidence=high function=completeOrder`,
   `// @expect none` or `// @expect parse-error`; the set of `(code, line)`
   pairs must match exactly.
 * `fixtures/projects/`: multi-file projects for cross-module behavior.

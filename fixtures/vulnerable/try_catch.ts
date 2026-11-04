@@ -1,6 +1,6 @@
 // Effects inside try/catch: the handler may compensate for thrown errors, but a
 // process crash bypasses it, so the hazard is still reported (with a note).
-// @expect CP1001 line=10 confidence=high
+// @expect MW1001 line=10 confidence=high
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 

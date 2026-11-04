@@ -1,10 +1,10 @@
-// CommitRift replay client (protocol version 1). Plain ECMAScript module,
+// Midwrite replay client (protocol version 1). Plain ECMAScript module,
 // no dependencies: runs unchanged on Node.js >= 22 and Bun >= 1.2.
 //
 // A harness calls `checkpoint(name, label)` right AFTER the operation the
 // name describes has completed (for `after-db-commit`: after the database
 // acknowledged the commit), and right BEFORE an operation for `before-*`
-// names. Under `commitrift replay` the call blocks until the supervisor
+// names. Under `midwrite replay` the call blocks until the supervisor
 // answers: continue, throw an InjectedFault, or (process-kill mode) never,
 // because the supervisor kills the process while it waits. Outside replay
 // every checkpoint is a no-op.
@@ -80,9 +80,9 @@ class Channel {
 
 let channel = null;
 
-/** Whether the process runs under `commitrift replay`. */
+/** Whether the process runs under `midwrite replay`. */
 export function replayActive() {
-  return process.env.COMMITRIFT_REPLAY === "1" && !!process.env.COMMITRIFT_REPLAY_SOCKET;
+  return process.env.MIDWRITE_REPLAY === "1" && !!process.env.MIDWRITE_REPLAY_SOCKET;
 }
 
 /**
@@ -110,12 +110,12 @@ function insideRoot(path, root) {
  * so a harness cannot be pointed at another database by accident.
  */
 export function replayDatabase() {
-  const root = process.env.COMMITRIFT_REPLAY_ROOT;
-  const path = process.env.COMMITRIFT_REPLAY_PG_SOCKET;
-  const database = process.env.COMMITRIFT_REPLAY_PG_DATABASE;
-  const username = process.env.COMMITRIFT_REPLAY_PG_USER;
+  const root = process.env.MIDWRITE_REPLAY_ROOT;
+  const path = process.env.MIDWRITE_REPLAY_PG_SOCKET;
+  const database = process.env.MIDWRITE_REPLAY_PG_DATABASE;
+  const username = process.env.MIDWRITE_REPLAY_PG_USER;
   if (!root || !path || !database || !username) {
-    throw new Error("refusing to connect: not running under commitrift replay (no replay database)");
+    throw new Error("refusing to connect: not running under midwrite replay (no replay database)");
   }
   if (!insideRoot(path, root)) {
     throw new Error("refusing to connect: the database socket is outside the replay directory");
@@ -125,8 +125,8 @@ export function replayDatabase() {
 
 /** The event log of the run (a fake queue's durable storage). */
 export function eventLogPath() {
-  const path = process.env.COMMITRIFT_REPLAY_EVENT_LOG;
-  const root = process.env.COMMITRIFT_REPLAY_ROOT;
+  const path = process.env.MIDWRITE_REPLAY_EVENT_LOG;
+  const root = process.env.MIDWRITE_REPLAY_ROOT;
   if (!insideRoot(path, root)) {
     throw new Error("refusing to publish: no replay event log");
   }
@@ -159,13 +159,13 @@ export function injectedFaultIn(error) {
  */
 export async function runScenarios(scenarios, cleanup) {
   if (!replayActive()) {
-    console.error("this harness only runs under `commitrift replay`");
+    console.error("this harness only runs under `midwrite replay`");
     process.exit(2);
   }
-  channel = await Channel.open(process.env.COMMITRIFT_REPLAY_SOCKET);
-  const name = process.env.COMMITRIFT_REPLAY_SCENARIO ?? "";
+  channel = await Channel.open(process.env.MIDWRITE_REPLAY_SOCKET);
+  const name = process.env.MIDWRITE_REPLAY_SCENARIO ?? "";
   await channel.send({ type: "hello", protocol: PROTOCOL_VERSION, scenario: name, pid: process.pid });
-  const input = JSON.parse(process.env.COMMITRIFT_REPLAY_INPUT ?? "null");
+  const input = JSON.parse(process.env.MIDWRITE_REPLAY_INPUT ?? "null");
   let outcome = "returned";
   let error;
   let injected = false;

@@ -1,8 +1,8 @@
 // Methods of a `const` object literal declared in the same file are
 // summarized like functions; an object whose properties are reassigned
 // anywhere in the file is not followed.
-// @expect CP1001 line=20 confidence=high function=complete
-// @expect CP9001 line=25 function=completeMutable
+// @expect MW1001 line=20 confidence=high function=complete
+// @expect MW9001 line=25 function=completeMutable
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 

@@ -1,0 +1,15 @@
+[package]
+name = "midwrite-replay"
+description = "Opt-in runtime replay for Midwrite: runs an authorized, instrumented test harness against a disposable PostgreSQL instance, injects a failure at a named checkpoint and records the surviving state"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+midwrite-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+libc = "0.2"

@@ -1,6 +1,6 @@
 # Supported semantics
 
-CommitRift models a deliberately narrow slice of TypeScript, Drizzle and
+Midwrite models a deliberately narrow slice of TypeScript, Drizzle and
 PostgreSQL. This page states the slice per layer; pattern-level tables are
 in the [supported-patterns reference](../reference/supported-patterns.md)
 and everything outside the slice is in the

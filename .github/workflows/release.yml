@@ -37,7 +37,7 @@ jobs:
       - run: scripts/package-release.sh ${{ matrix.target }}
       - uses: actions/upload-artifact@v4
         with:
-          name: commitrift-${{ matrix.target }}
+          name: midwrite-${{ matrix.target }}
           path: |
             target/package/*.tar.gz
             target/package/*.sha256

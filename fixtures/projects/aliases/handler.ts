@@ -1,6 +1,6 @@
 // Named import with an alias, and a default import.
-// @expect CP1001 line=9 confidence=high function=pay
-// @expect CP1002 line=13 confidence=high function=cancel
+// @expect MW1001 line=9 confidence=high function=pay
+// @expect MW1002 line=13 confidence=high function=cancel
 import { recordPayment as record } from "./payments";
 import undo from "./payments";
 

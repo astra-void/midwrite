@@ -2,7 +2,7 @@
 // proven inert: it returns the result of a package call (adopted by the
 // async function) and passes a callback to an unknown scheduler. Both calls
 // stay unknown after the commit; the details say why.
-// @expect CP9001 line=20
+// @expect MW9001 line=20
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 import { render as renderEmail } from "@react-email/render";

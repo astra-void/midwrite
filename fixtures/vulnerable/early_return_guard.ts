@@ -1,6 +1,6 @@
 // An early return guards the whole sequence; once the write commits, the
 // publication always follows.
-// @expect CP1001 line=14 confidence=high
+// @expect MW1001 line=14 confidence=high
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 

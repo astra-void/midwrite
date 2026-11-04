@@ -2,8 +2,8 @@
 // caller's `const` binding of the result. The publication only runs when
 // `result.ok` is truthy, which only the path that committed returns; and
 // the two tests of `check.ok` below cannot both pass, so `exclusive` has no
-// path with both the update and the publication (Phase 4 reported CP1001).
-// @expect CP1001 line=21 confidence=medium function=payOrder
+// path with both the update and the publication (Phase 4 reported MW1001).
+// @expect MW1001 line=21 confidence=medium function=payOrder
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 

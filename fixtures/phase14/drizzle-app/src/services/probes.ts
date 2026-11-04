@@ -1,7 +1,7 @@
 // The predicates of probe/sql-probe.mjs, one function each, so that the
 // SQL the pinned Drizzle generates (reports/phase14/drizzle-sql/probe.json)
 // can be compared on PostgreSQL with what the model extracts and the
-// lockstep oracle renders (crates/commitrift-analyzer/tests/phase14_drizzle.rs).
+// lockstep oracle renders (crates/midwrite-analyzer/tests/phase14_drizzle.rs).
 import { and, eq, inArray, isNull, not, notInArray, or } from "drizzle-orm";
 
 import { db } from "../db/client.js";

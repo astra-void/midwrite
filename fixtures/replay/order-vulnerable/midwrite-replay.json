@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "harness": "order-vulnerable",
+  "description": "Order completion that commits the status change, then publishes order.completed (MW1001).",
+  "command": ["bun", "harness.ts"],
+  "timeoutSeconds": 20,
+  "database": {
+    "provider": "ephemeral-postgres",
+    "setup": ["schema.sql"]
+  },
+  "analysis": { "paths": ["src"], "config": "midwrite.json" },
+  "observations": [
+    { "name": "orderStatus", "sql": "SELECT status FROM orders WHERE id = 'order-1'" },
+    { "name": "publishedEvents", "events": { "topic": "order.completed" } }
+  ],
+  "invariants": [
+    {
+      "id": "paid-order-has-event",
+      "description": "Application contract: an order marked paid has its order.completed event published (downstream fulfilment only learns about paid orders from that event).",
+      "when": [{ "observation": "orderStatus", "equals": "paid" }],
+      "require": [{ "observation": "publishedEvents", "atLeast": 1 }]
+    }
+  ],
+  "control": { "scenario": "completeOrder", "input": { "orderId": "order-1" } },
+  "cases": [
+    {
+      "id": "kill-after-db-commit",
+      "description": "Kill the process after the status update committed, before publishing.",
+      "finding": { "code": "MW1001", "function": "completeOrder", "file": "src/orders.ts" },
+      "scenario": "completeOrder",
+      "input": { "orderId": "order-1" },
+      "inject": { "checkpoint": "after-db-commit", "label": "orders", "mode": "processKill" },
+      "verifyBeforeInjection": [{ "observation": "orderStatus", "equals": "paid" }],
+      "predict": { "orderStatus": "paid", "publishedEvents": 0 },
+      "expect": "RUNTIME_REPRODUCED"
+    },
+    {
+      "id": "exception-after-db-commit",
+      "description": "Throw at the same point: the function has no handler, so the exception leaves the same state.",
+      "finding": { "code": "MW1001", "function": "completeOrder", "file": "src/orders.ts" },
+      "scenario": "completeOrder",
+      "input": { "orderId": "order-1" },
+      "inject": { "checkpoint": "after-db-commit", "label": "orders", "mode": "exception" },
+      "verifyBeforeInjection": [{ "observation": "orderStatus", "equals": "paid" }],
+      "predict": { "orderStatus": "paid", "publishedEvents": 0 },
+      "expect": "RUNTIME_REPRODUCED"
+    },
+    {
+      "id": "kill-before-db-write",
+      "description": "Negative case: kill before the write is sent. Nothing is durable, so nothing is inconsistent.",
+      "finding": { "code": "MW1001", "function": "completeOrder", "file": "src/orders.ts" },
+      "scenario": "completeOrder",
+      "input": { "orderId": "order-1" },
+      "inject": { "checkpoint": "before-db-write", "label": "orders", "mode": "processKill" },
+      "predict": { "orderStatus": "pending", "publishedEvents": 0 },
+      "expect": "RUNTIME_NOT_REPRODUCED"
+    },
+    {
+      "id": "kill-after-event-publish",
+      "description": "Negative case: kill after the event was published. Both effects happened.",
+      "finding": { "code": "MW1001", "function": "completeOrder", "file": "src/orders.ts" },
+      "scenario": "completeOrder",
+      "input": { "orderId": "order-1" },
+      "inject": { "checkpoint": "after-event-publish", "label": "order.completed", "mode": "processKill" },
+      "predict": { "orderStatus": "paid", "publishedEvents": 1 },
+      "expect": "RUNTIME_NOT_REPRODUCED"
+    },
+    {
+      "id": "compensation-exception-before-publish",
+      "description": "With an in-process compensation, an exception before publishing runs the catch block, which reverts the status.",
+      "finding": { "code": "MW1001", "function": "completeOrderWithCompensation", "file": "src/orders.ts" },
+      "scenario": "completeOrderWithCompensation",
+      "input": { "orderId": "order-1" },
+      "inject": { "checkpoint": "before-event-publish", "mode": "exception" },
+      "verifyBeforeInjection": [{ "observation": "orderStatus", "equals": "paid" }],
+      "predict": { "orderStatus": "pending", "publishedEvents": 0 },
+      "expect": "RUNTIME_NOT_REPRODUCED"
+    },
+    {
+      "id": "compensation-kill-before-publish",
+      "description": "The same point with a process kill: the catch block never runs, so the compensation does not help.",
+      "finding": { "code": "MW1001", "function": "completeOrderWithCompensation", "file": "src/orders.ts" },
+      "scenario": "completeOrderWithCompensation",
+      "input": { "orderId": "order-1" },
+      "inject": { "checkpoint": "before-event-publish", "mode": "processKill" },
+      "verifyBeforeInjection": [{ "observation": "orderStatus", "equals": "paid" }],
+      "predict": { "orderStatus": "paid", "publishedEvents": 0 },
+      "expect": "RUNTIME_REPRODUCED"
+    }
+  ]
+}

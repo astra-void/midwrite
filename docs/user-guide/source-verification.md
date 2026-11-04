@@ -18,27 +18,27 @@ is refused. Isolation and authorization rules:
 ## Original-code verification (`--verify-source`)
 
 ```bash
-commitrift model-check SCENARIO.json --verify-source --allow-execution --source-repeat 3
-commitrift model-check SCENARIO.json --verify-source --harness path/to/commitrift-source.json --allow-execution
+midwrite model-check SCENARIO.json --verify-source --allow-execution --source-repeat 3
+midwrite model-check SCENARIO.json --verify-source --harness path/to/midwrite-source.json --allow-execution
 ```
 
 What it needs:
 
-1. A **source-harness manifest** `commitrift-source.json` in the
-   application (`"kind": "commitrift.source-harness"`): the command that
+1. A **source-harness manifest** `midwrite-source.json` in the
+   application (`"kind": "midwrite.source-harness"`): the command that
    starts a worker (for example `node --enable-source-maps
    dist/verify/harness.js`), the runtime, the schema SQL to apply, `"network":
    "deny"`, a timeout, and the entries the harness can call, each with the
    source selector of the function the model checks. Example:
-   [`fixtures/phase13/request-app/commitrift-source.json`](../../fixtures/phase13/request-app/commitrift-source.json);
+   [`fixtures/phase13/request-app/midwrite-source.json`](../../fixtures/phase13/request-app/midwrite-source.json);
    format: [Phase 7 runtime scheduler](../phase7/RUNTIME-SCHEDULER.md#harness).
 2. A **harness** that imports the application's unchanged code and calls it
    the way the framework would, providing only what the framework provides
    (the database pool through the application's own seam, a session). The
    application is not instrumented; the worker wraps the pool and Drizzle's
-   builders (`@commitrift/replay`, `runtime/node`).
+   builders (`@midwrite/replay`, `runtime/node`).
 3. A scenario with a `sourceVerification` section mapping each actor to a
-   harness entry and its input. `commitrift discover` writes it when the
+   harness entry and its input. `midwrite discover` writes it when the
    contracts declare a `harness` ([contracts](contracts.md)).
 4. PostgreSQL server binaries, Node.js ≥ 22, an isolation backend, and the
    compiled harness (`npm ci && npm run build` in the fixture or
@@ -63,7 +63,7 @@ database.
 | `original-code-in-flight-failure-reproduced` | the same with a COMMIT or autocommit write in flight at the kill (Phase 9) |
 | `original-code-connection-loss-reproduced` | a connection broke under a live worker (Phase 10) |
 | `original-code-recovery-reproduced`, `original-code-invariant-held` | no counterexample within bounds; a recovery or probe schedule ran on the original code and the invariant held — bounded evidence about one schedule |
-| `diverged`, `not-reproduced`, `inconclusive`, `unstable` | the run did not reproduce; differences are reported statement by statement (`CP7103`); the model counterexample keeps its own level |
+| `diverged`, `not-reproduced`, `inconclusive`, `unstable` | the run did not reproduce; differences are reported statement by statement (`MW7103`); the model counterexample keeps its own level |
 | `unsupported`, `blocked` | not run, with the reason |
 
 Definitions: [evidence levels](../concepts/evidence-levels.md).
@@ -91,14 +91,14 @@ evidence: inject a failure at a named checkpoint of one request, against a
 disposable PostgreSQL, and check invariants the harness declares.
 
 ```bash
-commitrift trace src --format json > trace.json
-commitrift init-replay --trace trace.json --finding <FINGERPRINT> --output my-harness
-#   fill in the COMMITRIFT-TODO markers by hand; replay refuses to run until none is left
-commitrift replay my-harness                                 # prints the plan; nothing runs
-commitrift replay my-harness --allow-execution --case kill-after-db-commit --repeat 5
-commitrift replay my-harness --allow-execution --format json --output v.json
-commitrift report v.json -o v.html
-commitrift replay my-harness --allow-execution --baseline old.json --regression-output r.json
+midwrite trace src --format json > trace.json
+midwrite init-replay --trace trace.json --finding <FINGERPRINT> --output my-harness
+#   fill in the MIDWRITE-TODO markers by hand; replay refuses to run until none is left
+midwrite replay my-harness                                 # prints the plan; nothing runs
+midwrite replay my-harness --allow-execution --case kill-after-db-commit --repeat 5
+midwrite replay my-harness --allow-execution --format json --output v.json
+midwrite report v.json -o v.html
+midwrite replay my-harness --allow-execution --baseline old.json --regression-output r.json
 ```
 
 Results: `RUNTIME_REPRODUCED`, `RUNTIME_NOT_REPRODUCED`, `INCONCLUSIVE`.

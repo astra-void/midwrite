@@ -29,10 +29,10 @@ import tempfile
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MAIN = os.environ.get("COMMITRIFT_MAIN_CHECKOUT", ROOT)
-NEW = os.environ.get("COMMITRIFT_BIN", os.path.join(ROOT, "target", "release", "commitrift"))
+MAIN = os.environ.get("MIDWRITE_MAIN_CHECKOUT", ROOT)
+NEW = os.environ.get("MIDWRITE_BIN", os.path.join(ROOT, "target", "release", "midwrite"))
 
-# The categories of `commitrift discover` (crates/commitrift-discover/src/pipeline.rs).
+# The categories of `midwrite discover` (crates/midwrite-discover/src/pipeline.rs).
 RULES = [
     ("read through a read replica (replica modeling not enabled)", "read replica (modeling not enabled)"),
     ("read through a read replica or the primary", "read replica or primary (ambiguous handle)"),
@@ -182,7 +182,7 @@ def main():
     mib = lambda n: f"{n / 1048576:.0f} MiB" if n else "?"
     lines = [
         "# Phase 15 corpus: Phase 14 binary vs Phase 15 binary", "",
-        f"Median of {args.runs} runs (wall), peak RSS the maximum; `commitrift discover --model-check`; no project executed. "
+        f"Median of {args.runs} runs (wall), peak RSS the maximum; `midwrite discover --model-check`; no project executed. "
         "`phase14-declared`/`phase15-declared`: with `corpora/contracts/midday.json` (the declared replica factory).", "",
         "| project | config | extracted | effectful | read-only | resources | unknown ops | candidates | model-checkable | counterexamples | statuses | wall | peak RSS |",
         "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: | ---: |",

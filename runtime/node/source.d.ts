@@ -1,4 +1,4 @@
-// Types of the CommitRift source-execution client (protocol version 4).
+// Types of the Midwrite source-execution client (protocol version 4).
 
 export declare const SOURCE_PROTOCOL_VERSION: 4;
 
@@ -7,7 +7,7 @@ export declare class CoordinatorStop extends Error {
   constructor(reason: string);
 }
 
-/** Whether this process runs under `commitrift model-check --verify-source`. */
+/** Whether this process runs under `midwrite model-check --verify-source`. */
 export declare function sourceActive(): boolean;
 
 /** Which execution of this actor this process is (1 for the first; a retry is a new process). */

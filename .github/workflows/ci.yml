@@ -1,6 +1,6 @@
-# CommitRift CI. Static analysis and unit tests on Linux and macOS; required
+# Midwrite CI. Static analysis and unit tests on Linux and macOS; required
 # runtime replay (PostgreSQL + bubblewrap isolation + Node.js/Drizzle + Bun)
-# on Linux. Replay tests run with COMMITRIFT_REQUIRE_REPLAY=1: a missing
+# on Linux. Replay tests run with MIDWRITE_REQUIRE_REPLAY=1: a missing
 # prerequisite or a blocked isolation backend FAILS the job instead of
 # skipping (docs/phase4/LINUX-ISOLATION.md).
 #
@@ -48,7 +48,7 @@ jobs:
       - name: Build (release)
         run: cargo build --release --locked
       - name: Build without the replay feature
-        run: cargo build --locked -p commitrift-cli --no-default-features
+        run: cargo build --locked -p midwrite-cli --no-default-features
       # Replay tests are not required here: without their prerequisites they
       # print SKIPPED and do not count as runtime verification.
       - name: Tests (static analysis, unit, CLI)
@@ -57,18 +57,18 @@ jobs:
         run: |
           python3 -m venv .venv && .venv/bin/pip install --quiet jsonschema
           curl -fsSL -o sarif-2.1.0.json https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json
-          ./target/release/commitrift check fixtures --config fixtures/commitrift.json --format sarif --fail-on never > fixtures.sarif
-          ./target/release/commitrift trace fixtures --config fixtures/commitrift.json --format json > fixtures.traces.json
+          ./target/release/midwrite check fixtures --config fixtures/midwrite.json --format sarif --fail-on never > fixtures.sarif
+          ./target/release/midwrite trace fixtures --config fixtures/midwrite.json --format json > fixtures.traces.json
           .venv/bin/python scripts/validate-schemas.py --sarif-schema sarif-2.1.0.json fixtures.sarif fixtures.traces.json
           # Phase 16: a fresh discovery report against the published discovery-report schema.
-          ./target/release/commitrift discover fixtures/phase15/worlds-app --model-check --format json --output discovery.json > /dev/null || true
+          ./target/release/midwrite discover fixtures/phase15/worlds-app --model-check --format json --output discovery.json > /dev/null || true
           .venv/bin/python scripts/validate-schemas.py discovery.json
 
   replay-linux:
     name: required replay (Linux, bubblewrap)
     runs-on: ubuntu-24.04
     env:
-      COMMITRIFT_REQUIRE_REPLAY: "1"
+      MIDWRITE_REQUIRE_REPLAY: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -82,10 +82,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends postgresql bubblewrap
-          echo "COMMITRIFT_PG_BIN=$(ls -d /usr/lib/postgresql/*/bin | sort -V | tail -1)" >> "$GITHUB_ENV"
+          echo "MIDWRITE_PG_BIN=$(ls -d /usr/lib/postgresql/*/bin | sort -V | tail -1)" >> "$GITHUB_ENV"
       # Ubuntu 23.10+ restricts unprivileged user namespaces through AppArmor;
       # bubblewrap needs them. This enables the kernel feature on the
-      # disposable runner; CommitRift's isolation stays fully enabled.
+      # disposable runner; Midwrite's isolation stays fully enabled.
       - name: Allow unprivileged user namespaces
         run: |
           if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
@@ -100,8 +100,8 @@ jobs:
       - name: Drizzle replay (CLI) and verification schema validation
         run: |
           cargo build --release --locked
-          ./target/release/commitrift replay fixtures/replay/drizzle-node --allow-execution --format json --output drizzle-node.json > /dev/null
-          ./target/release/commitrift replay fixtures/replay/order-vulnerable --allow-execution \
+          ./target/release/midwrite replay fixtures/replay/drizzle-node --allow-execution --format json --output drizzle-node.json > /dev/null
+          ./target/release/midwrite replay fixtures/replay/order-vulnerable --allow-execution \
             --baseline reports/phase3/replay/order-vulnerable.json \
             --format json --output order-vulnerable.json --regression-output order-vulnerable.regression.json > /dev/null
           python3 -m venv .venv && .venv/bin/pip install --quiet jsonschema

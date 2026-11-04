@@ -1,6 +1,6 @@
 // Writes inside a loop followed by a publication. Only zero or one iteration
 // is modeled, so confidence is medium.
-// @expect CP1001 line=12 confidence=medium
+// @expect MW1001 line=12 confidence=medium
 import { db } from "@/db";
 import { lineItems } from "@/db/schema";
 

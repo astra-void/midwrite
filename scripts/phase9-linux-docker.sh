@@ -14,7 +14,7 @@ repo="$(cd "$(dirname "$0")/.." && pwd)"
 out="${1:-$repo/reports/phase9/linux}"
 mkdir -p "$out"
 out="$(cd "$out" && pwd)"
-image="commitrift-linux-replay:phase4"
+image="midwrite-linux-replay:phase4"
 
 docker build -q -t "$image" -f "$repo/ci/linux-replay.Dockerfile" "$repo/ci" >/dev/null
 
@@ -31,7 +31,7 @@ python3 scripts/phase8-digest.py > /out/digest.txt
   uname -a
   head -2 /etc/os-release
   rustc --version; node --version; bwrap --version
-  "$COMMITRIFT_PG_BIN/postgres" --version
+  "$MIDWRITE_PG_BIN/postgres" --version
 } > /out/environment.txt 2>&1
 {
   (cd fixtures/replay/drizzle-node && npm ci --ignore-scripts --no-audit --no-fund && npm run build)
@@ -42,7 +42,7 @@ python3 scripts/phase8-digest.py > /out/digest.txt
 } > /out/npm-ci.txt 2>&1; echo "exit $?" >> /out/npm-ci.txt
 cargo fmt --all -- --check > /out/fmt.txt 2>&1; echo "exit $?" >> /out/fmt.txt
 cargo clippy --workspace --all-targets -- -D warnings > /out/clippy.txt 2>&1; echo "exit $?" >> /out/clippy.txt
-COMMITRIFT_REQUIRE_REPLAY=1 cargo test --workspace --no-fail-fast > /out/cargo-test.txt 2>&1; echo "exit $?" >> /out/cargo-test.txt
+MIDWRITE_REQUIRE_REPLAY=1 cargo test --workspace --no-fail-fast > /out/cargo-test.txt 2>&1; echo "exit $?" >> /out/cargo-test.txt
 cargo build --release > /out/build-release.txt 2>&1; echo "exit $?" >> /out/build-release.txt
 python3 scripts/phase9-evidence.py /out/model-check 3 > /out/evidence.txt 2>&1; echo "exit $?" >> /out/evidence.txt
 python3 scripts/phase9-report-check.py /out/model-check/*.json > /out/report-check.txt 2>&1; echo "exit $?" >> /out/report-check.txt

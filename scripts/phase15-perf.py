@@ -8,7 +8,7 @@ Usage: scripts/phase15-perf.py OUT_DIR [--runs N]
 """
 import argparse, json, os, re, statistics, subprocess, sys, time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BIN = os.environ.get("COMMITRIFT_BIN", os.path.join(ROOT, "target", "release", "commitrift"))
+BIN = os.environ.get("MIDWRITE_BIN", os.path.join(ROOT, "target", "release", "midwrite"))
 APPS = ["fixtures/phase13/eval-app", "fixtures/phase14/eval-app", "fixtures/phase15/eval-app",
         "fixtures/phase15/worlds-app", "fixtures/phase11/commerce-app"]
 

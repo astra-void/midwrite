@@ -1,10 +1,10 @@
-# `commitrift model-check`: bounded concurrency and failure checking
+# `midwrite model-check`: bounded concurrency and failure checking
 
 `model-check` explores bounded schedules of the actors a scenario declares,
 against a model of PostgreSQL (isolation level, constraints, row locks,
 foreign keys when enabled), with optional crashes, retries, lost
 acknowledgments and connection pools, and reports a counterexample to a
-declared invariant. `commitrift check` never runs it.
+declared invariant. `midwrite check` never runs it.
 
 Semantics: [concurrency model](../concepts/concurrency-model.md),
 [PostgreSQL model](../architecture/postgres-model.md). Flags:
@@ -13,29 +13,29 @@ Semantics: [concurrency model](../concepts/concurrency-model.md),
 ## Typical use
 
 ```bash
-commitrift model-check scenario.json                         # text report; exit 1 on a counterexample
-commitrift model-check scenario.json --format json -o r.json
-commitrift model-check scenario.json --format html -o r.html # script-free HTML timeline
-commitrift model-check scenario.json -v                      # also every modeling assumption
-commitrift model-check scenario.json --no-timing             # byte-reproducible output
-commitrift model-check scenario.json --validate-postgres     # replay the model's SQL on a disposable PostgreSQL
-commitrift model-check scenario.json --verify-source --allow-execution --source-repeat 3   # original code
+midwrite model-check scenario.json                         # text report; exit 1 on a counterexample
+midwrite model-check scenario.json --format json -o r.json
+midwrite model-check scenario.json --format html -o r.html # script-free HTML timeline
+midwrite model-check scenario.json -v                      # also every modeling assumption
+midwrite model-check scenario.json --no-timing             # byte-reproducible output
+midwrite model-check scenario.json --validate-postgres     # replay the model's SQL on a disposable PostgreSQL
+midwrite model-check scenario.json --verify-source --allow-execution --source-repeat 3   # original code
 ```
 
 ## Verdicts and exit status
 
 | verdict | exit | meaning |
 | --- | --- | --- |
-| `COUNTEREXAMPLE_FOUND` | 1 | a schedule within the bounds violates an invariant (`CP7001`) |
+| `COUNTEREXAMPLE_FOUND` | 1 | a schedule within the bounds violates an invariant (`MW7001`) |
 | `NO_COUNTEREXAMPLE_WITHIN_BOUNDS` | 0 | no violation in any explored behavior within the declared bounds — not a proof of race freedom |
-| `INCONCLUSIVE` | 3 | a resource bound ended the search first (`CP7002`) |
-| `UNSUPPORTED` | 3 | a reachable operation is not modeled (`CP7003`) |
+| `INCONCLUSIVE` | 3 | a resource bound ended the search first (`MW7002`) |
+| `UNSUPPORTED` | 3 | a reachable operation is not modeled (`MW7003`) |
 
 Invalid scenarios are refused with the path of the offending field (exit
-2). Validation and verification add `CP7101` (PostgreSQL did not
-reproduce), `CP7102` (validation unavailable) and `CP7103` (the original
-code did not reproduce). `commitrift explain` lists CP7001–CP7102;
-`commitrift explain CP7103` also works.
+2). Validation and verification add `MW7101` (PostgreSQL did not
+reproduce), `MW7102` (validation unavailable) and `MW7103` (the original
+code did not reproduce). `midwrite explain` lists MW7001–MW7102;
+`midwrite explain MW7103` also works.
 
 ## Scenario files
 
@@ -60,7 +60,7 @@ added optional fields only.
 Example: [`fixtures/concurrency/scenarios/inventory-oversell.json`](../../fixtures/concurrency/scenarios/inventory-oversell.json);
 with return values: [`fixtures/phase13/request-app/scenarios/claim-race.json`](../../fixtures/phase13/request-app/scenarios/claim-race.json);
 with a replica: [`fixtures/phase13/model/replica-read-your-writes.json`](../../fixtures/phase13/model/replica-read-your-writes.json).
-`commitrift discover --emit-scenarios DIR` writes scenarios in this format.
+`midwrite discover --emit-scenarios DIR` writes scenarios in this format.
 
 Invariants are data, never inferred by `model-check`
 ([invariants](../concepts/invariants.md)).

@@ -5,9 +5,9 @@
 // FormData body, services and the queue consumer with their inputs. What
 // the harness provides is what the process entry point provides:
 //
-//   * the database pool (coordinated by CommitRift);
+//   * the database pool (coordinated by Midwrite);
 //   * the payment provider: a TEST DOUBLE whose calls are received by the
-//     CommitRift coordinator (`sourceEffect`); its deduplication is the
+//     Midwrite coordinator (`sourceEffect`); its deduplication is the
 //     scenario's DECLARED channel contract, not evidence about a provider.
 import * as drizzle from "drizzle-orm";
 import * as pgCore from "drizzle-orm/pg-core";
@@ -18,7 +18,7 @@ import {
   runSourceActor,
   sourceEffect,
   sourcePoolConfig,
-} from "@commitrift/replay/source";
+} from "@midwrite/replay/source";
 
 import type { ReserveRequest } from "../src/app/inventory.js";
 import { usePool } from "../src/db/pool.js";

@@ -1,6 +1,6 @@
 # Source extraction (TypeScript → model IR)
 
-`crates/commitrift-analyzer/src/concurrency.rs` (`TsActorProvider`) lowers
+`crates/midwrite-analyzer/src/concurrency.rs` (`TsActorProvider`) lowers
 one entry function of a project — and the helpers it calls, inlined up to
 `maxInlineDepth` (default 3) — into the model checker's IR: statements on
 connections and transactions, local computation, branches and jumps,
@@ -63,7 +63,7 @@ model checking see the same code.
 * **zod validation** (Phase 16, `zod.rs`): object schemas with
   `strictObject`/`strict`/`strip`/`passthrough`, optional/nullable/default,
   string formats, a regex subset and arrays become a `zodCheck` /
-  `zodData` built-in evaluated by `commitrift_model::zodfn`; the zod major
+  `zodData` built-in evaluated by `midwrite_model::zodfn`; the zod major
   version is read from the project's `package.json` metadata.
   [Phase 16 zod validation](../phase16/ZOD-VALIDATION.md).
 * **Loops and caught errors** (Phase 16, `concurrency/loops.rs`): bounded

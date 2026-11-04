@@ -1,10 +1,10 @@
-# Configuration (`commitrift.json`)
+# Configuration (`midwrite.json`)
 
 Read by `check`, `trace`, `ir` and `init-replay` (`--config FILE`, default
-`./commitrift.json`; the legacy `./crashproof.json` is read only when
-`commitrift.json` does not exist, and the two are never merged). Every
+`./midwrite.json`; the legacy `./crashproof.json` is read only when
+`midwrite.json` does not exist, and the two are never merged). Every
 field is optional; unknown fields are rejected. Discovery has its own file,
-[`commitrift-contracts.json`](../user-guide/contracts.md); scenarios carry
+[`midwrite-contracts.json`](../user-guide/contracts.md); scenarios carry
 their own `extraction` section ([model-check](../user-guide/model-check.md#scenario-files)).
 
 ## Fields
@@ -24,7 +24,7 @@ their own `extraction` section ([model-check](../user-guide/model-check.md#scena
     "function": "ProcessDocumentProcessor.process",
     "file": "apps/worker/src/processors/documents/process-document.ts",
     "strategy": "retried",
-    "covers": ["CP1001", "CP1002"],
+    "covers": ["MW1001", "MW1002"],
     "evidence": "queues/documents.config.ts:17 attempts 3; stalled jobs are re-run once",
     "limits": "gives up after 3 attempts"
   }]
@@ -40,21 +40,21 @@ their own `extraction` section ([model-check](../user-guide/model-check.md#scena
 | `exclude` | `[]` | glob patterns skipped when a directory is scanned (with `/`: relative to the scanned directory; without: each file and directory name) |
 | `recoveryContracts[]` | `[]` | function-level recovery mechanisms, below |
 
-A sample with several receivers: [`fixtures/commitrift.json`](../../fixtures/commitrift.json).
+A sample with several receivers: [`fixtures/midwrite.json`](../../fixtures/midwrite.json).
 
 ## Recovery declarations
 
-Declarations are **assertions you make**; CommitRift never infers or
+Declarations are **assertions you make**; Midwrite never infers or
 verifies them. Applied declarations appear in diagnostics with
 `"source": "configuration"` and `"verified": false`.
 
 | declaration | effect under `recommended` |
 | --- | --- |
-| `externalEffects[].bestEffort: true` (or `"recovery": "bestEffort"`) | CP1001/CP1005 whose missing effect is best-effort become `info` with a note; CP1002/CP1003 unchanged |
-| `"recovery": "reconciled"` | a process outside the analyzed code re-derives this effect from committed state; CP1001/CP1005 about it become `info`; the window is still reported |
+| `externalEffects[].bestEffort: true` (or `"recovery": "bestEffort"`) | MW1001/MW1005 whose missing effect is best-effort become `info` with a note; MW1002/MW1003 unchanged |
+| `"recovery": "reconciled"` | a process outside the analyzed code re-derives this effect from committed state; MW1001/MW1005 about it become `info`; the window is still reported |
 | `"recovery": "idempotentConsumer"` | receivers deduplicate repeats; a note only |
-| `recoveryContracts[]` with `strategy: "retried"` | an outside mechanism re-executes the whole function after a failure; covered codes (any of CP1001–CP1005) become `info` with the cited evidence |
-| `recoveryContracts[]` with `strategy: "reconciled"` | a separate process derives missing effects from committed state; can cover CP1001, CP1004, CP1005, not CP1002/CP1003 |
+| `recoveryContracts[]` with `strategy: "retried"` | an outside mechanism re-executes the whole function after a failure; covered codes (any of MW1001–MW1005) become `info` with the cited evidence |
+| `recoveryContracts[]` with `strategy: "reconciled"` | a separate process derives missing effects from committed state; can cover MW1001, MW1004, MW1005, not MW1002/MW1003 |
 
 Covered findings keep their fingerprint. Details:
 [Phase 4 recovery semantics](../phase4/RECOVERY-SEMANTICS.md).
@@ -67,7 +67,7 @@ Covered findings keep their fingerprint. Details:
 * Member paths (`this.db`, `ctx.db`) are the weakest match: the root is
   resolved like a bare name, `this` is not resolved, properties are trusted
   as written; such findings are capped at `medium` confidence. An
-  unconfigured lookalike (`this.repo.db`) is reported as `CP9001` with the
+  unconfigured lookalike (`this.repo.db`) is reported as `MW9001` with the
   path to add.
 * `importedFrom` compares the specifier verbatim (`"@/db"` and `"../db"`
   are different).
@@ -84,6 +84,6 @@ Source of truth for the analyzer:
 | where | what |
 | --- | --- |
 | scenario `extraction` | `root`, `tables`, `externals` (`callee`, `channel`, `keyArgument`), `schema`, `transactionRetries`, `maxInlineDepth`, `replicaFactories` |
-| `commitrift-contracts.json` | [contracts guide](../user-guide/contracts.md) |
-| `commitrift-source.json`, `commitrift-replay.json` | authorized harness manifests: [source verification](../user-guide/source-verification.md) |
+| `midwrite-contracts.json` | [contracts guide](../user-guide/contracts.md) |
+| `midwrite-source.json`, `midwrite-replay.json` | authorized harness manifests: [source verification](../user-guide/source-verification.md) |
 | environment | [CLI reference § environment variables](cli.md#environment-variables) |

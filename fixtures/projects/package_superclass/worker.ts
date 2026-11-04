@@ -2,7 +2,7 @@
 // in `Worker` itself, but an unanalyzed superclass constructor could install
 // an instance property `finish`: the dispatch is resolved under that
 // recorded assumption, and confidence is capped at medium.
-// @expect CP1001 line=12 confidence=medium function=Worker.run
+// @expect MW1001 line=12 confidence=medium function=Worker.run
 import { db } from "@/db";
 import { WorkerHost } from "@nestjs/bullmq";
 

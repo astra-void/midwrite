@@ -16,7 +16,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 v4 = json.loads((ROOT / "docs/phase9/schemas/model-check-report.v4.schema.json").read_text())
 s = copy.deepcopy(v4)
 s["$id"] = "commitrift.model-check.v5"
-s["title"] = "CommitRift model-check report, schema 5"
+s["title"] = "Midwrite model-check report, schema 5"
 s["description"] = (
     "Phase 10: adds source-set dynamic partial-order reduction and connection losses under a live "
     "process. Everything of schema 4 is unchanged."

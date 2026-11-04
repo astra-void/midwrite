@@ -66,10 +66,10 @@
       "file": "apps/worker/src/processors/documents/process-document.ts",
       "strategy": "retried",
       "covers": [
-        "CP1001",
-        "CP1002",
-        "CP1004",
-        "CP1005"
+        "MW1001",
+        "MW1002",
+        "MW1004",
+        "MW1005"
       ],
       "evidence": "BullMQ worker job: apps/worker/src/queues/documents.config.ts:16-20 defaultJobOptions attempts 3 with exponential backoff (errors are retried); :47 stalledInterval 720000 with BullMQ's default maxStalledCount 1 (a job whose worker died is re-run once); registered in apps/worker/src/processors/documents/index.ts",
       "limits": "Bounded: at most 3 attempts and one stalled re-run, then the job fails; a caller can override attempts per job (packages/job-client/src/index.ts:46), which this contract does not check; re-execution repeats completed effects"
@@ -79,10 +79,10 @@
       "file": "apps/worker/src/processors/documents/classify-document.ts",
       "strategy": "retried",
       "covers": [
-        "CP1001",
-        "CP1002",
-        "CP1004",
-        "CP1005"
+        "MW1001",
+        "MW1002",
+        "MW1004",
+        "MW1005"
       ],
       "evidence": "BullMQ worker job: apps/worker/src/queues/documents.config.ts:16-20 defaultJobOptions attempts 3 with exponential backoff (errors are retried); :47 stalledInterval 720000 with BullMQ's default maxStalledCount 1 (a job whose worker died is re-run once); registered in apps/worker/src/processors/documents/index.ts",
       "limits": "Bounded: at most 3 attempts and one stalled re-run, then the job fails; a caller can override attempts per job (packages/job-client/src/index.ts:46), which this contract does not check; re-execution repeats completed effects"
@@ -92,10 +92,10 @@
       "file": "apps/worker/src/processors/documents/classify-image.ts",
       "strategy": "retried",
       "covers": [
-        "CP1001",
-        "CP1002",
-        "CP1004",
-        "CP1005"
+        "MW1001",
+        "MW1002",
+        "MW1004",
+        "MW1005"
       ],
       "evidence": "BullMQ worker job: apps/worker/src/queues/documents.config.ts:16-20 defaultJobOptions attempts 3 with exponential backoff (errors are retried); :47 stalledInterval 720000 with BullMQ's default maxStalledCount 1 (a job whose worker died is re-run once); registered in apps/worker/src/processors/documents/index.ts",
       "limits": "Bounded: at most 3 attempts and one stalled re-run, then the job fails; a caller can override attempts per job (packages/job-client/src/index.ts:46), which this contract does not check; re-execution repeats completed effects"
@@ -105,10 +105,10 @@
       "file": "apps/worker/src/processors/inbox/process-attachment.ts",
       "strategy": "retried",
       "covers": [
-        "CP1001",
-        "CP1002",
-        "CP1004",
-        "CP1005"
+        "MW1001",
+        "MW1002",
+        "MW1004",
+        "MW1005"
       ],
       "evidence": "BullMQ worker job: apps/worker/src/queues/inbox.config.ts:13-14 defaultJobOptions attempts 3 (errors are retried); stalledInterval 720000 (inbox.config.ts:35-41) with BullMQ's default maxStalledCount 1 (a job whose worker died is re-run once); registered in apps/worker/src/processors/inbox/index.ts",
       "limits": "Bounded: at most 3 attempts and one stalled re-run, then the job fails; a caller can override attempts per job (packages/job-client/src/index.ts:46), which this contract does not check; re-execution repeats completed effects"
@@ -118,10 +118,10 @@
       "file": "apps/worker/src/processors/inbox/slack-upload.ts",
       "strategy": "retried",
       "covers": [
-        "CP1001",
-        "CP1002",
-        "CP1004",
-        "CP1005"
+        "MW1001",
+        "MW1002",
+        "MW1004",
+        "MW1005"
       ],
       "evidence": "BullMQ worker job: apps/worker/src/queues/inbox.config.ts:13-14 defaultJobOptions attempts 3 (errors are retried); stalledInterval 720000 (inbox.config.ts:35-41) with BullMQ's default maxStalledCount 1 (a job whose worker died is re-run once); registered in apps/worker/src/processors/inbox/index.ts",
       "limits": "Bounded: at most 3 attempts and one stalled re-run, then the job fails; a caller can override attempts per job (packages/job-client/src/index.ts:46), which this contract does not check; re-execution repeats completed effects"
@@ -131,10 +131,10 @@
       "file": "apps/worker/src/processors/inbox/initial-setup.ts",
       "strategy": "retried",
       "covers": [
-        "CP1001",
-        "CP1002",
-        "CP1004",
-        "CP1005"
+        "MW1001",
+        "MW1002",
+        "MW1004",
+        "MW1005"
       ],
       "evidence": "BullMQ worker job: apps/worker/src/queues/inbox.config.ts:13-14 defaultJobOptions attempts 3 (errors are retried); stalledInterval 720000 (inbox.config.ts:35-41) with BullMQ's default maxStalledCount 1 (a job whose worker died is re-run once); registered in apps/worker/src/processors/inbox/index.ts",
       "limits": "Bounded: at most 3 attempts and one stalled re-run, then the job fails; a caller can override attempts per job (packages/job-client/src/index.ts:46), which this contract does not check; re-execution repeats completed effects"
@@ -144,10 +144,10 @@
       "file": "apps/worker/src/processors/inbox/sync-scheduler.ts",
       "strategy": "retried",
       "covers": [
-        "CP1001",
-        "CP1002",
-        "CP1004",
-        "CP1005"
+        "MW1001",
+        "MW1002",
+        "MW1004",
+        "MW1005"
       ],
       "evidence": "BullMQ worker job: apps/worker/src/queues/inbox.config.ts:13-14 defaultJobOptions attempts 3 (errors are retried); stalledInterval 720000 (inbox.config.ts:35-41) with BullMQ's default maxStalledCount 1 (a job whose worker died is re-run once); registered in apps/worker/src/processors/inbox/index.ts",
       "limits": "Bounded: at most 3 attempts and one stalled re-run, then the job fails; a caller can override attempts per job (packages/job-client/src/index.ts:46), which this contract does not check; re-execution repeats completed effects"

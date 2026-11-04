@@ -1,5 +1,5 @@
 // The publication only happens on one branch: the hazard depends on a condition.
-// @expect CP1001 line=9 confidence=medium
+// @expect MW1001 line=9 confidence=medium
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 

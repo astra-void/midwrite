@@ -6,7 +6,7 @@ locks, NULLS NOT DISTINCT, generated identities, the frozen Phase 16 set).
 
 Usage: scripts/phase16-evidence.py OUT_DIR [--repeat N]
 
-1. `commitrift discover --model-check --emit-scenarios` on the first-party
+1. `midwrite discover --model-check --emit-scenarios` on the first-party
    applications listed in APPS. Every emitted
    scenario (one per explored world and variant) is model-checked with the
    unreduced search, sleep sets (default), classic DPOR and source-set DPOR;
@@ -18,9 +18,9 @@ Usage: scripts/phase16-evidence.py OUT_DIR [--repeat N]
    against the original TypeScript (`--verify-source --allow-execution
    --source-repeat N`, first-party fixtures only, disposable clusters). Safe
    counterparts are covered by recovery-probe tests
-   (crates/commitrift-cli/tests/phase15.rs, phase16_loops.rs).
+   (crates/midwrite-cli/tests/phase15.rs, phase16_loops.rs).
 
-Writes OUT_DIR/results.json and OUT_DIR/SUMMARY.md. COMMITRIFT_BIN selects
+Writes OUT_DIR/results.json and OUT_DIR/SUMMARY.md. MIDWRITE_BIN selects
 the binary.
 """
 import argparse
@@ -31,7 +31,7 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BIN = os.environ.get("COMMITRIFT_BIN", os.path.join(ROOT, "target", "release", "commitrift"))
+BIN = os.environ.get("MIDWRITE_BIN", os.path.join(ROOT, "target", "release", "midwrite"))
 APPS = [
     "fixtures/phase13/eval-app",
     "fixtures/phase14/eval-app",

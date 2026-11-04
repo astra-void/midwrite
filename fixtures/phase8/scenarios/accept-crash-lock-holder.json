@@ -300,7 +300,7 @@
     }
   ],
   "sourceVerification": {
-    "harness": "../../phase7/team-app/commitrift-source.json",
+    "harness": "../../phase7/team-app/midwrite-source.json",
     "actors": {
       "Accept1": {
         "entry": "acceptInvitation",

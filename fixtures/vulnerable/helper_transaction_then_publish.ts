@@ -1,8 +1,8 @@
 // A helper that commits a transaction, followed by an external effect in the
 // caller; and an `async` function that returns a helper call, which the
 // caller awaits by returning it.
-// @expect CP1001 line=22 confidence=high function=completeOrder
-// @expect CP1001 line=27 confidence=high function=shipOrder
+// @expect MW1001 line=22 confidence=high function=completeOrder
+// @expect MW1001 line=27 confidence=high function=shipOrder
 import { db } from "@/db";
 import { orders, outbox } from "@/db/schema";
 

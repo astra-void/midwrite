@@ -3,7 +3,7 @@
 // It runs the application's ORIGINAL exported functions the way the server
 // would: the Server Action inside a request with a session, the services
 // with their inputs. What the harness provides is what the process entry
-// point provides: the database pool (coordinated by CommitRift).
+// point provides: the database pool (coordinated by Midwrite).
 import * as drizzle from "drizzle-orm";
 import * as pgCore from "drizzle-orm/pg-core";
 import pg from "pg";
@@ -12,7 +12,7 @@ import {
   instrumentDrizzle,
   runSourceActor,
   sourcePoolConfig,
-} from "@commitrift/replay/source";
+} from "@midwrite/replay/source";
 
 import { usePool } from "../src/db/pool.js";
 import { runWithSession } from "../src/lib/session.js";

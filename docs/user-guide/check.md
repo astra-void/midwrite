@@ -1,4 +1,4 @@
-# `commitrift check`: static failure-path analysis
+# `midwrite check`: static failure-path analysis
 
 `check` finds moments at which state becomes **durable** (a database
 commit) or **visible** (a configured external effect) in each function, and
@@ -13,11 +13,11 @@ Model: [failure model](../concepts/failure-model.md). Diagnostics catalog:
 ## Typical use
 
 ```bash
-commitrift check .                                  # default: text, policy recommended, fail on warning
-commitrift check apps/web/src --config commitrift.json
-commitrift check . --format json > findings.json
-commitrift check . --format sarif > findings.sarif
-commitrift check . -v                               # also evidence, path certainty, evidence strength, limitations
+midwrite check .                                  # default: text, policy recommended, fail on warning
+midwrite check apps/web/src --config midwrite.json
+midwrite check . --format json > findings.json
+midwrite check . --format sarif > findings.sarif
+midwrite check . -v                               # also evidence, path certainty, evidence strength, limitations
 ```
 
 A run analyzes all given files as one project, so imports between them are
@@ -31,12 +31,12 @@ the configuration skips more ([configuration](../reference/configuration.md)).
 
 | Code | Default severity (`recommended`) | Meaning |
 | --- | --- | --- |
-| `CP1001` | warning | database commit followed by an independent external effect |
-| `CP1002` | warning | external effect followed by an independent database commit |
-| `CP1003` | warning | external effect executed inside a database transaction before commit |
-| `CP1004` | info; warning when a write bypasses its enclosing transaction | independent database commits |
-| `CP1005` | info | independent external effects |
-| `CP9001` | info | analysis incomplete: unknown or unsupported semantics (not a finding) |
+| `MW1001` | warning | database commit followed by an independent external effect |
+| `MW1002` | warning | external effect followed by an independent database commit |
+| `MW1003` | warning | external effect executed inside a database transaction before commit |
+| `MW1004` | info; warning when a write bypasses its enclosing transaction | independent database commits |
+| `MW1005` | info | independent external effects |
+| `MW9001` | info | analysis incomplete: unknown or unsupported semantics (not a finding) |
 
 Every static finding is a potential hazard (`"kind": "potentialHazard"`,
 `"reproduced": false`). Confidence combines `pathCertainty` and
@@ -46,8 +46,8 @@ Every static finding is a potential hazard (`"kind": "potentialHazard"`,
 
 | Policy | Warnings | Info |
 | --- | --- | --- |
-| `recommended` (default) | CP1001, CP1002, CP1003; CP1004 when a write bypasses its enclosing transaction | other CP1004, CP1005, CP9001; unrecognized calls after a commit grouped into one CP9001 per function |
-| `strict` | every hazard | CP9001, one per call |
+| `recommended` (default) | MW1001, MW1002, MW1003; MW1004 when a write bypasses its enclosing transaction | other MW1004, MW1005, MW9001; unrecognized calls after a commit grouped into one MW9001 per function |
+| `strict` | every hazard | MW9001, one per call |
 | `audit` | as `strict` | as `strict`, plus unknown calls before the first recognized operation |
 
 Codes and meanings do not change between policies; only severity (and so
@@ -56,8 +56,8 @@ the exit status) does.
 ## Baselines (adopting it in CI)
 
 ```bash
-commitrift check . --write-baseline commitrift-baseline.json   # once; commit the file
-commitrift check . --baseline commitrift-baseline.json          # fails only on new findings
+midwrite check . --write-baseline midwrite-baseline.json   # once; commit the file
+midwrite check . --baseline midwrite-baseline.json          # fails only on new findings
 ```
 
 Entries are matched by a fingerprint of code, file, function and the
@@ -79,17 +79,17 @@ default 3): functions of the same file or imported from analyzed files
 receivers whose class is known, callbacks passed to analyzed functions,
 immediately invoked functions; calls of functions it proves inert are
 resolved at any depth. Paths per function are capped (`--max-paths`,
-default 512; exceeding it adds `CP9001`). Full table:
+default 512; exceeding it adds `MW9001`). Full table:
 [supported patterns](../reference/supported-patterns.md#static-analyzer-check-trace-ir).
 
 ## Related commands
 
 | Command | Purpose |
 | --- | --- |
-| `commitrift trace [PATHS] [--finding ID] [--format json]` | the failure trace behind each finding (static candidate) — [format](../phase3/TRACE-FORMAT.md) |
-| `commitrift ir [PATHS] [--format json]` | the Effect IR the frontend derived |
-| `commitrift report TRACE.json -o trace.html` | self-contained, script-free HTML |
-| `commitrift init-replay` / `commitrift replay` | turn one trace into a runtime replay harness ([source verification](source-verification.md#single-request-replay-harnesses)) |
+| `midwrite trace [PATHS] [--finding ID] [--format json]` | the failure trace behind each finding (static candidate) — [format](../phase3/TRACE-FORMAT.md) |
+| `midwrite ir [PATHS] [--format json]` | the Effect IR the frontend derived |
+| `midwrite report TRACE.json -o trace.html` | self-contained, script-free HTML |
+| `midwrite init-replay` / `midwrite replay` | turn one trace into a runtime replay harness ([source verification](source-verification.md#single-request-replay-harnesses)) |
 
 ## Accuracy
 

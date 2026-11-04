@@ -1,17 +1,17 @@
 # Contracts: what source code cannot say
 
-CommitRift never infers retries, delivery guarantees, external
+Midwrite never infers retries, delivery guarantees, external
 idempotency or business invariants from names. Two optional files let you
 declare them; everything taken from them is reported as declared and never
 as verified.
 
 | file | read by | purpose |
 | --- | --- | --- |
-| `commitrift.json` | `check`, `trace`, `ir`, `init-replay` | database receivers, transaction methods, external effects, recovery declarations — [configuration reference](../reference/configuration.md) |
-| `commitrift-contracts.json` | `discover` (project root, or `--contracts FILE`) | external effects, delivery and retry, invariants, argument values, transaction helpers, replica factories, harness mapping — this page |
-| `commitrift-source.json` | `model-check --verify-source` | the authorized source harness — [source verification](source-verification.md) |
+| `midwrite.json` | `check`, `trace`, `ir`, `init-replay` | database receivers, transaction methods, external effects, recovery declarations — [configuration reference](../reference/configuration.md) |
+| `midwrite-contracts.json` | `discover` (project root, or `--contracts FILE`) | external effects, delivery and retry, invariants, argument values, transaction helpers, replica factories, harness mapping — this page |
+| `midwrite-source.json` | `model-check --verify-source` | the authorized source harness — [source verification](source-verification.md) |
 
-## `commitrift-contracts.json`
+## `midwrite-contracts.json`
 
 Unknown fields are errors (`deny_unknown_fields`). Format introduced in
 [Phase 11](../phase11/CONTRACTS.md); `replicaFactories` added in Phase 13.
@@ -19,7 +19,7 @@ Unknown fields are errors (`deny_unknown_fields`). Format introduced in
 ```json
 {
   "schemaVersion": 1,
-  "kind": "commitrift.contracts",
+  "kind": "midwrite.contracts",
   "description": "optional",
   "externals": [
     { "callee": "chargeCard", "channel": "card-charge", "keyArgument": 1, "dedup": "byKey" }
@@ -43,7 +43,7 @@ Unknown fields are errors (`deny_unknown_fields`). Format introduced in
       "reason": "read from the factory's source" }
   ],
   "harness": {
-    "manifest": "commitrift-source.json",
+    "manifest": "midwrite-source.json",
     "entries": { "src/app/invitations.ts#inviteMember/arg[1]": {
       "entry": "inviteMember", "input": { "form": { "email": "$arg0.email" } } } }
   }

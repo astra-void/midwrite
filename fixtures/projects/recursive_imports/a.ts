@@ -3,7 +3,7 @@
 // is recursive and stays unknown (not reported: within the inlined call it
 // follows the callee's own publish). In `ping`, the insert commits before
 // `pong` publishes.
-// @expect CP1001 line=12 confidence=high function=ping
+// @expect MW1001 line=12 confidence=high function=ping
 import { db } from "@/db";
 import { pong } from "./b";
 

@@ -85,7 +85,7 @@ findings), `budgets`, `candidates`, `rejected`, `entries`, `notes`; with
 JSON Schema:
 [`discovery-report.v1.schema.json`](../phase16/schemas/discovery-report.v1.schema.json)
 (draft-07, `$id` `commitrift.discovery.v1`). It is derived from the
-serializing Rust types (`crates/commitrift-discover/src/report.rs`,
+serializing Rust types (`crates/midwrite-discover/src/report.rs`,
 `candidate.rs`, `synth.rs`, `worlds.rs`, `eval.rs`, `effects.rs`) and is
 strict where they are: every object has `additionalProperties: false`,
 fields the serializer always writes are required, fields it skips when
@@ -134,7 +134,7 @@ is a separate file, not part of the report: the candidate, class, variant,
 world, violated property and its origin, the synthesized initial state and
 actor arguments, assumptions, bounds, algorithm, schedule, final terms,
 FNV-64 digests of the source files, `evidence` (always "model counterexample
-(not an original-code reproduction)"), the `commitrift model-check`
+(not an original-code reproduction)"), the `midwrite model-check`
 command, the `--verify-source --allow-execution` command when the scenario
 supports it (else `null`), `status` (always `MODEL_COUNTEREXAMPLE`) and
 `finding`.
@@ -143,7 +143,7 @@ The text output (`--format text`, the default) is not a stable interface.
 Phase 16 adds, after a candidate's next step: a declaration skeleton for
 a `BLOCKED` candidate (placeholders where only the developer knows the
 rule), the contract fields for the inputs of an `INCONCLUSIVE` one, and,
-with `--emit-scenarios DIR`, the `commitrift model-check` commands and the
+with `--emit-scenarios DIR`, the `midwrite model-check` commands and the
 reproduction artifact of a `MODEL_COUNTEREXAMPLE`; repeated unsupported
 constructs are listed once with all their locations.
 
@@ -157,7 +157,7 @@ retries, connection losses and external-effect channels.
 
 ## Stability
 
-Fingerprints, diagnostic codes (`CP1001`–`CP9001`, `CP7001`–`CP7103`),
+Fingerprints, diagnostic codes (`MW1001`–`MW9001`, `MW7001`–`MW7103`),
 baseline files and schemas are kept across phases; each phase's
 compatibility check compares the outputs of the previous and the new
 binary ([evidence index § 7](../research/evidence-index.md#7-compatibility-and-regression-identity)).

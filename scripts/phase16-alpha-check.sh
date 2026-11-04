@@ -6,12 +6,12 @@
 # Usage: scripts/phase16-alpha-check.sh OUT_DIR
 #
 # Needs the release binary (step 1 builds it), Node 22 and the PostgreSQL
-# server binaries (PATH or COMMITRIFT_PG_BIN) for the optional step 8.
+# server binaries (PATH or MIDWRITE_PG_BIN) for the optional step 8.
 set -uo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 out="$(mkdir -p "$1" && cd "$1" && pwd)"
 app="$root/fixtures/phase16/retry"
-bin="$root/target/release/commitrift"
+bin="$root/target/release/midwrite"
 log="$out/alpha-check.log"
 : >"$log"
 fail=0
@@ -21,7 +21,7 @@ expect() { # expect FILE PATTERN DESCRIPTION
 }
 
 step "1. build"
-(cd "$root" && cargo build --release -p commitrift-cli) >>"$log" 2>&1 || { echo "FAIL: build" | tee -a "$log"; exit 1; }
+(cd "$root" && cargo build --release -p midwrite-cli) >>"$log" 2>&1 || { echo "FAIL: build" | tee -a "$log"; exit 1; }
 "$bin" --version | tee -a "$log"
 
 step "2. discover with model checking"
@@ -59,8 +59,8 @@ python3 "$root/scripts/validate-schemas.py" --builtin --schema "$root/docs/phase
 expect "$out/schema.txt" "0 schema errors" "discovery JSON validates"
 
 step "8. (optional, authorized) original-code verification"
-if command -v node >/dev/null && { [ -n "${COMMITRIFT_PG_BIN:-}" ] || command -v postgres >/dev/null || [ -x /opt/homebrew/opt/postgresql@17/bin/postgres ]; }; then
-  export PATH="${COMMITRIFT_PG_BIN:-/opt/homebrew/opt/postgresql@17/bin}:$PATH"
+if command -v node >/dev/null && { [ -n "${MIDWRITE_PG_BIN:-}" ] || command -v postgres >/dev/null || [ -x /opt/homebrew/opt/postgresql@17/bin/postgres ]; }; then
+  export PATH="${MIDWRITE_PG_BIN:-/opt/homebrew/opt/postgresql@17/bin}:$PATH"
   (cd "$app" && npm ci --offline >/dev/null 2>&1 && npm run build >/dev/null 2>&1)
   "$bin" model-check "$scenario" --verify-source --allow-execution --source-repeat 2 >"$out/verify.txt" 2>&1
   expect "$out/verify.txt" "reproduced" "the counterexample reproduces on the original code"

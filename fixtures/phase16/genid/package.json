@@ -1,8 +1,8 @@
 {
-  "name": "commitrift-fixture-phase16-genid",
+  "name": "midwrite-fixture-phase16-genid",
   "private": true,
   "version": "0.0.0",
-  "description": "CommitRift Phase 16 first-party application: properties over generated identifiers (a get-or-create share token whose concurrent callers are told different tokens, an id returned after a retried insert, a read-your-writes read of a generated id through a read replica), each with a safe counterpart; a replica read-modify-write whose outcomes the modeled replica permits; and midday-shaped team-membership and insight code that the Phase 16 contract templates are validated against. Drizzle ORM on node-postgres. Static source: never executed.",
+  "description": "Midwrite Phase 16 first-party application: properties over generated identifiers (a get-or-create share token whose concurrent callers are told different tokens, an id returned after a retried insert, a read-your-writes read of a generated id through a read replica), each with a safe counterpart; a replica read-modify-write whose outcomes the modeled replica permits; and midday-shaped team-membership and insight code that the Phase 16 contract templates are validated against. Drizzle ORM on node-postgres. Static source: never executed.",
   "type": "module",
   "engines": { "node": ">=22" },
   "dependencies": {

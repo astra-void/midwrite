@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# CommitRift Phase 3 demo: static finding -> failure trace -> controlled
+# Midwrite Phase 3 demo: static finding -> failure trace -> controlled
 # injection -> observed state -> verification report -> HTML view.
 #
 #   scripts/demo.sh [OUTPUT_DIR]      (default: demo-output/)
 #
 # Needs: a Rust toolchain; for the runtime part also Bun (>= 1.2), the
 # PostgreSQL server binaries (initdb, pg_ctl, postgres, psql; or set
-# COMMITRIFT_PG_BIN) and macOS (sandbox-exec is used for network isolation).
+# MIDWRITE_PG_BIN) and macOS (sandbox-exec is used for network isolation).
 # Only first-party harnesses under fixtures/replay/ are executed.
 set -euo pipefail
 
@@ -19,21 +19,21 @@ step() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
 
 step "1. Build"
 cargo build --release --quiet
-bin="$here/target/release/commitrift"
+bin="$here/target/release/midwrite"
 harness=fixtures/replay/order-vulnerable
 
 step "2. Static analysis of the vulnerable application (nothing is executed)"
-"$bin" check "$harness/src" --config "$harness/commitrift.json" --fail-on never
+"$bin" check "$harness/src" --config "$harness/midwrite.json" --fail-on never
 
 step "3. The failure trace behind each finding (static candidates)"
-"$bin" trace "$harness/src" --config "$harness/commitrift.json"
-"$bin" trace "$harness/src" --config "$harness/commitrift.json" --format json > "$out/traces.json"
+"$bin" trace "$harness/src" --config "$harness/midwrite.json"
+"$bin" trace "$harness/src" --config "$harness/midwrite.json" --format json > "$out/traces.json"
 "$bin" report "$out/traces.json" -o "$out/traces.html"
 echo "wrote $out/traces.json and $out/traces.html"
 
 missing=""
 command -v bun >/dev/null || missing="bun"
-if [[ -z "${COMMITRIFT_PG_BIN:-}" ]] && ! command -v postgres >/dev/null && ! command -v pg_config >/dev/null; then
+if [[ -z "${MIDWRITE_PG_BIN:-}" ]] && ! command -v postgres >/dev/null && ! command -v pg_config >/dev/null; then
   missing="$missing PostgreSQL"
 fi
 [[ "$(uname)" == "Darwin" ]] || missing="$missing macOS-sandbox-exec"

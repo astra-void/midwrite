@@ -84,7 +84,7 @@
     }
   ],
   "sourceVerification": {
-    "harness": "../ledger-live/commitrift-source-pool2.json",
+    "harness": "../ledger-live/midwrite-source-pool2.json",
     "actors": {
       "Client": {
         "entry": "recordPaymentRetryInProcess",

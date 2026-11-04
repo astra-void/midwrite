@@ -19,7 +19,7 @@ import {
   runSourceActor,
   sourceEffect,
   sourcePostgresUrl,
-} from "@commitrift/replay/source";
+} from "@midwrite/replay/source";
 
 import type { PayRequest } from "../src/app/checkout.js";
 import { runWithSession } from "../src/lib/auth/session.js";

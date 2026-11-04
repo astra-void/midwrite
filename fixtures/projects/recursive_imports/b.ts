@@ -1,5 +1,5 @@
 // `pong` publishes, then (only when n > 0) `ping` inserts.
-// @expect CP1002 line=6 confidence=medium function=pong
+// @expect MW1002 line=6 confidence=medium function=pong
 import { ping } from "./a";
 
 export async function pong(n: number) {

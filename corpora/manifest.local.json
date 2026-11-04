@@ -1,5 +1,5 @@
 {
-  "$comment": "Locally available applications that were not written for CommitRift. They are private checkouts on the maintainer's machine, so results for them cannot be reproduced by others; revisions are recorded for the record only.",
+  "$comment": "Locally available applications that were not written for Midwrite. They are private checkouts on the maintainer's machine, so results for them cannot be reproduced by others; revisions are recorded for the record only.",
   "projects": [
     {
       "name": "school-ledger",

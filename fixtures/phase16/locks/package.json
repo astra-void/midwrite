@@ -1,8 +1,8 @@
 {
-  "name": "commitrift-fixture-phase16-locks",
+  "name": "midwrite-fixture-phase16-locks",
   "private": true,
   "version": "0.0.0",
-  "description": "CommitRift Phase 16 first-party application (Track C): multi-row row locks (`inArray(...).for(\"update\")`, with and without `.orderBy` the key) against two single-row locks taken in argument order, and a Drizzle predicate held in a local (`const inFolder = folderId === null ? isNull(..) : eq(..)`) reaching a NULLS DISTINCT duplicate, with a counterpart serialized by a row lock. Static source: never executed.",
+  "description": "Midwrite Phase 16 first-party application (Track C): multi-row row locks (`inArray(...).for(\"update\")`, with and without `.orderBy` the key) against two single-row locks taken in argument order, and a Drizzle predicate held in a local (`const inFolder = folderId === null ? isNull(..) : eq(..)`) reaching a NULLS DISTINCT duplicate, with a counterpart serialized by a row lock. Static source: never executed.",
   "type": "module",
   "dependencies": {
     "drizzle-orm": "0.45.4",

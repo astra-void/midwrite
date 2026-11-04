@@ -32,8 +32,8 @@ page does not restate them.
 | `scripts/phase9-profile-bench.py` | profile of the visited-state structures | 9 |
 | `scripts/phase10-por-bench.py`, `scripts/phase10-workloads.py` | reductions on 13 workloads × 6 modes | 10 |
 | `scripts/phase12-corpus.py`, `scripts/phase13-analyzer-corpus.py` | discovery on the corpus (wall, RSS, counts) | 12, 13 |
-| `commitrift model-check --profile-storage` | memory of visited states for one scenario | 9+ |
-| `commitrift-corpus` (`cargo run --release -p commitrift-corpus -- …`) | corpus runs, comparisons, phase memory profile | 2+ |
+| `midwrite model-check --profile-storage` | memory of visited states for one scenario | 9+ |
+| `midwrite-corpus` (`cargo run --release -p midwrite-corpus -- …`) | corpus runs, comparisons, phase memory profile | 2+ |
 
 ## Workloads
 

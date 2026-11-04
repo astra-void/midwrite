@@ -16,7 +16,7 @@ OUT = os.path.join(ROOT, "fixtures/phase10/scenarios")
 INPUT = {"requestId": "req-1", "orderId": 1, "amount": 500}
 
 
-def scenario(name, description, entry, table, invariant, bounds, probe=None, pool=None, harness="commitrift-source.json"):
+def scenario(name, description, entry, table, invariant, bounds, probe=None, pool=None, harness="midwrite-source.json"):
     doc = {
         "schemaVersion": 1,
         "name": name,
@@ -106,14 +106,14 @@ S["live-blind-retry-pool-of-one"] = scenario(
     "a connection pool of ONE connection: the broken connection is discarded and the retry obtains a new one (no starvation).",
     "recordPaymentRetryInProcess", "payments",
     at_most_once("payments", "one logical payment is recorded at most once"), {}, pool=1,
-    harness="commitrift-source-pool1.json")
+    harness="midwrite-source-pool1.json")
 
 S["live-blind-retry-unhandled-error-event"] = scenario(
     "live-blind-retry-unhandled-error-event",
     "the same blind in-process retry under a process entry point that attaches NO error handler to checked-out clients: node-postgres emits `error` when the connection breaks, the event is unhandled and the Node process ends. The model predicts a live process; the run is expected to DIVERGE, and records why.",
     "recordPaymentRetryInProcess", "payments",
     at_most_once("payments", "one logical payment is recorded at most once"), {},
-    harness="commitrift-source-unhandled.json")
+    harness="midwrite-source-unhandled.json")
 
 # Other isolation levels (the application's transactions run at the
 # database default).
@@ -142,7 +142,7 @@ shared["actors"].append(second)
 shared["pools"] = {"P": 2}
 shared["invariants"] = [at_most_once("payments", "two requests record at most two payments")]
 shared["invariants"][0]["assert"]["le"][1] = 2
-shared["sourceVerification"]["harness"] = "../ledger-live/commitrift-source-pool2.json"
+shared["sourceVerification"]["harness"] = "../ledger-live/midwrite-source-pool2.json"
 shared["sourceVerification"]["actors"]["Other"] = {"entry": "recordPaymentRetryInProcess",
                                                    "input": {"requestId": "req-2", "orderId": 2, "amount": 300}}
 S["live-shared-process-lost-commit"] = shared
@@ -156,7 +156,7 @@ for base in ["live-blind-retry-lost-commit", "live-blind-retry-commit-not-durabl
     doc["name"] = name
     doc["description"] = doc["description"].replace("fixtures/phase10/ledger-live", "fixtures/phase10/ledger-pgjs (postgres-js 3.4.5)")
     doc["extraction"]["root"] = "../ledger-pgjs"
-    doc["sourceVerification"]["harness"] = "../ledger-pgjs/commitrift-source.json"
+    doc["sourceVerification"]["harness"] = "../ledger-pgjs/midwrite-source.json"
     S[name] = doc
 
 # Phase 9's process-crash in-flight scenarios on postgres-js (the worker is
@@ -169,7 +169,7 @@ for p9, name in [("ledger-blind-commit-in-flight", "pgjs-crash-blind-commit-in-f
     doc["name"] = name
     doc["description"] = doc["description"].replace("fixtures/phase9/ledger-app", "fixtures/phase10/ledger-pgjs (postgres-js 3.4.5)")
     doc["extraction"]["root"] = "../ledger-pgjs"
-    doc["sourceVerification"]["harness"] = "../ledger-pgjs/commitrift-source.json"
+    doc["sourceVerification"]["harness"] = "../ledger-pgjs/midwrite-source.json"
     S[name] = doc
 
 os.makedirs(OUT, exist_ok=True)

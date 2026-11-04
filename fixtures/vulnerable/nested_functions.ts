@@ -1,6 +1,6 @@
 // Nested functions are analyzed as separate units: defining `finish` runs
 // nothing, so `scheduleCompletion` has no hazard of its own, but `finish` does.
-// @expect CP1001 line=11 confidence=high function=finish
+// @expect MW1001 line=11 confidence=high function=finish
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 

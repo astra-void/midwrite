@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "kind": "midwrite.contracts",
+  "description": "What the Phase 14 request application's source cannot say: clients resubmit when they get no response; two business rules; how the authorized harness calls each entry.",
+  "entries": {
+    "src/handlers/items.ts#addOrderItems": {
+      "retry": "on-crash",
+      "description": "POST /orders/:id/items; the client resubmits when it gets no response."
+    },
+    "src/handlers/items.ts#addOrderItemsIdempotent": {
+      "retry": "on-crash",
+      "description": "As addOrderItems."
+    }
+  },
+  "invariants": [
+    {
+      "name": "one-line-per-request-sku",
+      "description": "One request adds each product to the order once.",
+      "entries": ["src/handlers/items.ts#addOrderItems"],
+      "property": { "template": "atMostOne", "table": "order_items", "key": ["requestId", "sku"] }
+    },
+    {
+      "name": "one-request-line-per-request-sku",
+      "description": "One request adds each product to the order once.",
+      "entries": ["src/handlers/items.ts#addOrderItemsIdempotent"],
+      "property": { "template": "atMostOne", "table": "request_items", "key": ["requestId", "sku"] }
+    },
+    {
+      "name": "one-payment-per-order",
+      "description": "An order is paid at most once.",
+      "entries": ["src/services/payments.ts#settlePayment", "src/services/payments.ts#settlePaymentOnce"],
+      "property": { "template": "atMostOne", "table": "payments", "key": ["orderId"] }
+    }
+  ],
+  "harness": {
+    "manifest": "midwrite-source.json",
+    "entries": {
+      "src/handlers/items.ts#addOrderItems": {
+        "entry": "addOrderItems",
+        "input": { "orderId": "$arg0.orderId", "requestId": "$arg0.requestId" }
+      },
+      "src/handlers/items.ts#addOrderItemsIdempotent": {
+        "entry": "addOrderItemsIdempotent",
+        "input": { "orderId": "$arg0.orderId", "requestId": "$arg0.requestId" }
+      },
+      "src/services/payments.ts#settlePayment": {
+        "entry": "settlePayment",
+        "input": { "orderId": "$arg0", "amount": "$arg1" }
+      },
+      "src/services/payments.ts#settlePaymentOnce": {
+        "entry": "settlePaymentOnce",
+        "input": { "orderId": "$arg0", "amount": "$arg1" }
+      }
+    }
+  }
+}

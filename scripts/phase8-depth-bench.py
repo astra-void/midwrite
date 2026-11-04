@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Phase 8: static-analysis cost by call depth, Phase 7 binary vs Phase 8.
 
-For each binary (the preserved Phase 7 `commitrift-corpus` and this build)
-and each call depth, runs `commitrift-corpus run --timings` REPEAT times
+For each binary (the preserved Phase 7 `midwrite-corpus` and this build)
+and each call depth, runs `midwrite-corpus run --timings` REPEAT times
 (the two binaries interleaved) on the given manifests and reports, per
 project, the median total, summary-construction and path-analysis time,
 the expansion/reuse counters, the number of findings (which must be equal
@@ -21,7 +21,7 @@ import sys
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-NEW = os.path.join(ROOT, "target", "release", "commitrift-corpus")
+NEW = os.path.join(ROOT, "target", "release", "midwrite-corpus")
 DEPTHS = [3, 4, 6, 8, 12]
 
 

@@ -1,0 +1,16 @@
+[package]
+name = "midwrite-corpus"
+description = "Developer tool: runs Midwrite over a corpus of projects, compares runs and computes reviewed precision"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+midwrite-core.workspace = true
+midwrite-analyzer.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true

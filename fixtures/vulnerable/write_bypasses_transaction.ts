@@ -1,6 +1,6 @@
 // A write inside the transaction callback that uses `db` instead of `tx`
 // commits on its own, outside the transaction.
-// @expect CP1004 line=10 confidence=high
+// @expect MW1004 line=10 confidence=high
 import { db } from "@/db";
 import { auditLog, orders } from "@/db/schema";
 

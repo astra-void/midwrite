@@ -21,7 +21,7 @@ import sys
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BIN = os.path.join(ROOT, "target", "release", "commitrift")
+BIN = os.path.join(ROOT, "target", "release", "midwrite")
 MODES = [
     ("unreduced", ["--no-por"]),
     ("sleep sets", []),

@@ -1,15 +1,15 @@
 {
-  "name": "commitrift-fixture-defaults-probe",
+  "name": "midwrite-fixture-defaults-probe",
   "private": true,
   "version": "0.0.0",
-  "description": "CommitRift Phase 12 differential probe: what pinned Drizzle and PostgreSQL do with generated defaults (database UUID, application UUID, sequence, identity, constant, unknown callback) across inserts, RETURNING, failures, rollbacks and retries.",
+  "description": "Midwrite Phase 12 differential probe: what pinned Drizzle and PostgreSQL do with generated defaults (database UUID, application UUID, sequence, identity, constant, unknown callback) across inserts, RETURNING, failures, rollbacks and retries.",
   "type": "module",
   "engines": { "node": ">=22" },
   "scripts": {
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@commitrift/replay": "file:../../../runtime/node",
+    "@midwrite/replay": "file:../../../runtime/node",
     "drizzle-orm": "0.45.4",
     "pg": "8.23.1"
   },

@@ -291,7 +291,7 @@
     }
   ],
   "sourceVerification": {
-    "harness": "../team-app/commitrift-source.json",
+    "harness": "../team-app/midwrite-source.json",
     "actors": {
       "Accept1": {
         "entry": "acceptInvitation",

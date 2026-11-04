@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "harness": "invoice-pattern",
+  "description": "Isolated reproduction of the suspected midday pattern: an invoice is finalized (status 'unpaid', auto-commit, through a shared query helper) before its generate-invoice job is enqueued. Not midday's code.",
+  "command": ["bun", "harness.ts"],
+  "timeoutSeconds": 20,
+  "database": { "provider": "ephemeral-postgres", "setup": ["schema.sql"] },
+  "analysis": { "paths": ["src"], "config": "midwrite.json" },
+  "observations": [
+    { "name": "invoiceStatus", "sql": "SELECT status FROM invoices WHERE id = 'inv-1'" },
+    { "name": "generateJobs", "events": { "topic": "generate-invoice" } }
+  ],
+  "invariants": [
+    {
+      "id": "finalized-invoice-has-generation-job",
+      "description": "Assumed contract (from the code's comments, not confirmed by the maintainers): a finalized invoice (status 'unpaid') has a generate-invoice job enqueued, which renders the PDF and sends it for create_and_send.",
+      "when": [{ "observation": "invoiceStatus", "equals": "unpaid" }],
+      "require": [{ "observation": "generateJobs", "atLeast": 1 }]
+    }
+  ],
+  "control": { "scenario": "finalizeInvoice", "input": { "id": "inv-1", "deliveryType": "create_and_send" } },
+  "cases": [
+    {
+      "id": "kill-after-status-commit",
+      "description": "The process dies after the status update committed and before the job is enqueued.",
+      "finding": { "code": "MW1001", "function": "finalizeInvoice", "file": "src/routers/invoices.ts" },
+      "scenario": "finalizeInvoice",
+      "input": { "id": "inv-1", "deliveryType": "create_and_send" },
+      "inject": { "checkpoint": "after-db-commit", "label": "invoices", "mode": "processKill" },
+      "verifyBeforeInjection": [{ "observation": "invoiceStatus", "equals": "unpaid" }],
+      "predict": { "invoiceStatus": "unpaid", "generateJobs": 0 },
+      "expect": "RUNTIME_REPRODUCED"
+    },
+    {
+      "id": "enqueue-fails-after-status-commit",
+      "description": "The enqueue fails (e.g. the queue is unreachable): an exception at the same point. The route has no handler, so the request fails but the status stays.",
+      "finding": { "code": "MW1001", "function": "finalizeInvoice", "file": "src/routers/invoices.ts" },
+      "scenario": "finalizeInvoice",
+      "input": { "id": "inv-1", "deliveryType": "create_and_send" },
+      "inject": { "checkpoint": "before-event-publish", "label": "generate-invoice", "mode": "exception" },
+      "predict": { "invoiceStatus": "unpaid", "generateJobs": 0 },
+      "expect": "RUNTIME_REPRODUCED"
+    },
+    {
+      "id": "client-retry-repairs",
+      "description": "Recovery behavior: after the kill, the client repeats the same request. The update is idempotent and the job is enqueued, so a retry repairs the state (if a retry happens).",
+      "finding": { "code": "MW1001", "function": "finalizeInvoice", "file": "src/routers/invoices.ts" },
+      "scenario": "finalizeInvoice",
+      "input": { "id": "inv-1", "deliveryType": "create_and_send" },
+      "inject": { "checkpoint": "after-db-commit", "label": "invoices", "mode": "processKill" },
+      "recovery": [{ "scenario": "finalizeInvoice", "input": { "id": "inv-1", "deliveryType": "create_and_send" } }],
+      "expect": "RUNTIME_REPRODUCED"
+    }
+  ]
+}

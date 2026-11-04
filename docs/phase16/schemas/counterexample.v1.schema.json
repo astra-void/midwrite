@@ -1,10 +1,10 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "commitrift.counterexample.v1",
-  "title": "CommitRift counterexample reproduction artifact, schema 1",
+  "title": "Midwrite counterexample reproduction artifact, schema 1",
   "definitions": {
     "value": {
-      "description": "A model value (commitrift_model::value::Value, untagged): null, boolean, 64-bit integer, string, a list, or an object. Objects are rows and the tagged forms {\"$generated\": n, \"actor\": a, \"n\": k}, {\"$undefined\": true}, {\"$map\": [[key, value], ...]} and {\"$set\": [item, ...]}, all of which are objects whose members are values. There are no floating-point values.",
+      "description": "A model value (midwrite_model::value::Value, untagged): null, boolean, 64-bit integer, string, a list, or an object. Objects are rows and the tagged forms {\"$generated\": n, \"actor\": a, \"n\": k}, {\"$undefined\": true}, {\"$map\": [[key, value], ...]} and {\"$set\": [item, ...]}, all of which are objects whose members are values. There are no floating-point values.",
       "type": [
         "null",
         "boolean",
@@ -228,14 +228,14 @@
     },
     "reproduce": {
       "type": "string",
-      "pattern": "^commitrift model-check "
+      "pattern": "^(midwrite|commitrift) model-check "
     },
     "reproduceOnOriginalCode": {
       "type": [
         "string",
         "null"
       ],
-      "pattern": "^commitrift model-check .* --verify-source --allow-execution$"
+      "pattern": "^(midwrite|commitrift) model-check .* --verify-source --allow-execution$"
     },
     "status": {
       "const": "MODEL_COUNTEREXAMPLE"
@@ -268,5 +268,5 @@
     "status",
     "finding"
   ],
-  "description": "Phase 16: the reproduction artifact `<scenario>.counterexample.json` that `commitrift discover --model-check --emit-scenarios DIR` writes next to the deciding scenario of each MODEL_COUNTEREXAMPLE candidate (Phase 15). Every value in it was synthesized; it is a model counterexample, not an original-code reproduction."
+  "description": "Phase 16: the reproduction artifact `<scenario>.counterexample.json` that `midwrite discover --model-check --emit-scenarios DIR` writes next to the deciding scenario of each MODEL_COUNTEREXAMPLE candidate (Phase 15). Every value in it was synthesized; it is a model counterexample, not an original-code reproduction."
 }

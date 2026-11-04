@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Phase 7: static-analysis cost by call depth, legacy vs compact path walk.
 
-For each path mode (COMMITRIFT_PATHS=legacy|compact) and each call depth,
-runs `commitrift-corpus run --timings` REPEAT times on the given manifests
+For each path mode (MIDWRITE_PATHS=legacy|compact) and each call depth,
+runs `midwrite-corpus run --timings` REPEAT times on the given manifests
 and reports the median total and path-analysis time per project, the number
 of findings (which must not depend on the mode) and the peak RSS of the
 whole run (macOS `/usr/bin/time -l`, Linux `/usr/bin/time -v`).
@@ -19,7 +19,7 @@ import sys
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CORPUS = os.path.join(ROOT, "target", "release", "commitrift-corpus")
+CORPUS = os.path.join(ROOT, "target", "release", "midwrite-corpus")
 
 
 def run(mode, depth, manifests):
@@ -30,7 +30,7 @@ def run(mode, depth, manifests):
                "--max-call-depth", str(depth)]
         for m in manifests:
             cmd += ["--manifest", m]
-        env = dict(os.environ, COMMITRIFT_PATHS=mode)
+        env = dict(os.environ, MIDWRITE_PATHS=mode)
         p = subprocess.run(cmd, env=env, capture_output=True, text=True, check=True)
         rss = None
         m = re.search(r"(\d+)\s+maximum resident set size", p.stderr)

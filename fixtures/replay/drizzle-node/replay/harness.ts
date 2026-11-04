@@ -1,11 +1,11 @@
 // Replay entry point (compiled to dist/replay/harness.js and run by
-// `commitrift replay` with Node.js). It is the only replay-aware code: it
+// `midwrite replay` with Node.js). It is the only replay-aware code: it
 // wires the application's pool and queue seams to the run's disposable
 // database and event log, then loads the application unchanged.
 import pg from "pg";
-import { runScenarios } from "@commitrift/replay";
-import { instrumentPgPool, replayPoolConfig } from "@commitrift/replay/pg";
-import { publishToEventLog } from "@commitrift/replay/event-log";
+import { runScenarios } from "@midwrite/replay";
+import { instrumentPgPool, replayPoolConfig } from "@midwrite/replay/pg";
+import { publishToEventLog } from "@midwrite/replay/event-log";
 
 import { usePool } from "../src/pool.js";
 import { useTransport } from "../src/queue.js";

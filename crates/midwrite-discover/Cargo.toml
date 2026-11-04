@@ -1,0 +1,15 @@
+[package]
+name = "midwrite-discover"
+description = "Automatic scenario synthesis for Midwrite: entry and effect index, concurrency candidates, property provenance, initial-state synthesis and scenario construction"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+midwrite-core.workspace = true
+midwrite-analyzer.workspace = true
+midwrite-model.workspace = true
+serde.workspace = true
+serde_json.workspace = true

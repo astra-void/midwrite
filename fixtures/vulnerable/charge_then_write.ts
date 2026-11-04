@@ -1,8 +1,8 @@
 // A payment before the database commit, and an email after it.
 // `stripe.charges` is a member-path match (only the names are checked), so
-// the CP1002 finding that relies on it is capped at medium confidence.
-// @expect CP1002 line=11 confidence=medium
-// @expect CP1001 line=13 confidence=high
+// the MW1002 finding that relies on it is capped at medium confidence.
+// @expect MW1002 line=11 confidence=medium
+// @expect MW1001 line=13 confidence=high
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 import { sendEmail } from "@/lib/email";

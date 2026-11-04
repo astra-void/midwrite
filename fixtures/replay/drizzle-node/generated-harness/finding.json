@@ -1,7 +1,7 @@
 {
   "id": "tr-2a5439a0b830cdc6",
   "findingId": "4f53a6215ac16913",
-  "code": "CP1001",
+  "code": "MW1001",
   "function": "completeOrder",
   "location": {
     "file": "src/service.ts",
@@ -94,7 +94,7 @@
     "The application's invariants are unknown: the trace shows that the partial state can arise, not that it violates a business rule."
   ],
   "limitations": [
-    "CommitRift does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state.",
+    "Midwrite does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state.",
     "This trace is a static candidate: no application code was executed to produce it."
   ]
 }

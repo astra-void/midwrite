@@ -3,7 +3,7 @@
 // by the awaited call is a hazard with high confidence. The diagnostic points
 // at the call; the publish keeps its own location in `effects`, and the
 // evidence says it comes from the summary of `notify`.
-// @expect CP1001 line=17 confidence=high function=completeOrder
+// @expect MW1001 line=17 confidence=high function=completeOrder
 import { db } from "@/db";
 import { orders } from "@/db/schema";
 

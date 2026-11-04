@@ -1,5 +1,5 @@
 // Replay entry point: runs the scenario the supervisor selects.
-import { runScenarios } from "../../../runtime/typescript/commitrift-replay.ts";
+import { runScenarios } from "../../../runtime/typescript/midwrite-replay.ts";
 import { db } from "../shared/db.ts";
 import { completeOrder } from "./src/orders.ts";
 import { relayOutbox } from "./src/relay.ts";

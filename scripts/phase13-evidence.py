@@ -18,7 +18,7 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BIN = os.environ.get("COMMITRIFT_BIN", os.path.join(ROOT, "target", "release", "commitrift"))
+BIN = os.environ.get("MIDWRITE_BIN", os.path.join(ROOT, "target", "release", "midwrite"))
 OUT = os.path.join(ROOT, "reports", "phase13", "evidence")
 REQ = os.path.join(ROOT, "fixtures", "phase13", "request-app", "scenarios")
 WS = os.path.join(ROOT, "fixtures", "phase12", "workspace-app")
