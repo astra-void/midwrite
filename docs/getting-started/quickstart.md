@@ -130,8 +130,9 @@ Candidate CR-SYNTH-959BBA  [NO_VIOLATION_WITHIN_BOUNDS]
 The candidate says where (the INSERT inside the callback that the
 application's own `withRetry` runs twice), what is shared (`payments`),
 which property (declared in the project's `commitrift-contracts.json`) and
-what to do next. The exit status is 0: discovery reports, it does not fail
-a build. Follow the next step to see the schedule:
+what to do next. The exit status is 1 because a model counterexample was
+reported (0 when none is; [discover](../user-guide/discover.md)). Follow
+the next step to see the schedule:
 
 ```bash
 commitrift discover fixtures/phase14/request-app --model-check --entry payments.ts#settlePayment --emit-scenarios /tmp/commitrift-quickstart
@@ -234,3 +235,29 @@ within the modeled bounds … Input exploration: no counterexample among 2
 explored initial world(s) of the actual configuration … The input domain
 was not exhaustively explored; general application safety is not
 established."
+
+## Retry loops, request bodies and coverage (Phase 16)
+
+Validated with the final Phase 16 release binary on the first-party
+application `fixtures/phase16/retry` (a Next.js route handler that reads
+`request.json()` and a `for` loop that retries an insert):
+
+```bash
+target/release/commitrift discover fixtures/phase16/retry --model-check --explain-coverage
+```
+
+The first candidate, `CR-SYNTH-7644DD [MODEL_COUNTEREXAMPLE]` (the route
+handler; `CR-SYNTH-65F47A` is the same issue through `placeOrder`), names
+the insert inside the loop (`src/services/orders.ts:16:13`). Its declared
+property is `USER_DECLARED`, and its coverage states how the loop was
+bounded:
+
+```text
+  Assumption (loop, source-derived): loop BOUNDED_UNROLLING at src/services/orders.ts:14:3: `for` loop with counter `attempt` from 0 by +1 while `attempt < 3`: at most 3 iteration(s), each unrolled
+```
+
+`recordPayment` (the same loop with an idempotent insert) is
+`NO_VIOLATION_WITHIN_BOUNDS`. Each command of the complete walkthrough,
+from reproduction to the optional original-code run, is checked by
+`scripts/phase16-alpha-check.sh`; see the
+[Closed Alpha guide](../alpha/README.md).

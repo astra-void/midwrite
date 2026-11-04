@@ -63,6 +63,13 @@ and [§ 8](../research/evidence-index.md#8-real-world-corpus-coverage-static-dis
   and resolved school-ledger's alias blockers, which then reached
   inconclusive or unsupported synthesis. No new corpus counterexample was
   found in Phases 12 and 13.
+* Phase 16 (`scripts/phase16-corpus.py`, which also records each
+  candidate's stage): midday's portal-settings candidate became
+  model-checkable (NO_VIOLATION_WITHIN_BOUNDS against a heuristic
+  property stated over generated identity); school-ledger's seven
+  provisioning candidates now pass zod `strictObject` and stop at
+  `.superRefine()`. Still no corpus counterexample
+  ([Phase 16 real-world coverage](../phase16/REAL-WORLD-COVERAGE.md)).
 
 Per-phase write-ups: [2](../phase2/CORPUS-EVALUATION.md),
 [5](../phase5/CORPUS-EVALUATION.md), [6](../phase6/CORPUS-EVALUATION.md),

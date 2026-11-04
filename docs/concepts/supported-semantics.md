@@ -28,7 +28,8 @@ unknown or unsupported rather than approximated.
 | ORM | Drizzle ORM (`drizzle-orm` pg-core; runtime pinned to 0.45.4) | other ORMs; SQLite executors (`.run()`, `.all()`, `.get()`); raw SQL is not parsed |
 | database | PostgreSQL (model validated on 17.11 and 15.19) | other databases; PostgreSQL 16 and 14 not run in the differential matrix |
 | drivers (runtime) | node-postgres `pg` 8.23.1; postgres-js 3.4.5 | Neon, Bun SQL and other drivers; other versions of postgres-js are refused |
-| frameworks | Next.js route handlers and Server Actions (as entries); wrapped Server Actions through callback analysis or declared contracts | framework internals (the coordinator plays the client) |
+| frameworks | Next.js route handlers and Server Actions (as entries), with `request.json()` and `Response.json` (Phase 16); wrapped Server Actions through callback analysis or declared contracts | framework internals (the coordinator plays the client); `FormData` Server Actions; tRPC |
+| validation | zod 3 and zod 4 object schemas (Phase 16 subset, differentially checked against zod 3.25.76 and 4.6.5) | refinements, transforms, preprocess, coerce, unions |
 | external effects | configured or declared callees (`queue.publish`, `stripe.charges.create`, …) | unconfigured SDK calls are unknown operations |
 
 ## Principles that hold at every layer

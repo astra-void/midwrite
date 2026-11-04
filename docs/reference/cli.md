@@ -148,7 +148,7 @@ commitrift discover [OPTIONS] <ROOT>
 | `--max-total-states <N>` | 5000000 | distinct states over all scenarios |
 | `--max-worlds <N>` | 8 | Phase 15: initial worlds (rows and arguments) tried per actual variant, the synthesized one included; each further world changes one input relationship; `1` turns the search off ([world search](../phase15/FEEDBACK-GUIDED-SEARCH.md)) |
 | `--all-worlds` | off | keep exploring worlds after a validated counterexample |
-| `--explain-coverage` | off | text output: list every explored and unexplored world and every coverage gap (also with `-v`) |
+| `--explain-coverage` | off | text output: list every explored and unexplored world, every coverage gap and how each loop was bounded (also with `-v`) |
 | `--entry <TEXT>` | — | only entries whose selector contains this text (repeatable) |
 | `--labels <FILE>` | — | score the report against labeled entries |
 | `--cache <FILE>` | — | cache extractions in this file |

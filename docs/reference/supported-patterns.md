@@ -60,6 +60,19 @@ Sources: [Phase 6 concurrent IR § TypeScript subset](../phase6/CONCURRENT-IR.md
 [Phase 13 source resolution](../phase13/SOURCE-RESOLUTION.md),
 [Phase 13 advanced Drizzle](../phase13/ADVANCED-DRIZZLE.md).
 
+## Phase 16 additions (`model-check`, `discover`)
+
+| construct | notes | details |
+| --- | --- | --- |
+| zod `z.object`, `z.strictObject`, `z.looseObject` (zod 4), `.strict()`, `.strip()`, `.passthrough()`; `optional`, `nullable`, `nullish`, `default(literal)`; `z.array` with `min/max/length/nonempty`; `uuid`, `email` (each major's exact pattern); `.regex(/literal/)` in a documented subset; `z.enum` over `const` arrays | the zod major is read statically per import (`zod/v3` is zod 3; `zod` follows the installed or declared 3.x/4.x); constructs whose behavior differs between majors are refused when the version is unknown. Missing key, explicit `undefined` and `null` are distinct inputs. Refinements, transforms, preprocess, coerce, unions are refused by name | [ZOD-VALIDATION](../phase16/ZOD-VALIDATION.md) |
+| `for (let i = 0; i < N; i++)`, `while (i < N)`, `do … while` with an analyzed counter (≤ 8 iterations), `break`, `continue`, early `return`, `try` inside the loop | unrolled per iteration (never merged); each loop is reported `BOUNDED_UNROLLING`, `TRUNCATED` (may run beyond the explored bound: the path is then unsupported after the bound), `UNKNOWN`, `UNSUPPORTED` or `COMPLETED` | [LOOP-SEMANTICS](../phase16/LOOP-SEMANTICS.md) |
+| `catch (e)` reading `e.code`, `e.cause?.code`, `e instanceof Error`, helpers like `isSerializationFailure(e)` | only for failures of modeled statements (SQLSTATE) and modeled `throw`s, with drizzle-orm 0.45 + `pg`/`postgres` error shapes verified; any other origin is unsupported when inspected | [LOOP-SEMANTICS § caught errors](../phase16/LOOP-SEMANTICS.md) |
+| `export async function POST(request: Request)` with `await request.json()`; `Response.json`, `NextResponse.json`, `new Response` | the parsed body is the actor's argument (valid JSON assumed); the response is `{ status, body }` | [FRAMEWORK-REQUESTS](../phase16/FRAMEWORK-REQUESTS.md) |
+| predicates held in locals: `const p = and(eq(..), ..)`, aliases, `cond ? isNull(c) : eq(c, v)`, project helpers whose body is `return <predicate>` | operands captured at the declaration (as Drizzle does); a reassigned `let` is refused | [DRIZZLE-PREDICATES](../phase16/DRIZZLE-PREDICATES.md) |
+| multi-row `select().from(t).where(inArray(t.id, ids)).for("update" \| "share" \| …)`, `skipLocked`, `noWait`, `.orderBy(<primary key>)`, `.limit(n)` | row locks taken one row at a time (a statement can hold a prefix while it waits); without `orderBy` the model uses primary-key order (an approximation: PostgreSQL follows the plan) | [MULTI-ROW-LOCKS](../phase16/MULTI-ROW-LOCKS.md) |
+| `unique().on(..).nullsNotDistinct()`, column `.unique(name, { nulls: "not distinct" })` | enforced in INSERT, multi-row INSERT, UPDATE, `ON CONFLICT`, and the wait on an uncommitted equal key | [NULLS-NOT-DISTINCT](../phase16/NULLS-NOT-DISTINCT.md) |
+| invariant formulas over generated identities: `generatedBy`, `sameGenerated`, `distinctGenerated`, `same`, `forEachActor`, `forEachRow`, `countMatching`/`rowMatching`, `returned`, `argument` | serial-outcome hypotheses over generated values are now stated (matching by actor and generator, not occurrence) | [GENERATED-ID-INVARIANTS](../phase16/GENERATED-ID-INVARIANTS.md) |
+
 ## Input synthesis (Phase 15)
 
 | pattern | how discovery uses it |

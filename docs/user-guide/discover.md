@@ -133,6 +133,17 @@ not exhaustively explored. Details:
 
 ## Known blind spots
 
+Phase 16: on its fresh frozen set (40 cases), first scoring and final
+both precision 1.000, recall 0.333. The most frequent causes of misses are
+JavaScript standard-library calls (`Set.prototype.has`,
+`Number.isSafeInteger`, `Math.min`) and status transitions keyed by the
+id of a row read first. On real projects: zod refinements (`.superRefine`),
+optional chains on call results, `Promise.all` with a used result
+([Phase 16 evaluation](../phase16/PRECISION-RECALL.md),
+[real-world coverage](../phase16/REAL-WORLD-COVERAGE.md)). Phase 16 lifted:
+zod `strictObject` and string formats, bounded loops, request bodies,
+hoisted predicates and multi-row `FOR UPDATE` (below).
+
 Phase 15: on its fresh input-domain set, first scoring recall 0.308,
 post-feedback 0.615, precision 1.000; the Phase 13 set's E26 and the
 Phase 14 set's E21 are now found

@@ -389,3 +389,35 @@ Details: [Phase 15 limitations](../phase15/LIMITATIONS.md).
   outcomes, 0 disagreements); two input-dependent first-party defects
   reproduced on the original code (3/3 each). **Model only:** the new
   read-your-writes counterexamples through a replica.
+
+## Phase 16 changes
+
+Details: [Phase 16 limitations](../phase16/LIMITATIONS.md).
+
+* **Lifted:** zod `strictObject`/`strict`/`passthrough`, `optional`,
+  `nullable`, `default`, `uuid`, `email`, a regex subset and arrays (zod 3
+  and zod 4, version-aware); bounded `for`/`while`/`do…while` loops;
+  inspecting a caught database error's SQLSTATE; `await request.json()` and
+  `Response.json`; predicates hoisted into locals or chosen by a
+  conditional; multi-row `SELECT … FOR UPDATE/SHARE` with `NOWAIT` and
+  `SKIP LOCKED`; `UNIQUE … NULLS NOT DISTINCT` (the Phase 15 INCONCLUSIVE
+  rule now applies only when the rule involves an unmodeled column);
+  properties over generated identifiers.
+* **Still not covered:** zod refinements (`refine`, `superRefine`),
+  transforms, preprocess, coerce, unions; `for...in`, `for await`, labeled
+  jumps, loops beyond 8 iterations (TRUNCATED), backoff delays; errors from
+  lost connections, application error classes (`instanceof MyError`),
+  error messages; a request body that is not valid JSON; Server Actions
+  with `FormData`, tRPC; `orderBy` other than the primary key, multi-row
+  mode with joins; partial unique indexes; collation-aware equality;
+  `UPDATE … RETURNING` row values; more than two actors.
+* **Approximate:** lock order of a multi-row lock without
+  `.orderBy(primaryKey)` (the model uses key order; PostgreSQL may use
+  physical order, measured 24 of 51 schedules differing on an out-of-order
+  heap); `generatedBy` matches any generation event of the actor and
+  generator, not a specific occurrence.
+* **Verified on PostgreSQL 17.11:** NULLS NOT DISTINCT (1542 lockstep
+  replays, 0 disagreements), multi-row locks (2124 schedules, 0
+  disagreements); a retry-loop duplicate reproduced on the original code.
+  **Model only:** replica counterexamples.
+

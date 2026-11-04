@@ -60,6 +60,27 @@ model checking see the same code.
   [Phase 13 package contracts](../phase13/PACKAGE-CONTRACTS.md).
 * **Return values** (Phase 13): `Op::ReturnValue` for the entry's return
   expression when requested. [Phase 13 return values](../phase13/RETURN-VALUES-AND-RESPONSES.md).
+* **zod validation** (Phase 16, `zod.rs`): object schemas with
+  `strictObject`/`strict`/`strip`/`passthrough`, optional/nullable/default,
+  string formats, a regex subset and arrays become a `zodCheck` /
+  `zodData` built-in evaluated by `commitrift_model::zodfn`; the zod major
+  version is read from the project's `package.json` metadata.
+  [Phase 16 zod validation](../phase16/ZOD-VALIDATION.md).
+* **Loops and caught errors** (Phase 16, `concurrency/loops.rs`): bounded
+  `for`/`while`/`do…while` loops unroll into `Let`/`JumpIf`/`Jump` with a
+  classification (COMPLETED, BOUNDED_UNROLLING, TRUNCATED, UNKNOWN,
+  UNSUPPORTED); a `catch` may read a database error's SQLSTATE only for
+  verified origins (`Op::Try.inspect`).
+  [Phase 16 loop semantics](../phase16/LOOP-SEMANTICS.md).
+* **Requests** (Phase 16): `await request.json()` in a route handler is the
+  entry's argument; `Response.json(v)` is its return value.
+  [Phase 16 framework requests](../phase16/FRAMEWORK-REQUESTS.md).
+* **Held predicates and multi-row reads** (Phase 16): predicates in `const`
+  locals, aliases, conditionals and `return <pred>` helpers; multi-row
+  `SELECT` (with `FOR UPDATE/SHARE`, `NOWAIT`, `SKIP LOCKED`, `LIMIT n`,
+  `orderBy(primaryKey)`) as `many: ManyRows`.
+  [Phase 16 predicates](../phase16/DRIZZLE-PREDICATES.md),
+  [multi-row locks](../phase16/MULTI-ROW-LOCKS.md).
 
 ## Shared project context
 

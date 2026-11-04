@@ -35,9 +35,17 @@ pinned packages and builds, for example:
 static tests also depend on pre-built fixture `dist/` directories
 ([Phase 11 baseline](../phase11/BASELINE.md)).
 
+Phase 16 adds two switches with the same meaning:
+`COMMITRIFT_REQUIRE_ZOD=1` (the zod differential needs Node.js and the
+pinned zod packages, located with `COMMITRIFT_ZOD3_DIR` and
+`COMMITRIFT_ZOD4_DIR`) and `COMMITRIFT_REQUIRE_SCHEMA=1` (report-schema
+tests). `fixtures/phase16/retry` needs `npm ci && npm run build` for its
+original-code tests.
+
 Test counts by phase (final tree, macOS): Phase 6 381, Phase 7 412,
 Phase 8 452, Phase 9 524, Phase 10 555 (2 ignored), Phase 11 583 (3
-ignored), Phase 12 606 (3 ignored). The ignored tests are tools, not
+ignored), Phase 12 606 (3 ignored), Phase 15 751 (3 ignored); Phase 16:
+[Phase 16 quality gates](../phase16/QUALITY-GATES.md#10-final-gate-results). The ignored tests are tools, not
 skipped checks (`regenerate_fixtures`, `dump_seed`, `dump_ir`). Phase 13's
 final count is not yet recorded.
 
@@ -73,7 +81,7 @@ repository.
 ## Linux
 
 `scripts/linux-replay-docker.sh` (Phase 4) and the per-phase
-`scripts/phase{8,9,10,12,13}-linux-docker.sh` run fmt, clippy, the full
+`scripts/phase{8,9,10,12,13,14,15,16}-linux-docker.sh` run fmt, clippy, the full
 suite with required replay, the release build and the phase's evidence in a
 Debian 12 container, as a non-root user, with only the bubblewrap-needed
 security options relaxed. The `ci/linux-replay.Dockerfile` image is shared.

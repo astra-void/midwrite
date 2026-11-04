@@ -82,6 +82,10 @@ model counterexample. "Static" = a hazard candidate exists.
 | 15 | same, **first scoring** | Phase 15 build `fd0e291b…` | model 4 / 0 / 9 / 14 (1.000 / 0.308) | yes | as above | `reports/phase15/eval/first-scoring.json` |
 | 15 | same, post-feedback (final) | Phase 15 final tree `ced40150…` | 8 / 0 / 5 / 14 (1.000 / 0.615) | **no** | as above | `reports/phase15/eval/post-feedback-final.json` |
 | 15 | Phase 13 frozen set; Phase 14 set (regression) | Phase 15 final tree | 8 / 0 / 7 / 11 (E26 → TP); 5 / 0 / 13 / 18 (E21 → TP) | **no** | as above | `reports/phase15/regression/` |
+| 16 | Phase 16 set (40 entries: 18 / 19 / 3 unsupported, 11 families; `FROZEN.json` manifest `a55cb43b…`) | Phase 15 release binary | model 1 / 0 / 17 / 19 (1.000 / 0.056) | frozen before scoring | AI-authored without `crates/` access; not blind | `reports/phase16/eval/phase15-binary.json` |
+| 16 | same, **first scoring** | Phase 16 integrated build `393207d3…` | model 6 / 0 / 12 / 19 (1.000 / 0.333) | yes | as above | `reports/phase16/eval/first-scoring.json` |
+| 16 | same, post-feedback (final) | Phase 16 final tree | 6 / 0 / 12 / 19 (unchanged) | **no** | as above | `reports/phase16/eval/post-feedback-final.json` |
+| 16 | Phase 12 set; Phase 13 frozen; Phase 14 set; Phase 15 set (regression) | Phase 16 final tree | 6 / **1** / 1 / 5 (`transferCredits` deadlock vs a heuristic property, PostgreSQL-confirmed); 8 / 0 / 7 / 11; 7 / 0 / 11 / 18; 10 / 0 / 3 / 14 | **no** | as above | `reports/phase16/regression/final-*.json` ([Phase 16 precision and recall](../phase16/PRECISION-RECALL.md#historical-sets-regression-not-fresh-evidence)) |
 
 Regression of earlier benchmarks under a newer binary (not new estimates):
 
@@ -214,6 +218,26 @@ INCONCLUSIVE, 3 BLOCKED; 0 model-checkable); school-ledger 9 candidates,
 now 9 UNSUPPORTED (the 7 formerly INCONCLUSIVE pass their authorization
 guards with stated preconditions and stop at zod `strictObject`), 0
 model-checkable ([Phase 15 real-world evaluation](../phase15/REAL-WORLD-EVALUATION.md)).
+
+Phase 16 (`reports/phase16/corpus/`, Phase 15 vs Phase 16 binary):
+saas-starter unchanged (1 model-checkable); midday (declared factory) 4
+candidates, **1 model-checkable** (the portal-settings read-modify-write,
+NO_VIOLATION_WITHIN_BOUNDS against a heuristic property over generated
+identity), 1 UNSUPPORTED, 2 BLOCKED (need declared invariants);
+school-ledger 9 UNSUPPORTED, 0 model-checkable (blocker moved from zod
+`strictObject` to `.superRefine()`); unnamed-ai-project 0 candidates
+([Phase 16 real-world coverage](../phase16/REAL-WORLD-COVERAGE.md)).
+
+Phase 16 model-checking and differential evidence (`reports/phase16/evidence/`):
+197 of 197 emitted scenarios agree under the four searches; 49 of 54
+counterexample schedules confirmed in lockstep on PostgreSQL 17.11 (264
+outcomes, 0 disagreements; 5 replica models not replayable); new lockstep
+matrices: NULLS NOT DISTINCT 1 542 schedules and multi-row locks 2 124
+schedules, 0 disagreements; zod differential 1 220 comparisons, 0
+mismatches; a retry-loop duplicate reproduced on the original code 3/3
+(connection loss after COMMIT)
+([Phase 16 differential](../phase16/POSTGRESQL-DIFFERENTIAL.md),
+[model correctness](../phase16/MODEL-CORRECTNESS.md)).
 
 Phase 15 model-checking and differential evidence (`reports/phase15/evidence/`,
 final tree `ced40150…`, PostgreSQL 17.11): 98 of 98 generated worlds agree

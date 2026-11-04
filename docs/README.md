@@ -12,8 +12,13 @@ TypeScript ─► Oxc semantic analysis ─► interprocedural effect extraction
 ```
 
 **Status.** Experimental. These pages describe the current system: the
-Phase 15 working tree (base commit `4c338ad`; Phase 15 changes
-uncommitted). Phase 14 added JavaScript values, closures, zod validation,
+Phase 16 working tree (base commit `1efa383`; Phase 16 changes
+uncommitted). Phase 16 added zod object validation (zod 3 and 4,
+differentially checked against the pinned runtimes), bounded loops and
+retry loops, caught database errors, `request.json()`, held Drizzle
+predicates, multi-row row locks, `NULLS NOT DISTINCT`, properties over
+generated identifiers, a discovery-report JSON Schema and a Closed Alpha
+package ([Phase 16 final report](phase16/FINAL-REPORT.md)). Phase 14 added JavaScript values, closures, zod validation,
 multi-row inserts, predicates, timestamps/JSON subsets and new candidate
 families ([Phase 14 final report](phase14/FINAL-REPORT.md)); Phase 15 added
 typed input domains, a feedback-guided search over initial worlds,
@@ -33,6 +38,7 @@ are not rewritten; this layer links to them for detail.
 | [Installation](getting-started/installation.md) | build from source; prerequisites for the optional runtime steps |
 | [Quickstart](getting-started/quickstart.md) | `commitrift check` on one file, with real output |
 | [First verification](getting-started/first-verification.md) | model checking, discovery, PostgreSQL replay, original code |
+| [Closed Alpha guide](alpha/README.md) | for invited developers: build, first run, coverage, reproduction, feedback (not distributed) |
 
 ## User guide
 
@@ -115,6 +121,7 @@ phase.
 | 13 | foreign-key and row-lock semantics, return values and the response step, read replicas, upserts, source resolution | [phase13](phase13/FINAL-REPORT.md) |
 | 14 | JavaScript values, closures, zod, multi-row inserts, predicates, timestamps/JSON, replica round trip, parent-child and return-value families, next steps | [phase14](phase14/FINAL-REPORT.md) |
 | 15 | typed input domains, feedback-guided search over initial worlds, guard-satisfying synthesis, coverage in four dimensions, reproduction artifacts, a fresh frozen evaluation set | [phase15](phase15/FINAL-REPORT.md) |
+| 16 | zod validation, bounded and retry loops, caught errors, request bodies, held predicates, multi-row locks, NULLS NOT DISTINCT, generated-identity properties, discovery-report schema, Closed Alpha package | [phase16](phase16/FINAL-REPORT.md) |
 
 Top-level records kept as they were: [`LIMITATIONS.md`](LIMITATIONS.md)
 (static analyzer, Phases 1–7; superseded as the *current* list by

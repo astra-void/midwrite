@@ -21,6 +21,8 @@ also against an independently produced ground truth.
 | sequences, defaults | non-transactional sequence allocation (`serial`, identity), constant defaults; values concrete relative to a declared start | 7 | [Phase 7 Drizzle extraction](../phase7/DRIZZLE-EXTRACTION.md#generated-values) |
 | generated values | application- and database-generated keys (`gen_random_uuid()`, `$defaultFn` with recognized generators) as values whose identity is the generation event; assumption `generated-values-distinct` (no collision mode) | 12 | [Phase 12 generated values](../phase12/GENERATED-VALUE-SEMANTICS.md) |
 | read replica | one asynchronous hot standby replaying the primary's commits in order with unbounded lag; replica reads take no locks and never wait — with the scenario feature `replicas`; **model only** | 13 | [Phase 13 replica consistency](../phase13/REPLICA-CONSISTENCY.md) |
+| multi-row reads and locks | `SELECT … FOR UPDATE/SHARE` over several rows locks them one at a time in key order (waits, 40P01, `NOWAIT` 55P03 releasing at the error, `SKIP LOCKED`, `LIMIT n` after a wait); lock order without `ORDER BY` is approximate (PostgreSQL uses scan order) | 16 | [Phase 16 multi-row locks](../phase16/MULTI-ROW-LOCKS.md) |
+| `NULLS NOT DISTINCT` | unique sets where NULL keys conflict (waits, 23505, `ON CONFLICT` arbiters) | 16 | [Phase 16 NULLS NOT DISTINCT](../phase16/NULLS-NOT-DISTINCT.md) |
 | in-flight operations | a COMMIT or autocommit write whose acknowledgment is lost may be completed by the server later (`ServerComplete`) | 9 | [Phase 9 ambiguous commit](../phase9/AMBIGUOUS-COMMIT.md) |
 | connection pools | bounded FIFO leases | 9 | [Phase 9 connection pool](../phase9/CONNECTION-POOL.md) |
 
@@ -49,7 +51,7 @@ replica reads without the `replicas` feature; writes or row locks on a
 replica.
 
 Not modeled: subqueries, aggregates other than `count`, `ORDER BY` other
-than the key, `LIMIT` other than 1, multi-row `INSERT … VALUES`, row values
+than the key, `LIMIT` other than 1 except in multi-row mode (16), row values
 of `UPDATE`/`DELETE … RETURNING`, partial-index upsert arbiters
 (`targetWhere`), `SET CONSTRAINTS`, `MATCH FULL`, triggers, row-level
 security, database functions, `NOW()`, savepoints and nested transactions,
