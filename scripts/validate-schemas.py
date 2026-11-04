@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Validate CommitRift JSON reports against their published JSON Schemas.
 
-    scripts/validate-schemas.py [--sarif-schema FILE] REPORT...
+    scripts/validate-schemas.py [--sarif-schema FILE] [--schema FILE] [--builtin] REPORT...
 
 The schema is chosen by the report's `kind` and `schemaVersion` (SARIF files
-by their `version`). Every report is also checked to be *rejected* after a
-deliberate corruption, so that a schema that accepts anything cannot pass.
+by their `version`); `--schema FILE` validates every report against FILE
+instead (to show that a report of another kind or version is rejected).
+Every report is also checked to be *rejected* after a deliberate
+corruption, so that a schema that accepts anything cannot pass.
 Uses the `jsonschema` package. Without it, `--builtin` selects a small
 built-in validator for the draft-07 subset the CommitRift schemas use; it
 refuses (exit 2) any schema keyword it does not implement, so it can never
@@ -35,6 +37,8 @@ SCHEMAS = {
     ("commitrift.model-check", 3): ROOT / "docs/phase8/schemas/model-check-report.v3.schema.json",
     ("commitrift.model-check", 4): ROOT / "docs/phase9/schemas/model-check-report.v4.schema.json",
     ("commitrift.model-check", 5): ROOT / "docs/phase10/schemas/model-check-report.v5.schema.json",
+    ("commitrift.discovery", 1): ROOT / "docs/phase16/schemas/discovery-report.v1.schema.json",
+    ("commitrift.counterexample", 1): ROOT / "docs/phase16/schemas/counterexample.v1.schema.json",
 }
 
 
@@ -62,7 +66,25 @@ def corrupt(report):
 
 SUPPORTED = {"$schema", "$id", "title", "description", "definitions", "$ref", "type", "properties",
              "required", "additionalProperties", "items", "minItems", "maxItems", "enum", "const",
-             "minimum", "pattern"}
+             "minimum", "pattern",
+             # Phase 16 (discovery schema): combinators and a few bounds.
+             "anyOf", "oneOf", "not", "propertyNames", "minProperties", "maxProperties",
+             "minLength", "maximum", "multipleOf"}
+
+
+def json_equal(a, b):
+    """JSON equality for `const`/`enum`: `true` is not `1`, `1` equals `1.0`."""
+    if isinstance(a, bool) or isinstance(b, bool):
+        return type(a) is type(b) and a == b
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(json_equal(a[k], b[k]) for k in a)
+    if isinstance(a, list) and isinstance(b, list):
+        return len(a) == len(b) and all(json_equal(x, y) for x, y in zip(a, b))
+    return a == b
+
+
+def is_valid(schema, instance, root):
+    return not any(True for _ in builtin_errors(schema, instance, root))
 
 
 def builtin_errors(schema, instance, root, path=()):
@@ -72,7 +94,11 @@ def builtin_errors(schema, instance, root, path=()):
     if unknown:
         raise SystemExit(f"builtin validator: unsupported schema keywords {sorted(unknown)}; install jsonschema")
     if "$ref" in schema:
-        name = schema["$ref"].removeprefix("#/definitions/")
+        ref = schema["$ref"]
+        name = ref.removeprefix("#/definitions/")
+        if name == ref or name not in root.get("definitions", {}):
+            # A reference into another schema (`commitrift.traces.v1#/...`).
+            raise SystemExit(f"builtin validator: unsupported $ref {ref!r}; install jsonschema")
         yield from builtin_errors(root["definitions"][name], instance, root, path)
         return
     types = schema.get("type")
@@ -89,15 +115,38 @@ def builtin_errors(schema, instance, root, path=()):
         if not any(is_type(t) for t in types):
             yield (path, f"{instance!r} is not of type {types}")
             return
-    if "const" in schema and instance != schema["const"]:
+    if "const" in schema and not json_equal(instance, schema["const"]):
         yield (path, f"{instance!r} is not {schema['const']!r}")
-    if "enum" in schema and instance not in schema["enum"]:
+    if "enum" in schema and not any(json_equal(instance, v) for v in schema["enum"]):
         yield (path, f"{instance!r} is not one of {schema['enum']}")
-    if "minimum" in schema and isinstance(instance, int) and instance < schema["minimum"]:
+    is_number = isinstance(instance, (int, float)) and not isinstance(instance, bool)
+    if "minimum" in schema and is_number and instance < schema["minimum"]:
         yield (path, f"{instance} < {schema['minimum']}")
+    if "maximum" in schema and is_number and instance > schema["maximum"]:
+        yield (path, f"{instance} > {schema['maximum']}")
+    if "multipleOf" in schema and is_number and instance % schema["multipleOf"] != 0:
+        yield (path, f"{instance} is not a multiple of {schema['multipleOf']}")
     if "pattern" in schema and isinstance(instance, str) and not re.search(schema["pattern"], instance):
         yield (path, f"{instance!r} does not match {schema['pattern']}")
+    if "minLength" in schema and isinstance(instance, str) and len(instance) < schema["minLength"]:
+        yield (path, f"{instance!r} is shorter than {schema['minLength']}")
+    if "anyOf" in schema and not any(is_valid(sub, instance, root) for sub in schema["anyOf"]):
+        yield (path, "is not valid under any of the given schemas (anyOf)")
+    if "oneOf" in schema:
+        matching = sum(1 for sub in schema["oneOf"] if is_valid(sub, instance, root))
+        if matching != 1:
+            yield (path, f"is valid under {matching} of the given schemas, not exactly one (oneOf)")
+    if "not" in schema and is_valid(schema["not"], instance, root):
+        yield (path, f"should not be valid under {schema['not']}")
     if isinstance(instance, dict):
+        if "minProperties" in schema and len(instance) < schema["minProperties"]:
+            yield (path, f"fewer than {schema['minProperties']} properties")
+        if "maxProperties" in schema and len(instance) > schema["maxProperties"]:
+            yield (path, f"more than {schema['maxProperties']} properties")
+        if "propertyNames" in schema:
+            for key in instance:
+                for _, message in builtin_errors(schema["propertyNames"], key, root, path):
+                    yield (path, f"property name {key!r}: {message}")
         for key in schema.get("required", []):
             if key not in instance:
                 yield (path, f"{key!r} is a required property")
@@ -129,6 +178,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--sarif-schema", type=pathlib.Path)
     parser.add_argument("--builtin", action="store_true", help="use the built-in subset validator")
+    parser.add_argument("--schema", type=pathlib.Path,
+                        help="validate every (non-SARIF) report against this schema instead")
     parser.add_argument("reports", nargs="+", type=pathlib.Path)
     args = parser.parse_args()
     failed = False
@@ -145,14 +196,14 @@ def main():
             unit = "results"
         else:
             key = (report.get("kind"), report.get("schemaVersion"))
-            schema_path = SCHEMAS.get(key)
+            schema_path = args.schema or SCHEMAS.get(key)
             if schema_path is None:
                 print(f"{path}: no schema for kind/version {key}", file=sys.stderr)
                 failed = True
                 continue
             label = schema_path.name.replace(".schema.json", "")
-            for unit in ("traces", "cases", "entries", "actors"):
-                if unit in report:
+            for unit in ("candidates", "traces", "cases", "entries", "actors"):
+                if isinstance(report.get(unit), list):
                     count = len(report[unit])
                     break
             else:
