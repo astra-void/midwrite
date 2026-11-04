@@ -71,6 +71,22 @@ pub enum ClosedStmt {
         out: Vec<Row>,
         touched: Vec<RowId>,
     },
+    /// Phase 16: a multi-row `SELECT` (a separate variant, so that the
+    /// encoding of single-row selects is unchanged): every matching row (at
+    /// most `limit`) in primary-key order. Its progress is part of the
+    /// statement: `out` holds the rows returned (and, with a lock, locked)
+    /// so far; the candidates still to examine are the pending statement's
+    /// `todo`.
+    SelectMany {
+        table: u16,
+        pred: Expr,
+        lock: LockMode,
+        projection: Option<Vec<(String, ProjItem)>>,
+        limit: Option<u32>,
+        /// The statement says `ORDER BY` the primary key.
+        ordered: bool,
+        out: Vec<Row>,
+    },
 }
 
 impl ClosedStmt {
@@ -82,13 +98,17 @@ impl ClosedStmt {
             | Self::Update { table, .. }
             | Self::Insert { table, .. }
             | Self::Delete { table, .. }
-            | Self::InsertMany { table, .. } => *table,
+            | Self::InsertMany { table, .. }
+            | Self::SelectMany { table, .. } => *table,
         }
     }
 
     /// Whether the statement writes (`INSERT`, `UPDATE`, `DELETE`).
     pub fn is_write(&self) -> bool {
-        !matches!(self, Self::Select { .. } | Self::Count { .. })
+        !matches!(
+            self,
+            Self::Select { .. } | Self::Count { .. } | Self::SelectMany { .. }
+        )
     }
 }
 

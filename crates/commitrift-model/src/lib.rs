@@ -16,6 +16,7 @@ pub mod html;
 pub mod invariant;
 pub mod ir;
 pub mod jsfn;
+pub mod jsregex;
 pub mod keytable;
 pub mod model;
 #[cfg(feature = "postgres")]
@@ -35,3 +36,4 @@ pub mod state;
 pub mod twin;
 pub mod value;
 pub mod witness;
+pub mod zodfn;

@@ -300,6 +300,12 @@ pub struct FinalSummary {
     pub terms: Vec<TermValue>,
     /// Whether the state is quiescent (all tasks finished).
     pub quiescent: bool,
+    /// Phase 16: why a generated-identity invariant is violated, one line
+    /// per failing instance (a generated-identity mismatch is worded
+    /// differently from an absent or stale value). Empty, and not
+    /// serialized, for every other invariant.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub diagnosis: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -371,6 +377,7 @@ pub fn summarize(model: &Model, s: &State, inv: &Invariant) -> FinalSummary {
         external_effects,
         terms,
         quiescent: s.is_finished(),
+        diagnosis: inv.formula.diagnose(model, s),
     }
 }
 
@@ -501,6 +508,9 @@ pub fn render_text(model: &Model, w: &Witness) -> String {
     ));
     for t in &w.final_state.terms {
         out.push_str(&format!("    {} = {}\n", t.term, t.value.render()));
+    }
+    for d in &w.final_state.diagnosis {
+        out.push_str(&format!("    {d}\n"));
     }
     out.push_str("\nResult:\n  VIOLATED\n");
     out

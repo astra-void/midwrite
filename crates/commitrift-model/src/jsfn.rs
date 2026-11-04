@@ -217,6 +217,67 @@ fn search_string(v: &Value) -> Result<String, EvalError> {
     to_string(v)
 }
 
+/// Phase 16: the reserved key of a caught error whose origin the model does
+/// not know (a lost connection, a child task, an unmodeled `throw`): its
+/// value is the failure's text, and no property of the error is known.
+pub const UNMODELED_ERROR: &str = "$unmodeled";
+/// Phase 16: the reserved key holding the failure text of a caught error
+/// (what a re-throw fails with).
+pub const ERROR_REASON: &str = "$reason";
+/// Phase 16: the reserved key telling that a caught error is an `Error`
+/// instance (`e instanceof Error`).
+pub const ERROR_INSTANCE: &str = "$isError";
+
+/// Phase 16: whether a row is an error object built for a handler that
+/// inspects a caught error (it carries one of the reserved keys).
+pub fn is_error_object(row: &Row) -> bool {
+    row.contains_key(ERROR_INSTANCE)
+        || row.contains_key(ERROR_REASON)
+        || row.contains_key(UNMODELED_ERROR)
+}
+
+/// Phase 16: `recv.key` where `recv` is an error object
+/// ([`is_error_object`]). It lists exactly the properties the model knows
+/// (an explicit `undefined` included); every other property is unknown
+/// rather than `undefined`.
+fn caught_prop(recv: &Value, key: &Value) -> Result<Value, EvalError> {
+    let Value::Str(name) = key else {
+        return unknown("a computed property of a caught error is not modeled");
+    };
+    match recv {
+        r if r.is_nullish() => Err(EvalError::Type(format!(
+            "cannot read properties of {} (reading '{name}')",
+            r.render()
+        ))),
+        Value::Row(row) => {
+            if let Some(reason) = row.get(UNMODELED_ERROR) {
+                return unknown(format!(
+                    "the caught error comes from a failure whose error object is not modeled ({}): its property `{name}` is unknown",
+                    match reason {
+                        Value::Str(s) => s.clone(),
+                        other => other.render(),
+                    }
+                ));
+            }
+            if name.starts_with('$') && name != ERROR_INSTANCE {
+                return unknown(format!(
+                    "property `{name}` of a caught error is not modeled"
+                ));
+            }
+            match row.get(name.as_str()) {
+                Some(v) => Ok(v.clone()),
+                None => unknown(format!(
+                    "property `{name}` of a caught error is not modeled (only the SQLSTATE `code` of a database error and the `message`/`name` of a thrown `Error` are)"
+                )),
+            }
+        }
+        other => unknown(format!(
+            "reading property `{name}` of {} (from a caught error) is not modeled",
+            describe(other)
+        )),
+    }
+}
+
 /// `recv[key]` (property access): an array or string element by integer
 /// index (`undefined` out of range, negative indices included), a property of
 /// an object (`undefined` when absent).
@@ -247,6 +308,8 @@ fn at(recv: &Value, key: &Value) -> Result<Value, EvalError> {
                 .and_then(|i| s.chars().nth(i))
                 .map_or_else(Value::undefined, |c| Value::Str(c.to_string())))
         }
+        // Phase 16: a caught error object knows only its listed properties.
+        (Value::Row(row), _) if is_error_object(row) => caught_prop(recv, key),
         (Value::Row(row), Value::Str(k)) => {
             Ok(row.get(k).cloned().unwrap_or_else(Value::undefined))
         }
@@ -302,6 +365,9 @@ pub fn eval(func: Builtin, args: &[Value], mode: Mode) -> Result<Value, EvalErro
                 Value::List(items) => Ok(Value::Int(items.len() as i64)),
                 // A property like any other of an object; numbers,
                 // booleans, `Map` and `Set` have none.
+                Value::Row(row) if is_error_object(row) => {
+                    caught_prop(&args[0], &Value::str("length"))
+                }
                 Value::Row(row) => Ok(row.get("length").cloned().unwrap_or_else(Value::undefined)),
                 Value::Int(_) | Value::Bool(_) | Value::Map(_) | Value::Set(_) => {
                     Ok(Value::undefined())
@@ -538,11 +604,100 @@ pub fn eval(func: Builtin, args: &[Value], mode: Mode) -> Result<Value, EvalErro
                 Value::Map(m) => Ok(Value::Int(m.entries.len() as i64)),
                 Value::Set(s) => Ok(Value::Int(s.items.len() as i64)),
                 // `x.size` of another value is its property `size`.
+                Value::Row(row) if is_error_object(row) => {
+                    caught_prop(&args[0], &Value::str("size"))
+                }
                 Value::Row(row) => Ok(row.get("size").cloned().unwrap_or_else(Value::undefined)),
                 Value::Int(_) | Value::Bool(_) | Value::Str(_) | Value::List(_) | Value::Gen(_) => {
                     Ok(Value::undefined())
                 }
                 other => bad_receiver(func, other),
+            }
+        }
+        // Phase 16: plain objects (rows).
+        B::HasOwn => {
+            arity(func, args, 2, 2)?;
+            match (&args[0], &args[1]) {
+                (Value::Row(row), Value::Str(k)) => Ok(Value::Bool(row.contains_key(k))),
+                (r, _) if r.is_nullish() => Err(EvalError::Type(
+                    "cannot convert undefined or null to object".to_owned(),
+                )),
+                (r, k) => unknown(format!(
+                    "`Object.hasOwn` of {} with the key {} is not modeled",
+                    describe(r),
+                    k.render()
+                )),
+            }
+        }
+        B::OmitKeys => {
+            arity(func, args, 2, 2)?;
+            match (&args[0], &args[1]) {
+                (Value::Row(row), Value::List(keys)) => {
+                    let mut out = row.clone();
+                    for k in keys {
+                        match k {
+                            Value::Str(k) => {
+                                out.remove(k);
+                            }
+                            other => {
+                                return unknown(format!(
+                                    "an object rest without the key {}",
+                                    other.render()
+                                ));
+                            }
+                        }
+                    }
+                    Ok(Value::Row(out))
+                }
+                (r, _) if r.is_nullish() => Err(EvalError::Type(
+                    "cannot destructure undefined or null".to_owned(),
+                )),
+                (r, _) => unknown(format!("the rest of {} is not modeled", describe(r))),
+            }
+        }
+        B::ObjectAssign => {
+            arity(func, args, 2, 2)?;
+            let mut out = Row::new();
+            for a in args {
+                match a {
+                    Value::Row(row) => out.extend(row.iter().map(|(k, v)| (k.clone(), v.clone()))),
+                    v if v.is_nullish() => {}
+                    other => {
+                        return unknown(format!("spreading {} is not modeled", describe(other)));
+                    }
+                }
+            }
+            Ok(Value::Row(out))
+        }
+        B::DefinedEntries => {
+            arity(func, args, 1, 1)?;
+            match &args[0] {
+                Value::Row(row) => Ok(Value::Row(
+                    row.iter()
+                        .filter(|(_, v)| !matches!(v, Value::Undefined(_)))
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect(),
+                )),
+                other => bad_receiver(func, other),
+            }
+        }
+        B::ZodData => {
+            arity(func, args, 2, 2)?;
+            let (version, schema) =
+                crate::zodfn::from_value(&args[0]).map_err(EvalError::Unknown)?;
+            match crate::zodfn::parse(version, &schema, &args[1]) {
+                Ok(Some(out)) => Ok(out),
+                Ok(None) => unknown("zod data of an input the schema rejects"),
+                Err(why) => unknown(format!("zod validation: {why}")),
+            }
+        }
+        B::ZodCheck => {
+            arity(func, args, 2, 2)?;
+            let (version, schema) =
+                crate::zodfn::from_value(&args[0]).map_err(EvalError::Unknown)?;
+            match crate::zodfn::parse(version, &schema, &args[1]) {
+                Ok(out) => Ok(Value::Bool(out.is_some())),
+                Err(why) => unknown(format!("zod validation: {why}")),
             }
         }
         other if other.is_sql() => unknown(format!(

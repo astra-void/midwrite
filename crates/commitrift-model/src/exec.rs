@@ -76,6 +76,25 @@ fn select_read_predicate(schema: &TableSchema, pred: &Expr, returned: Option<&Ro
     }
 }
 
+/// Phase 16: the semantic read set of a multi-row `SELECT ... ORDER BY pk
+/// [LIMIT n]` that returned `returned`: the whole predicate, unless the
+/// limit stopped the scan (then the rows up to the last returned one, as for
+/// `LIMIT 1`); `LIMIT 0` reads nothing.
+fn many_read_predicate(
+    schema: &TableSchema,
+    pred: &Expr,
+    limit: Option<u32>,
+    returned: &[Row],
+) -> Expr {
+    match limit {
+        Some(0) => Expr::lit(false),
+        Some(n) if returned.len() >= n as usize => {
+            select_read_predicate(schema, pred, returned.last())
+        }
+        _ => pred.clone(),
+    }
+}
+
 /// Candidate rows (visible in `snap` and matching `pred`), in key order.
 fn scan(
     model: &Model,
@@ -225,9 +244,12 @@ fn unique_check(
     exclude: Option<RowId>,
 ) -> UCheck {
     let schema = model.schema.table(table);
-    for (name, cols) in schema.key_sets() {
-        let key = key_tuple(new, &cols);
-        if key.iter().any(Value::is_null) {
+    for rule in schema.key_rules() {
+        let (name, cols) = (rule.name.clone(), &rule.columns);
+        let key = key_tuple(new, cols);
+        // Phase 16: NULLS DISTINCT skips a key with a NULL; NULLS NOT
+        // DISTINCT checks it, NULL equal to NULL (`Value::Null == Null`).
+        if !rule.checks(&key) {
             continue;
         }
         for rid in s.store.table_rows(table) {
@@ -238,7 +260,7 @@ fn unique_check(
             let Some(last) = chain.last() else { continue };
             let has_key = |v: Option<&Version>| {
                 v.and_then(|v| v.values.as_ref())
-                    .is_some_and(|r| key_tuple(r, &cols) == key)
+                    .is_some_and(|r| key_tuple(r, cols) == key)
             };
             if last.commit.is_none() {
                 if last.creator == own {
@@ -578,7 +600,8 @@ fn run_stmt_inner(model: &Model, s: &mut State, p: &mut Pending, foot: &mut Foot
     if !p.started {
         let pred = match &p.stmt {
             ClosedStmt::Select { pred, joins, .. } if joins.is_empty() => Some(pred),
-            ClosedStmt::Count { pred, .. }
+            ClosedStmt::SelectMany { pred, .. }
+            | ClosedStmt::Count { pred, .. }
             | ClosedStmt::Update { pred, .. }
             | ClosedStmt::Delete { pred, .. } => Some(pred),
             ClosedStmt::Insert {
@@ -730,6 +753,65 @@ fn run_stmt_inner(model: &Model, s: &mut State, p: &mut Pending, foot: &mut Foot
                 StmtStep::Done(StmtResult::Row(Some(r))) if projection.is_some() => StmtStep::Done(
                     StmtResult::Row(Some(project(model, table, &[], projection.as_deref(), &r))),
                 ),
+                other => other,
+            }
+        }
+        // Phase 16: a multi-row SELECT. Without a lock it returns the
+        // matching rows of its snapshot; with one it locks them one at a
+        // time in scan order (`run_rows`): a lock it cannot take makes it
+        // wait while holding the locks it already took.
+        ClosedStmt::SelectMany {
+            table,
+            pred,
+            lock,
+            projection,
+            limit,
+            ..
+        } => {
+            let schema = model.schema.table(table);
+            if !p.started {
+                p.started = true;
+                let rows = match scan(model, s, table, &pred, snap) {
+                    Ok(r) => r,
+                    Err(e) => return StmtStep::Failed(e),
+                };
+                foot.push(Access::Pred {
+                    table,
+                    pred: pred.clone(),
+                });
+                if lock == LockMode::None {
+                    let mut rows: Vec<Row> = rows.into_iter().map(|r| r.1).collect();
+                    if let Some(n) = limit {
+                        rows.truncate(n as usize);
+                    }
+                    if iso == Isolation::Serializable {
+                        let read = many_read_predicate(schema, &pred, limit, &rows);
+                        ser_read(s, p.txn, table, &read, snap, foot);
+                    }
+                    return StmtStep::Done(StmtResult::Rows(
+                        rows.iter()
+                            .map(|r| project(model, table, &[], projection.as_deref(), r))
+                            .collect(),
+                    ));
+                }
+                p.todo = rows.into_iter().map(|r| r.0).collect();
+                if limit == Some(0) {
+                    p.todo.clear();
+                }
+            }
+            let step = run_rows(model, s, p, foot, table, &pred, Some(lock), &[], false, iso);
+            match step {
+                StmtStep::Done(StmtResult::Rows(rows)) => {
+                    if iso == Isolation::Serializable {
+                        let read = many_read_predicate(schema, &pred, limit, &rows);
+                        ser_read(s, p.txn, table, &read, snap, foot);
+                    }
+                    StmtStep::Done(StmtResult::Rows(
+                        rows.iter()
+                            .map(|r| project(model, table, &[], projection.as_deref(), r))
+                            .collect(),
+                    ))
+                }
                 other => other,
             }
         }
@@ -889,6 +971,16 @@ fn run_rows(
         if select_lock.is_some() {
             s.store.grant(row, p.txn, mode);
             foot.push(Access::LockChange(row));
+            // Phase 16: a multi-row SELECT keeps the row (and its lock) and
+            // goes on with the next candidate until its limit is reached.
+            if let ClosedStmt::SelectMany { out, limit, .. } = &mut p.stmt {
+                out.push(target);
+                p.todo.remove(0);
+                if limit.is_some_and(|n| out.len() >= n as usize) {
+                    p.todo.clear();
+                }
+                continue;
+            }
             p.found = Some(target);
             p.todo.clear();
             return StmtStep::Done(StmtResult::Row(p.found.clone()));
@@ -976,6 +1068,9 @@ fn run_rows(
         p.affected += 1;
         p.todo.remove(0);
     }
+    if let ClosedStmt::SelectMany { out, .. } = &p.stmt {
+        return StmtStep::Done(StmtResult::Rows(out.clone()));
+    }
     if select_lock.is_some() {
         StmtStep::Done(StmtResult::Row(p.found.clone()))
     } else {
@@ -1024,7 +1119,8 @@ fn run_insert(
             old: None,
             new: Some(values.clone()),
         });
-        match arbiter(s, p.txn, table, &values, &u.target) {
+        let nulls_not_distinct = schema.arbiter_nulls_not_distinct(&u.target);
+        match arbiter(s, p.txn, table, &values, &u.target, nulls_not_distinct) {
             Arbiter::None => {}
             Arbiter::Block(c) => {
                 foot.push(Access::Wait);
@@ -1265,10 +1361,19 @@ enum Arbiter {
 }
 
 /// The row of `table` that conflicts with `new` on the arbiter columns, or
-/// the transaction to wait for (as [`unique_check`] decides it).
-fn arbiter(s: &State, own: TxnId, table: u16, new: &Row, cols: &[String]) -> Arbiter {
+/// the transaction to wait for (as [`unique_check`] decides it). Phase 16:
+/// with a `NULLS NOT DISTINCT` arbiter a key with NULLs is looked up too
+/// (NULL equal to NULL); otherwise it never conflicts.
+fn arbiter(
+    s: &State,
+    own: TxnId,
+    table: u16,
+    new: &Row,
+    cols: &[String],
+    nulls_not_distinct: bool,
+) -> Arbiter {
     let key = key_tuple(new, cols);
-    if key.iter().any(Value::is_null) {
+    if !nulls_not_distinct && key.iter().any(Value::is_null) {
         return Arbiter::None;
     }
     for rid in s.store.table_rows(table) {
@@ -1772,6 +1877,23 @@ pub fn replica_read(
         ClosedStmt::Count { table, pred } => Ok(StmtResult::Count(
             scan(model, s, *table, pred, snap)?.len() as i64,
         )),
+        // Phase 16: a multi-row read (the loader refuses locks on a
+        // replica).
+        ClosedStmt::SelectMany {
+            table,
+            pred,
+            projection,
+            limit,
+            ..
+        } => {
+            let rows = scan(model, s, *table, pred, snap)?;
+            Ok(StmtResult::Rows(
+                rows.iter()
+                    .take(limit.map_or(usize::MAX, |n| n as usize))
+                    .map(|r| project(model, *table, &[], projection.as_deref(), &r.1))
+                    .collect(),
+            ))
+        }
         _ => Err(DbError::new(
             "25006",
             "cannot execute a write in a read-only transaction (replica)",

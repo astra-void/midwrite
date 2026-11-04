@@ -119,6 +119,7 @@ pub fn select_for_update(table: &str, pred: Expr, into: &str) -> StmtKind {
         into: into.to_owned(),
         joins: Vec::new(),
         projection: None,
+        many: None,
     }
 }
 
@@ -878,6 +879,7 @@ pub fn value_program(name: &str) -> Vec<Step> {
                     into: "s".into(),
                     joins: Vec::new(),
                     projection: None,
+                    many: None,
                 },
             ),
             db(Tx, count("settings", is_null(col("prefs")), "c")),

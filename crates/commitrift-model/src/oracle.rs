@@ -414,9 +414,28 @@ fn pk_order(model: &Model, table: u16) -> String {
     cols.join(", ")
 }
 
+/// Phase 16: how the oracle writes a multi-row `SELECT`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SelectForm {
+    /// With `ORDER BY` the primary key: the model's scan order, stated.
+    #[default]
+    Ordered,
+    /// As Drizzle sends it (`select ... where ... [limit n] for update`, no
+    /// `ORDER BY`): the order, and so the lock order, is the plan's. Used
+    /// to verify that the plans of the supported predicates return key
+    /// order (`docs/phase16/MULTI-ROW-LOCKS.md`).
+    Drizzle,
+}
+
 /// The SQL text a statement is sent as. Reads wrap their result so that the
 /// oracle can parse it uniformly (a JSON row, or a count).
 pub fn stmt_sql(model: &Model, stmt: &ClosedStmt) -> Result<String, String> {
+    stmt_sql_form(model, stmt, SelectForm::Ordered)
+}
+
+/// Phase 16: [`stmt_sql`] with the given form of multi-row selects (other
+/// statements are written as by [`stmt_sql`]).
+pub fn stmt_sql_form(model: &Model, stmt: &ClosedStmt, form: SelectForm) -> Result<String, String> {
     let name = |t: u16| quote_ident(&model.schema.table(t).name);
     Ok(match stmt {
         ClosedStmt::Select {
@@ -471,6 +490,41 @@ pub fn stmt_sql(model: &Model, stmt: &ClosedStmt) -> Result<String, String> {
             pk_order(model, *table),
             lock.sql()
         ),
+        // Phase 16: a multi-row select, one JSON row per result row. The
+        // oracle states the model's scan order (`ORDER BY` the primary key):
+        // PostgreSQL then locks in that order (LockRows above an ordered
+        // scan or a sort; `docs/phase16/MULTI-ROW-LOCKS.md`).
+        ClosedStmt::SelectMany {
+            table,
+            pred,
+            lock,
+            projection,
+            limit,
+            ordered,
+            ..
+        } => {
+            let limit = limit.map(|n| format!(" LIMIT {n}")).unwrap_or_default();
+            let order = if form == SelectForm::Drizzle && !ordered {
+                String::new()
+            } else {
+                format!(" ORDER BY {}", pk_order(model, *table))
+            };
+            match projection {
+                Some(projection) => format!(
+                    "SELECT {} FROM {} WHERE {}{order}{limit}{};",
+                    select_json(model, *table, &[], Some(projection)),
+                    name(*table),
+                    expr_sql(pred)?,
+                    lock.sql()
+                ),
+                None => format!(
+                    "SELECT row_to_json(t) FROM (SELECT * FROM {} WHERE {}{order}{limit}{}) t;",
+                    name(*table),
+                    expr_sql(pred)?,
+                    lock.sql()
+                ),
+            }
+        }
         ClosedStmt::Count { table, pred } => {
             format!(
                 "SELECT count(*) FROM {} WHERE {};",
@@ -779,7 +833,9 @@ fn column_types(model: &Model) -> Vec<Vec<&'static str>> {
     out
 }
 
-fn ddl(model: &Model) -> Result<String, String> {
+/// The DDL the oracle runs for a model's schema (Phase 16: public, so
+/// differential tests can record the exact statements).
+pub fn ddl(model: &Model) -> Result<String, String> {
     let types = column_types(model);
     let sequences = model.sequences();
     let mut out = String::new();
@@ -823,6 +879,17 @@ fn ddl(model: &Model) -> Result<String, String> {
         for u in &t.unique {
             parts.push(format!(
                 "UNIQUE ({})",
+                u.iter()
+                    .map(|c| quote_ident(c))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+        // Phase 16: PostgreSQL 15+ syntax; an older server refuses it, and
+        // the comparison does not start.
+        for u in &t.nulls_not_distinct {
+            parts.push(format!(
+                "UNIQUE NULLS NOT DISTINCT ({})",
                 u.iter()
                     .map(|c| quote_ident(c))
                     .collect::<Vec<_>>()
@@ -1162,6 +1229,24 @@ fn parse_result(model: &Model, stmt: &ClosedStmt, lines: &[String]) -> Result<St
             }
             more => Err(format!("{} rows for LIMIT 1", more.len())),
         },
+        // Phase 16: every returned row, in order.
+        ClosedStmt::SelectMany {
+            projection: None, ..
+        } => Ok(StmtResult::Rows(
+            data.iter().map(|l| row(l)).collect::<Result<_, _>>()?,
+        )),
+        ClosedStmt::SelectMany { .. } => Ok(StmtResult::Rows(
+            data.iter()
+                .map(|line| {
+                    let json: serde_json::Value = serde_json::from_str(line)
+                        .map_err(|e| format!("bad row JSON `{line}`: {e}"))?;
+                    match json_to_value(&json) {
+                        Value::Row(r) => Ok(r),
+                        other => Err(format!("unexpected row value {other:?}")),
+                    }
+                })
+                .collect::<Result<_, String>>()?,
+        )),
         ClosedStmt::Count { .. } => parse_count(&data).map(StmtResult::Count),
         ClosedStmt::Insert {
             returning: true, ..
@@ -1193,6 +1278,8 @@ pub struct PgEnv {
     cluster: Cluster,
     bins: Binaries,
     counter: u32,
+    /// Phase 16: how multi-row selects are sent ([`SelectForm`]).
+    select_form: SelectForm,
 }
 
 pub struct Database {
@@ -1217,11 +1304,17 @@ impl PgEnv {
             cluster,
             bins,
             counter: 0,
+            select_form: SelectForm::Ordered,
         })
     }
 
     pub fn version(&self) -> &str {
         self.cluster.version()
+    }
+
+    /// Phase 16: send multi-row selects in `form` from now on.
+    pub fn set_select_form(&mut self, form: SelectForm) {
+        self.select_form = form;
     }
 
     fn open(&self, db: &str, iso: Option<&str>, actor: Option<u16>) -> Result<Session, String> {
@@ -1485,7 +1578,7 @@ impl Run<'_> {
             Conn::Tx => Key::Tx(actor),
             Conn::Pool | Conn::Replica => Key::Pool(actor, thread),
         };
-        let sql = stmt_sql(self.model, stmt)?;
+        let sql = stmt_sql_form(self.model, stmt, self.env.select_form)?;
         self.session(key, actor)?;
         let expect_block = matches!(expect, Expect::Blocked(_));
         if !resumed {

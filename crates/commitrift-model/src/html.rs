@@ -324,7 +324,16 @@ pub fn model_check_html(r: &ModelCheckReport) -> String {
                 escape(&t.value.render())
             );
         }
-        b.push_str("</table></details></div>");
+        b.push_str("</table>");
+        // Phase 16: why a generated-identity invariant is violated.
+        if !w.final_state.diagnosis.is_empty() {
+            b.push_str("<ul>");
+            for d in &w.final_state.diagnosis {
+                let _ = write!(b, "<li class=\"mono\">{}</li>", escape(d));
+            }
+            b.push_str("</ul>");
+        }
+        b.push_str("</details></div>");
     }
 
     // Runtime comparison

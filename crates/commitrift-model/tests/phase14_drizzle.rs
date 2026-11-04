@@ -727,6 +727,7 @@ fn json_values_are_stored_and_read_back_and_unbounded_ones_are_refused() {
                     into: "row".into(),
                     joins: Vec::new(),
                     projection: None,
+                    many: None,
                 },
             ),
             ret(),

@@ -11,7 +11,7 @@
 
 use crate::db::{RowId, key_tuple};
 use crate::model::Model;
-use crate::value::{Expr, Row, Value, predicate_matches};
+use crate::value::{Expr, Row, predicate_matches};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Access {
@@ -158,14 +158,17 @@ impl Footprint {
 
 fn key_overlap(model: &Model, table: u16, a: &[Option<&Row>], b: &[Option<&Row>]) -> bool {
     let schema = model.schema.table(table);
-    for (_, cols) in schema.key_sets() {
+    for rule in schema.key_rules() {
+        let cols = &rule.columns;
         for x in a.iter().flatten() {
-            let kx = key_tuple(x, &cols);
-            if kx.iter().any(Value::is_null) {
+            let kx = key_tuple(x, cols);
+            // Phase 16: under NULLS NOT DISTINCT two keys with NULLs in the
+            // same columns are equal, so their inserts are dependent.
+            if !rule.checks(&kx) {
                 continue;
             }
             for y in b.iter().flatten() {
-                if key_tuple(y, &cols) == kx {
+                if key_tuple(y, cols) == kx {
                     return true;
                 }
             }

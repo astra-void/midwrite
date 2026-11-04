@@ -180,6 +180,30 @@ pub struct Upsert {
     pub filter: Option<Expr>,
 }
 
+/// Phase 16: the multi-row mode of a [`StmtKind::Select`]: `SELECT * FROM
+/// table WHERE pred [ORDER BY <primary key>] [LIMIT n] [FOR ...]`, whose
+/// result is the list of returned rows (a JavaScript array of row objects).
+///
+/// The model returns and locks rows in primary-key order. That is
+/// PostgreSQL's order when the statement says `ORDER BY` the key
+/// (`order_by`; LockRows runs above the sort). Without it PostgreSQL's order
+/// is its plan's: key order for an index scan, physical order for a bitmap
+/// or sequential scan (measured in `docs/phase16/MULTI-ROW-LOCKS.md`), which
+/// the model does not represent. The number of rows is bounded by the rows
+/// of the model's finite world.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ManyRows {
+    /// `LIMIT n` (a literal in the source); absent: every matching row.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+    /// `ORDER BY column` (ascending) written in the source (Drizzle
+    /// `.orderBy(t.column)`); the loader accepts only the single-column
+    /// primary key. Absent: no `ORDER BY` in the statement.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub order_by: Option<String>,
+}
+
 /// A database statement of the supported subset.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -200,6 +224,13 @@ pub enum StmtKind {
         /// Projected result fields (Phase 7); `None` reads the full row.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         projection: Option<Vec<(String, ProjItem)>>,
+        /// Phase 16: the multi-row mode (`docs/phase16/MULTI-ROW-LOCKS.md`).
+        /// Absent: the Phase 6-15 `LIMIT 1` statement above. Present: every
+        /// matching row (at most `limit`), in primary-key order, is
+        /// assigned to `into` as a list of rows; with a lock the rows are
+        /// locked one at a time in that order.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        many: Option<ManyRows>,
     },
     /// `SELECT count(*) FROM table WHERE pred`.
     SelectCount {
@@ -376,6 +407,15 @@ pub enum Op {
         handler: usize,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         error: Option<String>,
+        /// Phase 16: the handler inspects the caught error (`e.code`,
+        /// `e.cause?.code`, `e instanceof Error`): `error` receives the error
+        /// object as the application sees it when the failure's origin is
+        /// modeled (a database statement or COMMIT, as the driver and ORM
+        /// surface it; a `throw new Error(...)`), and an object whose
+        /// properties are unknown otherwise ([`CaughtErrors`]). Absent: the
+        /// Phase 7 opaque binding (the failure's text).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        inspect: Option<CaughtErrors>,
     },
     /// Leave the innermost `try` block (local).
     EndTry,
@@ -405,6 +445,36 @@ pub enum Op {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         defines: Vec<String>,
     },
+}
+
+/// Phase 16: how a database error reaches application code, by where it
+/// was raised. `None` means the shape is not verified for the project's
+/// ORM and driver versions: reading a property of such an error is an
+/// unsupported evaluation, never a guess (`docs/phase16/LOOP-SEMANTICS.md`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CaughtErrors {
+    /// A statement's error (and, through the transaction callback, a
+    /// statement's error inside a transaction).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub statement: Option<ErrorShape>,
+    /// The error of a transaction's COMMIT.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub commit: Option<ErrorShape>,
+}
+
+/// Phase 16: the object a database error is, as the application catches it.
+/// Only `code` (the SQLSTATE) is modeled; other properties (message text,
+/// query text, severity, ...) read as unknown.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ErrorShape {
+    /// The driver's error itself (node-postgres `DatabaseError`,
+    /// postgres-js `PostgresError`): `code` is the SQLSTATE.
+    Driver,
+    /// drizzle-orm's `DrizzleQueryError` wrapping the driver's error:
+    /// `code` is `undefined`, `cause.code` is the SQLSTATE.
+    DrizzleQueryError,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

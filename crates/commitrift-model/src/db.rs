@@ -343,6 +343,14 @@ pub struct TableSchema {
     pub primary_key: Vec<String>,
     #[serde(default)]
     pub unique: Vec<Vec<String>>,
+    /// Phase 16: unique sets declared `NULLS NOT DISTINCT` (PostgreSQL 15+)
+    /// over a nullable column, listed next to (not in) `unique`: for these
+    /// rules a NULL key value equals another NULL, so two rows whose keys
+    /// agree with NULLs in the same columns conflict (SQLSTATE 23505, an
+    /// `ON CONFLICT` arbiter match, a wait on an uncommitted equal key).
+    /// The sets in `unique` keep PostgreSQL's default `NULLS DISTINCT`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub nulls_not_distinct: Vec<Vec<String>>,
     /// Simple CHECK constraints: SQL-mode expressions over `Col`.
     #[serde(default)]
     pub checks: Vec<Expr>,
@@ -469,16 +477,83 @@ impl TableSchema {
         self.columns.iter().any(|c| c.name == name)
     }
 
-    /// Unique key sets: the primary key first, then declared unique sets.
+    /// Unique key sets: the primary key first, then declared unique sets
+    /// (Phase 16: then the `NULLS NOT DISTINCT` sets).
     pub fn key_sets(&self) -> Vec<(String, Vec<String>)> {
-        let mut out = Vec::new();
+        self.key_rules()
+            .into_iter()
+            .map(|r| (r.name, r.columns))
+            .collect()
+    }
+
+    /// Phase 16: the unique rules with their NULL semantics, in
+    /// [`TableSchema::key_sets`] order. Names follow PostgreSQL's defaults
+    /// (`<table>_pkey`, `<table>_<columns>_key`, a repeated name gets the
+    /// next free numeric suffix as `ChooseConstraintName` gives it).
+    pub fn key_rules(&self) -> Vec<KeyRule> {
+        let mut out: Vec<KeyRule> = Vec::new();
         if !self.primary_key.is_empty() {
-            out.push((format!("{}_pkey", self.name), self.primary_key.clone()));
+            out.push(KeyRule {
+                name: format!("{}_pkey", self.name),
+                columns: self.primary_key.clone(),
+                nulls_not_distinct: false,
+            });
         }
-        for u in &self.unique {
-            out.push((format!("{}_{}_key", self.name, u.join("_")), u.clone()));
+        let sets = self
+            .unique
+            .iter()
+            .map(|u| (u, false))
+            .chain(self.nulls_not_distinct.iter().map(|u| (u, true)));
+        for (u, nulls_not_distinct) in sets {
+            let base = format!("{}_{}_key", self.name, u.join("_"));
+            let mut name = base.clone();
+            let mut n = 0;
+            while out.iter().any(|r| r.name == name) {
+                n += 1;
+                name = format!("{base}{n}");
+            }
+            out.push(KeyRule {
+                name,
+                columns: u.clone(),
+                nulls_not_distinct,
+            });
         }
         out
+    }
+
+    /// Phase 16: whether NULLs are equal for an `ON CONFLICT (target)`
+    /// arbiter. PostgreSQL infers as arbiters every unique index whose key
+    /// columns are exactly the target's (in any order); a row conflicts when
+    /// it conflicts on one of them, so a `NULLS NOT DISTINCT` arbiter makes
+    /// NULL keys match.
+    pub fn arbiter_nulls_not_distinct(&self, target: &[String]) -> bool {
+        let mut wanted = target.to_vec();
+        wanted.sort();
+        self.key_rules().into_iter().any(|r| {
+            let mut cols = r.columns;
+            cols.sort();
+            r.nulls_not_distinct && cols == wanted
+        })
+    }
+}
+
+/// Phase 16: one unique rule of a table (the primary key, a `UNIQUE` set or
+/// a `UNIQUE NULLS NOT DISTINCT` set).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct KeyRule {
+    pub name: String,
+    pub columns: Vec<String>,
+    /// NULLs are equal for this rule (PostgreSQL 15+ `NULLS NOT DISTINCT`).
+    pub nulls_not_distinct: bool,
+}
+
+impl KeyRule {
+    /// Whether a key tuple of this rule can conflict at all: with the
+    /// default `NULLS DISTINCT` a tuple with a NULL never equals another
+    /// (PostgreSQL skips the uniqueness check); with `NULLS NOT DISTINCT`
+    /// every tuple is checked, NULL equal to NULL.
+    pub fn checks(&self, key: &[Value]) -> bool {
+        self.nulls_not_distinct || !key.iter().any(Value::is_null)
     }
 }
 
@@ -769,6 +844,7 @@ mod tests {
             ],
             primary_key: vec!["id".into()],
             unique: vec![],
+            nulls_not_distinct: Vec::new(),
             checks: vec![Expr::bin(BinOp::Ge, Expr::col("stock"), Expr::lit(0))],
             foreign_keys: Vec::new(),
         }

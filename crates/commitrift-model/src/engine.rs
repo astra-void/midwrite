@@ -1100,6 +1100,27 @@ fn close_stmt(model: &Model, locals: &Locals, stmt: &Stmt) -> Result<ClosedStmt,
     };
     let close = |e: &Expr| e.close(locals, Mode::Sql).map_err(|e| e.to_string());
     Ok(match &stmt.kind {
+        // Phase 16: the multi-row mode (the loader refuses it with joins).
+        StmtKind::Select {
+            table: t,
+            pred,
+            lock,
+            joins,
+            projection,
+            many: Some(many),
+            ..
+        } if joins.is_empty() => ClosedStmt::SelectMany {
+            table: table(t)?,
+            pred: close(pred)?,
+            lock: *lock,
+            projection: projection.clone(),
+            limit: many.limit,
+            ordered: many.order_by.is_some(),
+            out: Vec::new(),
+        },
+        StmtKind::Select { many: Some(_), .. } => {
+            return Err("a multi-row select with joins is not modeled".into());
+        }
         StmtKind::Select {
             table: t,
             pred,
@@ -1246,6 +1267,28 @@ pub fn describe(model: &Model, c: &ClosedStmt) -> String {
             pred.render(),
             lock.sql()
         ),
+        ClosedStmt::SelectMany {
+            table,
+            pred,
+            lock,
+            limit,
+            ordered,
+            ..
+        } => format!(
+            "SELECT ALL {} WHERE {}{}{}{}",
+            name(*table),
+            pred.render(),
+            if *ordered {
+                format!(
+                    " ORDER BY {}",
+                    model.schema.table(*table).primary_key.join(", ")
+                )
+            } else {
+                String::new()
+            },
+            limit.map(|n| format!(" LIMIT {n}")).unwrap_or_default(),
+            lock.sql()
+        ),
         ClosedStmt::Count { table, pred } => {
             format!("COUNT {} WHERE {}", name(*table), pred.render())
         }
@@ -1330,6 +1373,7 @@ pub fn bind_clocks(model: &Model, s: &mut State, txn: crate::db::TxnId, stmt: &m
         }
         match stmt {
             ClosedStmt::Select { pred, .. }
+            | ClosedStmt::SelectMany { pred, .. }
             | ClosedStmt::Count { pred, .. }
             | ClosedStmt::Delete { pred, .. } => expr(pred, out),
             ClosedStmt::Update { pred, set, .. } => {
@@ -1461,6 +1505,7 @@ pub fn bind_clocks(model: &Model, s: &mut State, txn: crate::db::TxnId, stmt: &m
     }
     match stmt {
         ClosedStmt::Select { pred, .. }
+        | ClosedStmt::SelectMany { pred, .. }
         | ClosedStmt::Count { pred, .. }
         | ClosedStmt::Delete { pred, .. } => sub_e(pred, &map),
         ClosedStmt::Update { pred, set, .. } => {
@@ -1751,9 +1796,14 @@ fn deliver(
         StmtResult::Count(n) => (Value::Int(*n), EventKind::Read),
         StmtResult::Affected(n) => (Value::Int(*n), EventKind::Write),
         // Phase 14: a multi-row `INSERT ... RETURNING`: a JavaScript array.
+        // Phase 16: also a multi-row `SELECT` (a read).
         StmtResult::Rows(rows) => (
             Value::List(rows.iter().cloned().map(Value::Row).collect()),
-            EventKind::Write,
+            if is_write {
+                EventKind::Write
+            } else {
+                EventKind::Read
+            },
         ),
     };
     let target = match &stmt.kind {
@@ -1864,12 +1914,19 @@ fn db_failure(
         settle_actor(model, s, a, foot, rec);
         return;
     }
-    fail_thread(
+    // Phase 16: a handler that inspects the error sees the statement's (or
+    // the COMMIT's) SQLSTATE.
+    let commit = matches!(op_at(model, s, a, th).op, Op::Commit);
+    fail_thread_from(
         model,
         s,
         a,
         th,
         format!("{}: {}", err.sqlstate, err.message),
+        Failure::Sql {
+            sqlstate: err.sqlstate.clone(),
+            commit,
+        },
         foot,
         rec,
     );
@@ -2173,7 +2230,7 @@ fn settle_thread(
                 }
             },
             Op::Jump { target } => s.actors[a].threads[th].pc = *target as u32,
-            Op::Try { handler, error } => {
+            Op::Try { handler, error, .. } => {
                 let open = s.actors[a].txn.is_some();
                 let t = &mut s.actors[a].threads[th];
                 t.handlers.push((*handler as u32, error.clone(), open));
@@ -2185,12 +2242,36 @@ fn settle_thread(
                 t.pc += 1;
             }
             Op::Rethrow { local } => {
-                let reason = match s.actors[a].locals.get(local) {
-                    Some(Value::Str(r)) => r.clone(),
-                    Some(other) => other.render(),
-                    None => "rethrown".to_owned(),
+                // Phase 16: an error object (a caught error re-thrown, or a
+                // `throw new Error(...)` lowered as one) fails with its own
+                // text and keeps its origin for the next handler.
+                let value = s.actors[a].locals.get(local).cloned();
+                let (reason, origin) = match &value {
+                    Some(Value::Str(r)) => (r.clone(), Failure::Unknown),
+                    Some(Value::Row(row)) if row.contains_key(crate::jsfn::ERROR_REASON) => {
+                        let reason = match &row[crate::jsfn::ERROR_REASON] {
+                            Value::Str(r) => r.clone(),
+                            other => other.render(),
+                        };
+                        if row.contains_key(THROWN_ERROR) {
+                            rec.add(
+                                a,
+                                th,
+                                EventKind::Fail,
+                                src,
+                                || format!("throw Error({reason:?})"),
+                                None,
+                                None,
+                            );
+                        }
+                        let mut row = row.clone();
+                        row.remove(THROWN_ERROR);
+                        (reason, Failure::Error(Value::Row(row)))
+                    }
+                    Some(other) => (other.render(), Failure::Unknown),
+                    None => ("rethrown".to_owned(), Failure::Unknown),
                 };
-                fail_thread(model, s, a, th, reason, foot, rec);
+                fail_thread_from(model, s, a, th, reason, origin, foot, rec);
                 return;
             }
             Op::Return => {
@@ -2356,6 +2437,103 @@ fn fail_thread(
     foot: &mut Footprint,
     rec: &mut Recorder,
 ) {
+    fail_thread_from(model, s, a, th, reason, Failure::Unknown, foot, rec);
+}
+
+/// Phase 16: where a task's failure comes from, for a handler that inspects
+/// the caught error (`Op::Try::inspect`).
+enum Failure {
+    /// An origin whose error object is not modeled (a lost connection, a
+    /// failed child task, an evaluation error, an unmodeled `throw`).
+    Unknown,
+    /// A database error of a statement or of a COMMIT.
+    Sql { sqlstate: String, commit: bool },
+    /// An error object the application holds (a re-thrown caught error, a
+    /// `throw new Error(...)`).
+    Error(Value),
+}
+
+/// Phase 16: the marker of an error object built for `throw new
+/// Error(...)` (the re-throw reports it as a throw).
+pub const THROWN_ERROR: &str = "$thrown";
+
+/// Phase 16: the error object a handler that inspects it receives.
+fn caught_value(shape: &crate::ir::CaughtErrors, reason: &str, origin: Failure) -> Value {
+    use crate::ir::ErrorShape;
+    use crate::jsfn::{ERROR_INSTANCE, ERROR_REASON, UNMODELED_ERROR};
+    let mut row = crate::value::Row::new();
+    row.insert(ERROR_REASON.to_owned(), Value::str(reason));
+    match origin {
+        Failure::Error(v) => return v,
+        Failure::Unknown => {
+            row.insert(UNMODELED_ERROR.to_owned(), Value::str(reason));
+        }
+        Failure::Sql { sqlstate, commit } => {
+            let at = if commit {
+                shape.commit
+            } else {
+                shape.statement
+            };
+            match at {
+                None => {
+                    row.insert(
+                        UNMODELED_ERROR.to_owned(),
+                        Value::str(format!(
+                            "{reason}; how the project's ORM and driver surface a database error{} is not verified",
+                            if commit { " of a COMMIT" } else { "" }
+                        )),
+                    );
+                }
+                Some(ErrorShape::Driver) => {
+                    row.insert(ERROR_INSTANCE.to_owned(), Value::Bool(true));
+                    row.insert("code".to_owned(), Value::Str(sqlstate));
+                }
+                Some(ErrorShape::DrizzleQueryError) => {
+                    row.insert(ERROR_INSTANCE.to_owned(), Value::Bool(true));
+                    row.insert("code".to_owned(), Value::undefined());
+                    let mut cause = crate::value::Row::new();
+                    cause.insert(ERROR_INSTANCE.to_owned(), Value::Bool(true));
+                    cause.insert("code".to_owned(), Value::Str(sqlstate));
+                    row.insert("cause".to_owned(), Value::Row(cause));
+                }
+            }
+        }
+    }
+    Value::Row(row)
+}
+
+/// The `Op::Try` whose handler starts at `handler` in code vector `code`.
+fn try_inspect(
+    model: &Model,
+    a: usize,
+    code: usize,
+    handler: u32,
+) -> Option<crate::ir::CaughtErrors> {
+    model.actors[a]
+        .codes
+        .get(code)?
+        .iter()
+        .find_map(|step| match &step.op {
+            Op::Try {
+                handler: h,
+                inspect,
+                ..
+            } if *h as u32 == handler => *inspect,
+            _ => None,
+        })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn fail_thread_from(
+    model: &Model,
+    s: &mut State,
+    a: usize,
+    th: usize,
+    reason: String,
+    origin: Failure,
+    foot: &mut Footprint,
+    rec: &mut Recorder,
+) {
     // An active `try` handler catches the failure (Phase 7).
     if let Some((handler, error, opened_in_txn)) = s.actors[a].threads[th].handlers.pop() {
         if !opened_in_txn
@@ -2371,8 +2549,12 @@ fn fail_thread(
             });
         }
         if let Some(local) = error {
-            std::sync::Arc::make_mut(&mut s.actors[a].locals)
-                .insert(local, Value::Str(reason.clone()));
+            let code = s.actors[a].threads[th].code as usize;
+            let value = match try_inspect(model, a, code, handler) {
+                Some(shape) => caught_value(&shape, &reason, origin),
+                None => Value::Str(reason.clone()),
+            };
+            std::sync::Arc::make_mut(&mut s.actors[a].locals).insert(local, value);
         }
         let t = &mut s.actors[a].threads[th];
         t.pending = None;

@@ -160,7 +160,9 @@ fn sql_table(model: &Model, t: u16) -> String {
 
 fn kind_of(stmt: &ClosedStmt) -> SqlKind {
     match stmt {
-        ClosedStmt::Select { .. } | ClosedStmt::Count { .. } => SqlKind::Select,
+        ClosedStmt::Select { .. } | ClosedStmt::Count { .. } | ClosedStmt::SelectMany { .. } => {
+            SqlKind::Select
+        }
         ClosedStmt::Insert { .. } | ClosedStmt::InsertMany { .. } => SqlKind::Insert,
         ClosedStmt::Update { .. } => SqlKind::Update,
         ClosedStmt::Delete { .. } => SqlKind::Delete,
@@ -998,6 +1000,28 @@ fn expected_cells(model: &Model, stmt: &ClosedStmt, row: &Row) -> Vec<(String, V
                 }
             }
         }
+    };
+    // Phase 16: each row of a multi-row select carries the cells of a
+    // single-row select of the same table and projection.
+    let as_select;
+    let stmt = match stmt {
+        ClosedStmt::SelectMany {
+            table,
+            pred,
+            lock,
+            projection,
+            ..
+        } => {
+            as_select = ClosedStmt::Select {
+                table: *table,
+                pred: pred.clone(),
+                lock: *lock,
+                joins: Vec::new(),
+                projection: projection.clone(),
+            };
+            &as_select
+        }
+        other => other,
     };
     match stmt {
         ClosedStmt::Select {

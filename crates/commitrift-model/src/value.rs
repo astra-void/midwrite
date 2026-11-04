@@ -342,6 +342,27 @@ pub enum Builtin {
     Delete,
     /// `m.size` / `s.size`.
     Size,
+    /// Phase 16: `Object.hasOwn(obj, key)` of a plain object (a row).
+    HasOwn,
+    /// Phase 16: the rest of a plain object without the listed keys
+    /// (`const { a, b, ...rest } = obj`; the second argument is the array
+    /// of keys).
+    OmitKeys,
+    /// Phase 16: `{ ...a, ...b }` of plain objects (`null`/`undefined`
+    /// spread nothing).
+    ObjectAssign,
+    /// Phase 16: `schema.safeParse(x).success` of a zod schema; the first
+    /// argument is the schema's descriptor (`crate::zodfn::to_value`).
+    ZodCheck,
+    /// Phase 16: the entries of a plain object whose value is not
+    /// `undefined` (`Object.fromEntries(Object.entries(o).filter(([, v]) =>
+    /// v !== undefined))`).
+    DefinedEntries,
+    /// Phase 16: `schema.parse(x)` of a zod schema (its descriptor first):
+    /// the parsed value of an input the schema accepts (used for arrays
+    /// whose elements are rebuilt; the input is checked by `ZodCheck`
+    /// before, an input it rejects is an unsupported evaluation).
+    ZodData,
     // SQL.
     /// `col IN (v1, ...)` (Drizzle `inArray(col, [...])`) with SQL
     /// three-valued logic.
@@ -377,6 +398,12 @@ impl Builtin {
             Self::SetAdd => "add",
             Self::Delete => "delete",
             Self::Size => "size",
+            Self::HasOwn => "Object.hasOwn",
+            Self::OmitKeys => "omit",
+            Self::ObjectAssign => "assign",
+            Self::ZodCheck => "zodCheck",
+            Self::DefinedEntries => "definedEntries",
+            Self::ZodData => "zodData",
             Self::InList => "in",
         }
     }
@@ -770,6 +797,20 @@ fn render_call(func: Builtin, args: &[Expr]) -> String {
                 .join(" + ")
         ),
         (B::NewMap | B::NewSet, items) => format!("{}({})", func.name(), list(items)),
+        // Phase 16.
+        (B::ObjectAssign, [a, b]) => format!("{{...{}, ...{}}}", a.render(), b.render()),
+        (B::ZodCheck, [Expr::Lit(desc), x]) => match crate::zodfn::from_value(desc) {
+            Ok((_, schema)) => format!(
+                "{}.safeParse({}).success",
+                crate::zodfn::render(&schema),
+                x.render()
+            ),
+            Err(_) => format!("{}({})", func.name(), list(args)),
+        },
+        (B::ZodData, [Expr::Lit(desc), x]) => match crate::zodfn::from_value(desc) {
+            Ok((_, schema)) => format!("{}.parse({})", crate::zodfn::render(&schema), x.render()),
+            Err(_) => format!("{}({})", func.name(), list(args)),
+        },
         (
             B::Includes
             | B::StartsWith

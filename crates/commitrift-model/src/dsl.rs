@@ -31,6 +31,15 @@
 //! `newSet(items)`. Statements inside `begin ... commit` run on the transaction
 //! (`Conn::Tx`); others run in autocommit mode (`Conn::Pool`). Prefix a
 //! statement with `pool` or `tx` to override.
+//!
+//! Phase 16: `let t = generate "nanoid(21)"` is a fresh value from a package
+//! call ([`Op::Generate`]: a generation event of the actor; the string names
+//! the call for reports).
+//!
+//! Phase 16: `let rows = select all t where ... [order by @id] [limit n]
+//! [for update]` binds the list of every matching row (the multi-row mode,
+//! locked one row at a time in key order); `inArray(@col, [a, b])` is
+//! Drizzle's `inArray`.
 
 use crate::ir::{Conn, Isolation, LockMode, OnConflict, Op, SourceRef, Step, Stmt, StmtKind};
 use crate::value::{BinOp, Builtin, EachOp, Expr, Value};
@@ -385,7 +394,14 @@ impl<'a> Cursor<'a> {
                 name if matches!(self.peek(), Some(Tok::Sym("(")))
                     && matches!(
                         name,
-                        "String" | "typeof" | "concat" | "length" | "size" | "newMap" | "newSet"
+                        "String"
+                            | "typeof"
+                            | "concat"
+                            | "length"
+                            | "size"
+                            | "newMap"
+                            | "newSet"
+                            | "inArray"
                     ) =>
                 {
                     let func = match name {
@@ -395,6 +411,8 @@ impl<'a> Cursor<'a> {
                         "length" => Builtin::Length,
                         "size" => Builtin::Size,
                         "newMap" => Builtin::NewMap,
+                        // Phase 16: Drizzle's `inArray(column, list)` (SQL).
+                        "inArray" => Builtin::InList,
                         _ => Builtin::NewSet,
                     };
                     self.expect_sym("(")?;
@@ -617,6 +635,9 @@ fn parse_stmt(
                 conn = Conn::Replica;
             }
             if c.eat_kw("select") {
+                // Phase 16: `select all t where ... [limit n] [for ...]`, the
+                // multi-row mode (a list of rows).
+                let all = c.eat_kw("all");
                 let table = c.ident("a table")?;
                 let mut joins = Vec::new();
                 loop {
@@ -646,10 +667,31 @@ fn parse_stmt(
                 }
                 c.expect_kw("where")?;
                 let pred = c.expr()?;
+                let mut many = all.then(crate::ir::ManyRows::default);
+                if let Some(many) = many.as_mut() {
+                    if c.eat_kw("order") {
+                        c.expect_kw("by")?;
+                        let Some(Tok::Col(column)) = c.next() else {
+                            return err(c.line, "`order by` expects a column `@name`");
+                        };
+                        many.order_by = Some(column);
+                    }
+                    if c.eat_kw("limit") {
+                        match c.next() {
+                            Some(Tok::Int(n)) if (0..=i64::from(u32::MAX)).contains(&n) => {
+                                many.limit = Some(n as u32);
+                            }
+                            _ => return err(c.line, "`limit` expects a non-negative integer"),
+                        }
+                    }
+                }
                 let lock = parse_lock(&mut c)?;
                 done(&c)?;
                 if !joins.is_empty() && lock != LockMode::None {
                     return err(c.line, "row locks on joins are not modeled");
+                }
+                if !joins.is_empty() && all {
+                    return err(c.line, "a multi-row select with joins is not modeled");
                 }
                 let kind = StmtKind::Select {
                     table,
@@ -658,6 +700,7 @@ fn parse_stmt(
                     into: name,
                     joins,
                     projection: None,
+                    many,
                 };
                 push(
                     b,
@@ -683,6 +726,25 @@ fn parse_stmt(
                     line,
                     Op::Db {
                         stmt: Stmt { conn, kind },
+                    },
+                );
+            } else if c.is_kw("generate")
+                && matches!(c.toks.get(c.pos + 1), Some(Tok::Str(_)))
+                && c.toks.len() == c.pos + 2
+            {
+                // Phase 16: `let t = generate "nanoid(21)"`: a fresh value
+                // from a package call (a generation event of the actor).
+                c.eat_kw("generate");
+                let Some(Tok::Str(source)) = c.next() else {
+                    return err(c.line, "`generate` needs the call's text as a string");
+                };
+                push(
+                    b,
+                    code,
+                    line,
+                    Op::Generate {
+                        local: name,
+                        source,
                     },
                 );
             } else {

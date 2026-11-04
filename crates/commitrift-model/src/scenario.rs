@@ -106,6 +106,11 @@ struct RawTable {
     primary_key: Vec<String>,
     #[serde(default)]
     unique: Vec<Vec<String>>,
+    /// Phase 16: unique sets declared `NULLS NOT DISTINCT` (PostgreSQL 15+),
+    /// kept apart from `unique` (whose sets are NULLS DISTINCT). With
+    /// `from`, a non-empty list must agree with the source.
+    #[serde(default)]
+    nulls_not_distinct: Vec<Vec<String>>,
     /// CHECK constraints as expressions over `@column`.
     #[serde(default)]
     checks: Vec<String>,
@@ -1163,6 +1168,8 @@ fn link_table(
     }
     // Uniqueness: only global rules over modeled columns.
     let mut unique: Vec<Vec<String>> = Vec::new();
+    // Phase 16: NULLS NOT DISTINCT rules over a nullable column.
+    let mut nulls_not_distinct: Vec<Vec<String>> = Vec::new();
     for u in &x.unique {
         let name = u.name.clone().unwrap_or_else(|| u.columns.join("_"));
         let mapped: Option<Vec<String>> = u.columns.iter().map(|c| property(c)).collect();
@@ -1181,17 +1188,19 @@ fn link_table(
                 FactOrigin::NotModeled,
                 at(u.line),
             );
-        } else if u.nulls_not_distinct && nullable {
+        } else if let (true, true, Some(cols)) = (u.nulls_not_distinct, nullable, &mapped) {
+            // Phase 16: enforced with NULL equal to NULL.
             fact(
                 &mut facts,
                 format!(
-                    "unique {} `{name}` NULLS NOT DISTINCT on nullable ({}): not modeled (the model treats NULLs as distinct)",
+                    "unique {} `{name}` NULLS NOT DISTINCT on nullable ({}): NULLs are equal for this rule (PostgreSQL 15+); a second row with the same key, NULLs included, conflicts",
                     u.kind,
                     u.columns.join(", ")
                 ),
-                FactOrigin::NotModeled,
+                FactOrigin::ExtractedFromSource,
                 at(u.line),
             );
+            nulls_not_distinct.push(cols.clone());
         } else if let Some(cols) = mapped {
             fact(
                 &mut facts,
@@ -1213,9 +1222,14 @@ fn link_table(
             fact(
                 &mut facts,
                 format!(
-                    "unique {} `{name}` on ({}): a column is not modeled",
+                    "unique {} `{name}` on ({}){}: a column is not modeled",
                     u.kind,
-                    u.columns.join(", ")
+                    u.columns.join(", "),
+                    if u.nulls_not_distinct && nullable {
+                        " NULLS NOT DISTINCT"
+                    } else {
+                        ""
+                    }
                 ),
                 FactOrigin::NotModeled,
                 at(u.line),
@@ -1244,6 +1258,18 @@ fn link_table(
             format!(
                 "the scenario's unique sets {:?} differ from the source's {:?}; state an override with a reason",
                 t.unique, unique
+            ),
+        );
+    }
+    // Phase 16: declared NULLS NOT DISTINCT sets agree with the source.
+    if !t.nulls_not_distinct.is_empty()
+        && sorted(&t.nulls_not_distinct) != sorted(&nulls_not_distinct)
+    {
+        return bad(
+            format!("{path}.nullsNotDistinct"),
+            format!(
+                "the scenario's NULLS NOT DISTINCT sets {:?} differ from the source's {:?}",
+                t.nulls_not_distinct, nulls_not_distinct
             ),
         );
     }
@@ -1277,6 +1303,7 @@ fn link_table(
             columns: columns.into_iter().map(RawColumn::Full).collect(),
             primary_key,
             unique,
+            nulls_not_distinct,
             checks: t.checks.clone(),
             from: None,
             overrides: None,
@@ -1382,7 +1409,12 @@ fn build_schema(
             }
         }
         let has = |c: &String| columns.iter().any(|x| &x.name == c);
-        for c in t.primary_key.iter().chain(t.unique.iter().flatten()) {
+        for c in t
+            .primary_key
+            .iter()
+            .chain(t.unique.iter().flatten())
+            .chain(t.nulls_not_distinct.iter().flatten())
+        {
             if !has(c) {
                 return bad(
                     path.clone(),
@@ -1425,6 +1457,7 @@ fn build_schema(
             columns,
             primary_key: t.primary_key.clone(),
             unique: t.unique.clone(),
+            nulls_not_distinct: t.nulls_not_distinct.clone(),
             checks,
             foreign_keys: t.foreign_keys.clone(),
         });
@@ -1763,16 +1796,17 @@ fn build_initial(
             if let Some(why) = crate::db::typed_row_problem(table, &full) {
                 return bad(&path, why);
             }
-            for (cname, cols) in table.key_sets() {
-                let key = crate::db::key_tuple(&full, &cols);
-                if key.iter().any(Value::is_null) {
+            for rule in table.key_rules() {
+                let key = crate::db::key_tuple(&full, &rule.columns);
+                // Phase 16: NULLS NOT DISTINCT rules check NULL keys too.
+                if !rule.checks(&key) {
                     continue;
                 }
                 if rows
                     .iter()
-                    .any(|r: &Row| crate::db::key_tuple(r, &cols) == key)
+                    .any(|r: &Row| crate::db::key_tuple(r, &rule.columns) == key)
                 {
-                    return bad(&path, format!("duplicate key violates `{cname}`"));
+                    return bad(&path, format!("duplicate key violates `{}`", rule.name));
                 }
             }
             rows.push(full);
@@ -2266,6 +2300,35 @@ fn check_step(
             check_expr(model, expr, None, defined, at)
         }
         Op::Db { stmt } => match &stmt.kind {
+            // Phase 16: the multi-row mode reads one table (joins are not
+            // modeled with it).
+            StmtKind::Select {
+                joins,
+                many: Some(_),
+                ..
+            } if !joins.is_empty() => bad(at, "a multi-row select with joins is not modeled"),
+            // Phase 16: `ORDER BY` only by the single-column primary key (the
+            // model's order).
+            StmtKind::Select {
+                table,
+                many:
+                    Some(crate::ir::ManyRows {
+                        order_by: Some(column),
+                        ..
+                    }),
+                ..
+            } if model
+                .schema
+                .by_name(table)
+                .is_none_or(|t| t.primary_key.as_slice() != std::slice::from_ref(column)) =>
+            {
+                bad(
+                    at,
+                    format!(
+                        "`ORDER BY {column}` on a multi-row select is modeled only when `{column}` is the table's single-column primary key"
+                    ),
+                )
+            }
             StmtKind::Select {
                 table,
                 pred,
@@ -2393,6 +2456,23 @@ fn standard_assumptions(model: &Model, report: &LoadReport) -> Vec<String> {
     }
     if model.bounds.max_context_switches.is_some() {
         v.push("partial-order reduction is disabled because maxContextSwitches is set".into());
+    }
+    // Phase 16.
+    let nnd: Vec<String> = model
+        .schema
+        .tables
+        .iter()
+        .flat_map(|t| {
+            t.nulls_not_distinct
+                .iter()
+                .map(move |u| format!("{}({})", t.name, u.join(", ")))
+        })
+        .collect();
+    if !nnd.is_empty() {
+        v.push(format!(
+            "UNIQUE NULLS NOT DISTINCT (PostgreSQL 15+): for {} a NULL key value equals another NULL, so an insert or update whose key matches an existing or uncommitted row's, NULLs included, fails with 23505, waits for the uncommitted row's transaction, or is an ON CONFLICT match; non-NULL values compare by model value equality as for every unique key",
+            nnd.join(", ")
+        ));
     }
     let generators = model.generators();
     if !generators.is_empty() {
