@@ -1,0 +1,113 @@
+{
+  "actors": [
+    {
+      "arguments": [
+        "f35425ca-0000-4000-a000-000000000001",
+        "daily"
+      ],
+      "name": "saveDigestFrequency-1",
+      "selector": "src/services/digests.ts#saveDigestFrequency"
+    },
+    {
+      "arguments": [
+        "f35425ca-0000-4000-a000-000000000001",
+        "daily"
+      ],
+      "name": "saveDigestFrequency-2",
+      "selector": "src/services/digests.ts#saveDigestFrequency"
+    }
+  ],
+  "algorithm": "sleep-sets",
+  "assumptions": [
+    "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+  ],
+  "bounds": {
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "maxStates": 200000,
+    "maxSteps": 64
+  },
+  "candidate": "CR-SYNTH-77E800",
+  "class": "return-value",
+  "evidence": "model counterexample (not an original-code reproduction)",
+  "finalTerms": [
+    "savedigestfrequency:ok returning false = 2"
+  ],
+  "finding": "MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `digest-read-your-writes` (USER_DECLARED). The property is declared by the user; the counterexample replays in the model.",
+  "initialState": {
+    "accounts": [
+      {
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "email": "email-1",
+        "id": "f35425ca-0000-4000-a000-000000000001"
+      }
+    ],
+    "digest_preferences": [
+      {
+        "accountId": "f35425ca-0000-4000-a000-000000000001",
+        "frequency": "weekly"
+      }
+    ]
+  },
+  "kind": "commitrift.counterexample",
+  "property": {
+    "name": "digest-read-your-writes",
+    "origin": "USER_DECLARED"
+  },
+  "reproduce": "commitrift model-check cr-synth-77e800-actual.json",
+  "reproduceOnOriginalCode": null,
+  "scenario": "cr-synth-77e800-actual.json",
+  "schedule": [
+    "saveDigestFrequency-1 write UPDATE digest_preferences SET frequency = \"daily\" WHERE (@accountId = \"f35425ca-0000-4000-a000-000000000001\") → 1 row  (src/services/digests.ts:10:9)",
+    "saveDigestFrequency-1 read SELECT digest_preferences WHERE (@accountId = \"f35425ca-0000-4000-a000-000000000001\") (on the replica, commit #0) → {frequency=\"weekly\"}  (src/services/digests.ts:14:27)",
+    "saveDigestFrequency-1 local CHECK !_row1 → false  (src/services/digests.ts:19:7)",
+    "saveDigestFrequency-1 local returns false  (src/services/digests.ts:20:3)",
+    "saveDigestFrequency-1 local return (success)",
+    "saveDigestFrequency-2 write UPDATE digest_preferences SET frequency = \"daily\" WHERE (@accountId = \"f35425ca-0000-4000-a000-000000000001\") → 1 row  (src/services/digests.ts:10:9)",
+    "saveDigestFrequency-2 read SELECT digest_preferences WHERE (@accountId = \"f35425ca-0000-4000-a000-000000000001\") (on the replica, commit #0) → {frequency=\"weekly\"}  (src/services/digests.ts:14:27)",
+    "saveDigestFrequency-2 local CHECK !_row1 → false  (src/services/digests.ts:19:7)",
+    "saveDigestFrequency-2 local returns false  (src/services/digests.ts:20:3)",
+    "saveDigestFrequency-2 local return (success)"
+  ],
+  "schemaVersion": 1,
+  "sourceFingerprint": [
+    {
+      "file": "src/services/digests.ts",
+      "fnv64": "93b9c327c192312a"
+    },
+    {
+      "file": "src/schema/accounts.ts",
+      "fnv64": "2c3b986d2d16e141"
+    },
+    {
+      "file": "src/schema/billing.ts",
+      "fnv64": "e2979229567d8451"
+    },
+    {
+      "file": "src/schema/commerce.ts",
+      "fnv64": "87677ba78d45fa5f"
+    },
+    {
+      "file": "src/schema/events.ts",
+      "fnv64": "06b61bbf1419d593"
+    },
+    {
+      "file": "src/schema/ops.ts",
+      "fnv64": "8eb25ef5bc524281"
+    },
+    {
+      "file": "src/schema/workspaces.ts",
+      "fnv64": "e1d160057aba7db5"
+    }
+  ],
+  "status": "MODEL_COUNTEREXAMPLE",
+  "variant": "actual",
+  "world": {
+    "id": "base",
+    "origin": "base",
+    "relationships": [
+      "the synthesized initial state and arguments"
+    ]
+  }
+}

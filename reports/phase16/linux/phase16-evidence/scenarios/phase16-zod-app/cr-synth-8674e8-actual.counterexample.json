@@ -1,0 +1,95 @@
+{
+  "actors": [
+    {
+      "arguments": [
+        {
+          "email": "alice@example.test",
+          "note": "note-1",
+          "role": "member",
+          "teamId": "71728e7a-0000-4000-a000-000000000001"
+        }
+      ],
+      "name": "inviteMember-1",
+      "selector": "src/actions/invites.ts#inviteMember"
+    },
+    {
+      "arguments": [
+        {
+          "email": "alice@example.test",
+          "note": "note-1",
+          "role": "member",
+          "teamId": "71728e7a-0000-4000-a000-000000000001"
+        }
+      ],
+      "name": "inviteMember-2",
+      "selector": "src/actions/invites.ts#inviteMember"
+    }
+  ],
+  "algorithm": "sleep-sets",
+  "assumptions": [
+    "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+  ],
+  "bounds": {
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "maxStates": 200000,
+    "maxSteps": 84
+  },
+  "candidate": "CR-SYNTH-8674E8",
+  "class": "check-then-act",
+  "evidence": "model counterexample (not an original-code reproduction)",
+  "finalTerms": [
+    "count(invites[email=\"alice@example.test\",teamId=\"71728e7a-0000-4000-a000-000000000001\"]) = 2"
+  ],
+  "finding": "MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `one-invite-per-address` (USER_DECLARED) (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). The property is declared by the user; the counterexample replays in the model.",
+  "initialState": {},
+  "kind": "commitrift.counterexample",
+  "property": {
+    "name": "one-invite-per-address",
+    "origin": "USER_DECLARED"
+  },
+  "reproduce": "commitrift model-check cr-synth-8674e8-actual.json",
+  "reproduceOnOriginalCode": null,
+  "scenario": "cr-synth-8674e8-actual.json",
+  "schedule": [
+    "inviteMember-1 read SELECT invites WHERE ((@teamId = \"71728e7a-0000-4000-a000-000000000001\") and (@email = \"alice@example.test\")) → null  (src/actions/invites.ts:23:28)",
+    "inviteMember-1 local CHECK _row8 → false  (src/actions/invites.ts:28:7)",
+    "inviteMember-1 local _logic12 = \"note-1\"  (src/actions/invites.ts:31:78)",
+    "inviteMember-1 local CHECK (_logic12 is null or (_logic12 = undefined)) → false  (src/actions/invites.ts:31:78)",
+    "inviteMember-2 read SELECT invites WHERE ((@teamId = \"71728e7a-0000-4000-a000-000000000001\") and (@email = \"alice@example.test\")) → null  (src/actions/invites.ts:23:28)",
+    "inviteMember-2 local CHECK _row8 → false  (src/actions/invites.ts:28:7)",
+    "inviteMember-2 local _logic12 = \"note-1\"  (src/actions/invites.ts:31:78)",
+    "inviteMember-2 local CHECK (_logic12 is null or (_logic12 = undefined)) → false  (src/actions/invites.ts:31:78)",
+    "inviteMember-2 write INSERT invites {email=\"alice@example.test\", note=\"note-1\", role=\"member\", teamId=\"71728e7a-0000-4000-a000-000000000001\"} → {id=1}  (src/actions/invites.ts:29:27)",
+    "inviteMember-2 local _returned11 = null  (src/actions/invites.ts:29:27)",
+    "inviteMember-2 local CHECK _inserted10 is null → false  (src/actions/invites.ts:29:27)",
+    "inviteMember-2 local _returned11 = {id=1}  (src/actions/invites.ts:29:27)",
+    "inviteMember-2 local return (success)",
+    "inviteMember-1 write INSERT invites {email=\"alice@example.test\", note=\"note-1\", role=\"member\", teamId=\"71728e7a-0000-4000-a000-000000000001\"} → {id=2}  (src/actions/invites.ts:29:27)",
+    "inviteMember-1 local _returned11 = null  (src/actions/invites.ts:29:27)",
+    "inviteMember-1 local CHECK _inserted10 is null → false  (src/actions/invites.ts:29:27)",
+    "inviteMember-1 local _returned11 = {id=2}  (src/actions/invites.ts:29:27)",
+    "inviteMember-1 local return (success)"
+  ],
+  "schemaVersion": 1,
+  "sourceFingerprint": [
+    {
+      "file": "src/actions/invites.ts",
+      "fnv64": "01a2933d42cbaab3"
+    },
+    {
+      "file": "src/db/schema.ts",
+      "fnv64": "cfd47a08ad6ff11d"
+    }
+  ],
+  "status": "MODEL_COUNTEREXAMPLE",
+  "variant": "actual",
+  "world": {
+    "id": "base",
+    "origin": "base",
+    "relationships": [
+      "the synthesized initial state and arguments"
+    ]
+  }
+}

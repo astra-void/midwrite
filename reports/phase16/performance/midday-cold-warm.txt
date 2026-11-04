@@ -1,0 +1,12 @@
+cold {'indexMs': 286, 'extractionMs': 1428, 'detectionMs': 33, 'synthesisMs': 20, 'modelCheckingMs': 1, 'totalMs': 1840}
+ 1.89 real 1.60 user 0.18 sys  240484352 maximum resident set size 
+cold {'indexMs': 152, 'extractionMs': 1421, 'detectionMs': 32, 'synthesisMs': 20, 'modelCheckingMs': 1, 'totalMs': 1698}
+ 1.74 real 1.59 user 0.14 sys  242319360 maximum resident set size 
+cold {'indexMs': 154, 'extractionMs': 1415, 'detectionMs': 32, 'synthesisMs': 20, 'modelCheckingMs': 1, 'totalMs': 1697}
+ 1.74 real 1.59 user 0.14 sys  241516544 maximum resident set size 
+warm {'indexMs': 167, 'extractionMs': 1006, 'detectionMs': 33, 'synthesisMs': 28, 'modelCheckingMs': 0, 'totalMs': 1305} 1
+ 1.35 real 1.16 user 0.18 sys  285704192 maximum resident set size 
+warm {'indexMs': 152, 'extractionMs': 1004, 'detectionMs': 32, 'synthesisMs': 27, 'modelCheckingMs': 0, 'totalMs': 1289} 1
+ 1.33 real 1.16 user 0.17 sys  285343744 maximum resident set size 
+warm {'indexMs': 151, 'extractionMs': 1018, 'detectionMs': 33, 'synthesisMs': 28, 'modelCheckingMs': 0, 'totalMs': 1301} 1
+ 1.35 real 1.16 user 0.17 sys  286605312 maximum resident set size 

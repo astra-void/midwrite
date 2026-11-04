@@ -1,0 +1,111 @@
+{
+  "actors": [
+    {
+      "arguments": [
+        "f35425ca-0000-4000-a000-000000000001",
+        "nickname-1"
+      ],
+      "name": "saveNickname-1",
+      "selector": "src/services/profile.ts#saveNickname"
+    },
+    {
+      "arguments": [
+        "f35425ca-0000-4000-a000-000000000001",
+        "nickname-1"
+      ],
+      "name": "saveNickname-2",
+      "selector": "src/services/profile.ts#saveNickname"
+    }
+  ],
+  "algorithm": "sleep-sets",
+  "assumptions": [
+    "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+  ],
+  "bounds": {
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "maxStates": 200000,
+    "maxSteps": 64
+  },
+  "candidate": "CR-SYNTH-0113A9",
+  "class": "return-value",
+  "evidence": "model counterexample (not an original-code reproduction)",
+  "finalTerms": [
+    "savenickname:ok returning false = 2"
+  ],
+  "finding": "In the initial world `stored-distinct:profiles.nickname` (the stored `profiles.nickname` differs from the value an actor writes (\"nickname-1\")): MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `nickname-read-your-writes` (USER_DECLARED). The property is declared by the user; the counterexample replays in the model.",
+  "initialState": {
+    "accounts": [
+      {
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "email": "email-1",
+        "id": "f35425ca-0000-4000-a000-000000000001"
+      }
+    ],
+    "profiles": [
+      {
+        "accountId": "f35425ca-0000-4000-a000-000000000001",
+        "nickname": "nickname-stored",
+        "theme": "light",
+        "themeChanges": 0
+      }
+    ]
+  },
+  "kind": "commitrift.counterexample",
+  "property": {
+    "name": "nickname-read-your-writes",
+    "origin": "USER_DECLARED"
+  },
+  "reproduce": "commitrift model-check cr-synth-0113a9-actual--stored-distinct-profiles-nickname.json",
+  "reproduceOnOriginalCode": null,
+  "scenario": "cr-synth-0113a9-actual--stored-distinct-profiles-nickname.json",
+  "schedule": [
+    "saveNickname-1 write UPDATE profiles SET nickname = \"nickname-1\" WHERE (@accountId = \"f35425ca-0000-4000-a000-000000000001\") → 1 row  (src/services/profile.ts:9:9)",
+    "saveNickname-1 read SELECT profiles WHERE (@accountId = \"f35425ca-0000-4000-a000-000000000001\") (on the replica, commit #0) → {nickname=\"nickname-stored\"}  (src/services/profile.ts:10:27)",
+    "saveNickname-1 local CHECK !_row1 → false  (src/services/profile.ts:15:7)",
+    "saveNickname-1 local returns false  (src/services/profile.ts:16:3)",
+    "saveNickname-1 local return (success)",
+    "saveNickname-2 write UPDATE profiles SET nickname = \"nickname-1\" WHERE (@accountId = \"f35425ca-0000-4000-a000-000000000001\") → 1 row  (src/services/profile.ts:9:9)",
+    "saveNickname-2 read SELECT profiles WHERE (@accountId = \"f35425ca-0000-4000-a000-000000000001\") (on the replica, commit #0) → {nickname=\"nickname-stored\"}  (src/services/profile.ts:10:27)",
+    "saveNickname-2 local CHECK !_row1 → false  (src/services/profile.ts:15:7)",
+    "saveNickname-2 local returns false  (src/services/profile.ts:16:3)",
+    "saveNickname-2 local return (success)"
+  ],
+  "schemaVersion": 1,
+  "sourceFingerprint": [
+    {
+      "file": "src/services/profile.ts",
+      "fnv64": "123d2064d969a4e8"
+    },
+    {
+      "file": "src/schema/accounts.ts",
+      "fnv64": "720c422360526cb9"
+    },
+    {
+      "file": "src/schema/billing.ts",
+      "fnv64": "1c99b98a727deee7"
+    },
+    {
+      "file": "src/schema/commerce.ts",
+      "fnv64": "c8f98e2df6e4f51a"
+    },
+    {
+      "file": "src/schema/content.ts",
+      "fnv64": "d6633423c2145088"
+    },
+    {
+      "file": "src/schema/orgs.ts",
+      "fnv64": "551761cdab4afca1"
+    }
+  ],
+  "status": "MODEL_COUNTEREXAMPLE",
+  "variant": "actual",
+  "world": {
+    "id": "stored-distinct:profiles.nickname",
+    "origin": "relationship",
+    "relationships": [
+      "the stored `profiles.nickname` differs from the value an actor writes (\"nickname-1\")"
+    ]
+  }
+}

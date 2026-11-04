@@ -1,0 +1,12 @@
+wrote fixtures/phase13/lock-matrix/cells.json (837 cells)
+  100/837 cells
+  200/837 cells
+  300/837 cells
+  400/837 cells
+  500/837 cells
+  600/837 cells
+  700/837 cells
+  800/837 cells
+837 cells in 9.5s; INCONCLUSIVE: 0; PostgreSQL 15.19 (Debian 15.19-0+deb12u1)
+wrote /home/tester/work/reports/phase13/lock-matrix/results.json and /home/tester/work/reports/phase13/lock-matrix/summary.md
+exit 0

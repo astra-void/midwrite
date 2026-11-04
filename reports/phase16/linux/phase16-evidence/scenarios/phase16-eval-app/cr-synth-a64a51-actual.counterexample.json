@@ -1,0 +1,129 @@
+{
+  "actors": [
+    {
+      "arguments": [
+        {
+          "email": "alice@example.test",
+          "eventId": 1,
+          "name": "name-1"
+        }
+      ],
+      "name": "POST-1",
+      "selector": "src/app/api/waitlist/route.ts#POST"
+    },
+    {
+      "arguments": [
+        {
+          "email": "alice@example.test",
+          "eventId": 1,
+          "name": "name-1"
+        }
+      ],
+      "name": "POST-2",
+      "selector": "src/app/api/waitlist/route.ts#POST"
+    }
+  ],
+  "algorithm": "sleep-sets",
+  "assumptions": [
+    "two requests can run the route handler at the same time (double submit, two tabs, client retry)",
+    "request: `await request.json()` is the actor's argument `request`: the request body is valid JSON (a body that `json()` rejects is not explored) and holds JSON values only",
+    "request: a response is the value `{ status, body }`: `body` is the value given to `Response.json` before its serialization (headers and the status text are not modeled)"
+  ],
+  "bounds": {
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "maxStates": 200000,
+    "maxSteps": 123
+  },
+  "candidate": "CR-SYNTH-A64A51",
+  "class": "check-then-act",
+  "evidence": "model counterexample (not an original-code reproduction)",
+  "finalTerms": [
+    "count(waitlist_entries[email=\"alice@example.test\",eventId=1]) = 2"
+  ],
+  "finding": "MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `one-waitlist-entry-per-email` (USER_DECLARED) (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). The property is declared by the user; the counterexample replays in the model.",
+  "initialState": {
+    "events": [
+      {
+        "capacity": 10,
+        "id": 1,
+        "title": "title-1"
+      }
+    ]
+  },
+  "kind": "commitrift.counterexample",
+  "property": {
+    "name": "one-waitlist-entry-per-email",
+    "origin": "USER_DECLARED"
+  },
+  "reproduce": "commitrift model-check cr-synth-a64a51-actual.json",
+  "reproduceOnOriginalCode": null,
+  "scenario": "cr-synth-a64a51-actual.json",
+  "schedule": [
+    "POST-1 read SELECT waitlist_entries WHERE ((@eventId = 1) and (@email = \"alice@example.test\")) → null  (src/app/api/waitlist/route.ts:28:28)",
+    "POST-1 local CHECK _row7 → false  (src/app/api/waitlist/route.ts:33:7)",
+    "POST-1 local _logic11 = \"name-1\"  (src/app/api/waitlist/route.ts:39:37)",
+    "POST-1 local CHECK (_logic11 is null or (_logic11 = undefined)) → false  (src/app/api/waitlist/route.ts:39:37)",
+    "POST-2 read SELECT waitlist_entries WHERE ((@eventId = 1) and (@email = \"alice@example.test\")) → null  (src/app/api/waitlist/route.ts:28:28)",
+    "POST-2 local CHECK _row7 → false  (src/app/api/waitlist/route.ts:33:7)",
+    "POST-2 local _logic11 = \"name-1\"  (src/app/api/waitlist/route.ts:39:37)",
+    "POST-2 local CHECK (_logic11 is null or (_logic11 = undefined)) → false  (src/app/api/waitlist/route.ts:39:37)",
+    "POST-2 write INSERT waitlist_entries {email=\"alice@example.test\", eventId=1, name=\"name-1\"} → {id=1}  (src/app/api/waitlist/route.ts:37:25)",
+    "POST-2 local _returned10 = null  (src/app/api/waitlist/route.ts:37:25)",
+    "POST-2 local CHECK _inserted9 is null → false  (src/app/api/waitlist/route.ts:37:25)",
+    "POST-2 local _returned10 = {id=1}  (src/app/api/waitlist/route.ts:37:25)",
+    "POST-2 local _opt12 = undefined  (src/app/api/waitlist/route.ts:41:48)",
+    "POST-2 local CHECK (_returned10 is null or (_returned10 = undefined)) → false  (src/app/api/waitlist/route.ts:41:48)",
+    "POST-2 local _opt12 = 1  (src/app/api/waitlist/route.ts:41:48)",
+    "POST-2 local return (success)",
+    "POST-1 write INSERT waitlist_entries {email=\"alice@example.test\", eventId=1, name=\"name-1\"} → {id=2}  (src/app/api/waitlist/route.ts:37:25)",
+    "POST-1 local _returned10 = null  (src/app/api/waitlist/route.ts:37:25)",
+    "POST-1 local CHECK _inserted9 is null → false  (src/app/api/waitlist/route.ts:37:25)",
+    "POST-1 local _returned10 = {id=2}  (src/app/api/waitlist/route.ts:37:25)",
+    "POST-1 local _opt12 = undefined  (src/app/api/waitlist/route.ts:41:48)",
+    "POST-1 local CHECK (_returned10 is null or (_returned10 = undefined)) → false  (src/app/api/waitlist/route.ts:41:48)",
+    "POST-1 local _opt12 = 2  (src/app/api/waitlist/route.ts:41:48)",
+    "POST-1 local return (success)"
+  ],
+  "schemaVersion": 1,
+  "sourceFingerprint": [
+    {
+      "file": "src/app/api/waitlist/route.ts",
+      "fnv64": "a4b06726bc29514c"
+    },
+    {
+      "file": "src/schema/accounts.ts",
+      "fnv64": "2c3b986d2d16e141"
+    },
+    {
+      "file": "src/schema/billing.ts",
+      "fnv64": "e2979229567d8451"
+    },
+    {
+      "file": "src/schema/commerce.ts",
+      "fnv64": "87677ba78d45fa5f"
+    },
+    {
+      "file": "src/schema/events.ts",
+      "fnv64": "06b61bbf1419d593"
+    },
+    {
+      "file": "src/schema/ops.ts",
+      "fnv64": "8eb25ef5bc524281"
+    },
+    {
+      "file": "src/schema/workspaces.ts",
+      "fnv64": "e1d160057aba7db5"
+    }
+  ],
+  "status": "MODEL_COUNTEREXAMPLE",
+  "variant": "actual",
+  "world": {
+    "id": "base",
+    "origin": "base",
+    "relationships": [
+      "the synthesized initial state and arguments"
+    ]
+  }
+}

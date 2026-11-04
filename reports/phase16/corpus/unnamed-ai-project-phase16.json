@@ -1,0 +1,54 @@
+{
+ "candidates": 0,
+ "config": "phase16",
+ "counterexamples": 0,
+ "effectfulEntries": 3,
+ "entriesExtracted": 33,
+ "entryCandidates": 74,
+ "entryConnections": {
+  "entries with pool statements": 11
+ },
+ "modelCheckable": 0,
+ "peakRss": 15728640,
+ "project": "unnamed-ai-project",
+ "readOnlyEntries": 8,
+ "replicaNotes": [],
+ "resources": 3,
+ "stages": {},
+ "statements": {
+  "pool delete": 4,
+  "pool select": 14
+ },
+ "statuses": {},
+ "tablesModeled": 9,
+ "unknownBreakdown": {
+  "call into an unanalyzed package": 97,
+  "column not modeled (schema)": 8,
+  "inline depth limit": 20,
+  "other": 411,
+  "package call with a contract (result not modeled)": 42,
+  "table not modeled (schema)": 13,
+  "unresolved identifier": 5,
+  "unresolved method call": 176,
+  "unsupported binding pattern": 2,
+  "unsupported expression": 68,
+  "unsupported query shape": 2
+ },
+ "unknownByCategoryInCache": {
+  "call into an unanalyzed package": 97,
+  "caught error property not modeled": 1,
+  "column not modeled (schema)": 8,
+  "inline depth limit": 20,
+  "loop outside the bounded subset": 2,
+  "other": 408,
+  "package call with a contract (result not modeled)": 42,
+  "table not modeled (schema)": 13,
+  "unresolved identifier": 5,
+  "unresolved method call": 176,
+  "unsupported binding pattern": 2,
+  "unsupported expression": 68,
+  "unsupported query shape": 2
+ },
+ "unknownOperations": 844,
+ "wallSeconds": 0.03
+}

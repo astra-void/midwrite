@@ -1,0 +1,154 @@
+{
+  "actors": [
+    {
+      "arguments": [
+        {
+          "name": "name-1"
+        },
+        {
+          "email": "alice@example.test"
+        }
+      ],
+      "name": "createWorkspaceAction-1",
+      "selector": "src/app/actions.ts#createWorkspaceAction/arg[0]"
+    },
+    {
+      "arguments": [
+        {
+          "name": "name-1"
+        },
+        {
+          "email": "alice@example.test"
+        }
+      ],
+      "name": "createWorkspaceAction-2",
+      "selector": "src/app/actions.ts#createWorkspaceAction/arg[0]"
+    }
+  ],
+  "algorithm": "sleep-sets",
+  "assumptions": [
+    "two requests can run the Server Action at the same time (double submit, two tabs, client retry)",
+    "`withUser` runs the callback only when its guards pass; the scenario assumes they do: `if (!session)` → throw (src/lib/auth.ts:10:5)"
+  ],
+  "bounds": {
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "maxStates": 200000,
+    "maxSteps": 126
+  },
+  "candidate": "CR-SYNTH-C57A1A",
+  "class": "check-then-act",
+  "evidence": "model counterexample (not an original-code reproduction)",
+  "finalTerms": [
+    "count(workspaces[ownerId=\"743af3c4-0000-4000-a000-000000000001\"]) = 2"
+  ],
+  "finding": "MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `one-workspace-per-owner` (USER_DECLARED) (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). The property is declared by the user; the counterexample replays in the model.",
+  "initialState": {
+    "users": [
+      {
+        "email": "alice@example.test",
+        "id": "743af3c4-0000-4000-a000-000000000001",
+        "name": "name-1"
+      }
+    ]
+  },
+  "kind": "commitrift.counterexample",
+  "property": {
+    "name": "one-workspace-per-owner",
+    "origin": "USER_DECLARED"
+  },
+  "reproduce": "commitrift model-check cr-synth-c57a1a-actual.json",
+  "reproduceOnOriginalCode": "commitrift model-check cr-synth-c57a1a-actual.json --verify-source --allow-execution",
+  "scenario": "cr-synth-c57a1a-actual.json",
+  "schedule": [
+    "createWorkspaceAction-1 read SELECT users WHERE (@email = \"alice@example.test\") → {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/repositories/users.ts:9:26)",
+    "createWorkspaceAction-1 local h2$ret = {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/repositories/users.ts:10:5)",
+    "createWorkspaceAction-1 local h1$owner = {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/services/workspaces.ts:15:9)",
+    "createWorkspaceAction-1 local CHECK !h1$owner → false  (src/services/workspaces.ts:16:7)",
+    "createWorkspaceAction-1 local h4$ret = undefined  (src/services/workspaces.ts:17:26)",
+    "createWorkspaceAction-1 local h4$ownerId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/workspaces.ts:7:21)",
+    "createWorkspaceAction-1 read SELECT workspaces WHERE (@ownerId = \"743af3c4-0000-4000-a000-000000000001\") → null  (src/repositories/workspaces.ts:8:27)",
+    "createWorkspaceAction-1 local h4$ret = null  (src/repositories/workspaces.ts:13:5)",
+    "createWorkspaceAction-1 local h1$existing = null  (src/services/workspaces.ts:17:9)",
+    "createWorkspaceAction-1 local CHECK h1$existing → false  (src/services/workspaces.ts:18:7)",
+    "createWorkspaceAction-1 local h6$ret = undefined  (src/services/workspaces.ts:19:25)",
+    "createWorkspaceAction-1 local h6$name = \"name-1\"  (src/repositories/workspaces.ts:16:16)",
+    "createWorkspaceAction-1 local h6$ownerId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/workspaces.ts:16:30)",
+    "createWorkspaceAction-2 read SELECT users WHERE (@email = \"alice@example.test\") → {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/repositories/users.ts:9:26)",
+    "createWorkspaceAction-2 local h2$ret = {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/repositories/users.ts:10:5)",
+    "createWorkspaceAction-2 local h1$owner = {email=\"alice@example.test\", id=\"743af3c4-0000-4000-a000-000000000001\", name=\"name-1\"}  (src/services/workspaces.ts:15:9)",
+    "createWorkspaceAction-2 local CHECK !h1$owner → false  (src/services/workspaces.ts:16:7)",
+    "createWorkspaceAction-2 local h4$ret = undefined  (src/services/workspaces.ts:17:26)",
+    "createWorkspaceAction-2 local h4$ownerId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/workspaces.ts:7:21)",
+    "createWorkspaceAction-2 read SELECT workspaces WHERE (@ownerId = \"743af3c4-0000-4000-a000-000000000001\") → null  (src/repositories/workspaces.ts:8:27)",
+    "createWorkspaceAction-2 local h4$ret = null  (src/repositories/workspaces.ts:13:5)",
+    "createWorkspaceAction-2 local h1$existing = null  (src/services/workspaces.ts:17:9)",
+    "createWorkspaceAction-2 local CHECK h1$existing → false  (src/services/workspaces.ts:18:7)",
+    "createWorkspaceAction-2 local h6$ret = undefined  (src/services/workspaces.ts:19:25)",
+    "createWorkspaceAction-2 local h6$name = \"name-1\"  (src/repositories/workspaces.ts:16:16)",
+    "createWorkspaceAction-2 local h6$ownerId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/workspaces.ts:16:30)",
+    "createWorkspaceAction-1 write INSERT workspaces {name=\"name-1\", ownerId=\"743af3c4-0000-4000-a000-000000000001\"} → {id=gen#1:0.0}  (src/repositories/workspaces.ts:17:29)",
+    "createWorkspaceAction-1 local h6$_returned9 = null  (src/repositories/workspaces.ts:17:29)",
+    "createWorkspaceAction-1 local CHECK h6$_inserted8 is null → false  (src/repositories/workspaces.ts:17:29)",
+    "createWorkspaceAction-1 local h6$_returned9 = {id=gen#1:0.0}  (src/repositories/workspaces.ts:17:29)",
+    "createWorkspaceAction-1 local h6$ret = {id=gen#1:0.0}  (src/repositories/workspaces.ts:21:5)",
+    "createWorkspaceAction-1 local h1$created = {id=gen#1:0.0}  (src/services/workspaces.ts:19:9)",
+    "createWorkspaceAction-1 local CHECK !h1$created → false  (src/services/workspaces.ts:20:7)",
+    "createWorkspaceAction-1 local h10$ret = undefined  (src/services/workspaces.ts:21:9)",
+    "createWorkspaceAction-1 local h10$workspaceId = gen#1:0.0  (src/repositories/memberships.ts:11:13)",
+    "createWorkspaceAction-1 local h10$userId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/memberships.ts:11:34)",
+    "createWorkspaceAction-1 local h10$role = \"owner\"  (src/repositories/memberships.ts:11:50)",
+    "createWorkspaceAction-1 write INSERT memberships {role=\"owner\", userId=\"743af3c4-0000-4000-a000-000000000001\", workspaceId=gen#1:0.0} → 1 row  (src/repositories/memberships.ts:12:11)",
+    "createWorkspaceAction-1 local h1$ret = gen#1:0.0  (src/services/workspaces.ts:22:3)",
+    "createWorkspaceAction-1 local id = gen#1:0.0  (src/app/actions.ts:10:9)",
+    "createWorkspaceAction-1 local return (success)",
+    "createWorkspaceAction-2 write INSERT workspaces {name=\"name-1\", ownerId=\"743af3c4-0000-4000-a000-000000000001\"} → {id=gen#1:1.0}  (src/repositories/workspaces.ts:17:29)",
+    "createWorkspaceAction-2 local h6$_returned9 = null  (src/repositories/workspaces.ts:17:29)",
+    "createWorkspaceAction-2 local CHECK h6$_inserted8 is null → false  (src/repositories/workspaces.ts:17:29)",
+    "createWorkspaceAction-2 local h6$_returned9 = {id=gen#1:1.0}  (src/repositories/workspaces.ts:17:29)",
+    "createWorkspaceAction-2 local h6$ret = {id=gen#1:1.0}  (src/repositories/workspaces.ts:21:5)",
+    "createWorkspaceAction-2 local h1$created = {id=gen#1:1.0}  (src/services/workspaces.ts:19:9)",
+    "createWorkspaceAction-2 local CHECK !h1$created → false  (src/services/workspaces.ts:20:7)",
+    "createWorkspaceAction-2 local h10$ret = undefined  (src/services/workspaces.ts:21:9)",
+    "createWorkspaceAction-2 local h10$workspaceId = gen#1:1.0  (src/repositories/memberships.ts:11:13)",
+    "createWorkspaceAction-2 local h10$userId = \"743af3c4-0000-4000-a000-000000000001\"  (src/repositories/memberships.ts:11:34)",
+    "createWorkspaceAction-2 local h10$role = \"owner\"  (src/repositories/memberships.ts:11:50)",
+    "createWorkspaceAction-2 write INSERT memberships {role=\"owner\", userId=\"743af3c4-0000-4000-a000-000000000001\", workspaceId=gen#1:1.0} → 1 row  (src/repositories/memberships.ts:12:11)",
+    "createWorkspaceAction-2 local h1$ret = gen#1:1.0  (src/services/workspaces.ts:22:3)",
+    "createWorkspaceAction-2 local id = gen#1:1.0  (src/app/actions.ts:10:9)",
+    "createWorkspaceAction-2 local return (success)"
+  ],
+  "schemaVersion": 1,
+  "sourceFingerprint": [
+    {
+      "file": "src/app/actions.ts",
+      "fnv64": "c11a6400e2bf4ce2"
+    },
+    {
+      "file": "src/db/schema/invites.ts",
+      "fnv64": "6f39850d721cafea"
+    },
+    {
+      "file": "src/db/schema/memberships.ts",
+      "fnv64": "17f4079a305876c8"
+    },
+    {
+      "file": "src/db/schema/users.ts",
+      "fnv64": "dfc12e2e7a38602e"
+    },
+    {
+      "file": "src/db/schema/workspaces.ts",
+      "fnv64": "769cabdb2a1dff63"
+    }
+  ],
+  "status": "MODEL_COUNTEREXAMPLE",
+  "variant": "actual",
+  "world": {
+    "id": "base",
+    "origin": "base",
+    "relationships": [
+      "the synthesized initial state and arguments"
+    ]
+  }
+}

@@ -1,0 +1,120 @@
+{
+  "actors": [
+    {
+      "arguments": [
+        {
+          "email": "alice@example.test",
+          "projectId": null,
+          "workspaceId": 2
+        }
+      ],
+      "name": "inviteMember-1",
+      "selector": "src/services/invites.ts#inviteMember"
+    },
+    {
+      "arguments": [
+        {
+          "email": "alice@example.test",
+          "projectId": null,
+          "workspaceId": 2
+        }
+      ],
+      "name": "inviteMember-2",
+      "selector": "src/services/invites.ts#inviteMember"
+    }
+  ],
+  "algorithm": "sleep-sets",
+  "assumptions": [
+    "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+  ],
+  "bounds": {
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "maxStates": 200000,
+    "maxSteps": 96
+  },
+  "candidate": "CR-SYNTH-8D7112",
+  "class": "check-then-act",
+  "evidence": "model counterexample (not an original-code reproduction)",
+  "finalTerms": [
+    "count(workspace_invites[email=\"alice@example.test\",workspaceId=2]) = 2"
+  ],
+  "finding": "In the initial world `null:raw.projectId` (raw.projectId = null for every actor): MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `one-workspace-invite-per-email` (USER_DECLARED). The property is declared by the user; the counterexample replays in the model.",
+  "initialState": {
+    "accounts": [
+      {
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "email": "email-1",
+        "id": "55b64072-0000-4000-a000-000000000001"
+      }
+    ],
+    "workspaces": [
+      {
+        "id": 2,
+        "name": "name-1",
+        "ownerId": "55b64072-0000-4000-a000-000000000001"
+      }
+    ]
+  },
+  "kind": "commitrift.counterexample",
+  "property": {
+    "name": "one-workspace-invite-per-email",
+    "origin": "USER_DECLARED"
+  },
+  "reproduce": "commitrift model-check cr-synth-8d7112-actual--null-raw-projectid.json",
+  "reproduceOnOriginalCode": null,
+  "scenario": "cr-synth-8d7112-actual--null-raw-projectid.json",
+  "schedule": [
+    "inviteMember-1 read SELECT workspace_invites WHERE ((@workspaceId = 2) and (@email = \"alice@example.test\")) → null  (src/services/invites.ts:26:29)",
+    "inviteMember-1 local CHECK h6$_row7 → false  (src/services/invites.ts:31:9)",
+    "inviteMember-2 read SELECT workspace_invites WHERE ((@workspaceId = 2) and (@email = \"alice@example.test\")) → null  (src/services/invites.ts:26:29)",
+    "inviteMember-2 local CHECK h6$_row7 → false  (src/services/invites.ts:31:9)",
+    "inviteMember-2 write INSERT workspace_invites {email=\"alice@example.test\", workspaceId=2} → 1 row  (src/services/invites.ts:32:11)",
+    "inviteMember-2 local h6$ret = \"invited\"  (src/services/invites.ts:33:5)",
+    "inviteMember-2 local return (success)",
+    "inviteMember-1 write INSERT workspace_invites {email=\"alice@example.test\", workspaceId=2} → 1 row  (src/services/invites.ts:32:11)",
+    "inviteMember-1 local h6$ret = \"invited\"  (src/services/invites.ts:33:5)",
+    "inviteMember-1 local return (success)"
+  ],
+  "schemaVersion": 1,
+  "sourceFingerprint": [
+    {
+      "file": "src/services/invites.ts",
+      "fnv64": "9f10fd1e4e857b3e"
+    },
+    {
+      "file": "src/schema/accounts.ts",
+      "fnv64": "2c3b986d2d16e141"
+    },
+    {
+      "file": "src/schema/billing.ts",
+      "fnv64": "e2979229567d8451"
+    },
+    {
+      "file": "src/schema/commerce.ts",
+      "fnv64": "87677ba78d45fa5f"
+    },
+    {
+      "file": "src/schema/events.ts",
+      "fnv64": "06b61bbf1419d593"
+    },
+    {
+      "file": "src/schema/ops.ts",
+      "fnv64": "8eb25ef5bc524281"
+    },
+    {
+      "file": "src/schema/workspaces.ts",
+      "fnv64": "e1d160057aba7db5"
+    }
+  ],
+  "status": "MODEL_COUNTEREXAMPLE",
+  "variant": "actual",
+  "world": {
+    "id": "null:raw.projectId",
+    "origin": "domain",
+    "relationships": [
+      "raw.projectId = null for every actor"
+    ]
+  }
+}

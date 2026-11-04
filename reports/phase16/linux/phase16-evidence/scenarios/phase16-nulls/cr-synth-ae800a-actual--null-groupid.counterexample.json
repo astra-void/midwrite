@@ -1,0 +1,85 @@
+{
+  "actors": [
+    {
+      "arguments": [
+        2,
+        null,
+        "name-1"
+      ],
+      "name": "createTag-1",
+      "selector": "src/services/tags.ts#createTag"
+    },
+    {
+      "arguments": [
+        2,
+        null,
+        "name-1"
+      ],
+      "name": "createTag-2",
+      "selector": "src/services/tags.ts#createTag"
+    }
+  ],
+  "algorithm": "sleep-sets",
+  "assumptions": [
+    "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+  ],
+  "bounds": {
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "maxStates": 200000,
+    "maxSteps": 64
+  },
+  "candidate": "CR-SYNTH-AE800A",
+  "class": "check-then-act",
+  "evidence": "model counterexample (not an original-code reproduction)",
+  "finalTerms": [
+    "count(tags[groupId=null,name=\"name-1\",ownerId=2]) = 2"
+  ],
+  "finding": "In the initial world `null:groupId` (groupId = null for every actor): MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `one-tag-per-place` (USER_DECLARED) (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). The property is declared by the user; the counterexample replays in the model.",
+  "initialState": {},
+  "kind": "commitrift.counterexample",
+  "property": {
+    "name": "one-tag-per-place",
+    "origin": "USER_DECLARED"
+  },
+  "reproduce": "commitrift model-check cr-synth-ae800a-actual--null-groupid.json",
+  "reproduceOnOriginalCode": null,
+  "scenario": "cr-synth-ae800a-actual--null-groupid.json",
+  "schedule": [
+    "createTag-1 read SELECT tags WHERE (((@ownerId = 2) and ((true and @groupId is null) or (false and (@groupId = null)))) and (@name = \"name-1\")) → null  (src/services/tags.ts:11:28)",
+    "createTag-1 local CHECK _row3 → false  (src/services/tags.ts:22:7)",
+    "createTag-2 read SELECT tags WHERE (((@ownerId = 2) and ((true and @groupId is null) or (false and (@groupId = null)))) and (@name = \"name-1\")) → null  (src/services/tags.ts:11:28)",
+    "createTag-2 local CHECK _row3 → false  (src/services/tags.ts:22:7)",
+    "createTag-2 write INSERT tags {groupId=null, name=\"name-1\", ownerId=2} → {id=1}  (src/services/tags.ts:23:27)",
+    "createTag-2 local _returned6 = null  (src/services/tags.ts:23:27)",
+    "createTag-2 local CHECK _inserted5 is null → false  (src/services/tags.ts:23:27)",
+    "createTag-2 local _returned6 = {id=1}  (src/services/tags.ts:23:27)",
+    "createTag-2 local return (success)",
+    "createTag-1 write INSERT tags {groupId=null, name=\"name-1\", ownerId=2} → {id=2}  (src/services/tags.ts:23:27)",
+    "createTag-1 local _returned6 = null  (src/services/tags.ts:23:27)",
+    "createTag-1 local CHECK _inserted5 is null → false  (src/services/tags.ts:23:27)",
+    "createTag-1 local _returned6 = {id=2}  (src/services/tags.ts:23:27)",
+    "createTag-1 local return (success)"
+  ],
+  "schemaVersion": 1,
+  "sourceFingerprint": [
+    {
+      "file": "src/services/tags.ts",
+      "fnv64": "235d81b980ca6190"
+    },
+    {
+      "file": "src/db/schema.ts",
+      "fnv64": "e4a23091a3993f44"
+    }
+  ],
+  "status": "MODEL_COUNTEREXAMPLE",
+  "variant": "actual",
+  "world": {
+    "id": "null:groupId",
+    "origin": "domain",
+    "relationships": [
+      "groupId = null for every actor"
+    ]
+  }
+}

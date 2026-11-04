@@ -1,0 +1,111 @@
+{
+  "actors": [
+    {
+      "arguments": [
+        "55b64072-0000-4000-a000-000000000001",
+        "name-1"
+      ],
+      "name": "addWorkspace",
+      "selector": "src/services/workspaces.ts#addWorkspace"
+    }
+  ],
+  "algorithm": "sleep-sets",
+  "assumptions": [
+    "the caller retries the request (on-crash)"
+  ],
+  "bounds": {
+    "maxCrashes": 1,
+    "maxInFlight": 0,
+    "maxRetries": 1,
+    "maxStates": 200000,
+    "maxSteps": 114
+  },
+  "candidate": "CR-SYNTH-C2DE56",
+  "class": "resubmitted-write",
+  "evidence": "model counterexample (not an original-code reproduction)",
+  "finalTerms": [
+    "count(workspaces[ownerId=\"55b64072-0000-4000-a000-000000000001\"]) = 2"
+  ],
+  "finding": "MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `one-workspace-per-owner` (USER_DECLARED). The property is declared by the user; the counterexample replays in the model.",
+  "initialState": {
+    "users": [
+      {
+        "email": "email-1",
+        "id": "55b64072-0000-4000-a000-000000000001",
+        "name": "name-1"
+      }
+    ]
+  },
+  "kind": "commitrift.counterexample",
+  "property": {
+    "name": "one-workspace-per-owner",
+    "origin": "USER_DECLARED"
+  },
+  "reproduce": "commitrift model-check cr-synth-c2de56-actual.json",
+  "reproduceOnOriginalCode": "commitrift model-check cr-synth-c2de56-actual.json --verify-source --allow-execution",
+  "scenario": "cr-synth-c2de56-actual.json",
+  "schedule": [
+    "addWorkspace write INSERT workspaces {name=\"name-1\", ownerId=\"55b64072-0000-4000-a000-000000000001\"} → {id=gen#1:0.0}  (src/repositories/workspaces.ts:17:29)",
+    "addWorkspace local h1$_returned4 = null  (src/repositories/workspaces.ts:17:29)",
+    "addWorkspace local CHECK h1$_inserted3 is null → false  (src/repositories/workspaces.ts:17:29)",
+    "addWorkspace local h1$_returned4 = {id=gen#1:0.0}  (src/repositories/workspaces.ts:17:29)",
+    "addWorkspace local h1$ret = {id=gen#1:0.0}  (src/repositories/workspaces.ts:21:5)",
+    "addWorkspace local created = {id=gen#1:0.0}  (src/services/workspaces.ts:55:9)",
+    "addWorkspace local CHECK !created → false  (src/services/workspaces.ts:56:7)",
+    "addWorkspace local h5$ret = undefined  (src/services/workspaces.ts:57:9)",
+    "addWorkspace local h5$workspaceId = gen#1:0.0  (src/repositories/memberships.ts:11:13)",
+    "addWorkspace local h5$userId = \"55b64072-0000-4000-a000-000000000001\"  (src/repositories/memberships.ts:11:34)",
+    "addWorkspace local h5$role = \"owner\"  (src/repositories/memberships.ts:11:50)",
+    "process addWorkspace crash PROCESS CRASH (addWorkspace)",
+    "addWorkspace retry RETRY: the operation is re-executed from the start (attempt 2)",
+    "addWorkspace local h1$ret = undefined  (src/services/workspaces.ts:55:25)",
+    "addWorkspace local h1$name = \"name-1\"  (src/repositories/workspaces.ts:16:16)",
+    "addWorkspace local h1$ownerId = \"55b64072-0000-4000-a000-000000000001\"  (src/repositories/workspaces.ts:16:30)",
+    "addWorkspace write INSERT workspaces {name=\"name-1\", ownerId=\"55b64072-0000-4000-a000-000000000001\"} → {id=gen#1:0.1}  (src/repositories/workspaces.ts:17:29)",
+    "addWorkspace local h1$_returned4 = null  (src/repositories/workspaces.ts:17:29)",
+    "addWorkspace local CHECK h1$_inserted3 is null → false  (src/repositories/workspaces.ts:17:29)",
+    "addWorkspace local h1$_returned4 = {id=gen#1:0.1}  (src/repositories/workspaces.ts:17:29)",
+    "addWorkspace local h1$ret = {id=gen#1:0.1}  (src/repositories/workspaces.ts:21:5)",
+    "addWorkspace local created = {id=gen#1:0.1}  (src/services/workspaces.ts:55:9)",
+    "addWorkspace local CHECK !created → false  (src/services/workspaces.ts:56:7)",
+    "addWorkspace local h5$ret = undefined  (src/services/workspaces.ts:57:9)",
+    "addWorkspace local h5$workspaceId = gen#1:0.1  (src/repositories/memberships.ts:11:13)",
+    "addWorkspace local h5$userId = \"55b64072-0000-4000-a000-000000000001\"  (src/repositories/memberships.ts:11:34)",
+    "addWorkspace local h5$role = \"owner\"  (src/repositories/memberships.ts:11:50)",
+    "addWorkspace write INSERT memberships {role=\"owner\", userId=\"55b64072-0000-4000-a000-000000000001\", workspaceId=gen#1:0.1} → 1 row  (src/repositories/memberships.ts:12:11)",
+    "addWorkspace local RESPONSE delivered  (src/services/workspaces.ts:58:3)",
+    "addWorkspace local return (success)"
+  ],
+  "schemaVersion": 1,
+  "sourceFingerprint": [
+    {
+      "file": "src/services/workspaces.ts",
+      "fnv64": "0ecb08fce9aed3f1"
+    },
+    {
+      "file": "src/db/schema/invites.ts",
+      "fnv64": "6f39850d721cafea"
+    },
+    {
+      "file": "src/db/schema/memberships.ts",
+      "fnv64": "17f4079a305876c8"
+    },
+    {
+      "file": "src/db/schema/users.ts",
+      "fnv64": "dfc12e2e7a38602e"
+    },
+    {
+      "file": "src/db/schema/workspaces.ts",
+      "fnv64": "769cabdb2a1dff63"
+    }
+  ],
+  "status": "MODEL_COUNTEREXAMPLE",
+  "variant": "actual",
+  "world": {
+    "id": "base",
+    "origin": "base",
+    "relationships": [
+      "the synthesized initial state and arguments"
+    ]
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "actors": [
+    {
+      "arguments": [
+        1,
+        "slug-1",
+        "page"
+      ],
+      "name": "claimRoute-1",
+      "selector": "src/services/routes.ts#claimRoute"
+    },
+    {
+      "arguments": [
+        1,
+        "slug-1",
+        "redirect"
+      ],
+      "name": "claimRoute-2",
+      "selector": "src/services/routes.ts#claimRoute"
+    }
+  ],
+  "algorithm": "sleep-sets",
+  "assumptions": [
+    "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+  ],
+  "bounds": {
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "maxStates": 200000,
+    "maxSteps": 64
+  },
+  "candidate": "CR-SYNTH-149A8A",
+  "class": "check-then-act",
+  "evidence": "model counterexample (not an original-code reproduction)",
+  "finalTerms": [
+    "count(routes[orgId=1,slug=\"slug-1\"]) = 2"
+  ],
+  "finding": "In the initial world `actors-differ:kind` (the actors share the key but pass different `kind` (\"page\" and \"redirect\")): MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `one-route-per-slug` (USER_DECLARED) (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). The property is declared by the user; the counterexample replays in the model.",
+  "initialState": {
+    "orgs": [
+      {
+        "id": 1,
+        "name": "name-1",
+        "vacancies": 0
+      }
+    ]
+  },
+  "kind": "commitrift.counterexample",
+  "property": {
+    "name": "one-route-per-slug",
+    "origin": "USER_DECLARED"
+  },
+  "reproduce": "commitrift model-check cr-synth-149a8a-actual--actors-differ-kind.json",
+  "reproduceOnOriginalCode": null,
+  "scenario": "cr-synth-149a8a-actual--actors-differ-kind.json",
+  "schedule": [
+    "claimRoute-1 read SELECT routes WHERE ((@orgId = 1) and (@slug = \"slug-1\")) → null  (src/services/routes.ts:9:25)",
+    "claimRoute-1 local CHECK _row1 → false  (src/services/routes.ts:14:7)",
+    "claimRoute-2 read SELECT routes WHERE ((@orgId = 1) and (@slug = \"slug-1\")) → null  (src/services/routes.ts:9:25)",
+    "claimRoute-2 local CHECK _row1 → false  (src/services/routes.ts:14:7)",
+    "claimRoute-2 write INSERT routes {kind=\"redirect\", orgId=1, slug=\"slug-1\"} ON CONFLICT DO NOTHING → {id=1}  (src/services/routes.ts:15:25)",
+    "claimRoute-2 local _returned4 = null  (src/services/routes.ts:15:25)",
+    "claimRoute-2 local CHECK _inserted3 is null → false  (src/services/routes.ts:15:25)",
+    "claimRoute-2 local _returned4 = {id=1}  (src/services/routes.ts:15:25)",
+    "claimRoute-2 local return (success)",
+    "claimRoute-1 write INSERT routes {kind=\"page\", orgId=1, slug=\"slug-1\"} ON CONFLICT DO NOTHING → {id=2}  (src/services/routes.ts:15:25)",
+    "claimRoute-1 local _returned4 = null  (src/services/routes.ts:15:25)",
+    "claimRoute-1 local CHECK _inserted3 is null → false  (src/services/routes.ts:15:25)",
+    "claimRoute-1 local _returned4 = {id=2}  (src/services/routes.ts:15:25)",
+    "claimRoute-1 local return (success)"
+  ],
+  "schemaVersion": 1,
+  "sourceFingerprint": [
+    {
+      "file": "src/services/routes.ts",
+      "fnv64": "610fbf3cc5974acd"
+    },
+    {
+      "file": "src/schema/accounts.ts",
+      "fnv64": "720c422360526cb9"
+    },
+    {
+      "file": "src/schema/billing.ts",
+      "fnv64": "1c99b98a727deee7"
+    },
+    {
+      "file": "src/schema/commerce.ts",
+      "fnv64": "c8f98e2df6e4f51a"
+    },
+    {
+      "file": "src/schema/content.ts",
+      "fnv64": "d6633423c2145088"
+    },
+    {
+      "file": "src/schema/orgs.ts",
+      "fnv64": "551761cdab4afca1"
+    }
+  ],
+  "status": "MODEL_COUNTEREXAMPLE",
+  "variant": "actual",
+  "world": {
+    "id": "actors-differ:kind",
+    "origin": "domain",
+    "relationships": [
+      "the actors share the key but pass different `kind` (\"page\" and \"redirect\")"
+    ]
+  }
+}

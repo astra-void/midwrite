@@ -1,0 +1,78 @@
+{
+ "candidateList": [
+  {
+   "class": "check-then-act",
+   "entries": [
+    "app/(login)/actions.ts#inviteTeamMember/arg[1]"
+   ],
+   "firstBlocker": "",
+   "id": "CR-SYNTH-BCC056",
+   "nextStep": "decide whether the application requires this property; if it does, declare it in commitrift-contracts.json. Write the scenario with `--emit-scenarios <DIR>` and replay the counterexample with `commitrift model-check <DIR>/<file>`",
+   "origin": "HEURISTIC_HYPOTHESIS",
+   "status": "MODEL_COUNTEREXAMPLE"
+  },
+  {
+   "class": "check-then-act",
+   "entries": [
+    "app/(login)/actions.ts#signUp/arg[1]"
+   ],
+   "firstBlocker": "`new`: `Date` is not declared or imported (lib/auth/session.ts:47:27)",
+   "id": "CR-SYNTH-B86123",
+   "nextStep": "the first operation the model does not support is named above: declare it in commitrift-contracts.json if a contract applies, otherwise this candidate cannot be verified by CommitRift (docs/reference/limitations.md)",
+   "origin": "SCHEMA_ENFORCED",
+   "status": "UNSUPPORTED"
+  }
+ ],
+ "candidates": 2,
+ "config": "phase15",
+ "counterexamples": 1,
+ "effectfulEntries": 9,
+ "entriesExtracted": 37,
+ "entryCandidates": 44,
+ "entryConnections": {
+  "entries with pool statements": 20
+ },
+ "modelCheckable": 1,
+ "peakRss": 13254656,
+ "project": "saas-starter",
+ "readOnlyEntries": 11,
+ "replicaNotes": [],
+ "resources": 23,
+ "stages": {
+  "MODEL_COUNTEREXAMPLE / HEURISTIC_HYPOTHESIS / none": 1,
+  "UNSUPPORTED / SCHEMA_ENFORCED / other": 1
+ },
+ "statements": {
+  "pool delete": 2,
+  "pool insert": 13,
+  "pool select": 25,
+  "pool update": 4
+ },
+ "statuses": {
+  "MODEL_COUNTEREXAMPLE": 1,
+  "UNSUPPORTED": 1
+ },
+ "tablesModeled": 5,
+ "unknownBreakdown": {
+  "call into an unanalyzed package": 49,
+  "other": 18,
+  "package call with a contract (result not modeled)": 12,
+  "unresolved call": 4,
+  "unresolved method call": 129,
+  "unsupported binding pattern": 1,
+  "unsupported expression": 18,
+  "unsupported query shape": 6
+ },
+ "unknownByCategoryInCache": {
+  "call into an unanalyzed package": 49,
+  "other": 18,
+  "package call with a contract (result not modeled)": 12,
+  "unresolved call": 4,
+  "unresolved method call": 129,
+  "unsupported binding pattern": 1,
+  "unsupported expression": 18,
+  "unsupported query shape": 6
+ },
+ "unknownOperations": 237,
+ "wallSeconds": 0.03
+}

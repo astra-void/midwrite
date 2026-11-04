@@ -1,0 +1,6182 @@
+{
+ "apps": {
+  "fixtures/phase13/eval-app": {
+   "budgets": {
+    "candidatesFound": 20,
+    "candidatesOverBudget": 0,
+    "candidatesReported": 20,
+    "maxCandidates": 64,
+    "maxPartners": 6,
+    "maxStatesPerScenario": 200000,
+    "maxTotalStates": 5000000,
+    "maxWallMsPerScenario": 60000,
+    "maxWorldsPerVariant": 8,
+    "partnersTruncated": 0,
+    "scenariosBuilt": 32,
+    "scenariosModelChecked": 32,
+    "scenariosSkippedForBudget": 0,
+    "totalStatesExplored": 1056,
+    "worldsBuilt": 32,
+    "worldsDuplicate": 0,
+    "worldsInvalid": 1,
+    "worldsSkippedForBudget": 0
+   },
+   "byStatus": {
+    "INCONCLUSIVE": 2,
+    "MODEL_COUNTEREXAMPLE": 10,
+    "NO_VIOLATION_WITHIN_BOUNDS": 8
+   },
+   "candidates": 20,
+   "scenarios": "reports/phase16/evidence/scenarios/phase13-eval-app"
+  },
+  "fixtures/phase14/eval-app": {
+   "budgets": {
+    "candidatesFound": 24,
+    "candidatesOverBudget": 0,
+    "candidatesReported": 24,
+    "maxCandidates": 64,
+    "maxPartners": 6,
+    "maxStatesPerScenario": 200000,
+    "maxTotalStates": 5000000,
+    "maxWallMsPerScenario": 60000,
+    "maxWorldsPerVariant": 8,
+    "partnersTruncated": 0,
+    "scenariosBuilt": 37,
+    "scenariosModelChecked": 37,
+    "scenariosSkippedForBudget": 0,
+    "totalStatesExplored": 621,
+    "worldsBuilt": 37,
+    "worldsDuplicate": 0,
+    "worldsInvalid": 0,
+    "worldsSkippedForBudget": 0
+   },
+   "byStatus": {
+    "INCONCLUSIVE": 1,
+    "MODEL_COUNTEREXAMPLE": 10,
+    "NO_VIOLATION_WITHIN_BOUNDS": 10,
+    "UNSUPPORTED": 3
+   },
+   "candidates": 24,
+   "scenarios": "reports/phase16/evidence/scenarios/phase14-eval-app"
+  },
+  "fixtures/phase15/eval-app": {
+   "budgets": {
+    "candidatesFound": 23,
+    "candidatesOverBudget": 0,
+    "candidatesReported": 23,
+    "maxCandidates": 64,
+    "maxPartners": 6,
+    "maxStatesPerScenario": 200000,
+    "maxTotalStates": 5000000,
+    "maxWallMsPerScenario": 60000,
+    "maxWorldsPerVariant": 8,
+    "partnersTruncated": 0,
+    "scenariosBuilt": 39,
+    "scenariosModelChecked": 39,
+    "scenariosSkippedForBudget": 0,
+    "totalStatesExplored": 954,
+    "worldsBuilt": 39,
+    "worldsDuplicate": 0,
+    "worldsInvalid": 6,
+    "worldsSkippedForBudget": 0
+   },
+   "byStatus": {
+    "INCONCLUSIVE": 4,
+    "MODEL_COUNTEREXAMPLE": 10,
+    "NO_VIOLATION_WITHIN_BOUNDS": 7,
+    "UNSUPPORTED": 2
+   },
+   "candidates": 23,
+   "scenarios": "reports/phase16/evidence/scenarios/phase15-eval-app"
+  },
+  "fixtures/phase15/worlds-app": {
+   "budgets": {
+    "candidatesFound": 3,
+    "candidatesOverBudget": 0,
+    "candidatesReported": 3,
+    "maxCandidates": 64,
+    "maxPartners": 6,
+    "maxStatesPerScenario": 200000,
+    "maxTotalStates": 5000000,
+    "maxWallMsPerScenario": 60000,
+    "maxWorldsPerVariant": 8,
+    "partnersTruncated": 0,
+    "scenariosBuilt": 9,
+    "scenariosModelChecked": 9,
+    "scenariosSkippedForBudget": 0,
+    "totalStatesExplored": 122,
+    "worldsBuilt": 9,
+    "worldsDuplicate": 0,
+    "worldsInvalid": 1,
+    "worldsSkippedForBudget": 0
+   },
+   "byStatus": {
+    "MODEL_COUNTEREXAMPLE": 2,
+    "NO_VIOLATION_WITHIN_BOUNDS": 1
+   },
+   "candidates": 3,
+   "scenarios": "reports/phase16/evidence/scenarios/phase15-worlds-app"
+  },
+  "fixtures/phase16/eval-app": {
+   "budgets": {
+    "candidatesFound": 26,
+    "candidatesOverBudget": 0,
+    "candidatesReported": 26,
+    "maxCandidates": 64,
+    "maxPartners": 6,
+    "maxStatesPerScenario": 200000,
+    "maxTotalStates": 5000000,
+    "maxWallMsPerScenario": 60000,
+    "maxWorldsPerVariant": 8,
+    "partnersTruncated": 0,
+    "scenariosBuilt": 24,
+    "scenariosModelChecked": 24,
+    "scenariosSkippedForBudget": 0,
+    "totalStatesExplored": 286,
+    "worldsBuilt": 24,
+    "worldsDuplicate": 0,
+    "worldsInvalid": 6,
+    "worldsSkippedForBudget": 0
+   },
+   "byStatus": {
+    "INCONCLUSIVE": 4,
+    "MODEL_COUNTEREXAMPLE": 6,
+    "NO_VIOLATION_WITHIN_BOUNDS": 4,
+    "UNSUPPORTED": 12
+   },
+   "candidates": 26,
+   "scenarios": "reports/phase16/evidence/scenarios/phase16-eval-app"
+  },
+  "fixtures/phase16/genid": {
+   "budgets": {
+    "candidatesFound": 14,
+    "candidatesOverBudget": 0,
+    "candidatesReported": 14,
+    "maxCandidates": 64,
+    "maxPartners": 6,
+    "maxStatesPerScenario": 200000,
+    "maxTotalStates": 5000000,
+    "maxWallMsPerScenario": 60000,
+    "maxWorldsPerVariant": 8,
+    "partnersTruncated": 0,
+    "scenariosBuilt": 16,
+    "scenariosModelChecked": 16,
+    "scenariosSkippedForBudget": 0,
+    "totalStatesExplored": 202,
+    "worldsBuilt": 16,
+    "worldsDuplicate": 0,
+    "worldsInvalid": 0,
+    "worldsSkippedForBudget": 0
+   },
+   "byStatus": {
+    "BLOCKED": 2,
+    "MODEL_COUNTEREXAMPLE": 6,
+    "NO_VIOLATION_WITHIN_BOUNDS": 6
+   },
+   "candidates": 14,
+   "scenarios": "reports/phase16/evidence/scenarios/phase16-genid"
+  },
+  "fixtures/phase16/locks": {
+   "budgets": {
+    "candidatesFound": 6,
+    "candidatesOverBudget": 0,
+    "candidatesReported": 6,
+    "maxCandidates": 64,
+    "maxPartners": 6,
+    "maxStatesPerScenario": 200000,
+    "maxTotalStates": 5000000,
+    "maxWallMsPerScenario": 60000,
+    "maxWorldsPerVariant": 8,
+    "partnersTruncated": 0,
+    "scenariosBuilt": 12,
+    "scenariosModelChecked": 12,
+    "scenariosSkippedForBudget": 0,
+    "totalStatesExplored": 295,
+    "worldsBuilt": 12,
+    "worldsDuplicate": 0,
+    "worldsInvalid": 0,
+    "worldsSkippedForBudget": 0
+   },
+   "byStatus": {
+    "MODEL_COUNTEREXAMPLE": 3,
+    "NO_VIOLATION_WITHIN_BOUNDS": 3
+   },
+   "candidates": 6,
+   "scenarios": "reports/phase16/evidence/scenarios/phase16-locks"
+  },
+  "fixtures/phase16/nulls": {
+   "budgets": {
+    "candidatesFound": 4,
+    "candidatesOverBudget": 0,
+    "candidatesReported": 4,
+    "maxCandidates": 64,
+    "maxPartners": 6,
+    "maxStatesPerScenario": 200000,
+    "maxTotalStates": 5000000,
+    "maxWallMsPerScenario": 60000,
+    "maxWorldsPerVariant": 8,
+    "partnersTruncated": 0,
+    "scenariosBuilt": 10,
+    "scenariosModelChecked": 10,
+    "scenariosSkippedForBudget": 0,
+    "totalStatesExplored": 106,
+    "worldsBuilt": 10,
+    "worldsDuplicate": 0,
+    "worldsInvalid": 0,
+    "worldsSkippedForBudget": 0
+   },
+   "byStatus": {
+    "MODEL_COUNTEREXAMPLE": 2,
+    "NO_VIOLATION_WITHIN_BOUNDS": 2
+   },
+   "candidates": 4,
+   "scenarios": "reports/phase16/evidence/scenarios/phase16-nulls"
+  },
+  "fixtures/phase16/retry": {
+   "budgets": {
+    "candidatesFound": 6,
+    "candidatesOverBudget": 0,
+    "candidatesReported": 6,
+    "maxCandidates": 64,
+    "maxPartners": 6,
+    "maxStatesPerScenario": 200000,
+    "maxTotalStates": 5000000,
+    "maxWallMsPerScenario": 60000,
+    "maxWorldsPerVariant": 8,
+    "partnersTruncated": 0,
+    "scenariosBuilt": 11,
+    "scenariosModelChecked": 11,
+    "scenariosSkippedForBudget": 0,
+    "totalStatesExplored": 298,
+    "worldsBuilt": 11,
+    "worldsDuplicate": 0,
+    "worldsInvalid": 0,
+    "worldsSkippedForBudget": 0
+   },
+   "byStatus": {
+    "MODEL_COUNTEREXAMPLE": 2,
+    "NO_VIOLATION_WITHIN_BOUNDS": 4
+   },
+   "candidates": 6,
+   "scenarios": "reports/phase16/evidence/scenarios/phase16-retry"
+  },
+  "fixtures/phase16/zod/app": {
+   "budgets": {
+    "candidatesFound": 2,
+    "candidatesOverBudget": 0,
+    "candidatesReported": 2,
+    "maxCandidates": 64,
+    "maxPartners": 6,
+    "maxStatesPerScenario": 200000,
+    "maxTotalStates": 5000000,
+    "maxWallMsPerScenario": 60000,
+    "maxWorldsPerVariant": 8,
+    "partnersTruncated": 0,
+    "scenariosBuilt": 7,
+    "scenariosModelChecked": 7,
+    "scenariosSkippedForBudget": 0,
+    "totalStatesExplored": 75,
+    "worldsBuilt": 7,
+    "worldsDuplicate": 0,
+    "worldsInvalid": 0,
+    "worldsSkippedForBudget": 0
+   },
+   "byStatus": {
+    "MODEL_COUNTEREXAMPLE": 1,
+    "NO_VIOLATION_WITHIN_BOUNDS": 1
+   },
+   "candidates": 2,
+   "scenarios": "reports/phase16/evidence/scenarios/phase16-zod-app"
+  }
+ },
+ "binary": "target/release/commitrift",
+ "por": [
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 18,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 14,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 14,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 14,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-0e62be-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 26,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 20,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 20,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-0e62be-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 26,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 20,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 20,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-2e0aca-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 26,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 20,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 20,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-2e0aca-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 113,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 34,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 34,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-46ee1c-actual--actors-differ-name.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 113,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 34,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 34,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-46ee1c-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 33,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 40,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 18,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 40,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-46ee1c-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-4bd86b-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-4e43f7-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 39,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 18,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 18,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 18,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-4e43f7-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 23,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 18,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 18,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 18,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-88e603-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 19880,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 492,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 492,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 492,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-8b4195-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 20,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 13,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 13,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 13,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-8e20a6-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 26,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 20,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 20,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-8e20a6-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-913c4e-actual--null-parentid.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-913c4e-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-913c4e-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 23,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 16,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 16,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 16,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-95604c-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 33,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 40,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 18,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 40,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-95604c-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-9d9da8-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-9f14ea-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-9f14ea-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 19,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 14,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 14,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 14,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-ace44a-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 26,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 20,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 20,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-be9570-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 26,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 20,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 20,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-be9570-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 83,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 24,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 24,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 24,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-e1d7aa-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-e99943-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-e99943-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-f3255a-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-f3255a-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 113,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 34,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 34,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-f8fa3f-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 33,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 40,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 18,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 40,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase13/eval-app",
+   "scenario": "cr-synth-f8fa3f-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-0493c5-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-0493c5-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 236,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 41,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 35,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 41,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-05a491-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 113,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 34,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 34,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-14a7c9-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 33,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 40,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 18,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 40,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-14a7c9-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 21,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-2d3539-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-2d3539-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-34503d-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 112,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-42323d-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-4b16ca-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-4b16ca-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 11,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 11,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 11,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-4c94e1-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 6,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 6,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-4c94e1-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": false,
+     "states": 4,
+     "verdict": "UNSUPPORTED"
+    },
+    "sleep-sets": {
+     "complete": false,
+     "states": 5,
+     "verdict": "UNSUPPORTED"
+    },
+    "source-dpor": {
+     "complete": false,
+     "states": 4,
+     "verdict": "UNSUPPORTED"
+    },
+    "unreduced": {
+     "complete": false,
+     "states": 5,
+     "verdict": "UNSUPPORTED"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-62b8da-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 5,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 5,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-67411f-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-68bfdf-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 18,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 14,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 14,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 14,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-967a2a-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 26,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 20,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 20,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-967a2a-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-9b0ce8-actual--stored-distinct-accounts-displayname.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 131,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 33,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 33,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 33,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-9b0ce8-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 18,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 14,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 14,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 14,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-a0ba68-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 9,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 25,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 9,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 25,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-a0ba68-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 96,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 33,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 33,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-a77133-actual--actors-differ-units.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 96,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 33,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 33,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-a77133-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 44,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 19,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-a77133-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 15,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 15,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 15,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-bd28b7-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 9,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-bd28b7-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-ca276e-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-ca276e-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-cc462e-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-cc462e-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-cccdcb-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-cccdcb-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 112,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-d7f65c-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-ede66d-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 44,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 22,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 22,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 22,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-f6e8e7-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 18,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 27,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 13,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 27,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase14/eval-app",
+   "scenario": "cr-synth-f6e8e7-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-0113a9-actual--stored-distinct-profiles-nickname.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 131,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 21,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 21,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 21,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-0113a9-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 8,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 8,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-03f27c-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 11,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 11,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 11,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 11,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-03f27c-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-10888f-actual--actors-differ-kind.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-10888f-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-10888f-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-149a8a-actual--actors-differ-kind.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-149a8a-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-149a8a-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": false,
+     "states": 4,
+     "verdict": "UNSUPPORTED"
+    },
+    "sleep-sets": {
+     "complete": false,
+     "states": 5,
+     "verdict": "UNSUPPORTED"
+    },
+    "source-dpor": {
+     "complete": false,
+     "states": 4,
+     "verdict": "UNSUPPORTED"
+    },
+    "unreduced": {
+     "complete": false,
+     "states": 5,
+     "verdict": "UNSUPPORTED"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-214d3e-actual--undefined-grantkey.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": false,
+     "states": 4,
+     "verdict": "UNSUPPORTED"
+    },
+    "sleep-sets": {
+     "complete": false,
+     "states": 5,
+     "verdict": "UNSUPPORTED"
+    },
+    "source-dpor": {
+     "complete": false,
+     "states": 4,
+     "verdict": "UNSUPPORTED"
+    },
+    "unreduced": {
+     "complete": false,
+     "states": 5,
+     "verdict": "UNSUPPORTED"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-214d3e-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-2fbd77-actual--null-teamid.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 125,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 29,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 29,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 29,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-402d7d-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 16,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 14,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 14,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 14,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-473a7d-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 32,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 22,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 18,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 22,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-473a7d-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 77,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 30,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 25,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 30,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-60b3e5-actual--actors-differ-accountid.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 77,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 30,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 25,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 30,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-60b3e5-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 86,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 40,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 25,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 40,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-60b3e5-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": false,
+     "states": 4,
+     "verdict": "UNSUPPORTED"
+    },
+    "sleep-sets": {
+     "complete": false,
+     "states": 5,
+     "verdict": "UNSUPPORTED"
+    },
+    "source-dpor": {
+     "complete": false,
+     "states": 4,
+     "verdict": "UNSUPPORTED"
+    },
+    "unreduced": {
+     "complete": false,
+     "states": 5,
+     "verdict": "UNSUPPORTED"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-63d4a0-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 11,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 11,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-6f4ef6-actual--stored-boundary-quotas-remaining-1.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 56,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 31,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 28,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 31,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-6f4ef6-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 16,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 11,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-6f4ef6-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-702a69-actual--null-folderid.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-702a69-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-702a69-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 216,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 44,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 38,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 44,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-a933e9-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 16,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 15,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 15,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 15,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-c11ff0-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 31,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 19,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 16,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 19,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-d09540-actual--actors-differ-callerid.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 31,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 19,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 16,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 19,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-d09540-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 16,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 11,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-d09540-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-d5e401-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 16,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 11,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-d5e401-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 8981,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 342,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 342,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 342,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-f00981-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-f143ef-actual--null-folderid.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-f143ef-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-f143ef-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 71,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 27,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 23,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 27,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-f1b244-actual--stored-distinct-profiles-nickname.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 71,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 27,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 23,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 27,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/eval-app",
+   "scenario": "cr-synth-f1b244-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/worlds-app",
+   "scenario": "cr-synth-20cd28-actual--null-parentid.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/worlds-app",
+   "scenario": "cr-synth-20cd28-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/worlds-app",
+   "scenario": "cr-synth-20cd28-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase15/worlds-app",
+   "scenario": "cr-synth-438686-actual--null-parentid.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/worlds-app",
+   "scenario": "cr-synth-438686-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/worlds-app",
+   "scenario": "cr-synth-438686-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 11,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 11,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase15/worlds-app",
+   "scenario": "cr-synth-6f4ef6-actual--stored-boundary-quotas-remaining-1.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 56,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 31,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 28,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 31,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/worlds-app",
+   "scenario": "cr-synth-6f4ef6-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 16,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 11,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase15/worlds-app",
+   "scenario": "cr-synth-6f4ef6-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": false,
+     "states": 8,
+     "verdict": "UNSUPPORTED"
+    },
+    "sleep-sets": {
+     "complete": false,
+     "states": 9,
+     "verdict": "UNSUPPORTED"
+    },
+    "source-dpor": {
+     "complete": false,
+     "states": 8,
+     "verdict": "UNSUPPORTED"
+    },
+    "unreduced": {
+     "complete": false,
+     "states": 9,
+     "verdict": "UNSUPPORTED"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-14e27e-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-3195e4-actual--actors-differ-raw-name.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-3195e4-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-3195e4-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-39a3ec-actual--null-channelid.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 21,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-39a3ec-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-39a3ec-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 71,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 27,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 23,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 27,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-644a64-actual--stored-equal-digest-preferences-frequency.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 71,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 27,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 23,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 27,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-644a64-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-66285c-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-66285c-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-77e800-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 21,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-79e444-actual--null-channelid.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 21,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-79e444-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-79e444-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 21,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-7ce81d-actual--actors-differ-request-name.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 21,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-7ce81d-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-7ce81d-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-8d7112-actual--null-raw-projectid.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-a64a51-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-a64a51-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 11,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 11,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-b33ea7-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 16,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 11,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-b33ea7-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": false,
+     "states": 7,
+     "verdict": "UNSUPPORTED"
+    },
+    "sleep-sets": {
+     "complete": false,
+     "states": 8,
+     "verdict": "UNSUPPORTED"
+    },
+    "source-dpor": {
+     "complete": false,
+     "states": 7,
+     "verdict": "UNSUPPORTED"
+    },
+    "unreduced": {
+     "complete": false,
+     "states": 8,
+     "verdict": "UNSUPPORTED"
+    }
+   },
+   "app": "fixtures/phase16/eval-app",
+   "scenario": "cr-synth-c964a0-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase16/zod/app",
+   "scenario": "cr-synth-8674e8-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/zod/app",
+   "scenario": "cr-synth-8674e8-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/zod/app",
+   "scenario": "cr-synth-eff979-actual--absent-input-role.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/zod/app",
+   "scenario": "cr-synth-eff979-actual--actors-differ-input-role.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/zod/app",
+   "scenario": "cr-synth-eff979-actual--undefined-input-role.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/zod/app",
+   "scenario": "cr-synth-eff979-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/zod/app",
+   "scenario": "cr-synth-eff979-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 21,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 16,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 16,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 16,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/retry",
+   "scenario": "cr-synth-05a8f8-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 96,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 33,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 33,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/retry",
+   "scenario": "cr-synth-5dab32-actual--actors-differ-amount.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 96,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 33,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 33,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/retry",
+   "scenario": "cr-synth-5dab32-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 126,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 25,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/retry",
+   "scenario": "cr-synth-5dab32-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase16/retry",
+   "scenario": "cr-synth-65f47a-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase16/retry",
+   "scenario": "cr-synth-7644dd-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 128,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 37,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 33,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 37,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/retry",
+   "scenario": "cr-synth-7c023b-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 126,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 25,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/retry",
+   "scenario": "cr-synth-7c023b-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 176,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 41,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 37,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 41,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/retry",
+   "scenario": "cr-synth-ad6e59-actual--actors-differ-amount.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 176,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 41,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 37,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 41,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/retry",
+   "scenario": "cr-synth-ad6e59-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 126,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 25,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/retry",
+   "scenario": "cr-synth-ad6e59-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 131,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 36,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 31,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 36,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/locks",
+   "scenario": "cr-synth-07ac21-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 113,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 34,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 34,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/locks",
+   "scenario": "cr-synth-0f6c0d-actual--null-folderid.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 113,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 34,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 29,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 34,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/locks",
+   "scenario": "cr-synth-0f6c0d-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 33,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 40,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 18,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 40,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/locks",
+   "scenario": "cr-synth-0f6c0d-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase16/locks",
+   "scenario": "cr-synth-8747b2-actual--null-folderid.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/locks",
+   "scenario": "cr-synth-8747b2-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/locks",
+   "scenario": "cr-synth-8747b2-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 20,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 13,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 13,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 13,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase16/locks",
+   "scenario": "cr-synth-8d7cd9-actual--null-folderid.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 81,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 24,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 24,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 24,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/locks",
+   "scenario": "cr-synth-8d7cd9-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 26,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 20,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 14,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 20,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/locks",
+   "scenario": "cr-synth-8d7cd9-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 131,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 36,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 31,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 36,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/locks",
+   "scenario": "cr-synth-a86737-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 125,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 29,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 29,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 29,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase16/locks",
+   "scenario": "cr-synth-f14d87-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/nulls",
+   "scenario": "cr-synth-495b52-actual--null-groupid.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/nulls",
+   "scenario": "cr-synth-495b52-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/nulls",
+   "scenario": "cr-synth-495b52-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase16/nulls",
+   "scenario": "cr-synth-ae800a-actual--null-groupid.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/nulls",
+   "scenario": "cr-synth-ae800a-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/nulls",
+   "scenario": "cr-synth-ae800a-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/nulls",
+   "scenario": "cr-synth-b61bf9-actual--null-serialno.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/nulls",
+   "scenario": "cr-synth-b61bf9-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase16/nulls",
+   "scenario": "cr-synth-d9ddca-actual--null-serialno.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/nulls",
+   "scenario": "cr-synth-d9ddca-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 117,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 53,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 49,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 53,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/genid",
+   "scenario": "cr-synth-0491df-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase16/genid",
+   "scenario": "cr-synth-105f2a-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 7,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 7,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/genid",
+   "scenario": "cr-synth-1893a1-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 9,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 9,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 9,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/genid",
+   "scenario": "cr-synth-2dc5c2-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 12,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/genid",
+   "scenario": "cr-synth-3516bd-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 9,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 7,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 9,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/genid",
+   "scenario": "cr-synth-3516bd-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase16/genid",
+   "scenario": "cr-synth-4f95e8-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 10,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 10,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 10,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase16/genid",
+   "scenario": "cr-synth-771dd7-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 9,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 9,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/genid",
+   "scenario": "cr-synth-771dd7-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 9,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 13,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 9,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 13,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/genid",
+   "scenario": "cr-synth-7bcd9a-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 8,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 8,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase16/genid",
+   "scenario": "cr-synth-ae490f-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 5,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase16/genid",
+   "scenario": "cr-synth-ce9d7f-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 39,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 21,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 19,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 21,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/genid",
+   "scenario": "cr-synth-d7d613-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 31,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 17,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/genid",
+   "scenario": "cr-synth-d7d613-distinct-key.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 8,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 8,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 8,
+     "verdict": "COUNTEREXAMPLE_FOUND"
+    }
+   },
+   "app": "fixtures/phase16/genid",
+   "scenario": "cr-synth-eea6df-actual.json"
+  },
+  {
+   "agree": true,
+   "algorithms": {
+    "classic-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "sleep-sets": {
+     "complete": true,
+     "states": 9,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "source-dpor": {
+     "complete": true,
+     "states": 5,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    },
+    "unreduced": {
+     "complete": true,
+     "states": 9,
+     "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+    }
+   },
+   "app": "fixtures/phase16/genid",
+   "scenario": "cr-synth-eea6df-distinct-key.json"
+  }
+ ],
+ "postgres": [
+  {
+   "app": "fixtures/phase13/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 8,
+   "scenario": "cr-synth-0e62be-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase13/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-4bd86b-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase13/eval-app",
+   "disagreements": 0,
+   "evidence": "runtime-inconclusive",
+   "observations": 0,
+   "scenario": "cr-synth-4e43f7-actual.json",
+   "status": "blocked"
+  },
+  {
+   "app": "fixtures/phase13/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 7,
+   "scenario": "cr-synth-8e20a6-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase13/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-913c4e-actual--null-parentid.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase13/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 10,
+   "scenario": "cr-synth-95604c-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase13/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 10,
+   "scenario": "cr-synth-9d9da8-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase13/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-9f14ea-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase13/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 7,
+   "scenario": "cr-synth-ace44a-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase13/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-f3255a-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase14/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-0493c5-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase14/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-34503d-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase14/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-4b16ca-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase14/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 5,
+   "scenario": "cr-synth-4c94e1-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase14/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 3,
+   "scenario": "cr-synth-68bfdf-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase14/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 8,
+   "scenario": "cr-synth-967a2a-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase14/eval-app",
+   "disagreements": 0,
+   "evidence": "runtime-inconclusive",
+   "observations": 0,
+   "scenario": "cr-synth-9b0ce8-actual--stored-distinct-accounts-displayname.json",
+   "status": "blocked"
+  },
+  {
+   "app": "fixtures/phase14/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 8,
+   "scenario": "cr-synth-a0ba68-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase14/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-cc462e-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase14/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-cccdcb-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase14/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 9,
+   "scenario": "cr-synth-f6e8e7-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase15/eval-app",
+   "disagreements": 0,
+   "evidence": "runtime-inconclusive",
+   "observations": 0,
+   "scenario": "cr-synth-0113a9-actual--stored-distinct-profiles-nickname.json",
+   "status": "blocked"
+  },
+  {
+   "app": "fixtures/phase15/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 7,
+   "scenario": "cr-synth-03f27c-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase15/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 10,
+   "scenario": "cr-synth-03f27c-distinct-key.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase15/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-149a8a-actual--actors-differ-kind.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase15/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-2fbd77-actual--null-teamid.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase15/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 11,
+   "scenario": "cr-synth-402d7d-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase15/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 6,
+   "scenario": "cr-synth-473a7d-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase15/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 6,
+   "scenario": "cr-synth-6f4ef6-actual--stored-boundary-quotas-remaining-1.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase15/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 6,
+   "scenario": "cr-synth-c11ff0-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase15/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 6,
+   "scenario": "cr-synth-d5e401-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase15/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-f143ef-actual--null-folderid.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase15/worlds-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-438686-actual--null-parentid.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase15/worlds-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 6,
+   "scenario": "cr-synth-6f4ef6-actual--stored-boundary-quotas-remaining-1.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase16/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-39a3ec-actual--null-channelid.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase16/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-66285c-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase16/eval-app",
+   "disagreements": 0,
+   "evidence": "runtime-inconclusive",
+   "observations": 0,
+   "scenario": "cr-synth-77e800-actual.json",
+   "status": "blocked"
+  },
+  {
+   "app": "fixtures/phase16/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-8d7112-actual--null-raw-projectid.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase16/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-a64a51-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase16/eval-app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 6,
+   "scenario": "cr-synth-b33ea7-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase16/zod/app",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-8674e8-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase16/retry",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 3,
+   "scenario": "cr-synth-65f47a-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase16/retry",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 3,
+   "scenario": "cr-synth-7644dd-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase16/locks",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-8747b2-actual--null-folderid.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase16/locks",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 7,
+   "scenario": "cr-synth-8d7cd9-actual--null-folderid.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase16/locks",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 11,
+   "scenario": "cr-synth-f14d87-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase16/nulls",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-ae800a-actual--null-groupid.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase16/nulls",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-d9ddca-actual--null-serialno.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase16/genid",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 3,
+   "scenario": "cr-synth-105f2a-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase16/genid",
+   "disagreements": 0,
+   "evidence": "runtime-inconclusive",
+   "observations": 0,
+   "scenario": "cr-synth-4f95e8-actual.json",
+   "status": "blocked"
+  },
+  {
+   "app": "fixtures/phase16/genid",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-771dd7-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase16/genid",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-ae490f-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase16/genid",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 2,
+   "scenario": "cr-synth-ce9d7f-actual.json",
+   "status": "confirmed"
+  },
+  {
+   "app": "fixtures/phase16/genid",
+   "disagreements": 0,
+   "evidence": "postgres-confirmed-schedule",
+   "observations": 4,
+   "scenario": "cr-synth-eea6df-actual.json",
+   "status": "confirmed"
+  }
+ ],
+ "source": [
+  {
+   "app": "fixtures/phase15/worlds-app",
+   "candidateStatus": "MODEL_COUNTEREXAMPLE",
+   "class": "check-then-act",
+   "entry": "createFolder",
+   "evidence": "original-code-reproduced",
+   "runs": [
+    {
+     "invariant": "violated",
+     "outcomesAgree": true,
+     "reproduced": true,
+     "statementsAgree": true,
+     "tablesAgree": true
+    },
+    {
+     "invariant": "violated",
+     "outcomesAgree": true,
+     "reproduced": true,
+     "statementsAgree": true,
+     "tablesAgree": true
+    },
+    {
+     "invariant": "violated",
+     "outcomesAgree": true,
+     "reproduced": true,
+     "statementsAgree": true,
+     "tablesAgree": true
+    }
+   ],
+   "scenario": "cr-synth-438686-actual--null-parentid.json",
+   "status": "reproduced",
+   "world": "null:parentId"
+  },
+  {
+   "app": "fixtures/phase15/worlds-app",
+   "candidateStatus": "MODEL_COUNTEREXAMPLE",
+   "class": "check-then-act",
+   "entry": "startExport",
+   "evidence": "original-code-reproduced",
+   "runs": [
+    {
+     "invariant": "violated",
+     "outcomesAgree": true,
+     "reproduced": true,
+     "statementsAgree": true,
+     "tablesAgree": true
+    },
+    {
+     "invariant": "violated",
+     "outcomesAgree": true,
+     "reproduced": true,
+     "statementsAgree": true,
+     "tablesAgree": true
+    },
+    {
+     "invariant": "violated",
+     "outcomesAgree": true,
+     "reproduced": true,
+     "statementsAgree": true,
+     "tablesAgree": true
+    }
+   ],
+   "scenario": "cr-synth-6f4ef6-actual--stored-boundary-quotas-remaining-1.json",
+   "status": "reproduced",
+   "world": "stored-boundary:quotas.remaining=1"
+  },
+  {
+   "app": "fixtures/phase16/retry",
+   "candidateStatus": "MODEL_COUNTEREXAMPLE",
+   "class": "ambiguous-commit",
+   "entry": "POST",
+   "evidence": "original-code-connection-loss-reproduced",
+   "runs": [
+    {
+     "invariant": "violated",
+     "outcomesAgree": true,
+     "reproduced": true,
+     "statementsAgree": true,
+     "tablesAgree": true
+    },
+    {
+     "invariant": "violated",
+     "outcomesAgree": true,
+     "reproduced": true,
+     "statementsAgree": true,
+     "tablesAgree": true
+    },
+    {
+     "invariant": "violated",
+     "outcomesAgree": true,
+     "reproduced": true,
+     "statementsAgree": true,
+     "tablesAgree": true
+    }
+   ],
+   "scenario": "cr-synth-7644dd-actual.json",
+   "status": "reproduced",
+   "world": "base"
+  },
+  {
+   "app": "fixtures/phase16/retry",
+   "candidateStatus": "MODEL_COUNTEREXAMPLE",
+   "class": "ambiguous-commit",
+   "entry": "placeOrder",
+   "evidence": "original-code-connection-loss-reproduced",
+   "runs": [
+    {
+     "invariant": "violated",
+     "outcomesAgree": true,
+     "reproduced": true,
+     "statementsAgree": true,
+     "tablesAgree": true
+    },
+    {
+     "invariant": "violated",
+     "outcomesAgree": true,
+     "reproduced": true,
+     "statementsAgree": true,
+     "tablesAgree": true
+    },
+    {
+     "invariant": "violated",
+     "outcomesAgree": true,
+     "reproduced": true,
+     "statementsAgree": true,
+     "tablesAgree": true
+    }
+   ],
+   "scenario": "cr-synth-65f47a-actual.json",
+   "status": "reproduced",
+   "world": "base"
+  }
+ ]
+}

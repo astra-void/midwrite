@@ -1,0 +1,117 @@
+{
+  "actors": [
+    {
+      "arguments": [
+        {
+          "accountId": "f35425ca-0000-4000-a000-000000000001",
+          "name": "name-1"
+        }
+      ],
+      "name": "createTag-1",
+      "selector": "src/app/actions/tags.ts#createTag"
+    },
+    {
+      "arguments": [
+        {
+          "accountId": "f35425ca-0000-4000-a000-000000000001",
+          "name": "name-1"
+        }
+      ],
+      "name": "createTag-2",
+      "selector": "src/app/actions/tags.ts#createTag"
+    }
+  ],
+  "algorithm": "sleep-sets",
+  "assumptions": [
+    "two requests can run the Server Action at the same time (double submit, two tabs, client retry)"
+  ],
+  "bounds": {
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "maxStates": 200000,
+    "maxSteps": 64
+  },
+  "candidate": "CR-SYNTH-CCCDCB",
+  "class": "check-then-act",
+  "evidence": "model counterexample (not an original-code reproduction)",
+  "finalTerms": [
+    "count(tags[accountId=\"f35425ca-0000-4000-a000-000000000001\"]) = 2"
+  ],
+  "finding": "MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `at-most-one-tags-per-key` (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). That the application requires this property has NOT been established; this is not a confirmed defect.",
+  "initialState": {
+    "accounts": [
+      {
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "displayName": "displayName-1",
+        "email": "email-1",
+        "id": "f35425ca-0000-4000-a000-000000000001",
+        "timezone": "UTC",
+        "trialUsed": false,
+        "updatedAt": "2026-01-01T00:00:00.000Z"
+      }
+    ]
+  },
+  "kind": "commitrift.counterexample",
+  "property": {
+    "name": "at-most-one-tags-per-key",
+    "origin": "HEURISTIC_HYPOTHESIS"
+  },
+  "reproduce": "commitrift model-check cr-synth-cccdcb-actual.json",
+  "reproduceOnOriginalCode": null,
+  "scenario": "cr-synth-cccdcb-actual.json",
+  "schedule": [
+    "createTag-1 read SELECT tags WHERE ((@accountId = \"f35425ca-0000-4000-a000-000000000001\") and (@name = \"name-1\")) → null  (src/app/actions/tags.ts:18:28)",
+    "createTag-1 local CHECK _row6 → false  (src/app/actions/tags.ts:23:7)",
+    "createTag-2 read SELECT tags WHERE ((@accountId = \"f35425ca-0000-4000-a000-000000000001\") and (@name = \"name-1\")) → null  (src/app/actions/tags.ts:18:28)",
+    "createTag-2 local CHECK _row6 → false  (src/app/actions/tags.ts:23:7)",
+    "createTag-2 write INSERT tags {accountId=\"f35425ca-0000-4000-a000-000000000001\", name=\"name-1\"} → {id=1}  (src/app/actions/tags.ts:24:27)",
+    "createTag-2 local _returned9 = null  (src/app/actions/tags.ts:24:27)",
+    "createTag-2 local CHECK _inserted8 is null → false  (src/app/actions/tags.ts:24:27)",
+    "createTag-2 local _returned9 = {id=1}  (src/app/actions/tags.ts:24:27)",
+    "createTag-2 local CHECK !_returned9 → false  (src/app/actions/tags.ts:25:7)",
+    "createTag-2 local return (success)",
+    "createTag-1 write INSERT tags {accountId=\"f35425ca-0000-4000-a000-000000000001\", name=\"name-1\"} → {id=2}  (src/app/actions/tags.ts:24:27)",
+    "createTag-1 local _returned9 = null  (src/app/actions/tags.ts:24:27)",
+    "createTag-1 local CHECK _inserted8 is null → false  (src/app/actions/tags.ts:24:27)",
+    "createTag-1 local _returned9 = {id=2}  (src/app/actions/tags.ts:24:27)",
+    "createTag-1 local CHECK !_returned9 → false  (src/app/actions/tags.ts:25:7)",
+    "createTag-1 local return (success)"
+  ],
+  "schemaVersion": 1,
+  "sourceFingerprint": [
+    {
+      "file": "src/app/actions/tags.ts",
+      "fnv64": "e9288cacfafa173e"
+    },
+    {
+      "file": "src/schema/access.ts",
+      "fnv64": "3000d5747e085973"
+    },
+    {
+      "file": "src/schema/accounts.ts",
+      "fnv64": "9d0b610f44e1972e"
+    },
+    {
+      "file": "src/schema/billing.ts",
+      "fnv64": "125afb386cde230b"
+    },
+    {
+      "file": "src/schema/scheduling.ts",
+      "fnv64": "7eedc98a5972f46d"
+    },
+    {
+      "file": "src/schema/work.ts",
+      "fnv64": "bd7eb260a2ac1cc0"
+    }
+  ],
+  "status": "MODEL_COUNTEREXAMPLE",
+  "variant": "actual",
+  "world": {
+    "id": "base",
+    "origin": "base",
+    "relationships": [
+      "the synthesized initial state and arguments"
+    ]
+  }
+}

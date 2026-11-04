@@ -1,0 +1,7 @@
+model-identity exit 0
+static-identity exit 0
+144
+0
+fixtures/phase9/model-scenarios/ambiguous-commit-lookup-unique.json: identical (json =, text =; NO_COUNTEREXAMPLE_WITHIN_BOUNDS, 305 states, 551 transitions)
+
+56 of 56 scenarios identical

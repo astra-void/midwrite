@@ -1,0 +1,131 @@
+{
+ "candidateList": [
+  {
+   "class": "read-modify-write",
+   "entries": [
+    "packages/db/src/queries/customers.ts#toggleCustomerPortal"
+   ],
+   "firstBlocker": "",
+   "id": "CR-SYNTH-7CC916",
+   "nextStep": "nothing to do within these bounds; a bounded search is not a proof (raise `--max-states` for a larger search)",
+   "origin": "HEURISTIC_HYPOTHESIS",
+   "status": "NO_VIOLATION_WITHIN_BOUNDS"
+  },
+  {
+   "class": "check-then-act",
+   "entries": [
+    "apps/worker/src/processors/insights/generate-team-insights.ts#GenerateInsightsProcessor/method[process]"
+   ],
+   "firstBlocker": "`?.` on a non-identifier base (apps/worker/src/processors/insights/generate-team-insights.ts:89:23)",
+   "id": "CR-SYNTH-542F01",
+   "nextStep": "the first operation the model does not support is named above: declare it in commitrift-contracts.json if a contract applies, otherwise this candidate cannot be verified by CommitRift (docs/reference/limitations.md)",
+   "origin": "SCHEMA_ENFORCED",
+   "status": "UNSUPPORTED"
+  },
+  {
+   "class": "write-skew",
+   "entries": [
+    "packages/db/src/queries/teams.ts#leaveTeam"
+   ],
+   "firstBlocker": "declare the property this candidate needs in commitrift-contracts.json (`invariants`), then rerun `commitrift discover --model-check`",
+   "id": "CR-SYNTH-3067C6",
+   "nextStep": "declare the property this candidate needs in commitrift-contracts.json (`invariants`), then rerun `commitrift discover --model-check`",
+   "origin": "none",
+   "status": "BLOCKED"
+  },
+  {
+   "class": "write-skew",
+   "entries": [
+    "packages/db/src/queries/teams.ts#deleteTeamMember"
+   ],
+   "firstBlocker": "declare the property this candidate needs in commitrift-contracts.json (`invariants`), then rerun `commitrift discover --model-check`",
+   "id": "CR-SYNTH-A06586",
+   "nextStep": "declare the property this candidate needs in commitrift-contracts.json (`invariants`), then rerun `commitrift discover --model-check`",
+   "origin": "none",
+   "status": "BLOCKED"
+  }
+ ],
+ "candidates": 4,
+ "config": "phase16-declared",
+ "counterexamples": 0,
+ "effectfulEntries": 86,
+ "entriesExtracted": 1168,
+ "entryCandidates": 2864,
+ "entryConnections": {
+  "entries with pool statements": 80,
+  "entries with replica statements": 103,
+  "entries with tx statements": 7
+ },
+ "modelCheckable": 1,
+ "peakRss": 241549312,
+ "project": "midday",
+ "readOnlyEntries": 84,
+ "replicaNotes": [
+  "the project builds a replicated database (the declared replica factory `packages/db/src/replicas.ts#withReplicas`): reads through a recognized replicated database are extracted as read-replica reads, and a database known only by its receiver name or by a plain drizzle type is not taken to be the primary for reads"
+ ],
+ "resources": 123,
+ "stages": {
+  "BLOCKED / none / blocked": 2,
+  "NO_VIOLATION_WITHIN_BOUNDS / HEURISTIC_HYPOTHESIS / none": 1,
+  "UNSUPPORTED / SCHEMA_ENFORCED / other": 1
+ },
+ "statements": {
+  "pool delete": 42,
+  "pool insert": 26,
+  "pool update": 78,
+  "replica select": 225,
+  "replica selectCount": 2,
+  "transactions (begin)": 67,
+  "tx delete": 1,
+  "tx insert": 13,
+  "tx select": 16,
+  "tx update": 15
+ },
+ "statuses": {
+  "BLOCKED": 2,
+  "NO_VIOLATION_WITHIN_BOUNDS": 1,
+  "UNSUPPORTED": 1
+ },
+ "tablesModeled": 50,
+ "unknownBreakdown": {
+  "call into an unanalyzed package": 9587,
+  "column not modeled (schema)": 314,
+  "database handle of an unresolved type": 81,
+  "inline depth limit": 1389,
+  "other": 5699,
+  "package call with a contract (result not modeled)": 2,
+  "replicated database: routing unknown": 31,
+  "table not modeled (schema)": 2,
+  "unresolved call": 1028,
+  "unresolved identifier": 1190,
+  "unresolved method call": 11182,
+  "unsupported binding pattern": 298,
+  "unsupported expression": 1306,
+  "unsupported query (raw SQL)": 16,
+  "unsupported query shape": 134,
+  "unsupported transaction shape": 3043
+ },
+ "unknownByCategoryInCache": {
+  "call into an unanalyzed package": 9587,
+  "caught error property not modeled": 186,
+  "column not modeled (schema)": 314,
+  "database handle of an unresolved type": 81,
+  "inline depth limit": 1389,
+  "loop outside the bounded subset": 93,
+  "other": 7915,
+  "package call with a contract (result not modeled)": 2,
+  "replicated database: routing unknown": 31,
+  "table not modeled (schema)": 2,
+  "unresolved call": 1028,
+  "unresolved identifier": 1190,
+  "unresolved method call": 11182,
+  "unsupported binding pattern": 350,
+  "unsupported expression": 1769,
+  "unsupported query (raw SQL)": 16,
+  "unsupported query shape": 133,
+  "unsupported transaction shape": 33,
+  "zod construct outside the modeled subset": 1
+ },
+ "unknownOperations": 35302,
+ "wallSeconds": 1.77
+}

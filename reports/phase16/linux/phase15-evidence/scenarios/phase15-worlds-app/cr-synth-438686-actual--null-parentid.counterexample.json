@@ -1,0 +1,95 @@
+{
+  "actors": [
+    {
+      "arguments": [
+        1,
+        null,
+        "name-1"
+      ],
+      "name": "createFolder-1",
+      "selector": "src/services/folders.ts#createFolder"
+    },
+    {
+      "arguments": [
+        1,
+        null,
+        "name-1"
+      ],
+      "name": "createFolder-2",
+      "selector": "src/services/folders.ts#createFolder"
+    }
+  ],
+  "algorithm": "sleep-sets",
+  "assumptions": [
+    "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+  ],
+  "bounds": {
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "maxStates": 200000,
+    "maxSteps": 64
+  },
+  "candidate": "CR-SYNTH-438686",
+  "class": "check-then-act",
+  "evidence": "model counterexample (not an original-code reproduction)",
+  "finalTerms": [
+    "count(folders[name=\"name-1\",ownerId=1,parentId=null]) = 2"
+  ],
+  "finding": "In the initial world `null:parentId` (parentId = null for every actor): MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `one-folder-per-place` (USER_DECLARED) (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). The property is declared by the user; the counterexample replays in the model.",
+  "initialState": {},
+  "kind": "commitrift.counterexample",
+  "property": {
+    "name": "one-folder-per-place",
+    "origin": "USER_DECLARED"
+  },
+  "reproduce": "commitrift model-check cr-synth-438686-actual--null-parentid.json",
+  "reproduceOnOriginalCode": "commitrift model-check cr-synth-438686-actual--null-parentid.json --verify-source --allow-execution",
+  "scenario": "cr-synth-438686-actual--null-parentid.json",
+  "schedule": [
+    "createFolder-1 read SELECT folders WHERE (((@ownerId = 1) and ((true and @parentId is null) or (false and (@parentId = null)))) and (@name = \"name-1\")) → null  (src/services/folders.ts:11:28)",
+    "createFolder-1 local CHECK _row3 → false  (src/services/folders.ts:22:7)",
+    "createFolder-2 read SELECT folders WHERE (((@ownerId = 1) and ((true and @parentId is null) or (false and (@parentId = null)))) and (@name = \"name-1\")) → null  (src/services/folders.ts:11:28)",
+    "createFolder-2 local CHECK _row3 → false  (src/services/folders.ts:22:7)",
+    "createFolder-2 write INSERT folders {name=\"name-1\", ownerId=1, parentId=null} ON CONFLICT DO NOTHING → {id=1}  (src/services/folders.ts:23:27)",
+    "createFolder-2 local _returned6 = null  (src/services/folders.ts:23:27)",
+    "createFolder-2 local CHECK _inserted5 is null → false  (src/services/folders.ts:23:27)",
+    "createFolder-2 local _returned6 = {id=1}  (src/services/folders.ts:23:27)",
+    "createFolder-2 local _opt7 = undefined  (src/services/folders.ts:28:10)",
+    "createFolder-2 local CHECK (_returned6 is null or (_returned6 = undefined)) → false  (src/services/folders.ts:28:10)",
+    "createFolder-2 local _opt7 = 1  (src/services/folders.ts:28:10)",
+    "createFolder-2 local _logic8 = 1  (src/services/folders.ts:28:10)",
+    "createFolder-2 local CHECK (_logic8 is null or (_logic8 = undefined)) → false  (src/services/folders.ts:28:10)",
+    "createFolder-2 local return (success)",
+    "createFolder-1 write INSERT folders {name=\"name-1\", ownerId=1, parentId=null} ON CONFLICT DO NOTHING → {id=2}  (src/services/folders.ts:23:27)",
+    "createFolder-1 local _returned6 = null  (src/services/folders.ts:23:27)",
+    "createFolder-1 local CHECK _inserted5 is null → false  (src/services/folders.ts:23:27)",
+    "createFolder-1 local _returned6 = {id=2}  (src/services/folders.ts:23:27)",
+    "createFolder-1 local _opt7 = undefined  (src/services/folders.ts:28:10)",
+    "createFolder-1 local CHECK (_returned6 is null or (_returned6 = undefined)) → false  (src/services/folders.ts:28:10)",
+    "createFolder-1 local _opt7 = 2  (src/services/folders.ts:28:10)",
+    "createFolder-1 local _logic8 = 2  (src/services/folders.ts:28:10)",
+    "createFolder-1 local CHECK (_logic8 is null or (_logic8 = undefined)) → false  (src/services/folders.ts:28:10)",
+    "createFolder-1 local return (success)"
+  ],
+  "schemaVersion": 1,
+  "sourceFingerprint": [
+    {
+      "file": "src/services/folders.ts",
+      "fnv64": "5129ae9b7ae6fd6d"
+    },
+    {
+      "file": "src/db/schema.ts",
+      "fnv64": "b53ea6e0307712bf"
+    }
+  ],
+  "status": "MODEL_COUNTEREXAMPLE",
+  "variant": "actual",
+  "world": {
+    "id": "null:parentId",
+    "origin": "domain",
+    "relationships": [
+      "parentId = null for every actor"
+    ]
+  }
+}

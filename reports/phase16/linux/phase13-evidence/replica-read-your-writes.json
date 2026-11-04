@@ -1,0 +1,248 @@
+{
+ "actors": [
+  {
+   "arguments": [],
+   "function": "renameAndRead",
+   "name": "A",
+   "operations": 5,
+   "origin": "declared",
+   "process": "A",
+   "sourceRefs": [
+    {
+     "column": 0,
+     "line": 1,
+     "origin": "declared",
+     "text": "update profiles where @id == 1 set @name = \"new\""
+    },
+    {
+     "column": 0,
+     "line": 2,
+     "origin": "declared",
+     "text": "let p = replica select profiles where @id == 1"
+    }
+   ],
+   "tasks": 1
+  }
+ ],
+ "assumptions": [
+  "database default isolation: read-committed (PostgreSQL semantics, see docs/phase6/POSTGRES-ISOLATION.md)",
+  "a database statement is atomic unless it must wait for another transaction; waiting statements resume with their original snapshot",
+  "autocommit (root `db`) statements are single-statement transactions at the default isolation level",
+  "local computation is not a scheduling point; it is folded into the preceding transition",
+  "rows are read in primary-key order for LIMIT 1 (the declared programs and generated SQL both use ORDER BY the primary key)",
+  "tasks of different actors never share a transaction, connection or event loop; actors listed with the same process share in-process variables and crash together",
+  "a process crash rolls back open transactions and loses local state; committed data and performed external effects remain",
+  "actor A: program declared in the scenario (fixture), not extracted from source"
+ ],
+ "bounds": {
+  "declared": {
+   "maxActors": 4,
+   "maxContextSwitches": null,
+   "maxCrashes": 0,
+   "maxMemoryBytes": null,
+   "maxRetries": 0,
+   "maxStates": 200000,
+   "maxSteps": 64,
+   "maxTransitions": null,
+   "maxWallMs": null
+  },
+  "partialOrderReduction": true,
+  "strategy": "dfs"
+ },
+ "counterexample": {
+  "contextSwitches": 0,
+  "finalState": {
+   "actors": [
+    [
+     "A",
+     "ok"
+    ]
+   ],
+   "externalEffects": [],
+   "quiescent": true,
+   "tables": {
+    "profiles": [
+     {
+      "id": 1,
+      "name": "new"
+     }
+    ]
+   },
+   "terms": [
+    {
+     "term": "renameandread:ok returning \"new\"",
+     "value": 0
+    },
+    {
+     "term": "renameandread:ok",
+     "value": 1
+    }
+   ]
+  },
+  "formula": "renameandread:ok returning \"new\" = renameandread:ok",
+  "initialTables": {
+   "profiles": [
+    {
+     "id": 1,
+     "name": "old"
+    }
+   ]
+  },
+  "invariant": "the-caller-sees-its-write",
+  "minimized": true,
+  "originalLength": 2,
+  "steps": [
+   {
+    "actor": "A",
+    "events": [
+     {
+      "actor": 0,
+      "kind": "write",
+      "result": 1,
+      "src": {
+       "column": 0,
+       "line": 1,
+       "origin": "declared",
+       "text": "update profiles where @id == 1 set @name = \"new\""
+      },
+      "text": "UPDATE profiles SET name = \"new\" WHERE (@id = 1) \u2192 1 row",
+      "thread": 0
+     }
+    ],
+    "index": 1,
+    "kind": "step"
+   },
+   {
+    "actor": "A",
+    "events": [
+     {
+      "actor": 0,
+      "kind": "read",
+      "result": {
+       "id": 1,
+       "name": "old"
+      },
+      "src": {
+       "column": 0,
+       "line": 2,
+       "origin": "declared",
+       "text": "let p = replica select profiles where @id == 1"
+      },
+      "text": "SELECT profiles WHERE (@id = 1) (on the replica, commit #0) \u2192 {id=1, name=\"old\"}",
+      "thread": 0
+     },
+     {
+      "actor": 0,
+      "kind": "local",
+      "result": "old",
+      "src": {
+       "column": 0,
+       "line": 3,
+       "origin": "declared",
+       "text": "return p.name"
+      },
+      "text": "returns \"old\"",
+      "thread": 0
+     },
+     {
+      "actor": 0,
+      "kind": "local",
+      "text": "return (success)",
+      "thread": 0
+     }
+    ],
+    "index": 2,
+    "kind": "step"
+   }
+  ],
+  "when": "final"
+ },
+ "database": {
+  "isolation": "read-committed",
+  "tables": [
+   {
+    "checks": [],
+    "columns": [
+     "id",
+     "name"
+    ],
+    "initialRows": [
+     {
+      "id": 1,
+      "name": "old"
+     }
+    ],
+    "name": "profiles",
+    "primaryKey": [
+     "id"
+    ],
+    "unique": []
+   }
+  ]
+ },
+ "diagnostics": [
+  {
+   "code": "CP7001",
+   "message": "invariant `the-caller-sees-its-write` can be violated by a bounded schedule of 2 transitions (0 context switches); evidence: model-counterexample",
+   "severity": "warning"
+  }
+ ],
+ "evidence": {
+  "level": "model-counterexample",
+  "summary": "a schedule found by the model checker; it has not been run on a real database"
+ },
+ "exploration": {
+  "complete": true,
+  "metrics": {
+   "contextPrunedTransitions": 0,
+   "duplicateStateHits": 0,
+   "maxDepth": 2,
+   "schedulesInExploredGraph": 1,
+   "sleepPrunedTransitions": 0,
+   "states": 3,
+   "terminalStates": 1,
+   "transitions": 2,
+   "visitedBytes": 5404
+  },
+  "stuckStates": 0,
+  "truncation": {
+   "maxContextSwitches": false,
+   "maxMemory": false,
+   "maxStates": false,
+   "maxSteps": false,
+   "maxTransitions": false,
+   "maxWallTime": false
+  },
+  "unsupported": [],
+  "verdict": "COUNTEREXAMPLE_FOUND"
+ },
+ "invariants": [
+  {
+   "description": "[USER_DECLARED] read-your-writes",
+   "formula": "renameandread:ok returning \"new\" = renameandread:ok",
+   "name": "the-caller-sees-its-write",
+   "status": "violated",
+   "when": "final"
+  }
+ ],
+ "kind": "commitrift.model-check",
+ "modelVersion": "1.0.0",
+ "runtime": {
+  "note": "no runtime validation was requested (--validate-postgres)",
+  "observations": [],
+  "performed": false,
+  "sqlstates": [],
+  "status": "not-requested"
+ },
+ "scenario": {
+  "description": "Phase 13 vertical slice 4 (model only): write through the primary, read back through a lagging read replica. The replica is the model's abstraction of asynchronous streaming replication (commits replayed in commit order, unbounded lag); no PostgreSQL replication was run.",
+  "file": "/home/tester/work/fixtures/phase13/model/replica-read-your-writes.json",
+  "name": "replica-read-your-writes",
+  "scenarioVersion": 1
+ },
+ "schemaVersion": 1,
+ "tool": {
+  "name": "commitrift",
+  "version": "0.1.0"
+ }
+}

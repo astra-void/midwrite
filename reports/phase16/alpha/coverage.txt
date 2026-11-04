@@ -1,0 +1,165 @@
+commitrift discover: retry (6 modules, 7 entry candidates, 7 extracted, 5 effectful)
+mode: discover+model-check; application code executed: no; search: sleep-set partial-order reduction (default)
+candidates: 6 (2 model counterexamples, 0 against hypotheses; 1 deduplicated findings)
+
+Candidate CR-SYNTH-7644DD  [MODEL_COUNTEREXAMPLE]
+  write to `orders` repeated after an unknown outcome
+  Entry:
+    src/app/api/orders/route.ts#POST (route-handler, direct)
+  Conflict:
+    [first-write] INSERT orders  src/services/orders.ts:16:13
+    [retried-write] INSERT orders  src/services/orders.ts:16:13
+  Resource: orders(requestId, customerId, amount)
+  Property: One client request records at most one order.
+    origin: USER_DECLARED
+    why: declared in commitrift-contracts.json
+  Assumption (loop, source-derived): loop BOUNDED_UNROLLING at src/services/orders.ts:14:3: `for` loop with counter `attempt` from 0 by +1 while `attempt < 3`: at most 3 iteration(s), each unrolled
+  Scenario actual [Actual]: synthesis satisfied — COUNTEREXAMPLE_FOUND (5 states, violates `one-order-per-request`)
+  Input exploration (relationship-search): 1 world(s) model-checked, controls included — actual configuration: 1 distinct row set(s), 1 distinct argument vector(s)
+    world `base` (actual, Base): explored — COUNTEREXAMPLE_FOUND
+  Schedule exploration (sleep-sets): completed for 1 world(s), truncated for 0, unsupported for 0
+  Branch outcomes reached alone: 1 of 4
+  Input domain exhaustive: no (every derived relationship class was explored)
+    not explored: values outside the listed relationship classes (each parameter's value domain is not enumerated)
+  Status: MODEL_COUNTEREXAMPLE
+  MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `one-order-per-request` (USER_DECLARED). The property is declared by the user; the counterexample replays in the model.
+  Next step: write the scenario with `--emit-scenarios <DIR>`, read the counterexample with `commitrift model-check <DIR>/<file>`; with an authorized harness, reproduce it on the original code with `--verify-source --allow-execution` (docs/user-guide/source-verification.md)
+
+Candidate CR-SYNTH-65F47A  [MODEL_COUNTEREXAMPLE]
+  write to `orders` repeated after an unknown outcome
+  same underlying issue as CR-SYNTH-7644DD
+  Entry:
+    src/services/orders.ts#placeOrder (exported-function, direct)
+  Conflict:
+    [first-write] INSERT orders  src/services/orders.ts:16:13
+    [retried-write] INSERT orders  src/services/orders.ts:16:13
+  Resource: orders(requestId, customerId, amount)
+  Property: One client request records at most one order.
+    origin: USER_DECLARED
+    why: declared in commitrift-contracts.json
+  Assumption (loop, source-derived): loop BOUNDED_UNROLLING at src/services/orders.ts:14:3: `for` loop with counter `attempt` from 0 by +1 while `attempt < 3`: at most 3 iteration(s), each unrolled
+  Scenario actual [Actual]: synthesis satisfied — COUNTEREXAMPLE_FOUND (5 states, violates `one-order-per-request`)
+  Input exploration (relationship-search): 1 world(s) model-checked, controls included — actual configuration: 1 distinct row set(s), 1 distinct argument vector(s)
+    world `base` (actual, Base): explored — COUNTEREXAMPLE_FOUND
+  Schedule exploration (sleep-sets): completed for 1 world(s), truncated for 0, unsupported for 0
+  Branch outcomes reached alone: 1 of 4
+  Input domain exhaustive: no (every derived relationship class was explored)
+    not explored: values outside the listed relationship classes (each parameter's value domain is not enumerated)
+  Status: MODEL_COUNTEREXAMPLE
+  MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `one-order-per-request` (USER_DECLARED). The property is declared by the user; the counterexample replays in the model.
+  Next step: write the scenario with `--emit-scenarios <DIR>`, read the counterexample with `commitrift model-check <DIR>/<file>`; with an authorized harness, reproduce it on the original code with `--verify-source --allow-execution` (docs/user-guide/source-verification.md)
+
+Candidate CR-SYNTH-05A8F8  [NO_VIOLATION_WITHIN_BOUNDS]
+  write to `payments` repeated after an unknown outcome
+  Entry:
+    src/services/orders.ts#recordPayment (exported-function, direct)
+  Conflict:
+    [first-write] INSERT payments ON CONFLICT DO NOTHING  src/services/orders.ts:33:15
+    [retried-write] INSERT payments ON CONFLICT DO NOTHING  src/services/orders.ts:33:15
+  Resource: payments(idempotencyKey)
+  Property: one call records at most one `payments` row per (idempotencyKey)
+    origin: SCHEMA_ENFORCED
+    why: UNIQUE(idempotencyKey) in the analyzed schema
+  Protection: UNIQUE(idempotencyKey) on `payments` with ON CONFLICT DO NOTHING
+  Assumption (loop, source-derived): loop BOUNDED_UNROLLING at src/services/orders.ts:30:3: `for` loop with counter `attempt` from 0 by +1 while `attempt < 3`: at most 3 iteration(s), each unrolled
+  Scenario actual [Actual]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (16 states)
+  Input exploration (relationship-search): 1 world(s) model-checked, controls included — actual configuration: 1 distinct row set(s), 1 distinct argument vector(s)
+    world `base` (actual, Base): explored — NO_COUNTEREXAMPLE_WITHIN_BOUNDS
+  Schedule exploration (sleep-sets): completed for 1 world(s), truncated for 0, unsupported for 0
+  Branch outcomes reached alone: 1 of 4
+  Input domain exhaustive: no (every derived relationship class was explored)
+    not explored: values outside the listed relationship classes (each parameter's value domain is not enumerated)
+  Status: NO_VIOLATION_WITHIN_BOUNDS
+  No violation found within the modeled bounds. This is not a proof that the application is safe. Input exploration: no counterexample among 1 explored initial world(s) of the actual configuration (1 distinct row set(s), 1 distinct argument vector(s)); schedules completed within the bounds for the explored worlds. The input domain was not exhaustively explored; general application safety is not established.
+  Next step: nothing to do within these bounds; a bounded search is not a proof (raise `--max-states` for a larger search)
+
+Candidate CR-SYNTH-AD6E59  [NO_VIOLATION_WITHIN_BOUNDS]
+  read-modify-write of `accounts.balance` (id = $accountId)
+  Entry:
+    src/services/orders.ts#withdraw (exported-function, direct)
+  Conflict:
+    [read] SELECT accounts WHERE id = $accountId  src/services/orders.ts:62:35
+    [write] UPDATE accounts WHERE id = $accountId  src/services/orders.ts:68:17
+  Resource: accounts.balance(id = $accountId)
+  Property: An account's balance never goes below zero.
+    origin: USER_DECLARED
+    why: declared in commitrift-contracts.json
+  Protection: read and write run in one SERIALIZABLE transaction
+  Assumption (loop, source-derived): loop BOUNDED_UNROLLING at src/services/orders.ts:57:3: `while` loop with counter `attempt` from 0 by +1 while `attempt < 3`: at most 3 iteration(s), each unrolled
+  Scenario actual [Actual]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (41 states)
+  Scenario distinct-key [Control]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (29 states)
+  Scenario actual world `actors-differ:amount` [Actual]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (41 states)
+  Input exploration (relationship-search): 3 world(s) model-checked, controls included — actual configuration: 1 distinct row set(s), 2 distinct argument vector(s)
+    world `base` (actual, Base): explored — NO_COUNTEREXAMPLE_WITHIN_BOUNDS
+    world `actors-differ:amount` (actual, Domain): explored — NO_COUNTEREXAMPLE_WITHIN_BOUNDS
+    world `base` (distinct-key, Base): explored — NO_COUNTEREXAMPLE_WITHIN_BOUNDS
+  Schedule exploration (sleep-sets): completed for 2 world(s), truncated for 0, unsupported for 0
+  Branch outcomes reached alone: 2 of 8
+  Input domain exhaustive: no (every derived relationship class was explored)
+    not explored: values outside the listed relationship classes (each parameter's value domain is not enumerated)
+    not explored: more actors than the candidate's pair
+  Status: NO_VIOLATION_WITHIN_BOUNDS
+  No violation found within the modeled bounds (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). This is not a proof that the application is safe. Input exploration: no counterexample among 2 explored initial world(s) of the actual configuration (1 distinct row set(s), 2 distinct argument vector(s)); schedules completed within the bounds for the explored worlds. The input domain was not exhaustively explored; general application safety is not established.
+  Next step: nothing to do within these bounds; a bounded search is not a proof (raise `--max-states` for a larger search)
+
+Candidate CR-SYNTH-7C023B  [NO_VIOLATION_WITHIN_BOUNDS]
+  read-modify-write of `accounts.balance` against `withdrawOnCode`
+  same underlying issue as CR-SYNTH-AD6E59
+  Entry:
+    src/services/orders.ts#withdraw (exported-function, direct)
+    src/services/orders.ts#withdrawOnCode (exported-function, direct)
+  Conflict:
+    [read] SELECT accounts WHERE id = $accountId  src/services/orders.ts:62:35
+    [write] UPDATE accounts WHERE id = $accountId  src/services/orders.ts:68:17
+    [write] UPDATE accounts WHERE id = $accountId  src/services/orders.ts:100:17
+  Resource: accounts.balance(id = $accountId)
+  Property: An account's balance never goes below zero.
+    origin: USER_DECLARED
+    why: declared in commitrift-contracts.json The partner `withdrawOnCode` writes `balance` at src/services/orders.ts:100:17
+  Protection: read and write run in one SERIALIZABLE transaction
+  Assumption (loop, source-derived): loop BOUNDED_UNROLLING at src/services/orders.ts:57:3: `while` loop with counter `attempt` from 0 by +1 while `attempt < 3`: at most 3 iteration(s), each unrolled
+  Assumption (loop, source-derived): loop BOUNDED_UNROLLING at src/services/orders.ts:89:3: `while` loop with counter `attempt` from 0 by +1 while `attempt < 3`: at most 3 iteration(s), each unrolled
+  Scenario actual [Actual]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (37 states)
+  Scenario distinct-key [Control]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (29 states)
+  Input exploration (relationship-search): 2 world(s) model-checked, controls included — actual configuration: 1 distinct row set(s), 1 distinct argument vector(s)
+    world `base` (actual, Base): explored — NO_COUNTEREXAMPLE_WITHIN_BOUNDS
+    world `base` (distinct-key, Base): explored — NO_COUNTEREXAMPLE_WITHIN_BOUNDS
+  Schedule exploration (sleep-sets): completed for 1 world(s), truncated for 0, unsupported for 0
+  Branch outcomes reached alone: 4 of 14
+  Input domain exhaustive: no (every derived relationship class was explored)
+    not explored: values outside the listed relationship classes (each parameter's value domain is not enumerated)
+    not explored: more actors than the candidate's pair
+  Status: NO_VIOLATION_WITHIN_BOUNDS
+  No violation found within the modeled bounds (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). This is not a proof that the application is safe. Input exploration: no counterexample among 1 explored initial world(s) of the actual configuration (1 distinct row set(s), 1 distinct argument vector(s)); schedules completed within the bounds for the explored worlds. The input domain was not exhaustively explored; general application safety is not established.
+  Next step: nothing to do within these bounds; a bounded search is not a proof (raise `--max-states` for a larger search)
+
+Candidate CR-SYNTH-5DAB32  [NO_VIOLATION_WITHIN_BOUNDS]
+  read-modify-write of `accounts.balance` (id = $accountId)
+  Entry:
+    src/services/orders.ts#withdrawOnCode (exported-function, direct)
+  Conflict:
+    [read] SELECT accounts WHERE id = $accountId  src/services/orders.ts:94:35
+    [write] UPDATE accounts WHERE id = $accountId  src/services/orders.ts:100:17
+  Resource: accounts.balance(id = $accountId)
+  Property: `accounts.balance` of the row (id = $accountId) ends with a value some serial execution of the same requests produces
+    origin: HEURISTIC_HYPOTHESIS
+    why: `balance` is written as `(_row3.balance - amount)`, computed from the value read at src/services/orders.ts:94:35; a concurrent update between the read and the write would be overwritten. Whether the application requires serial outcomes is not established
+  Protection: read and write run in one SERIALIZABLE transaction
+  Assumption (loop, source-derived): loop BOUNDED_UNROLLING at src/services/orders.ts:89:3: `while` loop with counter `attempt` from 0 by +1 while `attempt < 3`: at most 3 iteration(s), each unrolled
+  Scenario actual [Actual]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (33 states)
+  Scenario distinct-key [Control]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (29 states)
+  Scenario actual world `actors-differ:amount` [Actual]: synthesis satisfied — NO_COUNTEREXAMPLE_WITHIN_BOUNDS (33 states)
+  Input exploration (relationship-search): 3 world(s) model-checked, controls included — actual configuration: 1 distinct row set(s), 2 distinct argument vector(s)
+    world `base` (actual, Base): explored — NO_COUNTEREXAMPLE_WITHIN_BOUNDS
+    world `actors-differ:amount` (actual, Domain): explored — NO_COUNTEREXAMPLE_WITHIN_BOUNDS
+    world `base` (distinct-key, Base): explored — NO_COUNTEREXAMPLE_WITHIN_BOUNDS
+  Schedule exploration (sleep-sets): completed for 2 world(s), truncated for 0, unsupported for 0
+  Branch outcomes reached alone: 2 of 6
+  Input domain exhaustive: no (every derived relationship class was explored)
+    not explored: values outside the listed relationship classes (each parameter's value domain is not enumerated)
+    not explored: more actors than the candidate's pair
+  Status: NO_VIOLATION_WITHIN_BOUNDS
+  No violation found within the modeled bounds (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). This is not a proof that the application is safe. Input exploration: no counterexample among 2 explored initial world(s) of the actual configuration (1 distinct row set(s), 2 distinct argument vector(s)); schedules completed within the bounds for the explored worlds. The input domain was not exhaustively explored; general application safety is not established.
+  Next step: nothing to do within these bounds; a bounded search is not a proof (raise `--max-states` for a larger search)
+
+Important: a model counterexample against a HEURISTIC_HYPOTHESIS is not a confirmed defect; a bounded run without counterexample is not a proof.

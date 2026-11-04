@@ -1,0 +1,123 @@
+{
+  "actors": [
+    {
+      "arguments": [
+        {
+          "accountId": "f35425ca-0000-4000-a000-000000000001",
+          "fingerprint": "fingerprint-1"
+        }
+      ],
+      "name": "POST-1",
+      "selector": "src/app/api/devices/route.ts#POST"
+    },
+    {
+      "arguments": [
+        {
+          "accountId": "f35425ca-0000-4000-a000-000000000001",
+          "fingerprint": "fingerprint-1"
+        }
+      ],
+      "name": "POST-2",
+      "selector": "src/app/api/devices/route.ts#POST"
+    }
+  ],
+  "algorithm": "sleep-sets",
+  "assumptions": [
+    "two requests can run the route handler at the same time (double submit, two tabs, client retry)",
+    "request: `await req.json()` is the actor's argument `req`: the request body is valid JSON (a body that `json()` rejects is not explored) and holds JSON values only",
+    "request: a response is the value `{ status, body }`: `body` is the value given to `Response.json` before its serialization (headers and the status text are not modeled)"
+  ],
+  "bounds": {
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "maxStates": 200000,
+    "maxSteps": 64
+  },
+  "candidate": "CR-SYNTH-0493C5",
+  "class": "check-then-act",
+  "evidence": "model counterexample (not an original-code reproduction)",
+  "finalTerms": [
+    "count(devices[accountId=\"f35425ca-0000-4000-a000-000000000001\",fingerprint=\"fingerprint-1\"]) = 2"
+  ],
+  "finding": "MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `at-most-one-devices-per-key` (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). That the application requires this property has NOT been established; this is not a confirmed defect.",
+  "initialState": {
+    "accounts": [
+      {
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "displayName": "displayName-1",
+        "email": "email-1",
+        "id": "f35425ca-0000-4000-a000-000000000001",
+        "timezone": "UTC",
+        "trialUsed": false,
+        "updatedAt": "2026-01-01T00:00:00.000Z"
+      }
+    ]
+  },
+  "kind": "commitrift.counterexample",
+  "property": {
+    "name": "at-most-one-devices-per-key",
+    "origin": "HEURISTIC_HYPOTHESIS"
+  },
+  "reproduce": "commitrift model-check cr-synth-0493c5-actual.json",
+  "reproduceOnOriginalCode": null,
+  "scenario": "cr-synth-0493c5-actual.json",
+  "schedule": [
+    "POST-1 read SELECT devices WHERE ((@accountId = \"f35425ca-0000-4000-a000-000000000001\") and (@fingerprint = \"fingerprint-1\")) → null  (src/app/api/devices/route.ts:14:28)",
+    "POST-1 local CHECK _row1 → false  (src/app/api/devices/route.ts:19:7)",
+    "POST-2 read SELECT devices WHERE ((@accountId = \"f35425ca-0000-4000-a000-000000000001\") and (@fingerprint = \"fingerprint-1\")) → null  (src/app/api/devices/route.ts:14:28)",
+    "POST-2 local CHECK _row1 → false  (src/app/api/devices/route.ts:19:7)",
+    "POST-2 write INSERT devices {accountId=\"f35425ca-0000-4000-a000-000000000001\", fingerprint=\"fingerprint-1\"} → {id=1}  (src/app/api/devices/route.ts:20:26)",
+    "POST-2 local _returned4 = null  (src/app/api/devices/route.ts:20:26)",
+    "POST-2 local CHECK _inserted3 is null → false  (src/app/api/devices/route.ts:20:26)",
+    "POST-2 local _returned4 = {id=1}  (src/app/api/devices/route.ts:20:26)",
+    "POST-2 local _opt5 = undefined  (src/app/api/devices/route.ts:21:30)",
+    "POST-2 local CHECK (_returned4 is null or (_returned4 = undefined)) → false  (src/app/api/devices/route.ts:21:30)",
+    "POST-2 local _opt5 = 1  (src/app/api/devices/route.ts:21:30)",
+    "POST-2 local return (success)",
+    "POST-1 write INSERT devices {accountId=\"f35425ca-0000-4000-a000-000000000001\", fingerprint=\"fingerprint-1\"} → {id=2}  (src/app/api/devices/route.ts:20:26)",
+    "POST-1 local _returned4 = null  (src/app/api/devices/route.ts:20:26)",
+    "POST-1 local CHECK _inserted3 is null → false  (src/app/api/devices/route.ts:20:26)",
+    "POST-1 local _returned4 = {id=2}  (src/app/api/devices/route.ts:20:26)",
+    "POST-1 local _opt5 = undefined  (src/app/api/devices/route.ts:21:30)",
+    "POST-1 local CHECK (_returned4 is null or (_returned4 = undefined)) → false  (src/app/api/devices/route.ts:21:30)",
+    "POST-1 local _opt5 = 2  (src/app/api/devices/route.ts:21:30)",
+    "POST-1 local return (success)"
+  ],
+  "schemaVersion": 1,
+  "sourceFingerprint": [
+    {
+      "file": "src/app/api/devices/route.ts",
+      "fnv64": "dcec1e0939066da4"
+    },
+    {
+      "file": "src/schema/access.ts",
+      "fnv64": "3000d5747e085973"
+    },
+    {
+      "file": "src/schema/accounts.ts",
+      "fnv64": "9d0b610f44e1972e"
+    },
+    {
+      "file": "src/schema/billing.ts",
+      "fnv64": "125afb386cde230b"
+    },
+    {
+      "file": "src/schema/scheduling.ts",
+      "fnv64": "7eedc98a5972f46d"
+    },
+    {
+      "file": "src/schema/work.ts",
+      "fnv64": "bd7eb260a2ac1cc0"
+    }
+  ],
+  "status": "MODEL_COUNTEREXAMPLE",
+  "variant": "actual",
+  "world": {
+    "id": "base",
+    "origin": "base",
+    "relationships": [
+      "the synthesized initial state and arguments"
+    ]
+  }
+}

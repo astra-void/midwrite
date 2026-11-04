@@ -1,0 +1,2 @@
+discovery-report.v1 (builtin validator): retry-discovery.json: 6 candidates, 0 schema errors; corrupted copy rejected: True
+exit 0

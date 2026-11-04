@@ -1,0 +1,2224 @@
+{
+ "binary": "/Users/returnf4lse/Desktop/Workspace/rust/crash-proof/target/release/commitrift",
+ "cases": [
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": true,
+   "counterexample": true,
+   "counterpart": "P16-E02",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/projects.ts#createProject",
+   "extracted": true,
+   "family": "zod-strict",
+   "id": "P16-E01",
+   "inputSensitivity": "both actors pass the strict schema with the same workspaceId and slug; an input with an extra key (for example `archived`) or an invalid slug makes parse throw before any database access, and distinct slugs never collide. The strictness only decides whether the write path is reached; it does not protect it.",
+   "label": "positive",
+   "outcome": "TP",
+   "pairedWith": null,
+   "predicted": true,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "NO_VIOLATION_WITHIN_BOUNDS"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E01",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/projects.ts#createBoard",
+   "extracted": true,
+   "family": "zod-strict",
+   "id": "P16-E02",
+   "inputSensitivity": "none: every input that passes `.strict()` reaches the same INSERT ... ON CONFLICT (workspace_id, slug) DO NOTHING; inputs that fail it write nothing.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "INCONCLUSIVE"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E04",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/labels.ts#createLabel",
+   "extracted": true,
+   "family": "optional-nullable-default",
+   "id": "P16-E03",
+   "inputSensitivity": "groupId omitted: `.optional()` admits the absent key, `input.groupId ?? null` turns it into NULL. With a groupId both INSERTs hit UNIQUE(workspace_id, group_id, name) and the second does nothing. `groupId: null` is rejected by the schema (optional, not nullable).",
+   "label": "positive",
+   "outcome": "FN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "INCONCLUSIVE"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E03",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/labels.ts#createTag",
+   "extracted": true,
+   "family": "optional-nullable-default",
+   "id": "P16-E04",
+   "inputSensitivity": "none: `.default(0)` replaces an omitted groupId with 0, so group_id is never NULL and every input reaches the covered INSERT.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": true,
+   "counterexample": true,
+   "counterpart": "P16-E06",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/invites.ts#inviteMember",
+   "extracted": true,
+   "family": "optional-nullable-default",
+   "id": "P16-E05",
+   "inputSensitivity": "projectId null (`.nullable()`: the key is required and may be null). A non-null projectId takes the project branch (primary key + ON CONFLICT), which is safe.",
+   "label": "positive",
+   "outcome": "TP",
+   "pairedWith": null,
+   "predicted": true,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "INCONCLUSIVE"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E05",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/invites.ts#inviteProjectMember",
+   "extracted": true,
+   "family": "optional-nullable-default",
+   "id": "P16-E06",
+   "inputSensitivity": "none within the schema: projectId is `z.number().int().positive()` (neither nullable nor optional), so the `projectId === null` branch of the shared helper is unreachable from this entry.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "status-transition",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E08",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/expenses.ts#approveExpense",
+   "extracted": true,
+   "family": "validated-authorization",
+   "id": "P16-E07",
+   "inputSensitivity": "both actors pass requireRole (role 'owner' or 'approver'), belong to the expense's workspace and are not its submitter; an actor with role 'admin' or 'member', with unknown keys, or from another workspace is rejected before any write. Initial state: the expense is 'submitted' and has no reimbursements row (the state these writers produce).",
+   "label": "positive",
+   "outcome": "FN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": [
+    "package call with a verified built-in contract: `ApproveExpenseInput.parse` of `zod` (synchronous; returns the parsed output (the input as transformed by the schema: unknown keys stripped, defaults, coercions and transforms applied); throws a ZodError when the input does not satisfy the schema (validation logic is not run by the model); effects: none outside the process unless the schema's own refinements or transforms have effects (not analyzed); source: zod 3.x/4.x documented ZodType API): its result is not representable in the model; the schema is not modeled: `ActorSchema` is not a module-level zod schema (src/services/expenses.ts:16:32)",
+    "package call with a verified built-in contract: `ApproveExpenseInput.parse` of `zod` (synchronous; returns the parsed output (the input as transformed by the schema: unknown keys stripped, defaults, coercions and transforms applied); throws a ZodError when the input does not satisfy the schema (validation logic is not run by the model); effects: none outside the process unless the schema's own refinements or transforms have effects (not analyzed); source: zod 3.x/4.x documented ZodType API): its result is not representable in the model; the schema is not modeled: `ActorSchema` is not a module-level zod schema (src/services/expenses.ts:16:11)",
+    "package call with a verified built-in contract: `ApproveExpenseInput.parse` of `zod` (synchronous; returns the parsed output (the input as transformed by the schema: unknown keys stripped, defaults, coercions and transforms applied); throws a ZodError when the input does not satisfy the schema (validation logic is not run by the model); effects: none outside the process unless the schema's own refinements or transforms have effects (not analyzed); source: zod 3.x/4.x documented ZodType API): its result is not representable in the model; the schema is not modeled: `ActorSchema` is not a module-level zod schema (src/services/expenses.ts:16:18)",
+    "rest parameters are not supported (src/lib/actor.ts:17:28)",
+    "call to `allowed.includes`: method calls are not resolved: `allowed` is not declared or imported (src/lib/actor.ts:18:8)",
+    "call to `allowed.includes`: method calls are not resolved: `allowed` is not declared or imported (src/lib/actor.ts:18:7)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "status-transition",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E07",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/expenses.ts#approveExpenseOnce",
+   "extracted": true,
+   "family": "validated-authorization",
+   "id": "P16-E08",
+   "inputSensitivity": "none for authorized actors; unauthorized actors write nothing.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": [
+    "package call with a verified built-in contract: `ApproveExpenseInput.parse` of `zod` (synchronous; returns the parsed output (the input as transformed by the schema: unknown keys stripped, defaults, coercions and transforms applied); throws a ZodError when the input does not satisfy the schema (validation logic is not run by the model); effects: none outside the process unless the schema's own refinements or transforms have effects (not analyzed); source: zod 3.x/4.x documented ZodType API): its result is not representable in the model; the schema is not modeled: `ActorSchema` is not a module-level zod schema (src/services/expenses.ts:36:32)",
+    "package call with a verified built-in contract: `ApproveExpenseInput.parse` of `zod` (synchronous; returns the parsed output (the input as transformed by the schema: unknown keys stripped, defaults, coercions and transforms applied); throws a ZodError when the input does not satisfy the schema (validation logic is not run by the model); effects: none outside the process unless the schema's own refinements or transforms have effects (not analyzed); source: zod 3.x/4.x documented ZodType API): its result is not representable in the model; the schema is not modeled: `ActorSchema` is not a module-level zod schema (src/services/expenses.ts:36:11)",
+    "package call with a verified built-in contract: `ApproveExpenseInput.parse` of `zod` (synchronous; returns the parsed output (the input as transformed by the schema: unknown keys stripped, defaults, coercions and transforms applied); throws a ZodError when the input does not satisfy the schema (validation logic is not run by the model); effects: none outside the process unless the schema's own refinements or transforms have effects (not analyzed); source: zod 3.x/4.x documented ZodType API): its result is not representable in the model; the schema is not modeled: `ActorSchema` is not a module-level zod schema (src/services/expenses.ts:36:18)",
+    "rest parameters are not supported (src/lib/actor.ts:17:28)",
+    "call to `allowed.includes`: method calls are not resolved: `allowed` is not declared or imported (src/lib/actor.ts:18:8)",
+    "call to `allowed.includes`: method calls are not resolved: `allowed` is not declared or imported (src/lib/actor.ts:18:7)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "ambiguous-commit",
+     "UNSUPPORTED"
+    ]
+   ],
+   "class": "ambiguous-commit",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E10",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/payments.ts#recordPayment",
+   "extracted": true,
+   "family": "bounded-retry-loop",
+   "id": "P16-E09",
+   "inputSensitivity": "needs an ambiguous failure after the INSERT committed; a failure before the INSERT reached the server leaves one row after the retry.",
+   "label": "positive",
+   "outcome": "FN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": [
+    "call to `Number.isSafeInteger`: method calls are not resolved: `Number` is not declared or imported (src/lib/pg-errors.ts:41:8)",
+    "call to `Number.isSafeInteger`: method calls are not resolved: `Number` is not declared or imported (src/lib/pg-errors.ts:41:7)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:10)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:3)",
+    "expression of kind ``new`` is not supported (src/lib/pg-errors.ts:31:3)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:10)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:3)",
+    "expression of kind ``new`` is not supported (src/lib/pg-errors.ts:31:3)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:10)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:3)",
+    "expression of kind ``new`` is not supported (src/lib/pg-errors.ts:31:3)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "ambiguous-commit",
+     "UNSUPPORTED"
+    ]
+   ],
+   "class": "ambiguous-commit",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E09",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/payments.ts#recordPaymentIdempotent",
+   "extracted": true,
+   "family": "bounded-retry-loop",
+   "id": "P16-E10",
+   "inputSensitivity": "none: requestId is a required string (uuid column, NOT NULL).",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": [
+    "call to `Number.isSafeInteger`: method calls are not resolved: `Number` is not declared or imported (src/lib/pg-errors.ts:41:8)",
+    "call to `Number.isSafeInteger`: method calls are not resolved: `Number` is not declared or imported (src/lib/pg-errors.ts:41:7)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:10)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:3)",
+    "expression of kind ``new`` is not supported (src/lib/pg-errors.ts:31:3)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:10)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:3)",
+    "expression of kind ``new`` is not supported (src/lib/pg-errors.ts:31:3)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:10)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:3)",
+    "expression of kind ``new`` is not supported (src/lib/pg-errors.ts:31:3)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "ambiguous-commit",
+     "UNSUPPORTED"
+    ]
+   ],
+   "class": "ambiguous-commit",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E12",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/credits.ts#grantCredits",
+   "extracted": true,
+   "family": "bounded-retry-loop",
+   "id": "P16-E11",
+   "inputSensitivity": "needs a lost COMMIT reply; with no failure, or a failure before COMMIT (the server rolls back), one entry results. Initial state: no entry for requestId.",
+   "label": "positive",
+   "outcome": "FN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": [
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "ambiguous-commit",
+     "UNSUPPORTED"
+    ]
+   ],
+   "class": "ambiguous-commit",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E11",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/credits.ts#grantCreditsOnce",
+   "extracted": true,
+   "family": "bounded-retry-loop",
+   "id": "P16-E12",
+   "inputSensitivity": "none for reachable initial states.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": [
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)",
+    "call to `CONNECTION_ERRORS.has`: method calls are not resolved: `Set` is not declared or imported (src/lib/pg-errors.ts:23:32)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "UNSUPPORTED"
+    ],
+    [
+     "ambiguous-commit",
+     "UNSUPPORTED"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E14",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/inventory.ts#reserveStock",
+   "extracted": true,
+   "family": "sqlstate-retry",
+   "id": "P16-E13",
+   "inputSensitivity": "needs the sum of the concurrent quantities to exceed `available` while each alone fits; a single call never violates the property.",
+   "label": "positive",
+   "outcome": "FN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": [
+    "call to `Number.isSafeInteger`: method calls are not resolved: `Number` is not declared or imported (src/services/inventory.ts:15:8)",
+    "call to `Number.isSafeInteger`: method calls are not resolved: `Number` is not declared or imported (src/services/inventory.ts:15:7)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "UNSUPPORTED"
+    ],
+    [
+     "ambiguous-commit",
+     "UNSUPPORTED"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E13",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/inventory.ts#reserveStockSerializable",
+   "extracted": true,
+   "family": "sqlstate-retry",
+   "id": "P16-E14",
+   "inputSensitivity": "none: quantity is checked to be a positive integer; a valid initial state has available >= 0.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": [
+    "call to `Number.isSafeInteger`: method calls are not resolved: `Number` is not declared or imported (src/services/inventory.ts:15:8)",
+    "call to `Number.isSafeInteger`: method calls are not resolved: `Number` is not declared or imported (src/services/inventory.ts:15:7)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "ambiguous-commit",
+     "UNSUPPORTED"
+    ]
+   ],
+   "class": "ambiguous-commit",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E16",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/withdrawals.ts#requestWithdrawal",
+   "extracted": true,
+   "family": "sqlstate-retry",
+   "id": "P16-E15",
+   "inputSensitivity": "needs a serialization failure after the outbox INSERT, i.e. a concurrent withdrawal on the same wallet; a call that never retries writes one outbox row.",
+   "label": "positive",
+   "outcome": "FN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": [
+    "call to `Number.isSafeInteger`: method calls are not resolved: `Number` is not declared or imported (src/lib/pg-errors.ts:41:8)",
+    "call to `Number.isSafeInteger`: method calls are not resolved: `Number` is not declared or imported (src/lib/pg-errors.ts:41:7)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:10)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:3)",
+    "expression of kind ``new`` is not supported (src/lib/pg-errors.ts:31:3)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:10)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:3)",
+    "expression of kind ``new`` is not supported (src/lib/pg-errors.ts:31:3)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:10)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:3)",
+    "expression of kind ``new`` is not supported (src/lib/pg-errors.ts:31:3)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:10)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:3)",
+    "expression of kind ``new`` is not supported (src/lib/pg-errors.ts:31:3)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "ambiguous-commit",
+     "UNSUPPORTED"
+    ]
+   ],
+   "class": "ambiguous-commit",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E15",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/withdrawals.ts#requestWithdrawalTx",
+   "extracted": true,
+   "family": "sqlstate-retry",
+   "id": "P16-E16",
+   "inputSensitivity": "none for distinct request ids per call (a request id identifies one call).",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": [
+    "call to `Number.isSafeInteger`: method calls are not resolved: `Number` is not declared or imported (src/lib/pg-errors.ts:41:8)",
+    "call to `Number.isSafeInteger`: method calls are not resolved: `Number` is not declared or imported (src/lib/pg-errors.ts:41:7)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:10)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:3)",
+    "expression of kind ``new`` is not supported (src/lib/pg-errors.ts:31:3)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:10)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:3)",
+    "expression of kind ``new`` is not supported (src/lib/pg-errors.ts:31:3)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:10)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:3)",
+    "expression of kind ``new`` is not supported (src/lib/pg-errors.ts:31:3)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:10)",
+    "call to `Math.min`: method calls are not resolved: `Math` is not declared or imported (src/lib/pg-errors.ts:27:3)",
+    "expression of kind ``new`` is not supported (src/lib/pg-errors.ts:31:3)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": true,
+   "counterexample": true,
+   "counterpart": "P16-E18",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/app/api/waitlist/route.ts#POST",
+   "extracted": true,
+   "family": "request-json-body",
+   "id": "P16-E17",
+   "inputSensitivity": "both bodies are valid JSON that pass JoinWaitlistBody with equal eventId and email; malformed JSON returns 400 and an invalid body 422 without any database access.",
+   "label": "positive",
+   "outcome": "TP",
+   "pairedWith": null,
+   "predicted": true,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": [
+    "call to `z.treeifyError`: method calls are not resolved: `zod` is a package, which is not analyzed (src/app/api/waitlist/route.ts:24:35)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "NO_VIOLATION_WITHIN_BOUNDS"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E17",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/app/api/rsvp/route.ts#POST",
+   "extracted": true,
+   "family": "request-json-body",
+   "id": "P16-E18",
+   "inputSensitivity": "none: every valid body reaches INSERT ... ON CONFLICT DO NOTHING against UNIQUE(event_id, email).",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": [
+    "call to `z.treeifyError`: method calls are not resolved: `zod` is a package, which is not analyzed (src/app/api/rsvp/route.ts:23:35)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "status-transition",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "class": "status-transition",
+   "classAgrees": true,
+   "counterexample": true,
+   "counterpart": "P16-E20",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/jobs.ts#claimJob",
+   "extracted": true,
+   "family": "hoisted-predicate",
+   "id": "P16-E19",
+   "inputSensitivity": "the job is 'queued' initially and both workers ask for it; a job in any other state makes both calls return null.",
+   "label": "positive",
+   "outcome": "TP",
+   "pairedWith": null,
+   "predicted": true,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "status-transition",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E19",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/jobs.ts#claimJobAtomic",
+   "extracted": true,
+   "family": "hoisted-predicate",
+   "id": "P16-E20",
+   "inputSensitivity": "none for reachable initial states.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": [
+    "`job.id`: fields of a returned row are not modeled (src/services/jobs.ts:27:23)",
+    "insert (src/services/jobs.ts:27:9)",
+    "`job.kind`: fields of a returned row are not modeled (src/services/jobs.ts:28:16)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "check-then-act",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E22",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/collections.ts#createCollection",
+   "extracted": true,
+   "family": "hoisted-predicate",
+   "id": "P16-E21",
+   "inputSensitivity": "parentId null (the annotation `number | null` admits it). With a non-null parentId the second INSERT fails with 23505 on UNIQUE(workspace_id, parent_id, name) (a failed call, not a duplicate).",
+   "label": "positive",
+   "outcome": "FN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": [
+    "call to `and`: imported from the package `drizzle-orm`, which is not analyzed (src/services/collections.ts:8:10)",
+    "call to `and`: imported from the package `drizzle-orm`, which is not analyzed (src/services/collections.ts:8:3)",
+    "`sibling` is not a Drizzle predicate the model resolves (a `const` holding `eq(..)`, `and(..)`, ... is) (src/services/collections.ts:15:28)",
+    "select predicate (src/services/collections.ts:15:9)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "check-then-act",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E21",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/collections.ts#createCollectionLocked",
+   "extracted": true,
+   "family": "hoisted-predicate",
+   "id": "P16-E22",
+   "inputSensitivity": "none: the workspace row lock serializes every call for the workspace, whatever parentId is.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": [
+    "call to `and`: imported from the package `drizzle-orm`, which is not analyzed (src/services/collections.ts:8:10)",
+    "call to `and`: imported from the package `drizzle-orm`, which is not analyzed (src/services/collections.ts:8:3)",
+    "`sibling` is not a Drizzle predicate the model resolves (a `const` holding `eq(..)`, `and(..)`, ... is) (src/services/collections.ts:37:30)",
+    "select predicate (src/services/collections.ts:37:11)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [
+    [
+     "lock-order",
+     "UNSUPPORTED"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E24",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/ledger.ts#transferFundsUnlocked",
+   "extracted": true,
+   "family": "multi-row-lock",
+   "id": "P16-E23",
+   "inputSensitivity": "needs two transfers from the same source whose sum exceeds its balance; transfers from different sources do not interact. Amounts are positive integers and fromId != toId (asserted).",
+   "label": "positive",
+   "outcome": "FN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": [
+    "call to `Number.isSafeInteger`: method calls are not resolved: `Number` is not declared or imported (src/lib/pg-errors.ts:41:8)",
+    "call to `Number.isSafeInteger`: method calls are not resolved: `Number` is not declared or imported (src/lib/pg-errors.ts:41:7)",
+    "call to `<expression>`: method calls are not resolved (src/services/ledger.ts:16:15)",
+    "call to `<expression>`: method calls are not resolved (src/services/ledger.ts:16:9)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [
+    [
+     "lock-order",
+     "UNSUPPORTED"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E23",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/ledger.ts#transferFunds",
+   "extracted": true,
+   "family": "multi-row-lock",
+   "id": "P16-E24",
+   "inputSensitivity": "none: positive amounts and distinct accounts are asserted; a valid initial state has non-negative balances.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": [
+    "call to `Number.isSafeInteger`: method calls are not resolved: `Number` is not declared or imported (src/lib/pg-errors.ts:41:8)",
+    "call to `Number.isSafeInteger`: method calls are not resolved: `Number` is not declared or imported (src/lib/pg-errors.ts:41:7)",
+    "call to `<expression>`: method calls are not resolved (src/services/ledger.ts:48:15)",
+    "call to `<expression>`: method calls are not resolved (src/services/ledger.ts:48:9)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "status-transition",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E26",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/tasks.ts#claimBatchUnlocked",
+   "extracted": true,
+   "family": "multi-row-lock",
+   "id": "P16-E25",
+   "inputSensitivity": "needs a ready task both batches include (both read before either commits).",
+   "label": "positive",
+   "outcome": "FN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": [
+    "call to `Number.isSafeInteger`: method calls are not resolved: `Number` is not declared or imported (src/services/tasks.ts:7:8)",
+    "call to `Number.isSafeInteger`: method calls are not resolved: `Number` is not declared or imported (src/services/tasks.ts:7:7)",
+    "`limit` is not an integer literal (src/services/tasks.ts:15:25)",
+    "`limit` is not an integer literal (src/services/tasks.ts:15:11)",
+    "`values` argument is not an object literal, a `const` object or an array of them (src/services/tasks.ts:24:11)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "status-transition",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E25",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/tasks.ts#claimBatch",
+   "extracted": true,
+   "family": "multi-row-lock",
+   "id": "P16-E26",
+   "inputSensitivity": "none for reachable initial states.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": [
+    "call to `Number.isSafeInteger`: method calls are not resolved: `Number` is not declared or imported (src/services/tasks.ts:7:8)",
+    "call to `Number.isSafeInteger`: method calls are not resolved: `Number` is not declared or imported (src/services/tasks.ts:7:7)",
+    "`limit` is not an integer literal (src/services/tasks.ts:33:25)",
+    "`limit` is not an integer literal (src/services/tasks.ts:33:11)",
+    "`values` argument is not an object literal, a `const` object or an array of them (src/services/tasks.ts:43:11)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "status-transition",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E25",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/tasks.ts#claimBatchNoWait",
+   "extracted": true,
+   "family": "multi-row-lock",
+   "id": "P16-E27",
+   "inputSensitivity": "none for reachable initial states.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": [
+    "call to `Number.isSafeInteger`: method calls are not resolved: `Number` is not declared or imported (src/services/tasks.ts:7:8)",
+    "call to `Number.isSafeInteger`: method calls are not resolved: `Number` is not declared or imported (src/services/tasks.ts:7:7)",
+    "`limit` is not an integer literal (src/services/tasks.ts:53:25)",
+    "`limit` is not an integer literal (src/services/tasks.ts:53:11)",
+    "`values` argument is not an object literal, a `const` object or an array of them (src/services/tasks.ts:63:11)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": true,
+   "counterexample": true,
+   "counterpart": "P16-E29",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/notifications.ts#muteEvent",
+   "extracted": true,
+   "family": "nulls-not-distinct",
+   "id": "P16-E28",
+   "inputSensitivity": "channelId null. With a channel id the second INSERT ... ON CONFLICT DO NOTHING conflicts and the call returns the winner.",
+   "label": "positive",
+   "outcome": "TP",
+   "pairedWith": null,
+   "predicted": true,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "check-then-act",
+     "NO_VIOLATION_WITHIN_BOUNDS"
+    ]
+   ],
+   "class": "check-then-act",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E28",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/notifications.ts#addNotificationRule",
+   "extracted": true,
+   "family": "nulls-not-distinct",
+   "id": "P16-E29",
+   "inputSensitivity": "none on PostgreSQL 15+ (NULLS NOT DISTINCT is not available before 15).",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "status-transition",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E31",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/checkout.ts#ensurePaymentIntent",
+   "extracted": true,
+   "family": "generated-identifier",
+   "id": "P16-E30",
+   "inputSensitivity": "the order has no payment intent initially; an order that already points to an intent returns it without writing.",
+   "label": "positive",
+   "outcome": "FN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "status-transition",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E30",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/checkout.ts#ensurePaymentIntentLocked",
+   "extracted": true,
+   "family": "generated-identifier",
+   "id": "P16-E31",
+   "inputSensitivity": "none for reachable initial states.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "status-transition",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E33",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/sessions.ts#refreshSession",
+   "extracted": true,
+   "family": "generated-identifier",
+   "id": "P16-E32",
+   "inputSensitivity": "both calls present the session's current token before either UPDATE commits; a call that comes after a committed rotation finds no session and returns null. Generated tokens are assumed distinct.",
+   "label": "positive",
+   "outcome": "FN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "status-transition",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E32",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/sessions.ts#refreshSessionChecked",
+   "extracted": true,
+   "family": "generated-identifier",
+   "id": "P16-E33",
+   "inputSensitivity": "none for reachable initial states; generated tokens are assumed distinct.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "return-value",
+     "MODEL_COUNTEREXAMPLE"
+    ]
+   ],
+   "class": "return-value",
+   "classAgrees": true,
+   "counterexample": true,
+   "counterpart": "P16-E35",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/digests.ts#saveDigestFrequency",
+   "extracted": true,
+   "family": "replica-read",
+   "id": "P16-E34",
+   "inputSensitivity": "stored frequency != argument. With equal values the stale replica returns the argument and the call returns true. Concurrent calls with different frequencies also violate it without any lag.",
+   "label": "positive",
+   "outcome": "TP",
+   "pairedWith": null,
+   "predicted": true,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": true,
+   "candidates": [
+    [
+     "return-value",
+     "NO_VIOLATION_WITHIN_BOUNDS"
+    ]
+   ],
+   "class": "return-value",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E34",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/digests.ts#saveDigestFrequencyInTransaction",
+   "extracted": true,
+   "family": "replica-read",
+   "id": "P16-E35",
+   "inputSensitivity": "none: holds for every stored value and argument and under concurrency.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "status-transition",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E37",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/coupons.ts#redeemCoupon",
+   "extracted": true,
+   "family": "replica-read",
+   "id": "P16-E36",
+   "inputSensitivity": "the coupon is unredeemed initially and both calls use its code (the accounts may differ).",
+   "label": "positive",
+   "outcome": "FN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "status-transition",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": "P16-E36",
+   "declaredInContracts": true,
+   "effectful": true,
+   "entry": "src/services/coupons.ts#redeemCouponLocked",
+   "extracted": true,
+   "family": "replica-read",
+   "id": "P16-E37",
+   "inputSensitivity": "none for reachable initial states.",
+   "label": "negative",
+   "outcome": "TN",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": true,
+   "status": "effectful",
+   "unknownOps": null,
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "unknown",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": null,
+   "declaredInContracts": false,
+   "effectful": false,
+   "entry": "src/services/bulk.ts#runBulkAction",
+   "extracted": true,
+   "family": "unsupported",
+   "id": "P16-E38",
+   "inputSensitivity": "the method called is `repositories[entity][`${verb}Many`]`, both names runtime arguments",
+   "label": "unsupported",
+   "outcome": "unsupported",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": false,
+   "status": "no-database-effects",
+   "unknownOps": [
+    "computed member access (src/services/bulk.ts:35:9)",
+    "optional chain form is not supported (src/services/bulk.ts:36:9)",
+    "call to `handler.call`: method calls are not resolved (on a local value) (src/services/bulk.ts:38:9)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "unknown",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": null,
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/automations.ts#runAutomation",
+   "extracted": true,
+   "family": "unsupported",
+   "id": "P16-E39",
+   "inputSensitivity": "the effects are those of JavaScript source read from automations.source at run time",
+   "label": "unsupported",
+   "outcome": "unsupported",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": [
+    "`new`: `Function` is not declared or imported (src/services/automations.ts:25:16)",
+    "call to `body`: not a function declared in this module or imported from an analyzed module (src/services/automations.ts:30:24)",
+    "call to `body`: not a function declared in this module or imported from an analyzed module (src/services/automations.ts:30:9)"
+   ],
+   "validated": true
+  },
+  {
+   "candidateOfClass": false,
+   "candidates": [],
+   "class": "unknown",
+   "classAgrees": false,
+   "counterexample": false,
+   "counterpart": null,
+   "declaredInContracts": false,
+   "effectful": true,
+   "entry": "src/services/tree.ts#archiveCollectionTree",
+   "extracted": true,
+   "family": "unsupported",
+   "id": "P16-E40",
+   "inputSensitivity": "the number of statements is the size of the subtree, unbounded",
+   "label": "unsupported",
+   "outcome": "unsupported",
+   "pairedWith": null,
+   "predicted": false,
+   "requiresDeclaration": false,
+   "status": "effectful",
+   "unknownOps": [
+    "recursive call of `archiveCollectionTree` is not inlined (src/services/tree.ts:16:23)",
+    "recursive call of `archiveCollectionTree` is not inlined (src/services/tree.ts:16:5)"
+   ],
+   "validated": true
+  }
+ ],
+ "frozen": "fixtures/phase16/FROZEN.json",
+ "frozenFilesVerified": 38,
+ "frozenManifestSha256": "a55cb43b9ca51866e4e76a960aaf2abffe787406dfa5f8ad320475b9a6ee6bc1",
+ "index": {
+  "cacheHits": 0,
+  "cacheMisses": 0,
+  "effectfulEntries": 39,
+  "entriesByKind": {
+   "exported-function": 49,
+   "route-handler": 2,
+   "wrapped-callback": 20
+  },
+  "entriesExtracted": 42,
+  "entriesWithUnknownOperations": 25,
+  "entriesWithoutDatabaseReach": 29,
+  "entryCandidates": 71,
+  "extractionFailures": 0,
+  "generatedColumns": [
+   [
+    "accounts.id",
+    "database",
+    "gen_random_uuid()"
+   ],
+   [
+    "ledger_transfers.id",
+    "application",
+    "crypto.randomUUID()"
+   ],
+   [
+    "outbox_events.id",
+    "database",
+    "gen_random_uuid()"
+   ],
+   [
+    "sessions.id",
+    "application",
+    "crypto.randomUUID()"
+   ],
+   [
+    "token_rotations.id",
+    "database",
+    "gen_random_uuid()"
+   ]
+  ],
+  "readOnlyEntries": 0,
+  "resources": 79,
+  "tablesModeled": 41,
+  "tablesRefused": [],
+  "unknownOperations": 148
+ },
+ "labelsPassedToTool": "original",
+ "labelsRejectedWith": null,
+ "labelsSha256": "572bc939d7a46fcca4a9ccc16a79a30712f757cf91001d1ad4869e67426cfb0e",
+ "scoring": {
+  "all": {
+   "FN": 12,
+   "FP": 0,
+   "TN": 19,
+   "TP": 6,
+   "precision": 1.0,
+   "recall": 0.333
+  },
+  "byFamily": {
+   "bounded-retry-loop": {
+    "FN": 2,
+    "FP": 0,
+    "TN": 2,
+    "TP": 0,
+    "cases": 4,
+    "negative": 2,
+    "outcomes": {
+     "P16-E09": "FN",
+     "P16-E10": "TN",
+     "P16-E11": "FN",
+     "P16-E12": "TN"
+    },
+    "positive": 2,
+    "precision": null,
+    "recall": 0.0,
+    "unsupported": 0
+   },
+   "generated-identifier": {
+    "FN": 2,
+    "FP": 0,
+    "TN": 2,
+    "TP": 0,
+    "cases": 4,
+    "negative": 2,
+    "outcomes": {
+     "P16-E30": "FN",
+     "P16-E31": "TN",
+     "P16-E32": "FN",
+     "P16-E33": "TN"
+    },
+    "positive": 2,
+    "precision": null,
+    "recall": 0.0,
+    "unsupported": 0
+   },
+   "hoisted-predicate": {
+    "FN": 1,
+    "FP": 0,
+    "TN": 2,
+    "TP": 1,
+    "cases": 4,
+    "negative": 2,
+    "outcomes": {
+     "P16-E19": "TP",
+     "P16-E20": "TN",
+     "P16-E21": "FN",
+     "P16-E22": "TN"
+    },
+    "positive": 2,
+    "precision": 1.0,
+    "recall": 0.5,
+    "unsupported": 0
+   },
+   "multi-row-lock": {
+    "FN": 2,
+    "FP": 0,
+    "TN": 3,
+    "TP": 0,
+    "cases": 5,
+    "negative": 3,
+    "outcomes": {
+     "P16-E23": "FN",
+     "P16-E24": "TN",
+     "P16-E25": "FN",
+     "P16-E26": "TN",
+     "P16-E27": "TN"
+    },
+    "positive": 2,
+    "precision": null,
+    "recall": 0.0,
+    "unsupported": 0
+   },
+   "nulls-not-distinct": {
+    "FN": 0,
+    "FP": 0,
+    "TN": 1,
+    "TP": 1,
+    "cases": 2,
+    "negative": 1,
+    "outcomes": {
+     "P16-E28": "TP",
+     "P16-E29": "TN"
+    },
+    "positive": 1,
+    "precision": 1.0,
+    "recall": 1.0,
+    "unsupported": 0
+   },
+   "optional-nullable-default": {
+    "FN": 1,
+    "FP": 0,
+    "TN": 2,
+    "TP": 1,
+    "cases": 4,
+    "negative": 2,
+    "outcomes": {
+     "P16-E03": "FN",
+     "P16-E04": "TN",
+     "P16-E05": "TP",
+     "P16-E06": "TN"
+    },
+    "positive": 2,
+    "precision": 1.0,
+    "recall": 0.5,
+    "unsupported": 0
+   },
+   "replica-read": {
+    "FN": 1,
+    "FP": 0,
+    "TN": 2,
+    "TP": 1,
+    "cases": 4,
+    "negative": 2,
+    "outcomes": {
+     "P16-E34": "TP",
+     "P16-E35": "TN",
+     "P16-E36": "FN",
+     "P16-E37": "TN"
+    },
+    "positive": 2,
+    "precision": 1.0,
+    "recall": 0.5,
+    "unsupported": 0
+   },
+   "request-json-body": {
+    "FN": 0,
+    "FP": 0,
+    "TN": 1,
+    "TP": 1,
+    "cases": 2,
+    "negative": 1,
+    "outcomes": {
+     "P16-E17": "TP",
+     "P16-E18": "TN"
+    },
+    "positive": 1,
+    "precision": 1.0,
+    "recall": 1.0,
+    "unsupported": 0
+   },
+   "sqlstate-retry": {
+    "FN": 2,
+    "FP": 0,
+    "TN": 2,
+    "TP": 0,
+    "cases": 4,
+    "negative": 2,
+    "outcomes": {
+     "P16-E13": "FN",
+     "P16-E14": "TN",
+     "P16-E15": "FN",
+     "P16-E16": "TN"
+    },
+    "positive": 2,
+    "precision": null,
+    "recall": 0.0,
+    "unsupported": 0
+   },
+   "unsupported": {
+    "FN": 0,
+    "FP": 0,
+    "TN": 0,
+    "TP": 0,
+    "cases": 3,
+    "negative": 0,
+    "outcomes": {
+     "P16-E38": "unsupported",
+     "P16-E39": "unsupported",
+     "P16-E40": "unsupported"
+    },
+    "positive": 0,
+    "precision": null,
+    "recall": null,
+    "unsupported": 3
+   },
+   "validated-authorization": {
+    "FN": 1,
+    "FP": 0,
+    "TN": 1,
+    "TP": 0,
+    "cases": 2,
+    "negative": 1,
+    "outcomes": {
+     "P16-E07": "FN",
+     "P16-E08": "TN"
+    },
+    "positive": 1,
+    "precision": null,
+    "recall": 0.0,
+    "unsupported": 0
+   },
+   "zod-strict": {
+    "FN": 0,
+    "FP": 0,
+    "TN": 1,
+    "TP": 1,
+    "cases": 2,
+    "negative": 1,
+    "outcomes": {
+     "P16-E01": "TP",
+     "P16-E02": "TN"
+    },
+    "positive": 1,
+    "precision": 1.0,
+    "recall": 1.0,
+    "unsupported": 0
+   }
+  },
+  "counterparts": {
+   "bothRight": 6,
+   "pairs": [
+    {
+     "bothRight": true,
+     "family": "zod-strict",
+     "negative": "P16-E02",
+     "outcomes": [
+      "TP",
+      "TN"
+     ],
+     "positive": "P16-E01"
+    },
+    {
+     "bothRight": false,
+     "family": "optional-nullable-default",
+     "negative": "P16-E04",
+     "outcomes": [
+      "FN",
+      "TN"
+     ],
+     "positive": "P16-E03"
+    },
+    {
+     "bothRight": true,
+     "family": "optional-nullable-default",
+     "negative": "P16-E06",
+     "outcomes": [
+      "TP",
+      "TN"
+     ],
+     "positive": "P16-E05"
+    },
+    {
+     "bothRight": false,
+     "family": "validated-authorization",
+     "negative": "P16-E08",
+     "outcomes": [
+      "FN",
+      "TN"
+     ],
+     "positive": "P16-E07"
+    },
+    {
+     "bothRight": false,
+     "family": "bounded-retry-loop",
+     "negative": "P16-E10",
+     "outcomes": [
+      "FN",
+      "TN"
+     ],
+     "positive": "P16-E09"
+    },
+    {
+     "bothRight": false,
+     "family": "bounded-retry-loop",
+     "negative": "P16-E12",
+     "outcomes": [
+      "FN",
+      "TN"
+     ],
+     "positive": "P16-E11"
+    },
+    {
+     "bothRight": false,
+     "family": "sqlstate-retry",
+     "negative": "P16-E14",
+     "outcomes": [
+      "FN",
+      "TN"
+     ],
+     "positive": "P16-E13"
+    },
+    {
+     "bothRight": false,
+     "family": "sqlstate-retry",
+     "negative": "P16-E16",
+     "outcomes": [
+      "FN",
+      "TN"
+     ],
+     "positive": "P16-E15"
+    },
+    {
+     "bothRight": true,
+     "family": "request-json-body",
+     "negative": "P16-E18",
+     "outcomes": [
+      "TP",
+      "TN"
+     ],
+     "positive": "P16-E17"
+    },
+    {
+     "bothRight": true,
+     "family": "hoisted-predicate",
+     "negative": "P16-E20",
+     "outcomes": [
+      "TP",
+      "TN"
+     ],
+     "positive": "P16-E19"
+    },
+    {
+     "bothRight": false,
+     "family": "hoisted-predicate",
+     "negative": "P16-E22",
+     "outcomes": [
+      "FN",
+      "TN"
+     ],
+     "positive": "P16-E21"
+    },
+    {
+     "bothRight": false,
+     "family": "multi-row-lock",
+     "negative": "P16-E24",
+     "outcomes": [
+      "FN",
+      "TN"
+     ],
+     "positive": "P16-E23"
+    },
+    {
+     "bothRight": false,
+     "family": "multi-row-lock",
+     "negative": "P16-E26",
+     "outcomes": [
+      "FN",
+      "TN"
+     ],
+     "positive": "P16-E25"
+    },
+    {
+     "bothRight": true,
+     "family": "nulls-not-distinct",
+     "negative": "P16-E29",
+     "outcomes": [
+      "TP",
+      "TN"
+     ],
+     "positive": "P16-E28"
+    },
+    {
+     "bothRight": false,
+     "family": "generated-identifier",
+     "negative": "P16-E31",
+     "outcomes": [
+      "FN",
+      "TN"
+     ],
+     "positive": "P16-E30"
+    },
+    {
+     "bothRight": false,
+     "family": "generated-identifier",
+     "negative": "P16-E33",
+     "outcomes": [
+      "FN",
+      "TN"
+     ],
+     "positive": "P16-E32"
+    },
+    {
+     "bothRight": true,
+     "family": "replica-read",
+     "negative": "P16-E35",
+     "outcomes": [
+      "TP",
+      "TN"
+     ],
+     "positive": "P16-E34"
+    },
+    {
+     "bothRight": false,
+     "family": "replica-read",
+     "negative": "P16-E37",
+     "outcomes": [
+      "FN",
+      "TN"
+     ],
+     "positive": "P16-E36"
+    }
+   ]
+  },
+  "definition": "model prediction: an unpaired case is positive when the entry's own candidate has a validated MODEL_COUNTEREXAMPLE; a paired case when the pair's candidate has one",
+  "excludingUndeclared": {
+   "FN": 12,
+   "FP": 0,
+   "TN": 19,
+   "TP": 6,
+   "excluded": [],
+   "precision": 1.0,
+   "recall": 0.333
+  }
+ },
+ "stages": {
+  "candidates": {
+   "negativesWithCandidateOfClass": 10,
+   "positives": 18,
+   "positivesWithCandidateOfClass": 11
+  },
+  "effects": {
+   "effectful": 39,
+   "expectedEffectful": 40
+  },
+  "entries": {
+   "extracted": 40,
+   "labeled": 40
+  },
+  "model": {
+   "candidateToModel": "12/12",
+   "cases": [
+    {
+     "candidates": [
+      "check-then-act:MODEL_COUNTEREXAMPLE"
+     ],
+     "class": "check-then-act",
+     "classAgrees": true,
+     "entry": "src/services/projects.ts#createProject",
+     "label": "positive",
+     "modelPrediction": true,
+     "outcome": "TP",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "check-then-act:NO_VIOLATION_WITHIN_BOUNDS"
+     ],
+     "class": "check-then-act",
+     "entry": "src/services/projects.ts#createBoard",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [
+      "check-then-act:INCONCLUSIVE"
+     ],
+     "class": "check-then-act",
+     "entry": "src/services/labels.ts#createLabel",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "check-then-act:INCONCLUSIVE"
+     ],
+     "class": "check-then-act",
+     "entry": "src/services/labels.ts#createTag",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "check-then-act:MODEL_COUNTEREXAMPLE"
+     ],
+     "class": "check-then-act",
+     "classAgrees": true,
+     "entry": "src/services/invites.ts#inviteMember",
+     "label": "positive",
+     "modelPrediction": true,
+     "outcome": "TP",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "check-then-act:INCONCLUSIVE"
+     ],
+     "class": "check-then-act",
+     "entry": "src/services/invites.ts#inviteProjectMember",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [],
+     "class": "status-transition",
+     "entry": "src/services/expenses.ts#approveExpense",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "status-transition",
+     "entry": "src/services/expenses.ts#approveExpenseOnce",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [
+      "ambiguous-commit:UNSUPPORTED"
+     ],
+     "class": "ambiguous-commit",
+     "entry": "src/services/payments.ts#recordPayment",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "ambiguous-commit:UNSUPPORTED"
+     ],
+     "class": "ambiguous-commit",
+     "entry": "src/services/payments.ts#recordPaymentIdempotent",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [
+      "ambiguous-commit:UNSUPPORTED"
+     ],
+     "class": "ambiguous-commit",
+     "entry": "src/services/credits.ts#grantCredits",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "ambiguous-commit:UNSUPPORTED"
+     ],
+     "class": "ambiguous-commit",
+     "entry": "src/services/credits.ts#grantCreditsOnce",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [
+      "check-then-act:UNSUPPORTED",
+      "ambiguous-commit:UNSUPPORTED"
+     ],
+     "class": "check-then-act",
+     "entry": "src/services/inventory.ts#reserveStock",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "check-then-act:UNSUPPORTED",
+      "ambiguous-commit:UNSUPPORTED"
+     ],
+     "class": "check-then-act",
+     "entry": "src/services/inventory.ts#reserveStockSerializable",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "ambiguous-commit:UNSUPPORTED"
+     ],
+     "class": "ambiguous-commit",
+     "entry": "src/services/withdrawals.ts#requestWithdrawal",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "ambiguous-commit:UNSUPPORTED"
+     ],
+     "class": "ambiguous-commit",
+     "entry": "src/services/withdrawals.ts#requestWithdrawalTx",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "check-then-act:MODEL_COUNTEREXAMPLE"
+     ],
+     "class": "check-then-act",
+     "classAgrees": true,
+     "entry": "src/app/api/waitlist/route.ts#POST",
+     "label": "positive",
+     "modelPrediction": true,
+     "outcome": "TP",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "check-then-act:NO_VIOLATION_WITHIN_BOUNDS"
+     ],
+     "class": "check-then-act",
+     "entry": "src/app/api/rsvp/route.ts#POST",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [
+      "status-transition:MODEL_COUNTEREXAMPLE"
+     ],
+     "class": "status-transition",
+     "classAgrees": true,
+     "entry": "src/services/jobs.ts#claimJob",
+     "label": "positive",
+     "modelPrediction": true,
+     "outcome": "TP",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [],
+     "class": "status-transition",
+     "entry": "src/services/jobs.ts#claimJobAtomic",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "check-then-act",
+     "entry": "src/services/collections.ts#createCollection",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "check-then-act",
+     "entry": "src/services/collections.ts#createCollectionLocked",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [
+      "lock-order:UNSUPPORTED"
+     ],
+     "class": "check-then-act",
+     "entry": "src/services/ledger.ts#transferFundsUnlocked",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "lock-order:UNSUPPORTED"
+     ],
+     "class": "check-then-act",
+     "entry": "src/services/ledger.ts#transferFunds",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [],
+     "class": "status-transition",
+     "entry": "src/services/tasks.ts#claimBatchUnlocked",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "status-transition",
+     "entry": "src/services/tasks.ts#claimBatch",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "status-transition",
+     "entry": "src/services/tasks.ts#claimBatchNoWait",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [
+      "check-then-act:MODEL_COUNTEREXAMPLE"
+     ],
+     "class": "check-then-act",
+     "classAgrees": true,
+     "entry": "src/services/notifications.ts#muteEvent",
+     "label": "positive",
+     "modelPrediction": true,
+     "outcome": "TP",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "check-then-act:NO_VIOLATION_WITHIN_BOUNDS"
+     ],
+     "class": "check-then-act",
+     "entry": "src/services/notifications.ts#addNotificationRule",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [],
+     "class": "status-transition",
+     "entry": "src/services/checkout.ts#ensurePaymentIntent",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "status-transition",
+     "entry": "src/services/checkout.ts#ensurePaymentIntentLocked",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "status-transition",
+     "entry": "src/services/sessions.ts#refreshSession",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "status-transition",
+     "entry": "src/services/sessions.ts#refreshSessionChecked",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [
+      "return-value:MODEL_COUNTEREXAMPLE"
+     ],
+     "class": "return-value",
+     "classAgrees": true,
+     "entry": "src/services/digests.ts#saveDigestFrequency",
+     "label": "positive",
+     "modelPrediction": true,
+     "outcome": "TP",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [
+      "return-value:NO_VIOLATION_WITHIN_BOUNDS"
+     ],
+     "class": "return-value",
+     "entry": "src/services/digests.ts#saveDigestFrequencyInTransaction",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": true
+    },
+    {
+     "candidates": [],
+     "class": "status-transition",
+     "entry": "src/services/coupons.ts#redeemCoupon",
+     "label": "positive",
+     "modelPrediction": false,
+     "outcome": "FN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "status-transition",
+     "entry": "src/services/coupons.ts#redeemCouponLocked",
+     "label": "negative",
+     "modelPrediction": false,
+     "outcome": "TN",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "unknown",
+     "entry": "src/services/bulk.ts#runBulkAction",
+     "label": "unsupported",
+     "modelPrediction": false,
+     "outcome": "reported",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "unknown",
+     "entry": "src/services/automations.ts#runAutomation",
+     "label": "unsupported",
+     "modelPrediction": false,
+     "outcome": "reported",
+     "staticPrediction": false
+    },
+    {
+     "candidates": [],
+     "class": "unknown",
+     "entry": "src/services/tree.ts#archiveCollectionTree",
+     "label": "unsupported",
+     "modelPrediction": false,
+     "outcome": "reported",
+     "staticPrediction": false
+    }
+   ],
+   "classAgreement": {
+    "agrees": 6
+   },
+   "labelsCorrected": 0,
+   "modelPrediction": {
+    "f1": 0.5,
+    "falseNegatives": 12,
+    "falsePositives": 0,
+    "precision": 1.0,
+    "recall": 0.333,
+    "trueNegatives": 19,
+    "truePositives": 6
+   },
+   "staticHazardPrediction": {
+    "f1": 0.649,
+    "falseNegatives": 6,
+    "falsePositives": 7,
+    "precision": 0.632,
+    "recall": 0.667,
+    "trueNegatives": 12,
+    "truePositives": 12
+   },
+   "unsupportedMissed": 0,
+   "unsupportedReported": 3
+  },
+  "original": "not measured: the evaluation application has no authorized harness",
+  "schema": {
+   "tablesExpected": 41,
+   "tablesModeled": 41,
+   "tablesRefused": []
+  },
+  "unsupported": [
+   {
+    "candidates": [],
+    "claimedSafe": false,
+    "entry": "src/services/bulk.ts#runBulkAction",
+    "id": "P16-E38",
+    "status": "no-database-effects",
+    "unknownOps": [
+     "computed member access (src/services/bulk.ts:35:9)",
+     "optional chain form is not supported (src/services/bulk.ts:36:9)",
+     "call to `handler.call`: method calls are not resolved (on a local value) (src/services/bulk.ts:38:9)"
+    ]
+   },
+   {
+    "candidates": [],
+    "claimedSafe": false,
+    "entry": "src/services/automations.ts#runAutomation",
+    "id": "P16-E39",
+    "status": "effectful",
+    "unknownOps": [
+     "`new`: `Function` is not declared or imported (src/services/automations.ts:25:16)",
+     "call to `body`: not a function declared in this module or imported from an analyzed module (src/services/automations.ts:30:24)",
+     "call to `body`: not a function declared in this module or imported from an analyzed module (src/services/automations.ts:30:9)"
+    ]
+   },
+   {
+    "candidates": [],
+    "claimedSafe": false,
+    "entry": "src/services/tree.ts#archiveCollectionTree",
+    "id": "P16-E40",
+    "status": "effectful",
+    "unknownOps": [
+     "recursive call of `archiveCollectionTree` is not inlined (src/services/tree.ts:16:23)",
+     "recursive call of `archiveCollectionTree` is not inlined (src/services/tree.ts:16:5)"
+    ]
+   }
+  ],
+  "validity": {
+   "allValidated": true,
+   "entriesWithCounterexample": 6
+  }
+ },
+ "summary": {
+  "byClass": {
+   "ambiguous-commit": 8,
+   "check-then-act": 13,
+   "lock-order": 2,
+   "return-value": 2,
+   "status-transition": 1
+  },
+  "byPropertyOrigin": {
+   "HEURISTIC_HYPOTHESIS": 5,
+   "SCHEMA_ENFORCED": 4,
+   "USER_DECLARED": 17
+  },
+  "byStatus": {
+   "INCONCLUSIVE": 4,
+   "MODEL_COUNTEREXAMPLE": 6,
+   "NO_VIOLATION_WITHIN_BOUNDS": 4,
+   "UNSUPPORTED": 12
+  },
+  "candidates": 26,
+  "counterexamplesAgainstHypotheses": 1,
+  "deduplicatedFindings": 6,
+  "modelCheckable": 12,
+  "modelCounterexamples": 6,
+  "requiringAssumptions": 26,
+  "unknownOperationBreakdown": {
+   "call into an unanalyzed package": 4,
+   "other": 20,
+   "package call with a contract (result not modeled)": 6,
+   "replicated database: routing unknown": 5,
+   "unresolved call": 2,
+   "unresolved method call": 89,
+   "unsupported expression": 20,
+   "unsupported query shape": 2
+  },
+  "unsupportedBreakdown": {
+   "unknown external effect": 10,
+   "unsatisfiable initial state": 4,
+   "unsupported operation": 2
+  },
+  "withDeclaredProperty": 17
+ }
+}

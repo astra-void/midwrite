@@ -1,0 +1,81 @@
+{
+  "actors": [
+    {
+      "arguments": [
+        null
+      ],
+      "name": "registerDevice-1",
+      "selector": "src/services/tags.ts#registerDevice"
+    },
+    {
+      "arguments": [
+        null
+      ],
+      "name": "registerDevice-2",
+      "selector": "src/services/tags.ts#registerDevice"
+    }
+  ],
+  "algorithm": "sleep-sets",
+  "assumptions": [
+    "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)"
+  ],
+  "bounds": {
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "maxStates": 200000,
+    "maxSteps": 64
+  },
+  "candidate": "CR-SYNTH-D9DDCA",
+  "class": "write-skew",
+  "evidence": "model counterexample (not an original-code reproduction)",
+  "finalTerms": [
+    "count(devices[serialNo=null]) = 2"
+  ],
+  "finding": "In the initial world `null:serialNo` (serialNo = null for every actor): MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `one-device-per-serial` (USER_DECLARED). The property is declared by the user; the counterexample replays in the model.",
+  "initialState": {},
+  "kind": "commitrift.counterexample",
+  "property": {
+    "name": "one-device-per-serial",
+    "origin": "USER_DECLARED"
+  },
+  "reproduce": "commitrift model-check cr-synth-d9ddca-actual--null-serialno.json",
+  "reproduceOnOriginalCode": null,
+  "scenario": "cr-synth-d9ddca-actual--null-serialno.json",
+  "schedule": [
+    "registerDevice-1 read SELECT devices WHERE ((true and @serialNo is null) or (false and (@serialNo = null))) → null  (src/services/tags.ts:57:28)",
+    "registerDevice-1 local CHECK _row3 → false  (src/services/tags.ts:62:7)",
+    "registerDevice-2 read SELECT devices WHERE ((true and @serialNo is null) or (false and (@serialNo = null))) → null  (src/services/tags.ts:57:28)",
+    "registerDevice-2 local CHECK _row3 → false  (src/services/tags.ts:62:7)",
+    "registerDevice-2 write INSERT devices {serialNo=null} → {id=1}  (src/services/tags.ts:63:27)",
+    "registerDevice-2 local _returned6 = null  (src/services/tags.ts:63:27)",
+    "registerDevice-2 local CHECK _inserted5 is null → false  (src/services/tags.ts:63:27)",
+    "registerDevice-2 local _returned6 = {id=1}  (src/services/tags.ts:63:27)",
+    "registerDevice-2 local return (success)",
+    "registerDevice-1 write INSERT devices {serialNo=null} → {id=2}  (src/services/tags.ts:63:27)",
+    "registerDevice-1 local _returned6 = null  (src/services/tags.ts:63:27)",
+    "registerDevice-1 local CHECK _inserted5 is null → false  (src/services/tags.ts:63:27)",
+    "registerDevice-1 local _returned6 = {id=2}  (src/services/tags.ts:63:27)",
+    "registerDevice-1 local return (success)"
+  ],
+  "schemaVersion": 1,
+  "sourceFingerprint": [
+    {
+      "file": "src/services/tags.ts",
+      "fnv64": "235d81b980ca6190"
+    },
+    {
+      "file": "src/db/schema.ts",
+      "fnv64": "e4a23091a3993f44"
+    }
+  ],
+  "status": "MODEL_COUNTEREXAMPLE",
+  "variant": "actual",
+  "world": {
+    "id": "null:serialNo",
+    "origin": "domain",
+    "relationships": [
+      "serialNo = null for every actor"
+    ]
+  }
+}

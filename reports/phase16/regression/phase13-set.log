@@ -1,0 +1,337 @@
+{
+ "candidates": {
+  "negativesWithCandidateOfClass": 3,
+  "positives": 15,
+  "positivesWithCandidateOfClass": 7
+ },
+ "effects": {
+  "effectful": 24,
+  "expectedEffectful": 27
+ },
+ "entries": {
+  "extracted": 27,
+  "labeled": 27
+ },
+ "model": {
+  "candidateToModel": "18/18",
+  "cases": [
+   {
+    "candidates": [
+     "check-then-act:MODEL_COUNTEREXAMPLE"
+    ],
+    "class": "check-then-act",
+    "classAgrees": true,
+    "entry": "src/services/teams.ts#createTeam",
+    "label": "positive",
+    "modelPrediction": true,
+    "outcome": "TP",
+    "staticPrediction": true
+   },
+   {
+    "candidates": [
+     "check-then-act:NO_VIOLATION_WITHIN_BOUNDS"
+    ],
+    "class": "check-then-act",
+    "entry": "src/services/teams.ts#createTeamLocked",
+    "label": "negative",
+    "modelPrediction": false,
+    "outcome": "TN",
+    "staticPrediction": true
+   },
+   {
+    "candidates": [
+     "check-then-act:MODEL_COUNTEREXAMPLE"
+    ],
+    "class": "check-then-act",
+    "classAgrees": true,
+    "entry": "src/services/teams.ts#createTeam",
+    "label": "positive",
+    "modelPrediction": true,
+    "outcome": "TP",
+    "staticPrediction": true
+   },
+   {
+    "candidates": [
+     "check-then-act:MODEL_COUNTEREXAMPLE"
+    ],
+    "class": "check-then-act",
+    "classAgrees": true,
+    "entry": "src/services/teams.ts#createTeamShared",
+    "label": "positive",
+    "modelPrediction": true,
+    "outcome": "TP",
+    "staticPrediction": true
+   },
+   {
+    "candidates": [
+     "read-modify-write:INCONCLUSIVE"
+    ],
+    "class": "lock-cycle",
+    "entry": "src/services/teams.ts#addMember",
+    "label": "positive",
+    "modelPrediction": false,
+    "outcome": "FN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [],
+    "class": "lock-cycle",
+    "entry": "src/services/teams.ts#addMemberCounted",
+    "label": "negative",
+    "modelPrediction": false,
+    "outcome": "TN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [],
+    "class": "check-then-act",
+    "entry": "src/services/posts.ts#addComment",
+    "label": "negative",
+    "modelPrediction": false,
+    "outcome": "TN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [],
+    "class": "check-then-act",
+    "entry": "src/services/posts.ts#addBookmark",
+    "label": "positive",
+    "modelPrediction": false,
+    "outcome": "FN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [],
+    "class": "status-transition",
+    "entry": "src/services/seats.ts#holdSeat",
+    "label": "positive",
+    "modelPrediction": false,
+    "outcome": "FN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [],
+    "class": "status-transition",
+    "entry": "src/services/seats.ts#holdSeatAtomic",
+    "label": "negative",
+    "modelPrediction": false,
+    "outcome": "TN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [],
+    "class": "status-transition",
+    "entry": "src/services/seats.ts#holdSeatDirect",
+    "label": "positive",
+    "modelPrediction": false,
+    "outcome": "FN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [],
+    "class": "resubmitted-write",
+    "entry": "src/services/orders.ts#placeOrder",
+    "label": "positive",
+    "modelPrediction": false,
+    "outcome": "FN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [],
+    "class": "resubmitted-write",
+    "entry": "src/services/orders.ts#placeOrderIdempotent",
+    "label": "negative",
+    "modelPrediction": false,
+    "outcome": "TN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [
+     "ambiguous-commit:MODEL_COUNTEREXAMPLE"
+    ],
+    "class": "ambiguous-commit",
+    "classAgrees": true,
+    "entry": "src/services/orders.ts#settleOrder",
+    "label": "positive",
+    "modelPrediction": true,
+    "outcome": "TP",
+    "staticPrediction": true
+   },
+   {
+    "candidates": [
+     "ambiguous-commit:NO_VIOLATION_WITHIN_BOUNDS"
+    ],
+    "class": "ambiguous-commit",
+    "entry": "src/services/orders.ts#settleOrderOnce",
+    "label": "negative",
+    "modelPrediction": false,
+    "outcome": "TN",
+    "staticPrediction": true
+   },
+   {
+    "candidates": [],
+    "class": "stale-read",
+    "entry": "src/services/profiles.ts#renameAndRead",
+    "label": "positive",
+    "modelPrediction": false,
+    "outcome": "FN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [],
+    "class": "stale-read",
+    "entry": "src/services/profiles.ts#renameAndReadPrimary",
+    "label": "negative",
+    "modelPrediction": false,
+    "outcome": "TN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [],
+    "class": "stale-read",
+    "entry": "src/services/profiles.ts#renameInTransaction",
+    "label": "negative",
+    "modelPrediction": false,
+    "outcome": "TN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [
+     "check-then-act:MODEL_COUNTEREXAMPLE"
+    ],
+    "class": "stale-read",
+    "classAgrees": false,
+    "entry": "src/services/labels.ts#addLabel",
+    "label": "positive",
+    "modelPrediction": true,
+    "outcome": "TP",
+    "staticPrediction": true
+   },
+   {
+    "candidates": [
+     "check-then-act:MODEL_COUNTEREXAMPLE"
+    ],
+    "class": "check-then-act",
+    "classAgrees": true,
+    "entry": "src/api/teams.ts#createTeamRoute/arg[0]",
+    "label": "positive",
+    "modelPrediction": true,
+    "outcome": "TP",
+    "staticPrediction": true
+   },
+   {
+    "candidates": [],
+    "class": "check-then-act",
+    "entry": "src/api/invites.ts#inviteRoute/arg[0]",
+    "label": "negative",
+    "modelPrediction": false,
+    "outcome": "TN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [],
+    "class": "read-modify-write",
+    "entry": "src/services/counters.ts#recordView",
+    "label": "negative",
+    "modelPrediction": false,
+    "outcome": "TN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [],
+    "class": "status-transition",
+    "entry": "src/services/counters.ts#reserveHandle",
+    "label": "positive",
+    "modelPrediction": false,
+    "outcome": "FN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [
+     "duplicate-processing:MODEL_COUNTEREXAMPLE"
+    ],
+    "class": "duplicate-processing",
+    "classAgrees": true,
+    "entry": "src/workers/welcome.ts#handleWelcomeJob",
+    "label": "positive",
+    "modelPrediction": true,
+    "outcome": "TP",
+    "staticPrediction": true
+   },
+   {
+    "candidates": [
+     "duplicate-processing:NO_VIOLATION_WITHIN_BOUNDS"
+    ],
+    "class": "duplicate-processing",
+    "entry": "src/workers/welcome.ts#handleWelcomeJobOnce",
+    "label": "negative",
+    "modelPrediction": false,
+    "outcome": "TN",
+    "staticPrediction": false
+   },
+   {
+    "candidates": [
+     "check-then-act:MODEL_COUNTEREXAMPLE"
+    ],
+    "class": "check-then-act",
+    "classAgrees": true,
+    "entry": "src/services/folders.ts#createFolder",
+    "label": "positive",
+    "modelPrediction": true,
+    "outcome": "TP",
+    "staticPrediction": true
+   },
+   {
+    "candidates": [],
+    "class": "unknown",
+    "entry": "src/services/admin.ts#runMaintenance",
+    "label": "unsupported",
+    "modelPrediction": false,
+    "outcome": "reported",
+    "staticPrediction": false
+   }
+  ],
+  "classAgreement": {
+   "agrees": 7,
+   "differs": 1
+  },
+  "labelsCorrected": 0,
+  "modelPrediction": {
+   "f1": 0.695,
+   "falseNegatives": 7,
+   "falsePositives": 0,
+   "precision": 1.0,
+   "recall": 0.533,
+   "trueNegatives": 11,
+   "truePositives": 8
+  },
+  "staticHazardPrediction": {
+   "f1": 0.64,
+   "falseNegatives": 7,
+   "falsePositives": 2,
+   "precision": 0.8,
+   "recall": 0.533,
+   "trueNegatives": 9,
+   "truePositives": 8
+  },
+  "unsupportedMissed": 0,
+  "unsupportedReported": 1
+ },
+ "original": "not measured: the evaluation application has no authorized harness",
+ "schema": {
+  "tablesExpected": 16,
+  "tablesModeled": 16,
+  "tablesRefused": []
+ },
+ "unsupported": [
+  {
+   "candidates": [],
+   "entry": "src/services/admin.ts#runMaintenance",
+   "status": "no-database-effects"
+  }
+ ],
+ "validity": {
+  "allValidated": true,
+  "entriesWithCounterexample": 8
+ }
+}

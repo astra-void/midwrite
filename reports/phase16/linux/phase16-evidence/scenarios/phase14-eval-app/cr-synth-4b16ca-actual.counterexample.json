@@ -1,0 +1,120 @@
+{
+  "actors": [
+    {
+      "arguments": [
+        {
+          "accountId": "f35425ca-0000-4000-a000-000000000001"
+        }
+      ],
+      "name": "POST-1",
+      "selector": "src/app/api/trials/route.ts#POST/arg[0]"
+    },
+    {
+      "arguments": [
+        {
+          "accountId": "f35425ca-0000-4000-a000-000000000001"
+        }
+      ],
+      "name": "POST-2",
+      "selector": "src/app/api/trials/route.ts#POST/arg[0]"
+    }
+  ],
+  "algorithm": "sleep-sets",
+  "assumptions": [
+    "the exported function is assumed to be called concurrently by its callers; this is NOT established from source (declare `concurrent` in commitrift-contracts.json)",
+    "`withAuth` runs the callback only when its guards pass; the scenario assumes they do: `if (!session)` → return (src/lib/auth.ts:11:5)"
+  ],
+  "bounds": {
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "maxStates": 200000,
+    "maxSteps": 64
+  },
+  "candidate": "CR-SYNTH-4B16CA",
+  "class": "check-then-act",
+  "evidence": "model counterexample (not an original-code reproduction)",
+  "finalTerms": [
+    "count(trials[accountId=\"f35425ca-0000-4000-a000-000000000001\"]) = 2"
+  ],
+  "finding": "MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `at-most-one-trials-per-key` (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). That the application requires this property has NOT been established; this is not a confirmed defect.",
+  "initialState": {
+    "accounts": [
+      {
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "displayName": "displayName-1",
+        "email": "email-1",
+        "id": "f35425ca-0000-4000-a000-000000000001",
+        "timezone": "UTC",
+        "trialUsed": false,
+        "updatedAt": "2026-01-01T00:00:00.000Z"
+      }
+    ]
+  },
+  "kind": "commitrift.counterexample",
+  "property": {
+    "name": "at-most-one-trials-per-key",
+    "origin": "HEURISTIC_HYPOTHESIS"
+  },
+  "reproduce": "commitrift model-check cr-synth-4b16ca-actual.json",
+  "reproduceOnOriginalCode": null,
+  "scenario": "cr-synth-4b16ca-actual.json",
+  "schedule": [
+    "POST-1 read SELECT trials WHERE (@accountId = \"f35425ca-0000-4000-a000-000000000001\") → null  (src/app/api/trials/route.ts:9:28)",
+    "POST-1 local CHECK _row1 → false  (src/app/api/trials/route.ts:14:7)",
+    "POST-2 read SELECT trials WHERE (@accountId = \"f35425ca-0000-4000-a000-000000000001\") → null  (src/app/api/trials/route.ts:9:28)",
+    "POST-2 local CHECK _row1 → false  (src/app/api/trials/route.ts:14:7)",
+    "POST-2 write INSERT trials {accountId=\"f35425ca-0000-4000-a000-000000000001\", plan=\"pro\"} → {id=1}  (src/app/api/trials/route.ts:15:25)",
+    "POST-2 local _returned4 = null  (src/app/api/trials/route.ts:15:25)",
+    "POST-2 local CHECK _inserted3 is null → false  (src/app/api/trials/route.ts:15:25)",
+    "POST-2 local _returned4 = {id=1}  (src/app/api/trials/route.ts:15:25)",
+    "POST-2 local _opt5 = undefined  (src/app/api/trials/route.ts:16:36)",
+    "POST-2 local CHECK (_returned4 is null or (_returned4 = undefined)) → false  (src/app/api/trials/route.ts:16:36)",
+    "POST-2 local _opt5 = 1  (src/app/api/trials/route.ts:16:36)",
+    "POST-2 local return (success)",
+    "POST-1 write INSERT trials {accountId=\"f35425ca-0000-4000-a000-000000000001\", plan=\"pro\"} → {id=2}  (src/app/api/trials/route.ts:15:25)",
+    "POST-1 local _returned4 = null  (src/app/api/trials/route.ts:15:25)",
+    "POST-1 local CHECK _inserted3 is null → false  (src/app/api/trials/route.ts:15:25)",
+    "POST-1 local _returned4 = {id=2}  (src/app/api/trials/route.ts:15:25)",
+    "POST-1 local _opt5 = undefined  (src/app/api/trials/route.ts:16:36)",
+    "POST-1 local CHECK (_returned4 is null or (_returned4 = undefined)) → false  (src/app/api/trials/route.ts:16:36)",
+    "POST-1 local _opt5 = 2  (src/app/api/trials/route.ts:16:36)",
+    "POST-1 local return (success)"
+  ],
+  "schemaVersion": 1,
+  "sourceFingerprint": [
+    {
+      "file": "src/app/api/trials/route.ts",
+      "fnv64": "af8b428603b506df"
+    },
+    {
+      "file": "src/schema/access.ts",
+      "fnv64": "3000d5747e085973"
+    },
+    {
+      "file": "src/schema/accounts.ts",
+      "fnv64": "9d0b610f44e1972e"
+    },
+    {
+      "file": "src/schema/billing.ts",
+      "fnv64": "125afb386cde230b"
+    },
+    {
+      "file": "src/schema/scheduling.ts",
+      "fnv64": "7eedc98a5972f46d"
+    },
+    {
+      "file": "src/schema/work.ts",
+      "fnv64": "bd7eb260a2ac1cc0"
+    }
+  ],
+  "status": "MODEL_COUNTEREXAMPLE",
+  "variant": "actual",
+  "world": {
+    "id": "base",
+    "origin": "base",
+    "relationships": [
+      "the synthesized initial state and arguments"
+    ]
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "actors": [
+    {
+      "arguments": [
+        1
+      ],
+      "name": "createDefaultStages",
+      "selector": "src/services/project-setup.ts#createDefaultStages"
+    }
+  ],
+  "algorithm": "sleep-sets",
+  "assumptions": [
+    "the caller retries the request (on-crash)"
+  ],
+  "bounds": {
+    "maxCrashes": 1,
+    "maxInFlight": 0,
+    "maxRetries": 1,
+    "maxStates": 200000,
+    "maxSteps": 64
+  },
+  "candidate": "CR-SYNTH-68BFDF",
+  "class": "resubmitted-write",
+  "evidence": "model counterexample (not an original-code reproduction)",
+  "finalTerms": [
+    "count(stages[name=\"todo\",projectId=1]) = 2"
+  ],
+  "finding": "MODEL_COUNTEREXAMPLE: a schedule within the bounds violates `one-stage-per-name` (USER_DECLARED). The property is declared by the user; the counterexample replays in the model.",
+  "initialState": {
+    "accounts": [
+      {
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "displayName": "displayName-1",
+        "email": "email-1",
+        "id": "f35425ca-0000-4000-a000-000000000001",
+        "timezone": "UTC",
+        "trialUsed": false,
+        "updatedAt": "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    "projects": [
+      {
+        "accountId": "f35425ca-0000-4000-a000-000000000001",
+        "archivedAt": null,
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "id": 1,
+        "name": "name-1"
+      }
+    ]
+  },
+  "kind": "commitrift.counterexample",
+  "property": {
+    "name": "one-stage-per-name",
+    "origin": "USER_DECLARED"
+  },
+  "reproduce": "commitrift model-check cr-synth-68bfdf-actual.json",
+  "reproduceOnOriginalCode": null,
+  "scenario": "cr-synth-68bfdf-actual.json",
+  "schedule": [
+    "createDefaultStages write INSERT stages {name=\"todo\", position=0, projectId=1}, {name=\"doing\", position=1, projectId=1}, {name=\"done\", position=2, projectId=1} → 3 rows  (src/services/project-setup.ts:7:9)",
+    "process createDefaultStages crash PROCESS CRASH (createDefaultStages)",
+    "createDefaultStages retry RETRY: the operation is re-executed from the start (attempt 2)",
+    "createDefaultStages write INSERT stages {name=\"todo\", position=0, projectId=1}, {name=\"doing\", position=1, projectId=1}, {name=\"done\", position=2, projectId=1} → 3 rows  (src/services/project-setup.ts:7:9)",
+    "createDefaultStages local RESPONSE delivered  (src/services/project-setup.ts:12:3)",
+    "createDefaultStages local return (success)"
+  ],
+  "schemaVersion": 1,
+  "sourceFingerprint": [
+    {
+      "file": "src/services/project-setup.ts",
+      "fnv64": "88e40ff1133938ef"
+    },
+    {
+      "file": "src/schema/access.ts",
+      "fnv64": "3000d5747e085973"
+    },
+    {
+      "file": "src/schema/accounts.ts",
+      "fnv64": "9d0b610f44e1972e"
+    },
+    {
+      "file": "src/schema/billing.ts",
+      "fnv64": "125afb386cde230b"
+    },
+    {
+      "file": "src/schema/scheduling.ts",
+      "fnv64": "7eedc98a5972f46d"
+    },
+    {
+      "file": "src/schema/work.ts",
+      "fnv64": "bd7eb260a2ac1cc0"
+    }
+  ],
+  "status": "MODEL_COUNTEREXAMPLE",
+  "variant": "actual",
+  "world": {
+    "id": "base",
+    "origin": "base",
+    "relationships": [
+      "the synthesized initial state and arguments"
+    ]
+  }
+}
