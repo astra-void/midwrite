@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use clap::{Args, ValueEnum};
 
 use commitrift_discover::pipeline::{Options, discover as run_discovery};
-use commitrift_discover::report::{render_html, render_text};
+use commitrift_discover::report::{TextOptions, render_html, render_text_with};
 
 use crate::model_check::SourceDporArg;
 use crate::{EXIT_FINDINGS, EXIT_OK};
@@ -139,7 +139,17 @@ pub fn discover(args: &DiscoverArgs) -> Result<u8, String> {
         report.evaluation = Some(commitrift_discover::eval::evaluate(&report, &labels));
     }
     let output = match args.format {
-        DiscoverFormat::Text => render_text(&report, args.verbose, args.explain_coverage),
+        DiscoverFormat::Text => render_text_with(
+            &report,
+            &TextOptions {
+                verbose: args.verbose,
+                explain_coverage: args.explain_coverage,
+                emit_dir: args
+                    .emit_scenarios
+                    .as_ref()
+                    .map(|d| d.display().to_string()),
+            },
+        ),
         DiscoverFormat::Json => report.to_json(),
         DiscoverFormat::Html => render_html(&report),
     };

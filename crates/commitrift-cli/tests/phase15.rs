@@ -165,9 +165,11 @@ fn counterexamples_found_in_other_worlds_come_with_a_reproduction_artifact() {
                 .is_some_and(|s| !s.is_empty())
         );
     }
-    // No artifact for a candidate that is not a finding.
+    // No artifact for a candidate that is not a finding. (Phase 16: the
+    // model enforces the NULLS NOT DISTINCT key, so the safe counterpart
+    // has no violation within the bounds; Phase 15 reported INCONCLUSIVE.)
     let label = candidate(&r, "#createLabel");
-    assert_eq!(label["status"], "INCONCLUSIVE", "{label:#}");
+    assert_eq!(label["status"], "NO_VIOLATION_WITHIN_BOUNDS", "{label:#}");
     let names: Vec<String> = std::fs::read_dir(&out.0)
         .unwrap()
         .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
@@ -242,13 +244,43 @@ fn input_dependent_counterexamples_reproduce_on_the_original_code() {
             "{mc:#}"
         );
     }
-    // The model's schedule on the NULLS NOT DISTINCT table (reported
-    // INCONCLUSIVE) does not happen on PostgreSQL: the rule the model does
-    // not enforce rejects the duplicate.
+    // Phase 16: the NULLS NOT DISTINCT table. Phase 15's model did not
+    // enforce the rule and its schedule did not happen on PostgreSQL
+    // (not reproduced). The model now enforces it: no counterexample in any
+    // world, and its race schedule in the NULL world (both reads, then both
+    // inserts) runs on the original code with the same statement outcomes
+    // and the invariant holding (a recovery probe without crash or retry).
     let label = candidate(&r, "#createLabel");
-    let file = label["scenarios"][0]["file"].as_str().unwrap();
+    let null_world = label["scenarios"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["world"]["id"] == "null:parentId")
+        .unwrap_or_else(|| panic!("the null world: {label:#}"));
+    assert_eq!(
+        null_world["model"]["verdict"], "NO_COUNTEREXAMPLE_WITHIN_BOUNDS",
+        "{label:#}"
+    );
+    let file = out.0.join(null_world["file"].as_str().unwrap());
+    let mut doc: Json = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+    let actors: Vec<String> = doc["actors"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|a| a["name"].as_str().unwrap().to_owned())
+        .collect();
+    doc["sourceVerification"]["recoveryProbe"] = serde_json::json!({
+        "require": [
+            format!("statement:{}", actors[0]),
+            format!("statement:{}", actors[1]),
+            format!("statement:{}", actors[0]),
+            format!("statement:{}", actors[1]),
+        ]
+    });
+    let probe = out.0.join("label-null-world-probe.json");
+    std::fs::write(&probe, doc.to_string()).unwrap();
     let mc = model_check(
-        &out.0.join(file),
+        &probe,
         &[
             "--verify-source",
             "--allow-execution",
@@ -257,7 +289,15 @@ fn input_dependent_counterexamples_reproduce_on_the_original_code() {
         ],
     );
     assert_eq!(
-        mc["sourceVerification"]["status"], "not-reproduced",
+        mc["exploration"]["verdict"], "NO_COUNTEREXAMPLE_WITHIN_BOUNDS",
+        "{mc:#}"
+    );
+    assert_eq!(
+        mc["sourceVerification"]["status"], "invariant-held",
+        "{mc:#}"
+    );
+    assert_eq!(
+        mc["evidence"]["level"], "original-code-invariant-held",
         "{mc:#}"
     );
 }
