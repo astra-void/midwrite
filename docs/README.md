@@ -94,6 +94,7 @@ are not rewritten; this layer links to them for detail.
 | [Testing](development/testing.md) | test suite, runtime prerequisites, Linux container |
 | [Benchmarks](development/benchmarks.md) | benchmark methodology and scripts |
 | [Corpus evaluation](development/corpus-evaluation.md) | the real-world corpus and its rules |
+| [Evaluation harness](development/evaluation-harness.md) | precision and recall on dev and held-out projects (`scripts/eval.py`) |
 | [Roadmap](development/roadmap.md) | open problems named by the phase reports |
 | [Evidence index](research/evidence-index.md) | every major measured result with its revision, environment and raw evidence |
 | [Evaluation methodology](research/evaluation-methodology.md) | how results are measured; independence |

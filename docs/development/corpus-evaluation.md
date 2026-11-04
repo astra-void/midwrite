@@ -5,6 +5,9 @@ Midwrite analyzes **statically only**. It measures recognition, coverage,
 regressions and performance on code nobody wrote for Midwrite. It is not
 a source of confirmed defects.
 
+Precision and recall with a dev / held-out split are measured by
+[`scripts/eval.py`](evaluation-harness.md).
+
 ## Projects
 
 | project | visibility | revision | notes |

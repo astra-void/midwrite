@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "kind": "midwrite.eval-frozen",
+  "projects": {
+    "kan": {
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "files": {
+        "corpora/configs/kan.json": "5e6090706221bce55f15992e9dc6ad92962512ebdeb9e58ab7c22fbc03eb5c34",
+        "corpora/eval/labels/kan.json": "db6a2b4d52bf9a38de67db4ef5df82aa35519ecfd0354ee06b7da4d6385b10e7"
+      },
+      "frozenAtUtc": "2026-11-04T23:17:23Z",
+      "history": []
+    },
+    "dittofeed": {
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "files": {
+        "corpora/configs/dittofeed.json": "9c69f1b494e926de643ea6c89e6453c1dfb9d0314c49fd2b449dd6a3a88e1943",
+        "corpora/eval/labels/dittofeed.json": "ba73275cba568f07801b71f46cfc2463d9935d87824b71d30b9bf7428653b444"
+      },
+      "frozenAtUtc": "2026-11-04T23:17:23Z",
+      "history": []
+    },
+    "zero": {
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "files": {
+        "corpora/configs/zero.json": "68ff38d2cd75fb3fe33ea4b4751d3fe826be7e34dbab0f71e520967aaa4735ec",
+        "corpora/eval/labels/zero.json": "2076f2b4ac02bc8d920ea03eab93aad6384f994882e5eca98e9ea845e65041b9"
+      },
+      "frozenAtUtc": "2026-11-04T23:17:23Z",
+      "history": []
+    }
+  }
+}

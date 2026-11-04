@@ -1,0 +1,1265 @@
+{
+ "$comment": "Held-out evaluation labels (scripts/eval.py). knownPositives come from a code audit by an AI agent (Claude) that read only the project's source at the pinned revision: it did not run Midwrite and did not see its output. findings are classified afterwards, finding by finding, with the Phase 2 classes. No independent human review has been performed; an AI agent checking another AI agent's results is not independent human validation. Corrections go in `corrections` with a reason, never by editing a label to raise a score.",
+ "schemaVersion": 1,
+ "kind": "midwrite.eval-labels",
+ "project": "kan",
+ "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+ "set": "held-out",
+ "labeling": {
+  "knownPositives": {
+   "by": "AI agent (Claude), source-only audit",
+   "date": "2026-11-04",
+   "humanReviewed": false,
+   "scope": "unhandled half-written-state windows in server code; the audit was capped at 30 entries, highest confidence first, so the list is a sample when the project has more"
+  },
+  "findings": {
+   "by": "AI agent (Claude), finding-by-finding source review, separate from the auditor; did not see knownPositives",
+   "date": "2026-11-05",
+   "humanReviewed": false
+  }
+ },
+ "knownPositives": [
+  {
+   "id": "kan-KP01",
+   "file": "packages/api/src/routers/card.ts",
+   "function": "create",
+   "functionStartLine": 42,
+   "functionEndLine": 257,
+   "pattern": "D",
+   "firstEffect": "cardRepo.create at line 146",
+   "secondEffect": "cardRepo.bulkCreateCardLabelRelationships at line 170 (then cardActivityRepo.bulkCreate 188, bulkCreateCardWorkspaceMemberRelationships 198, cardActivityRepo.bulkCreate 216)",
+   "consequence": "Card committed in its own transaction; a failure afterwards leaves a card without the requested labels/members or their activity rows, the client sees an error and a retry creates a duplicate card.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP02",
+   "file": "packages/api/src/routers/card.ts",
+   "function": "duplicate",
+   "functionStartLine": 1398,
+   "functionEndLine": 1609,
+   "pattern": "D",
+   "firstEffect": "cardRepo.create at line 1513",
+   "secondEffect": "cardRepo.reorder at line 1524 (then label/member relationships, checklists, activities)",
+   "consequence": "Partial duplicate left behind (wrong index, or no labels/members/checklists) and a retry creates a second copy; the comment at 1491-1494 admits the card cannot be rolled back.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP03",
+   "file": "packages/api/src/routers/card.ts",
+   "function": "update",
+   "functionStartLine": 979,
+   "functionEndLine": 1299,
+   "pattern": "D",
+   "firstEffect": "cardRepo.reorder at line 1121 (preceded by an independent cardRepo.update at 1107)",
+   "secondEffect": "cardRepo.hardDeleteCardMemberRelationship at line 1216 (then cardActivityRepo.bulkCreate at 1230)",
+   "consequence": "A card moved to another board keeps members without access to that board and misses its move/title/due activities; the title update can commit while the reorder fails.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP04",
+   "file": "packages/db/src/repository/workspace.repo.ts",
+   "function": "create",
+   "functionStartLine": 64,
+   "functionEndLine": 133,
+   "pattern": "D",
+   "firstEffect": "db.insert(workspaces) at line 76",
+   "secondEffect": "permissionRepo.createRole at line 104 (loop) then db.insert(workspaceMembers) at line 117",
+   "consequence": "No transaction: a workspace can exist with missing system roles or without its admin member row, so the creator cannot manage it.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP05",
+   "file": "apps/web/src/pages/api/stripe/webhook.ts",
+   "function": "handler",
+   "functionStartLine": 21,
+   "functionEndLine": 164,
+   "pattern": "D",
+   "firstEffect": "workspaceRepo.create at line 75",
+   "secondEffect": "subscriptionRepo.create at line 87",
+   "consequence": "Paid workspace created without a subscription row; the Stripe retry finds the workspace (check at line 72) and skips creation, so the subscription is never recorded.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP06",
+   "file": "packages/api/src/routers/member.ts",
+   "function": "invite",
+   "functionStartLine": 31,
+   "functionEndLine": 213,
+   "pattern": "B",
+   "firstEffect": "updateSubscriptionSeats(+1) at line 109",
+   "secondEffect": "memberRepo.create at line 173",
+   "consequence": "The Stripe seat count is raised and billed but the member is never created (or is soft-deleted by the compensation path, which never decrements the seat).",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP07",
+   "file": "packages/api/src/routers/member.ts",
+   "function": "acceptInviteLink",
+   "functionStartLine": 604,
+   "functionEndLine": 781,
+   "pattern": "B",
+   "firstEffect": "updateSubscriptionSeats(+1) at line 704",
+   "secondEffect": "memberRepo.create at line 766",
+   "consequence": "The Stripe seat is incremented and billed without a member; each retry of the invite link increments it again.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP08",
+   "file": "packages/api/src/routers/member.ts",
+   "function": "delete",
+   "functionStartLine": 214,
+   "functionEndLine": 333,
+   "pattern": "A",
+   "firstEffect": "memberRepo.softDelete at line 266",
+   "secondEffect": "updateSubscriptionSeats(-1) at line 295 (error only logged at 308)",
+   "consequence": "The member is removed but the Stripe seat is never decremented and nothing reconciles it.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP09",
+   "file": "apps/web/src/pages/api/upload/attachment.ts",
+   "function": "default",
+   "functionStartLine": 24,
+   "functionEndLine": 147,
+   "pattern": "B",
+   "firstEffect": "upload.done() (S3 multipart upload) at line 117",
+   "secondEffect": "cardAttachmentRepo.create at line 120 (then cardActivityRepo.create at 134)",
+   "consequence": "The S3 object exists with no row referencing it (never cleaned up), or the attachment row has no activity entry.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP10",
+   "file": "packages/api/src/routers/attachment.ts",
+   "function": "delete",
+   "functionStartLine": 173,
+   "functionEndLine": 240,
+   "pattern": "B",
+   "firstEffect": "deleteObject(bucket, s3Key) at line 217",
+   "secondEffect": "cardAttachmentRepo.softDelete at line 226 (then cardActivityRepo.create at 231)",
+   "consequence": "The S3 object is deleted while the attachment row stays live: a broken attachment pointing at a missing file.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP11",
+   "file": "packages/api/src/routers/list.ts",
+   "function": "delete",
+   "functionStartLine": 74,
+   "functionEndLine": 159,
+   "pattern": "D",
+   "firstEffect": "listRepo.softDeleteById at line 126",
+   "secondEffect": "cardRepo.softDeleteAllByListIds at line 138 (then activityRepo.bulkCreate at 156)",
+   "consequence": "The list is deleted while its cards stay live and reachable, without archive activities.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP12",
+   "file": "packages/api/src/routers/board.ts",
+   "function": "delete",
+   "functionStartLine": 576,
+   "functionEndLine": 671,
+   "pattern": "D",
+   "firstEffect": "boardRepo.softDelete at line 626",
+   "secondEffect": "listRepo.softDeleteAllByBoardId at line 633 (then cardRepo.softDeleteAllByListIds 646, activityRepo.bulkCreate 666)",
+   "consequence": "The board is deleted while its lists and cards stay live, reachable and counted, without archive activities.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP13",
+   "file": "packages/api/src/routers/board.ts",
+   "function": "create",
+   "functionStartLine": 302,
+   "functionEndLine": 471,
+   "pattern": "D",
+   "firstEffect": "boardRepo.create at line 431",
+   "secondEffect": "listRepo.bulkCreate at line 455 (then labelRepo.bulkCreate at 467)",
+   "consequence": "The board exists without the requested lists/labels, the client gets an error, and a retry creates a second board with a suffixed slug.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP14",
+   "file": "packages/api/src/routers/checklist.ts",
+   "function": "delete",
+   "functionStartLine": 159,
+   "functionEndLine": 227,
+   "pattern": "D",
+   "firstEffect": "checklistRepo.softDeleteAllItemsByChecklistId at line 201",
+   "secondEffect": "checklistRepo.softDeleteById at line 207 (then cardActivityRepo.create at 219)",
+   "consequence": "All items are soft-deleted while the checklist stays visible and empty, with no activity recorded.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP15",
+   "file": "packages/api/src/routers/import.ts",
+   "function": "importBoards",
+   "functionStartLine": 211,
+   "functionEndLine": 576,
+   "pattern": "D",
+   "firstEffect": "boardRepo.create at line 319 (after importRepo.create at 260)",
+   "secondEffect": "labels/lists/cards/activities/checklists/relationships then importRepo.update at 561",
+   "consequence": "A Trello board failing midway stays half-imported but counted as failed; a crash leaves the import row stuck in its initial status.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP16",
+   "file": "packages/api/src/routers/import.ts",
+   "function": "importProjects",
+   "functionStartLine": 685,
+   "functionEndLine": 1013,
+   "pattern": "D",
+   "firstEffect": "boardRepo.create at line 828 (after importRepo.create at 737)",
+   "secondEffect": "labels/lists/cards/activities/relationships then importRepo.update at 1005",
+   "consequence": "A GitHub project can be half-imported and the import record never reaches success or failed.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP17",
+   "file": "apps/web/src/pages/api/partner/link.ts",
+   "function": "default",
+   "functionStartLine": 9,
+   "functionEndLine": 98,
+   "pattern": "D",
+   "firstEffect": "subscriptionRepo.updateById (referenceId link) at line 68",
+   "secondEffect": "workspaceRepo.update (plan) at line 72",
+   "consequence": "The license slot is linked but the workspace stays on the free plan; a retry sees the workspace already linked and never repairs the plan.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP18",
+   "file": "packages/api/src/routers/card.ts",
+   "function": "addComment",
+   "functionStartLine": 258,
+   "functionEndLine": 338,
+   "pattern": "D",
+   "firstEffect": "cardCommentRepo.create at line 308",
+   "secondEffect": "cardActivityRepo.create (comment.added) at line 320",
+   "consequence": "Comments render through activity rows, so a comment without its activity is stored but invisible; a retry posts a duplicate.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP19",
+   "file": "packages/api/src/routers/label.ts",
+   "function": "delete",
+   "functionStartLine": 193,
+   "functionEndLine": 241,
+   "pattern": "D",
+   "firstEffect": "cardRepo.hardDeleteAllCardLabelRelationships at line 232",
+   "secondEffect": "labelRepo.softDelete at line 234",
+   "consequence": "The label is stripped from every card (hard delete, unrecoverable) but survives as a live label.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP20",
+   "file": "packages/api/src/routers/workspace.ts",
+   "function": "create",
+   "functionStartLine": 270,
+   "functionEndLine": 403,
+   "pattern": "D",
+   "firstEffect": "subscriptionRepo.updateById (link partner slot) at line 385",
+   "secondEffect": "workspaceRepo.update (plan) at line 388 (Promise.all, no transaction; after workspaceRepo.create at 345)",
+   "consequence": "The partner slot is consumed while the workspace plan stays free, or the reverse.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP21",
+   "file": "packages/api/src/routers/workspace.ts",
+   "function": "delete",
+   "functionStartLine": 507,
+   "functionEndLine": 558,
+   "pattern": "D",
+   "firstEffect": "subscriptionRepo.updateById(referenceId:null) at line 550",
+   "secondEffect": "workspaceRepo.hardDelete at line 555",
+   "consequence": "Partner subscriptions are unlinked but the workspace survives, still marked paid, with no backing subscription.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP22",
+   "file": "apps/web/src/pages/api/partner/webhook.ts",
+   "function": "createAndLinkSlots",
+   "functionStartLine": 20,
+   "functionEndLine": 110,
+   "pattern": "D",
+   "firstEffect": "subscriptionRepo.createPartnerLicenseSlots at line 61",
+   "secondEffect": "subscriptionRepo.updateById at line 79 / workspaceRepo.update at line 82",
+   "consequence": "New slots are created but not linked, or linked without the plan update; a webhook retry sees the slot count already raised and does not re-link.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP23",
+   "file": "apps/web/src/pages/api/partner/webhook.ts",
+   "function": "default",
+   "functionStartLine": 161,
+   "functionEndLine": 413,
+   "pattern": "D",
+   "firstEffect": "cancelWorkspaceAccess at line 248 / slot and workspace updates at 287/299",
+   "secondEffect": "subscriptionRepo.updateAllByPartnerLicenseKey at line 253 / cancelWorkspaceAccess+updateById at 321/323",
+   "consequence": "Workspaces can be paused/downgraded while their license slots still read active, or the reverse.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP24",
+   "file": "packages/api/src/routers/member.ts",
+   "function": "invite",
+   "functionStartLine": 31,
+   "functionEndLine": 213,
+   "pattern": "A",
+   "firstEffect": "memberRepo.create (status invited) at line 173",
+   "secondEffect": "ctx.auth.api.signInMagicLink (invite email) at line 189",
+   "consequence": "An invited member row exists but no invite email was sent, and a retry is rejected because the email is already a member.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP25",
+   "file": "apps/web/src/pages/api/upload/avatar.ts",
+   "function": "default",
+   "functionStartLine": 40,
+   "functionEndLine": 135,
+   "pattern": "B",
+   "firstEffect": "client.send(PutObjectCommand) at line 108",
+   "secondEffect": "userRepo.update(image) at line 119",
+   "consequence": "The avatar object is uploaded but the user still points at the old image: an orphaned S3 object.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP26",
+   "file": "apps/web/src/pages/api/stripe/create_checkout_session.ts",
+   "function": "default",
+   "functionStartLine": 32,
+   "functionEndLine": 152,
+   "pattern": "A",
+   "firstEffect": "subscriptionRepo.create(status incomplete) at line 105",
+   "secondEffect": "stripe.checkout.sessions.create at line 128",
+   "consequence": "A dangling incomplete subscription row is left without a checkout session; each retry adds another.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP27",
+   "file": "packages/api/src/routers/member.ts",
+   "function": "createInviteLink",
+   "functionStartLine": 403,
+   "functionEndLine": 506,
+   "pattern": "D",
+   "firstEffect": "inviteLinkRepo.deactivateAllActiveForWorkspace at line 475",
+   "secondEffect": "inviteLinkRepo.createInviteLink at line 486",
+   "consequence": "The existing invite link is revoked but no replacement is created: the workspace has no working invite link.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP28",
+   "file": "packages/api/src/routers/card.ts",
+   "function": "delete",
+   "functionStartLine": 1300,
+   "functionEndLine": 1397,
+   "pattern": "D",
+   "firstEffect": "cardRepo.softDelete at line 1355",
+   "secondEffect": "cardActivityRepo.create(card.archived) at line 1361",
+   "consequence": "The card is archived without its archive activity: incomplete audit trail.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP29",
+   "file": "packages/db/src/repository/permission.repo.ts",
+   "function": "createRole",
+   "functionStartLine": 377,
+   "functionEndLine": 415,
+   "pattern": "D",
+   "firstEffect": "db.insert(workspaceRoles) at line 388",
+   "secondEffect": "db.insert(workspaceRolePermissions) at line 405",
+   "consequence": "A system role exists with no permissions, so members assigned to it are denied everything.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "kan-KP30",
+   "file": "packages/auth/src/plugins.ts",
+   "function": "onSubscriptionComplete",
+   "functionStartLine": 117,
+   "functionEndLine": 144,
+   "pattern": "D",
+   "firstEffect": "subscriptionRepo.updateByStripeSubscriptionId(unlimitedSeats) at line 123",
+   "secondEffect": "memberRepo.unpauseAllMembers at line 141",
+   "consequence": "A Pro subscription is marked active with unlimited seats while previously paused members stay paused.",
+   "confidence": "medium",
+   "source": "independent audit"
+  }
+ ],
+ "findings": [
+  {
+   "findingId": "d50662eb3812a136",
+   "code": "MW1004",
+   "file": "apps/web/src/pages/api/partner/link.ts",
+   "line": 72,
+   "function": "<anonymous@11:18>",
+   "classification": "true-positive",
+   "notes": "partner/link.ts:68-74 links the slot then updates the plan in separate writes; a revisit redirects at :50, so the workspace stays on the old plan with the slot linked."
+  },
+  {
+   "findingId": "11727d753731af8a",
+   "code": "MW1004",
+   "file": "apps/web/src/pages/api/partner/webhook.ts",
+   "line": 97,
+   "function": "createAndLinkSlots",
+   "classification": "true-positive",
+   "notes": "partner/webhook.ts:61 and :97 insert license slots in separate statements with linking at :74-87 between; a failure leaves fewer slots than the tier."
+  },
+  {
+   "findingId": "0056f75a241753b2",
+   "code": "MW1004",
+   "file": "apps/web/src/pages/api/partner/webhook.ts",
+   "line": 253,
+   "function": "<anonymous@162:3>",
+   "classification": "true-positive",
+   "notes": "Deactivate path: webhook.ts:239-251 downgrades workspaces (utils/workspace.ts:31-40) before :253 cancels subscriptions, no transaction: free workspaces with active subscriptions."
+  },
+  {
+   "findingId": "426d3625fe3540ad",
+   "code": "MW1001",
+   "file": "apps/web/src/pages/api/stripe/create_checkout_session.ts",
+   "line": 128,
+   "function": "<anonymous@34:18>",
+   "classification": "intended-risk",
+   "notes": "create_checkout_session.ts:105-111 inserts an 'incomplete' placeholder before the Stripe session (:128); a failure looks like an abandoned checkout, which the design tolerates."
+  },
+  {
+   "findingId": "6ee9f5e8e12c956e",
+   "code": "MW1004",
+   "file": "apps/web/src/pages/api/stripe/webhook.ts",
+   "line": 87,
+   "function": "handler",
+   "classification": "true-positive",
+   "notes": "stripe/webhook.ts:75-93 creates the workspace then the subscription without a transaction; the redelivery guard at :72 skips both, so the subscription row is never created."
+  },
+  {
+   "findingId": "bc692225fb350786",
+   "code": "MW1004",
+   "file": "apps/web/src/pages/api/upload/attachment.ts",
+   "line": 134,
+   "function": "<anonymous@26:18>",
+   "classification": "intended-risk",
+   "notes": "upload/attachment.ts:134 is only an activity row after the attachment insert (:120); attachments load from the relation (card.repo.ts:624)."
+  },
+  {
+   "findingId": "e7dfa143dfc28bdb",
+   "code": "MW1002",
+   "file": "apps/web/src/pages/api/upload/avatar.ts",
+   "line": 108,
+   "function": "<anonymous@42:18>",
+   "classification": "intended-risk",
+   "notes": "upload/avatar.ts:108-121 uploads before storing the key; a failure leaves an unreferenced object at a deterministic key that a retry overwrites."
+  },
+  {
+   "findingId": "ab8c8311268dd856",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/attachment.ts",
+   "line": 163,
+   "function": "<anonymous@120:15>",
+   "classification": "intended-risk",
+   "notes": "attachment.ts:163 audit row after the insert at :146; attachments are read from the relation."
+  },
+  {
+   "findingId": "4133d8b316d38b9c",
+   "code": "MW1002",
+   "file": "packages/api/src/routers/attachment.ts",
+   "line": 217,
+   "function": "<anonymous@186:15>",
+   "classification": "true-positive",
+   "notes": "attachment.ts:217 deletes the S3 object before the soft-delete at :226; a failure leaves a visible attachment pointing at a missing file."
+  },
+  {
+   "findingId": "df3726531ce3c879",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/attachment.ts",
+   "line": 231,
+   "function": "<anonymous@186:15>",
+   "classification": "intended-risk",
+   "notes": "attachment.ts:231 only an audit row after the soft-delete at :226."
+  },
+  {
+   "findingId": "157f0a9006eefa2a",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/board.ts",
+   "line": 455,
+   "function": "<anonymous@324:15>",
+   "classification": "true-positive",
+   "notes": "board.ts:431 commits the board (board.repo.ts:639) before lists at :455 in another transaction; a failure leaves a board without lists and a retry duplicates it."
+  },
+  {
+   "findingId": "cc5009624c5e3d9f",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/board.ts",
+   "line": 467,
+   "function": "<anonymous@324:15>",
+   "classification": "true-positive",
+   "notes": "board.ts:455 lists and :467 labels are independent commits: a new board missing its requested labels."
+  },
+  {
+   "findingId": "7a62882cf46a7ce9",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/board.ts",
+   "line": 560,
+   "function": "<anonymous@499:15>",
+   "classification": "intended-risk",
+   "notes": "board.ts:528-535 handles the favorite toggle separately on purpose and idempotently (onConflictDoNothing); an independent preference."
+  },
+  {
+   "findingId": "0a2eacc361d2e407",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/board.ts",
+   "line": 633,
+   "function": "<anonymous@593:15>",
+   "classification": "true-positive",
+   "notes": "board.ts:626 soft-deletes the board before its lists (:633) without a transaction; lists and cards stay live under a deleted board and a retry cannot fix it."
+  },
+  {
+   "findingId": "9284ac49e55a2153",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/board.ts",
+   "line": 646,
+   "function": "<anonymous@593:15>",
+   "classification": "true-positive",
+   "notes": "board.ts:633 lists and :646 cards are soft-deleted in separate commits: live cards in deleted lists."
+  },
+  {
+   "findingId": "7afa4440631d1dea",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/board.ts",
+   "line": 666,
+   "function": "<anonymous@593:15>",
+   "classification": "intended-risk",
+   "notes": "board.ts:666 only audit rows after the cards' soft-delete at :646."
+  },
+  {
+   "findingId": "65235521013e407e",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 170,
+   "function": "<anonymous@65:15>",
+   "classification": "true-positive",
+   "notes": "card.ts:146 commits the card (card.repo.ts:50) before labels at :170 in another transaction; the client gets an error and a retry duplicates the card."
+  },
+  {
+   "findingId": "95ab381c6e66dec3",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 188,
+   "function": "<anonymous@65:15>",
+   "classification": "intended-risk",
+   "notes": "card.ts:188 only activity rows after the label links at :170; labels are read from the relation."
+  },
+  {
+   "findingId": "ff4258ee1a42c360",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 198,
+   "function": "<anonymous@65:15>",
+   "classification": "true-positive",
+   "notes": "Card create: a failure after :188 and before the member links at :198 leaves the card without its assignees, no transaction or compensation."
+  },
+  {
+   "findingId": "f2f6152e685dd636",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 216,
+   "function": "<anonymous@65:15>",
+   "classification": "intended-risk",
+   "notes": "card.ts:216 only activity rows after the member links at :198."
+  },
+  {
+   "findingId": "75a95acad685343b",
+   "code": "MW1001",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 220,
+   "function": "<anonymous@65:15>",
+   "classification": "intended-risk",
+   "notes": "card.ts:220 `void sendMentionEmails(...)` is fire-and-forget."
+  },
+  {
+   "findingId": "e3a1e73d4475987f",
+   "code": "MW1001",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 230,
+   "function": "<anonymous@65:15>",
+   "classification": "intended-risk",
+   "notes": "card.ts:229-254 webhooks are marked non-blocking with a log-only .catch."
+  },
+  {
+   "findingId": "b59187668bf84f19",
+   "code": "MW1005",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 230,
+   "function": "<anonymous@65:15>",
+   "classification": "intended-risk",
+   "notes": "Mention email (card.ts:220, void) and webhook (:230, .catch) are both best-effort."
+  },
+  {
+   "findingId": "e498aeac43609dcb",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 320,
+   "function": "<anonymous@276:15>",
+   "classification": "true-positive",
+   "notes": "Comments render only through their activity (ActivityList.tsx:406, card.repo.ts:738-818); if card.ts:320 fails after the insert at :308 the comment is invisible."
+  },
+  {
+   "findingId": "a7a6ad91c28e42ab",
+   "code": "MW1001",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 328,
+   "function": "<anonymous@276:15>",
+   "classification": "intended-risk",
+   "notes": "card.ts:328 `void sendMentionEmails(...)` is fire-and-forget."
+  },
+  {
+   "findingId": "4e48ab66bbe913ef",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 413,
+   "function": "<anonymous@358:15>",
+   "classification": "intended-risk",
+   "notes": "card.ts:413 audit row after the edit at :402; the UI reads the comment row."
+  },
+  {
+   "findingId": "ac4a832958073992",
+   "code": "MW1001",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 422,
+   "function": "<anonymous@358:15>",
+   "classification": "intended-risk",
+   "notes": "card.ts:422 `void sendMentionEmails(...)` is fire-and-forget."
+  },
+  {
+   "findingId": "db0fea6b4a87b2de",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 506,
+   "function": "<anonymous@450:15>",
+   "classification": "intended-risk",
+   "notes": "card.ts:506 audit row after the soft-delete at :494; deleted comments are filtered (card.repo.ts:817)."
+  },
+  {
+   "findingId": "6f92e391296cf23f",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 585,
+   "function": "<anonymous@533:15>",
+   "classification": "intended-risk",
+   "notes": "card.ts:585 audit row after the label link delete at :577."
+  },
+  {
+   "findingId": "ab0687b9549d7f3e",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 705,
+   "function": "<anonymous@646:15>",
+   "classification": "intended-risk",
+   "notes": "card.ts:705 audit row after the member link delete at :694."
+  },
+  {
+   "findingId": "ef0b15fc7e2ba7c9",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 737,
+   "function": "<anonymous@646:15>",
+   "classification": "intended-risk",
+   "notes": "card.ts:737 audit row after the member link insert at :729."
+  },
+  {
+   "findingId": "71dd23cd2ecafb06",
+   "code": "MW1001",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 1156,
+   "function": "<anonymous@1001:15>",
+   "classification": "intended-risk",
+   "notes": "card.ts:1156 `void sendMentionEmails(...)` after the update at :1107 is fire-and-forget."
+  },
+  {
+   "findingId": "171427924e77ebdd",
+   "code": "MW1002",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 1156,
+   "function": "<anonymous@1001:15>",
+   "classification": "intended-risk",
+   "notes": "Mention email (card.ts:1156, void) then an audit row (:1230): accepted and harmless."
+  },
+  {
+   "findingId": "7646225b722eb67a",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 1216,
+   "function": "<anonymous@1001:15>",
+   "classification": "true-positive",
+   "notes": "card.ts:1107/:1121 commit update and move before :1215-1226 unassigns members not on the new board; no transaction."
+  },
+  {
+   "findingId": "91eea3879e8f3322",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 1230,
+   "function": "<anonymous@1001:15>",
+   "classification": "intended-risk",
+   "notes": "card.ts:1230 only audit rows after the member removals at :1216."
+  },
+  {
+   "findingId": "34ae56526e3799d4",
+   "code": "MW1001",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 1268,
+   "function": "<anonymous@1001:15>",
+   "classification": "intended-risk",
+   "notes": "card.ts:1267-1296 webhooks are non-blocking with a log-only .catch."
+  },
+  {
+   "findingId": "3549d703aa6a45a8",
+   "code": "MW1005",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 1268,
+   "function": "<anonymous@1001:15>",
+   "classification": "intended-risk",
+   "notes": "Mention email (card.ts:1156, void) and webhook (:1268, .catch) are both best-effort."
+  },
+  {
+   "findingId": "b9e77286efb4bac6",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 1361,
+   "function": "<anonymous@1317:15>",
+   "classification": "intended-risk",
+   "notes": "card.ts:1361 audit row after the transactional soft-delete at :1355."
+  },
+  {
+   "findingId": "f1485e8463b3cd46",
+   "code": "MW1001",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 1369,
+   "function": "<anonymous@1317:15>",
+   "classification": "intended-risk",
+   "notes": "card.ts:1367-1393 webhooks are non-blocking with a log-only .catch."
+  },
+  {
+   "findingId": "a320f28a45dc3f9b",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 1538,
+   "function": "<anonymous@1425:15>",
+   "classification": "true-positive",
+   "notes": "Duplicate commits the new card (card.ts:1513) before labels (:1538) in another transaction: a partial duplicate without labels."
+  },
+  {
+   "findingId": "a2baada6bb5a7830",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 1545,
+   "function": "<anonymous@1425:15>",
+   "classification": "intended-risk",
+   "notes": "card.ts:1545 only audit rows after the label links at :1538."
+  },
+  {
+   "findingId": "d8ab3099dd8fe783",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 1567,
+   "function": "<anonymous@1425:15>",
+   "classification": "true-positive",
+   "notes": "Duplicate: a failure after :1545 and before the member links (:1567) leaves the copy without its members."
+  },
+  {
+   "findingId": "de39efbc3731b78d",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 1577,
+   "function": "<anonymous@1425:15>",
+   "classification": "intended-risk",
+   "notes": "card.ts:1577 only audit rows after the member links at :1567."
+  },
+  {
+   "findingId": "e8ebe7a172665d89",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/checklist.ts",
+   "line": 80,
+   "function": "<anonymous@42:15>",
+   "classification": "intended-risk",
+   "notes": "checklist.ts:80 audit row after the checklist create at :68."
+  },
+  {
+   "findingId": "104ff019b8d423dd",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/checklist.ts",
+   "line": 149,
+   "function": "<anonymous@107:15>",
+   "classification": "intended-risk",
+   "notes": "checklist.ts:149 audit row after the rename at :138."
+  },
+  {
+   "findingId": "2d8fb1ea8b5b954f",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/checklist.ts",
+   "line": 207,
+   "function": "<anonymous@172:15>",
+   "classification": "true-positive",
+   "notes": "checklist.ts:201 soft-deletes all items before the checklist (:207) without a transaction: a visible empty checklist."
+  },
+  {
+   "findingId": "f652f20f9e897567",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/checklist.ts",
+   "line": 219,
+   "function": "<anonymous@172:15>",
+   "classification": "intended-risk",
+   "notes": "checklist.ts:207-219 the checklist soft-delete commits before the activity insert; only the audit row can be lost."
+  },
+  {
+   "findingId": "0100867e0df449c7",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/checklist.ts",
+   "line": 289,
+   "function": "<anonymous@246:15>",
+   "classification": "intended-risk",
+   "notes": "checklist.ts:277-289 item created in its own tx, then an activity row; only the audit row can be lost."
+  },
+  {
+   "findingId": "ec78b2fee97f4944",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/checklist.ts",
+   "line": 372,
+   "function": "<anonymous@318:15>",
+   "classification": "true-positive",
+   "notes": "checklist.ts:364-372 updateItemById (non-tx, checklist.repo.ts:162) commits before reorderItem's separate tx; a reorder error leaves the request failed with the change persisted."
+  },
+  {
+   "findingId": "b82aa5b72e69805a",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/checklist.ts",
+   "line": 387,
+   "function": "<anonymous@318:15>",
+   "classification": "intended-risk",
+   "notes": "checklist.ts:372-387 reorder commits, then a completion activity row; losing it is harmless."
+  },
+  {
+   "findingId": "d0985306de06b537",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/checklist.ts",
+   "line": 399,
+   "function": "<anonymous@318:15>",
+   "classification": "intended-risk",
+   "notes": "checklist.ts:387-399 both writes are audit activity rows."
+  },
+  {
+   "findingId": "3dc72378f3b8ba0c",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/checklist.ts",
+   "line": 464,
+   "function": "<anonymous@423:15>",
+   "classification": "intended-risk",
+   "notes": "checklist.ts:452-464 item soft-delete then only the item.deleted activity row can be lost."
+  },
+  {
+   "findingId": "5cfe7f6140d9417b",
+   "code": "MW1005",
+   "file": "packages/api/src/routers/health.ts",
+   "line": 55,
+   "function": "checkS3Connection",
+   "classification": "false-positive",
+   "notes": "health.ts:54-55 both client.send calls are read-only HeadBucketCommand probes in a health check."
+  },
+  {
+   "findingId": "90f5e6441a25bfe5",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/import.ts",
+   "line": 260,
+   "function": "<anonymous@229:17>",
+   "classification": "false-positive",
+   "notes": "import.ts:50 getTrelloTokenForUser only lazily re-encrypts the stored token, an idempotent migration unrelated to the imports row at :260."
+  },
+  {
+   "findingId": "f322f5de643c442a",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/import.ts",
+   "line": 349,
+   "function": "importSingleBoard",
+   "classification": "true-positive",
+   "notes": "import.ts:319-349 the board commits before labels with no transaction or cleanup: a visible half-imported board."
+  },
+  {
+   "findingId": "b0f7b6257b9c45b2",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/import.ts",
+   "line": 361,
+   "function": "importSingleBoard",
+   "classification": "true-positive",
+   "notes": "import.ts:349-361 labels commit, then lists per iteration with no outer transaction: board missing lists and cards."
+  },
+  {
+   "findingId": "77134ebef6b28627",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/import.ts",
+   "line": 382,
+   "function": "importSingleBoard",
+   "classification": "true-positive",
+   "notes": "import.ts:361-382 each list's tx commits before its cards' tx, no cleanup: empty or missing lists."
+  },
+  {
+   "findingId": "2aadc5212a97547b",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/import.ts",
+   "line": 406,
+   "function": "importSingleBoard",
+   "classification": "true-positive",
+   "notes": "import.ts:382-406 a failure after the cards commit aborts the rest of the import with no cleanup."
+  },
+  {
+   "findingId": "5384ab5884bd761e",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/import.ts",
+   "line": 455,
+   "function": "importSingleBoard",
+   "classification": "true-positive",
+   "notes": "import.ts:406-455 cards and activities commit before checklists in a separate tx: cards without checklists."
+  },
+  {
+   "findingId": "f9dbd0f549717e01",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/import.ts",
+   "line": 496,
+   "function": "importSingleBoard",
+   "classification": "true-positive",
+   "notes": "import.ts:455-496 checklists and their items commit in separate transactions: empty checklists."
+  },
+  {
+   "findingId": "2eac1a17a1dcaebd",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/import.ts",
+   "line": 526,
+   "function": "importSingleBoard",
+   "classification": "true-positive",
+   "notes": "import.ts:496-526 checklist items commit before the card-label links: cards missing labels."
+  },
+  {
+   "findingId": "a3a471334a1a5dd8",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/import.ts",
+   "line": 561,
+   "function": "<anonymous@229:17>",
+   "classification": "intended-risk",
+   "notes": "import.ts:260/:561 the imports row is created 'started' (import.repo.ts:23) and finalized later by design; a crash leaves the in-progress marker."
+  },
+  {
+   "findingId": "50c685fa42ff9b2b",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/import.ts",
+   "line": 828,
+   "function": "<anonymous@703:17>",
+   "classification": "intended-risk",
+   "notes": "import.ts:737-828 a failure after the 'started' tracking row leaves only that harmless status row."
+  },
+  {
+   "findingId": "0d40178595543f2c",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/import.ts",
+   "line": 864,
+   "function": "<anonymous@703:17>",
+   "classification": "true-positive",
+   "notes": "import.ts:828-864 the GitHub-import board commits before its labels with no transaction or cleanup."
+  },
+  {
+   "findingId": "27f1c286094c6b8b",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/import.ts",
+   "line": 909,
+   "function": "<anonymous@703:17>",
+   "classification": "true-positive",
+   "notes": "import.ts:864-909 labels commit before lists: a board with labels but no lists or cards."
+  },
+  {
+   "findingId": "cf708759a64d5d39",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/import.ts",
+   "line": 964,
+   "function": "<anonymous@703:17>",
+   "classification": "true-positive",
+   "notes": "import.ts:909-964 the lists tx commits before the cards tx: empty lists."
+  },
+  {
+   "findingId": "1d4fb30158138be4",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/import.ts",
+   "line": 974,
+   "function": "<anonymous@703:17>",
+   "classification": "true-positive",
+   "notes": "import.ts:964-995 a failure after the cards commit aborts activities and label links with no cleanup."
+  },
+  {
+   "findingId": "396f9044b5036a87",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/import.ts",
+   "line": 995,
+   "function": "<anonymous@703:17>",
+   "classification": "true-positive",
+   "notes": "import.ts:974-995 cards and activities commit before the card-label links: cards without their labels."
+  },
+  {
+   "findingId": "34834e0321be5827",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/import.ts",
+   "line": 1005,
+   "function": "<anonymous@703:17>",
+   "classification": "intended-risk",
+   "notes": "import.ts:995-1005 the board is fully imported; only the status row stays 'started', a harmless marker."
+  },
+  {
+   "findingId": "86d9c7727c1d6684",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/label.ts",
+   "line": 234,
+   "function": "<anonymous@206:15>",
+   "classification": "true-positive",
+   "notes": "label.ts:232-234 card-label links are hard-deleted (card.repo.ts:1127) before the label soft-delete commits separately: a live label removed from every card."
+  },
+  {
+   "findingId": "0787196a08b8a83a",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/list.ts",
+   "line": 138,
+   "function": "<anonymous@91:15>",
+   "classification": "true-positive",
+   "notes": "list.ts:126-138 the list soft-delete commits before the cards soft-delete (card.repo.ts:1067); live cards under a deleted list, and a retry cannot repair it."
+  },
+  {
+   "findingId": "bfd64eb4b44d0b95",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/list.ts",
+   "line": 156,
+   "function": "<anonymous@91:15>",
+   "classification": "intended-risk",
+   "notes": "list.ts:138-156 only the card.archived activity rows can be lost."
+  },
+  {
+   "findingId": "8e53967fe6a25015",
+   "code": "MW1002",
+   "file": "packages/api/src/routers/member.ts",
+   "line": 109,
+   "function": "<anonymous@49:15>",
+   "classification": "true-positive",
+   "notes": "member.ts:109 Stripe seats increase before the seat-limit check (:150) and memberRepo.create (:173), with no decrement on failure."
+  },
+  {
+   "findingId": "03e87e71e7a62d96",
+   "code": "MW1001",
+   "file": "packages/api/src/routers/member.ts",
+   "line": 189,
+   "function": "<anonymous@49:15>",
+   "classification": "true-positive",
+   "notes": "member.ts:173-189 the invited member commits before signInMagicLink; compensation (:202) runs only on a falsy status, not on a throw or crash, and the row blocks re-invites (:71)."
+  },
+  {
+   "findingId": "7f6eb78358ec67f7",
+   "code": "MW1002",
+   "file": "packages/api/src/routers/member.ts",
+   "line": 189,
+   "function": "<anonymous@49:15>",
+   "classification": "false-positive",
+   "notes": "member.ts:189-206 softDelete runs only when signInMagicLink reports failure; there is no path where the email was sent and the DB change is then missing."
+  },
+  {
+   "findingId": "a62e9d64abcabf80",
+   "code": "MW1001",
+   "file": "packages/api/src/routers/member.ts",
+   "line": 295,
+   "function": "<anonymous@232:15>",
+   "classification": "intended-risk",
+   "notes": "member.ts:266-317 the Stripe seat decrement after the soft-delete is in a log-only try/catch: deliberately best-effort."
+  },
+  {
+   "findingId": "f4f4d8b677e363dc",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/member.ts",
+   "line": 486,
+   "function": "<anonymous@427:15>",
+   "classification": "true-positive",
+   "notes": "member.ts:475-486 active invite links are deactivated (inviteLink.repo.ts:48) before the new link is inserted: no working invite link."
+  },
+  {
+   "findingId": "a4df5ffa4c6d1d83",
+   "code": "MW1002",
+   "file": "packages/api/src/routers/member.ts",
+   "line": 704,
+   "function": "<anonymous@627:15>",
+   "classification": "true-positive",
+   "notes": "member.ts:704 Stripe seats increase before the seat-limit check and the member insert, with no compensation."
+  },
+  {
+   "findingId": "a79237aa99371cf7",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/workspace.ts",
+   "line": 385,
+   "function": "<anonymous@300:15>",
+   "classification": "true-positive",
+   "notes": "workspace.ts:345-385 the workspace commits before partner-slot linking; a failure leaves the workspace without its plan and the slot unlinked."
+  },
+  {
+   "findingId": "15792ac949a87fb4",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/workspace.ts",
+   "line": 388,
+   "function": "<anonymous@300:15>",
+   "classification": "true-positive",
+   "notes": "workspace.ts:384-390 subscription link and workspace plan update run in Promise.all without a transaction."
+  },
+  {
+   "findingId": "224614f2d572e4a6",
+   "code": "MW1002",
+   "file": "packages/api/src/utils/notifications.ts",
+   "line": 120,
+   "function": "sendMentionEmails::<anonymous@112:27>",
+   "classification": "intended-risk",
+   "notes": "notifications.ts:118-148 the mention email and the notification row each sit in a log-only try/catch: explicit best-effort."
+  },
+  {
+   "findingId": "ef9ae70aa67571b1",
+   "code": "MW1004",
+   "file": "packages/api/src/utils/workspace.ts",
+   "line": 35,
+   "function": "cancelWorkspaceAccess",
+   "classification": "true-positive",
+   "notes": "utils/workspace.ts:31-40 member pause and plan downgrade run in Promise.all without a transaction; called from partner/webhook.ts:248."
+  },
+  {
+   "findingId": "2c382d9a94c97b87",
+   "code": "MW1002",
+   "file": "packages/auth/src/hooks.ts",
+   "line": 76,
+   "function": "after",
+   "classification": "intended-risk",
+   "notes": "hooks.ts:62-92 avatar upload and user.image update share a log-only try/catch; a failure orphans an object at a deterministic key, best-effort mirroring."
+  },
+  {
+   "findingId": "75762e7727b4fcef",
+   "code": "MW1001",
+   "file": "packages/auth/src/hooks.ts",
+   "line": 106,
+   "function": "after",
+   "classification": "intended-risk",
+   "notes": "hooks.ts:88-121 subscriber.create is in its own log-only try/catch: best-effort marketing sync."
+  },
+  {
+   "findingId": "52fb1382d21b06d9",
+   "code": "MW1005",
+   "file": "packages/auth/src/hooks.ts",
+   "line": 130,
+   "function": "after",
+   "classification": "intended-risk",
+   "notes": "hooks.ts:106-138 subscribers.create and workflows.trigger are each log-only try/catch: best-effort."
+  },
+  {
+   "findingId": "5e383e079218cb24",
+   "code": "MW1004",
+   "file": "packages/auth/src/plugins.ts",
+   "line": 60,
+   "function": "cancelWorkspaceAccess",
+   "classification": "true-positive",
+   "notes": "plugins.ts:56-65 member pause and workspace downgrade run in Promise.all without a transaction in onSubscriptionDeleted (:146)."
+  },
+  {
+   "findingId": "747591607038c6a8",
+   "code": "MW1004",
+   "file": "packages/auth/src/plugins.ts",
+   "line": 141,
+   "function": "onSubscriptionComplete",
+   "classification": "true-positive",
+   "notes": "plugins.ts:123-141 unlimitedSeats is set before members are unpaused in a separate write: a Pro workspace with paused members."
+  },
+  {
+   "findingId": "b977c8352e96c174",
+   "code": "MW1004",
+   "file": "packages/db/src/repository/boardMember.repo.ts",
+   "line": 193,
+   "function": "removeAllForMember",
+   "classification": "false-positive",
+   "notes": "boardMember.repo.ts:181-195 removeAllForMember's only caller (member.repo.ts:173) passes the transaction handle, so both writes are atomic."
+  },
+  {
+   "findingId": "7c36034f5768f35e",
+   "code": "MW1004",
+   "file": "packages/db/src/repository/permission.repo.ts",
+   "line": 405,
+   "function": "createRole",
+   "classification": "true-positive",
+   "notes": "permission.repo.ts:388-405 role and permissions are inserted separately and the only caller (workspace.repo.ts:104) passes plain db: a role with no permissions."
+  },
+  {
+   "findingId": "59473a530cb514aa",
+   "code": "MW1004",
+   "file": "packages/db/src/repository/workspace.repo.ts",
+   "line": 104,
+   "function": "create",
+   "classification": "true-positive",
+   "notes": "workspace.repo.ts:76-104 the workspace commits before its system roles, with no transaction from either caller."
+  },
+  {
+   "findingId": "524eca09c0497add",
+   "code": "MW1004",
+   "file": "packages/db/src/repository/workspace.repo.ts",
+   "line": 117,
+   "function": "create",
+   "classification": "true-positive",
+   "notes": "workspace.repo.ts:104-117 roles commit before the creator's admin member row: an orphaned workspace."
+  }
+ ],
+ "corrections": [],
+ "reviewQueue": [
+  {
+   "knownPositive": "kan-KP08",
+   "findings": [
+    "a62e9d64abcabf80"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  },
+  {
+   "knownPositive": "kan-KP25",
+   "findings": [
+    "e7dfa143dfc28bdb"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  },
+  {
+   "knownPositive": "kan-KP26",
+   "findings": [
+    "426d3625fe3540ad"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  },
+  {
+   "knownPositive": "kan-KP28",
+   "findings": [
+    "b9e77286efb4bac6"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  }
+ ]
+}

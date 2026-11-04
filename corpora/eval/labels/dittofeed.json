@@ -1,0 +1,474 @@
+{
+ "$comment": "Held-out evaluation labels (scripts/eval.py). knownPositives come from a code audit by an AI agent (Claude) that read only the project's source at the pinned revision: it did not run Midwrite and did not see its output. findings are classified afterwards, finding by finding, with the Phase 2 classes. No independent human review has been performed; an AI agent checking another AI agent's results is not independent human validation. Corrections go in `corrections` with a reason, never by editing a label to raise a score.",
+ "schemaVersion": 1,
+ "kind": "midwrite.eval-labels",
+ "project": "dittofeed",
+ "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+ "set": "held-out",
+ "labeling": {
+  "knownPositives": {
+   "by": "AI agent (Claude), source-only audit",
+   "date": "2026-11-04",
+   "humanReviewed": false,
+   "scope": "unhandled half-written-state windows in server code; the audit was capped at 30 entries, highest confidence first, so the list is a sample when the project has more"
+  },
+  "findings": {
+   "by": "AI agent (Claude), finding-by-finding source review, separate from the auditor; did not see knownPositives",
+   "date": "2026-11-05",
+   "humanReviewed": false
+  }
+ },
+ "knownPositives": [
+  {
+   "id": "dittofeed-KP01",
+   "file": "packages/backend-lib/src/journeys/userWorkflow/activities.ts",
+   "function": "sendMessageFactory",
+   "functionStartLine": 303,
+   "functionEndLine": 392,
+   "pattern": "B",
+   "firstEffect": "sender(...) provider send (called from line 339)",
+   "secondEffect": "submitTrack(...) MessageSent event at line 385",
+   "consequence": "If the activity dies after the provider accepted the message, Temporal retries the activity and sends again; nothing dedups by messageId before sending.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "dittofeed-KP02",
+   "file": "packages/backend-lib/src/broadcasts/activities.ts",
+   "function": "sendMessagesFactory",
+   "functionStartLine": 192,
+   "functionEndLine": 431,
+   "pattern": "B",
+   "firstEffect": "sender(messageVariant) per user at line 360",
+   "secondEffect": "submitBatch(...) delivery events at line 413",
+   "consequence": "Dedup reads the events written at line 413, so a crash between sending and submitBatch makes the retried activity re-send the whole batch.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "dittofeed-KP03",
+   "file": "packages/backend-lib/src/messaging.ts",
+   "function": "batchMessageUsers",
+   "functionStartLine": 2545,
+   "functionEndLine": 2846,
+   "pattern": "B",
+   "firstEffect": "sendMessage(...) per user at line 2690",
+   "secondEffect": "submitBatch(...) MessageSent/Skipped events at line 2837",
+   "consequence": "Messages are delivered without delivery records; a client retry (random messageId) re-sends to every user.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "dittofeed-KP04",
+   "file": "packages/backend-lib/src/journeys.ts",
+   "function": "upsertJourney",
+   "functionStartLine": 946,
+   "functionEndLine": 1248,
+   "pattern": "A",
+   "firstEffect": "db().transaction(...) committing status Paused->Running at line 988",
+   "secondEffect": "restartUserJourneyWorkflow(...) Temporal start at line 1194",
+   "consequence": "The journey is Running but the restart workflow never starts; a retried upsert sees Running and never restarts re-entry users.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "dittofeed-KP05",
+   "file": "packages/backend-lib/src/userPropertyIndices.ts",
+   "function": "upsertUserPropertyIndex",
+   "functionStartLine": 109,
+   "functionEndLine": 182,
+   "pattern": "A",
+   "firstEffect": "db().transaction(...) insert/update userPropertyIndex at line 119",
+   "secondEffect": "clickhouseClient().insert(...) at line 161, then pruneIndex 171 and backfillIndex 180",
+   "consequence": "Postgres records the index while ClickHouse is not configured/pruned/backfilled; a retry sees the same type and skips both, leaving the index incomplete.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "dittofeed-KP06",
+   "file": "packages/backend-lib/src/userPropertyIndices.ts",
+   "function": "deleteUserPropertyIndex",
+   "functionStartLine": 184,
+   "functionEndLine": 238,
+   "pattern": "A",
+   "firstEffect": "db().transaction(...) delete userPropertyIndex at line 192",
+   "secondEffect": "chCommand(DELETE FROM user_property_index_config) at line 226, then pruneIndex at 232",
+   "consequence": "The Postgres row is gone while the ClickHouse config keeps indexing; a retry returns early because the row is missing, so it is never cleaned up.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "dittofeed-KP07",
+   "file": "packages/backend-lib/src/segments/manualSegment/activities.ts",
+   "function": "replaceManualSegment",
+   "functionStartLine": 263,
+   "functionEndLine": 392,
+   "pattern": "A",
+   "firstEffect": "db().transaction(...) bumping the segment version at line 275 (update at 311)",
+   "secondEffect": "submitBatch(...) ManualSegmentUpdate events per chunk at line 359",
+   "consequence": "The new version commits before membership events are written, so a failure mid-chunk leaves the segment empty or partial after the capped retries.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "dittofeed-KP08",
+   "file": "packages/backend-lib/src/apps.ts",
+   "function": "submitTrackWithTriggers",
+   "functionStartLine": 48,
+   "functionEndLine": 90,
+   "pattern": "E",
+   "firstEffect": "submitTrack(...) at line 65",
+   "secondEffect": "triggerEventEntryJourneys(...) Temporal signalWithStart at line 81",
+   "consequence": "The event is stored but event-entry journeys never start; nothing re-triggers them.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "dittofeed-KP09",
+   "file": "packages/backend-lib/src/apps.ts",
+   "function": "submitBatchWithTriggers",
+   "functionStartLine": 92,
+   "functionEndLine": 145,
+   "pattern": "E",
+   "firstEffect": "submitBatch(...) at line 118",
+   "secondEffect": "triggerEventEntryJourneys(...) per track event at line 143",
+   "consequence": "Batch events persist while some event-entry journeys never start.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "dittofeed-KP10",
+   "file": "packages/backend-lib/src/computedProperties/computePropertiesIncremental.ts",
+   "function": "processRowsInner",
+   "functionStartLine": 3602,
+   "functionEndLine": 3750,
+   "pattern": "E",
+   "firstEffect": "triggerSegmentEntryJourney(...) at line 3675",
+   "secondEffect": "insertProcessedComputedProperties(...) ClickHouse processed marker at line 3746",
+   "consequence": "A crash before the processed marker makes the retry re-signal and re-run completed journeys that can run multiple times.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "dittofeed-KP11",
+   "file": "packages/backend-lib/src/workspaces.ts",
+   "function": "restoreWorkspaceEvents",
+   "functionStartLine": 83,
+   "functionEndLine": 124,
+   "pattern": "E",
+   "firstEffect": "chCommand(INSERT INTO user_events_v2 SELECT ... cold storage) at line 96",
+   "secondEffect": "chCommand(DELETE FROM user_events_cold_storage) at line 114",
+   "consequence": "Events are restored but cold rows remain; a re-run duplicates events.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "dittofeed-KP12",
+   "file": "packages/backend-lib/src/workspaces.ts",
+   "function": "coldStoreWorkspaceEvents",
+   "functionStartLine": 26,
+   "functionEndLine": 80,
+   "pattern": "E",
+   "firstEffect": "chCommand(INSERT INTO user_events_cold_storage ...) at line 39",
+   "secondEffect": "chCommand(DELETE FROM user_events_v2 / internal_events) at line 59",
+   "consequence": "Events are copied but not removed; a re-run duplicates them in cold storage.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "dittofeed-KP13",
+   "file": "packages/backend-lib/src/workspaces.ts",
+   "function": "resumeWorkspace",
+   "functionStartLine": 274,
+   "functionEndLine": 294,
+   "pattern": "A",
+   "firstEffect": "db().update(workspace) status Active at line 282",
+   "secondEffect": "restoreWorkspaceEvents(...) at line 292",
+   "consequence": "The workspace is Active and recomputed while its events are still in cold storage.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "dittofeed-KP14",
+   "file": "packages/backend-lib/src/workspaces.ts",
+   "function": "activateTombstonedWorkspace",
+   "functionStartLine": 195,
+   "functionEndLine": 253,
+   "pattern": "A",
+   "firstEffect": "db().transaction(...) status Active at line 199",
+   "secondEffect": "restoreWorkspaceEvents(...) at line 250",
+   "consequence": "The reactivated workspace runs with its history still in cold storage.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "dittofeed-KP15",
+   "file": "packages/backend-lib/src/features.ts",
+   "function": "removeFeatures",
+   "functionStartLine": 160,
+   "functionEndLine": 190,
+   "pattern": "A",
+   "firstEffect": "db().delete(feature) at line 170",
+   "secondEffect": "startComputePropertiesWorkflow(...) at line 189",
+   "consequence": "The global scheduler skips the workspace while no per-workspace compute workflow exists, so computed properties stop updating.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "dittofeed-KP16",
+   "file": "packages/api/src/controllers/contentController.ts",
+   "function": "contentController",
+   "functionStartLine": 246,
+   "functionEndLine": 317,
+   "pattern": "D",
+   "firstEffect": "upsertMessageTemplate(...) at line 275",
+   "secondEffect": "db().transaction(...) updating the journey node variant type at line 286",
+   "consequence": "The template's channel changes while the journey node keeps the old channel type.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "dittofeed-KP17",
+   "file": "packages/api/src/controllers/segmentsController.ts",
+   "function": "segmentsController",
+   "functionStartLine": 289,
+   "functionEndLine": 452,
+   "pattern": "E",
+   "firstEffect": "submitBatchWithTriggers(data) at line 440",
+   "secondEffect": "updateManualSegmentUsers(...) Temporal signalWithStart at line 442",
+   "consequence": "Uploaded users' traits are written but their manual segment membership is never updated.",
+   "confidence": "medium",
+   "source": "independent audit"
+  }
+ ],
+ "findings": [
+  {
+   "findingId": "bbc36ce9a6dbf4f8",
+   "code": "MW1005",
+   "file": "packages/api/src/controllers/segmentsController.ts",
+   "line": 442,
+   "function": "segmentsController::<anonymous@289:5>",
+   "classification": "true-positive",
+   "notes": "segmentsController.ts:440-448 publishes identify events (random messageIds) before updateManualSegmentUsers; no compensation or retry, so traits are ingested but membership is unchanged."
+  },
+  {
+   "findingId": "03647486b6c2e0eb",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/apps.ts",
+   "line": 65,
+   "function": "submitTrackWithTriggers",
+   "classification": "intended-risk",
+   "notes": "persistFiles (apps/files.ts:18-28,36-72) writes under a deterministic messageId key before submitTrack (apps.ts:65); only an overwritable orphan blob can remain."
+  },
+  {
+   "findingId": "0004381ff177b014",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/apps.ts",
+   "line": 118,
+   "function": "submitBatchWithTriggers",
+   "classification": "intended-risk",
+   "notes": "Same upload-then-reference pattern: persistFiles (apps.ts:101) uses a messageId-keyed path before submitBatch (:118)."
+  },
+  {
+   "findingId": "7323fd6e3fa25fbe",
+   "code": "MW1002",
+   "file": "packages/backend-lib/src/bootstrap.ts",
+   "line": 135,
+   "function": "bootstrapPostgres",
+   "classification": "intended-risk",
+   "notes": "Bootstrap code: terminateComputePropertiesWorkflow is best-effort (lifecycle.ts:130-141) and the later inserts are idempotent upserts, so re-running converges."
+  },
+  {
+   "findingId": "f146afc56bc88e37",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/bootstrap.ts",
+   "line": 505,
+   "function": "bootstrapWorkspace",
+   "classification": "intended-risk",
+   "notes": "bootstrapWorkspace (bootstrap.ts:499-506) seeds demo events behind a flag and startGlobalCron swallows failures: re-runnable bootstrap code."
+  },
+  {
+   "findingId": "f937b45cb972bc5a",
+   "code": "MW1002",
+   "file": "packages/backend-lib/src/broadcasts.ts",
+   "line": 364,
+   "function": "triggerBroadcast",
+   "classification": "intended-risk",
+   "notes": "triggerBroadcast (broadcasts.ts:363-393) uses a deterministic workflowId, tolerates already-started, and the activity sets Triggered itself (performBroadcast.ts:59-62)."
+  },
+  {
+   "findingId": "641d7d73ce314294",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/computedProperties/computePropertiesIncremental.ts",
+   "line": 3746,
+   "function": "processRowsInner",
+   "classification": "intended-risk",
+   "notes": "processRowsInner (computePropertiesIncremental.ts:3683-3746) is deliberately at-least-once with deterministic per-user workflowIds and versioned updates."
+  },
+  {
+   "findingId": "a4a880f65a586c00",
+   "code": "MW1001",
+   "file": "packages/backend-lib/src/features.ts",
+   "line": 179,
+   "function": "removeFeatures",
+   "classification": "intended-risk",
+   "notes": "removeFeatures (features.ts:160-190) is called only from the admin CLI; the delete is idempotent and start errors are swallowed, so re-running converges."
+  },
+  {
+   "findingId": "29694cf677dd7e5d",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/journeys.ts",
+   "line": 1236,
+   "function": "upsertJourney",
+   "classification": "false-positive",
+   "notes": "journeys.ts:1183-1194 needs status===Running && journey.status===Paused, but journey is the row returned after the transaction set the status (1084-1094, 1141): the branch is unreachable."
+  },
+  {
+   "findingId": "b862be2651212aee",
+   "code": "MW1001",
+   "file": "packages/backend-lib/src/journeys/recordNodeProcessed.ts",
+   "line": 51,
+   "function": "recordNodeProcessed",
+   "classification": "intended-risk",
+   "notes": "recordNodeProcessed runs in a Temporal activity; onConflictDoNothing on a unique index (recordNodeProcessed.ts:50) and a deterministic uuidv5 messageId (:56) make retries converge."
+  },
+  {
+   "findingId": "a6be48101537d7f0",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/journeys/userWorkflow/activities.ts",
+   "line": 385,
+   "function": "sendMessageWithSender::<anonymous@325:56>",
+   "classification": "intended-risk",
+   "notes": "sendMessageWithSender is a retry-aware Temporal activity (activities.ts:270-300) and submitTrack reuses the deterministic messageId (:385); a possible duplicate send is the accepted cost."
+  },
+  {
+   "findingId": "0669c992ac579abe",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/messaging.ts",
+   "line": 1444,
+   "function": "sendEmail",
+   "classification": "intended-risk",
+   "notes": "storeEmailForViewInBrowser (messaging.ts:998-1014) is explicitly best-effort and writes a messageId-keyed object."
+  },
+  {
+   "findingId": "985208f60c8a5189",
+   "code": "MW1004",
+   "file": "packages/backend-lib/src/requestContext.ts",
+   "line": 337,
+   "function": "getMultiTenantRequestContext",
+   "classification": "intended-risk",
+   "notes": "getMultiTenantRequestContext (requestContext.ts:270-345) re-checks and upserts a missing member/account on every request."
+  },
+  {
+   "findingId": "25ef4b1f2152bce2",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/segments/manualSegment/activities.ts",
+   "line": 255,
+   "function": "appendToManualSegment",
+   "classification": "intended-risk",
+   "notes": "appendToManualSegment is a Temporal activity (maximumAttempts 5) with deterministic uuidv5 messageIds (activities.ts:220-223): retries converge."
+  },
+  {
+   "findingId": "9b8b8efa9d181686",
+   "code": "MW1001",
+   "file": "packages/backend-lib/src/segments/manualSegment/activities.ts",
+   "line": 359,
+   "function": "replaceManualSegment",
+   "classification": "intended-risk",
+   "notes": "replaceManualSegment is a retried activity whose version derives from the workflow's fixed now (manualSegmentWorkflow.ts:103-111) and submitBatch uses deterministic messageIds."
+  },
+  {
+   "findingId": "4c333a182f17b3b6",
+   "code": "MW1001",
+   "file": "packages/backend-lib/src/segments/manualSegment/activities.ts",
+   "line": 386,
+   "function": "replaceManualSegment",
+   "classification": "intended-risk",
+   "notes": "Same activity-retry convergence: the transaction at activities.ts:275 is idempotent for a given now and the recompute at :386 is re-run by Temporal."
+  },
+  {
+   "findingId": "a9c5210acd781bfd",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/segments/manualSegment/activities.ts",
+   "line": 386,
+   "function": "replaceManualSegment",
+   "classification": "intended-risk",
+   "notes": "submitBatch (activities.ts:359) uses deterministic messageIds and enqueueRecompute (:386) runs inside a retried Temporal activity."
+  },
+  {
+   "findingId": "db634001a0e83a12",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/subscriptionGroups.ts",
+   "line": 782,
+   "function": "updateUserSubscriptions",
+   "classification": "true-positive",
+   "notes": "updateUserSubscriptions (subscriptionGroups.ts:780-786) writes ClickHouse assignments and the source-of-truth events concurrently without compensation; a recompute can revert the unsubscribe."
+  },
+  {
+   "findingId": "9d1e0d68fc836ba7",
+   "code": "MW1004",
+   "file": "packages/backend-lib/src/users.ts",
+   "line": 1547,
+   "function": "deleteUsers",
+   "classification": "true-positive",
+   "notes": "deleteUsers (users.ts:1525-1557) runs ClickHouse deletes and two Postgres deletes in Promise.all without a transaction or retry: partly deleted user data."
+  },
+  {
+   "findingId": "96905e8612ed72ce",
+   "code": "MW1004",
+   "file": "packages/backend-lib/src/users.ts",
+   "line": 1606,
+   "function": "deleteAllUsers",
+   "classification": "true-positive",
+   "notes": "deleteAllUsers (users.ts:1594-1611): the same Promise.all pattern workspace-wide."
+  },
+  {
+   "findingId": "04965312c322a397",
+   "code": "MW1005",
+   "file": "packages/dashboard/src/lib/oauth.ts",
+   "line": 321,
+   "function": "handleOauthCallback",
+   "classification": "true-positive",
+   "notes": "handleOauthCallback (dashboard/src/lib/oauth.ts:258-323) commits tokens and the integration before startHubspotIntegrationWorkflow (its only caller); a failure leaves the integration enabled without a sync workflow."
+  }
+ ],
+ "corrections": [],
+ "reviewQueue": [
+  {
+   "knownPositive": "dittofeed-KP07",
+   "findings": [
+    "9b8b8efa9d181686",
+    "4c333a182f17b3b6"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  },
+  {
+   "knownPositive": "dittofeed-KP08",
+   "findings": [
+    "03647486b6c2e0eb"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  },
+  {
+   "knownPositive": "dittofeed-KP09",
+   "findings": [
+    "0004381ff177b014"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  },
+  {
+   "knownPositive": "dittofeed-KP10",
+   "findings": [
+    "641d7d73ce314294"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  },
+  {
+   "knownPositive": "dittofeed-KP15",
+   "findings": [
+    "a4a880f65a586c00"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  }
+ ]
+}

@@ -1,0 +1,400 @@
+{
+ "$comment": "Held-out evaluation labels (scripts/eval.py). knownPositives come from a code audit by an AI agent (Claude) that read only the project's source at the pinned revision: it did not run Midwrite and did not see its output. findings are classified afterwards, finding by finding, with the Phase 2 classes. No independent human review has been performed; an AI agent checking another AI agent's results is not independent human validation. Corrections go in `corrections` with a reason, never by editing a label to raise a score.",
+ "schemaVersion": 1,
+ "kind": "midwrite.eval-labels",
+ "project": "zero",
+ "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+ "set": "held-out",
+ "labeling": {
+  "knownPositives": {
+   "by": "AI agent (Claude), source-only audit",
+   "date": "2026-11-04",
+   "humanReviewed": false,
+   "scope": "unhandled half-written-state windows in server code; the audit was capped at 30 entries, highest confidence first, so the list is a sample when the project has more"
+  },
+  "findings": {
+   "by": "AI agent (Claude), finding-by-finding source review, separate from the auditor; did not see knownPositives",
+   "date": "2026-11-05",
+   "humanReviewed": false
+  }
+ },
+ "knownPositives": [
+  {
+   "id": "zero-KP01",
+   "file": "apps/server/src/trpc/routes/mail.ts",
+   "function": "snoozeThreads",
+   "functionStartLine": 599,
+   "functionEndLine": 631,
+   "pattern": "E",
+   "dbAccess": "none",
+   "firstEffect": "agent.modifyLabels(input.ids, ['SNOOZED'], ['INBOX']) at line 619",
+   "secondEffect": "env.snoozed_emails.put(...) at line 624",
+   "consequence": "The thread moves from INBOX to SNOOZED in Gmail but no wake-at key is written, so it is never unsnoozed.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "zero-KP02",
+   "file": "apps/server/src/trpc/routes/connections.ts",
+   "function": "delete",
+   "functionStartLine": 51,
+   "functionEndLine": 62,
+   "pattern": "A",
+   "dbAccess": "db-durable-object",
+   "firstEffect": "db.deleteConnection(connectionId) at line 57",
+   "secondEffect": "clearMailboxChatData(connectionId) at line 58",
+   "consequence": "The connection row is gone but its chat history and R2 attachments are orphaned; nothing can find them again.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "zero-KP03",
+   "file": "apps/server/src/lib/auth.ts",
+   "function": "beforeDelete",
+   "functionStartLine": 206,
+   "functionEndLine": 258,
+   "pattern": "B",
+   "dbAccess": "db-durable-object",
+   "firstEffect": "context.var.autumn.cancel(...) at line 216",
+   "secondEffect": "db.deleteUser() at line 256",
+   "consequence": "If the delete fails after the cancel, the account still exists with its Autumn subscriptions cancelled, and nothing restores them.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "zero-KP04",
+   "file": "apps/server/src/lib/auth.ts",
+   "function": "beforeDelete",
+   "functionStartLine": 206,
+   "functionEndLine": 258,
+   "pattern": "A",
+   "dbAccess": "db-durable-object",
+   "firstEffect": "db.deleteUser() at line 256",
+   "secondEffect": "Promise.all(connections.map(c => clearMailboxChatData(c.id))) at line 257",
+   "consequence": "User and connection rows are deleted while per-mailbox chat history and R2 attachments are orphaned for good.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "zero-KP05",
+   "file": "apps/server/src/lib/auth.ts",
+   "function": "beforeDelete",
+   "functionStartLine": 206,
+   "functionEndLine": 258,
+   "pattern": "B",
+   "dbAccess": "db-durable-object",
+   "firstEffect": "driver.revokeToken(token) at line 242",
+   "secondEffect": "db.deleteUser() at line 256",
+   "consequence": "OAuth tokens are revoked at the provider but, if the delete never commits, connection rows keep dead tokens that look valid.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "zero-KP06",
+   "file": "apps/server/src/routes/agent/index.ts",
+   "function": "disconnectImap",
+   "functionStartLine": 1862,
+   "functionEndLine": 1879,
+   "pattern": "D",
+   "dbAccess": "drizzle",
+   "firstEffect": "db.update(connection) at line 1865",
+   "secondEffect": "db.update(connectionImap) status auth_failed at line 1869",
+   "consequence": "Tokens nulled while the IMAP status still says active; settings report an active connection that needs a reconnect.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "zero-KP07",
+   "file": "apps/server/src/lib/driver/imap.ts",
+   "function": "accessToken",
+   "functionStartLine": 222,
+   "functionEndLine": 242,
+   "pattern": "B",
+   "dbAccess": "drizzle",
+   "firstEffect": "refreshAccessToken(...) (may rotate the refresh token) at line 230",
+   "secondEffect": "onSecretRotated -> persistImapSecret db.update(connectionImap) at line 236",
+   "consequence": "A rotated refresh token is kept only in memory when the persist fails (only logged); after eviction the old token yields invalid_grant.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "zero-KP08",
+   "file": "apps/server/src/routes/assistant.ts",
+   "function": "decideAction",
+   "functionStartLine": 230,
+   "functionEndLine": 273,
+   "pattern": "B",
+   "dbAccess": "drizzle",
+   "firstEffect": "executeMailTool(...) (Gmail send / draft save) at line 253",
+   "secondEffect": "db.update(assistantAction) status completed at line 254",
+   "consequence": "Mail is sent but the action stays running without its result, or is marked failed by the catch although the mail went out.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "zero-KP09",
+   "file": "apps/server/src/trpc/routes/mail.ts",
+   "function": "unsnoozeThreads",
+   "functionStartLine": 632,
+   "functionEndLine": 650,
+   "pattern": "E",
+   "dbAccess": "none",
+   "firstEffect": "agent.modifyLabels(input.ids, ['INBOX'], ['SNOOZED']) at line 642",
+   "secondEffect": "env.snoozed_emails.delete(...) at line 646",
+   "consequence": "The stale wake-at key survives and the cron later re-adds INBOX to threads the user has since archived.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "zero-KP10",
+   "file": "apps/server/src/lib/auth.ts",
+   "function": "connectionHandlerHook",
+   "functionStartLine": 98,
+   "functionEndLine": 160,
+   "pattern": "E",
+   "dbAccess": "db-durable-object",
+   "firstEffect": "resendService.emails.send(...) via scheduleCampaign at line 146",
+   "secondEffect": "env.subscribe_queue.send(...) at line 155",
+   "consequence": "If the queue send throws, the hook fails after the campaign was sent and the retried login sends the whole campaign again.",
+   "confidence": "medium",
+   "source": "independent audit"
+  }
+ ],
+ "findings": [
+  {
+   "findingId": "2ab7bc90cdcc6463",
+   "code": "MW1005",
+   "file": "apps/server/src/lib/auth.ts",
+   "line": 229,
+   "function": "beforeDelete",
+   "classification": "intended-risk",
+   "notes": "auth.ts:213-225 Autumn cancel is try/catch log-only and the revokes (227-250) run under Promise.allSettled: deliberate best-effort steps of account deletion."
+  },
+  {
+   "findingId": "6372758b463e75d6",
+   "code": "MW1005",
+   "file": "apps/server/src/lib/auth.ts",
+   "line": 257,
+   "function": "beforeDelete",
+   "classification": "intended-risk",
+   "notes": "auth.ts:242 revokeToken runs in Promise.allSettled with log-only failures, and clearMailboxChatData (chat-attachments.ts:206-215) is documented 'Never throws': explicitly best-effort around db.deleteUser."
+  },
+  {
+   "findingId": "a7266452b468cb90",
+   "code": "MW1005",
+   "file": "apps/server/src/lib/chat-attachments.ts",
+   "line": 77,
+   "function": "storeAttachment",
+   "classification": "false-positive",
+   "notes": "parseFileToMarkdown (context-dev.ts:53-73) is a stateless conversion POST; it leaves no external state to be inconsistent with the later R2 put (chat-attachments.ts:77)."
+  },
+  {
+   "findingId": "8ca1ab73a5e612e0",
+   "code": "MW1005",
+   "file": "apps/server/src/lib/chat-attachments.ts",
+   "line": 82,
+   "function": "storeAttachment",
+   "classification": "intended-risk",
+   "notes": "A failed R2 put (chat-attachments.ts:76-86) makes storeAttachment throw before its URL is returned; sweepOrphanedAttachments (:180-191) deletes unreferenced objects and a missing .md is handled (:127-128)."
+  },
+  {
+   "findingId": "c5d91a80615a7b92",
+   "code": "MW1005",
+   "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+   "line": 97,
+   "function": "GoogleSubscriptionFactory.makeAuthenticatedRequest",
+   "classification": "false-positive",
+   "notes": "The first fetch is the OAuth token exchange in getAccessToken (google-subscription.factory.ts:70-87); it changes no external state the request at :97 could leave half-done."
+  },
+  {
+   "findingId": "53181a727bd06fbe",
+   "code": "MW1005",
+   "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+   "line": 120,
+   "function": "GoogleSubscriptionFactory.setupPubSubTopic",
+   "classification": "false-positive",
+   "notes": "resourceExists (google-subscription.factory.ts:106-111) is a read-only GET, so failing before the topic PUT at :120 leaves nothing partial."
+  },
+  {
+   "findingId": "ba3ab99185c7cfed",
+   "code": "MW1005",
+   "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+   "line": 120,
+   "function": "GoogleSubscriptionFactory.setupPubSubTopic",
+   "classification": "false-positive",
+   "notes": "Same pair: resourceExists at google-subscription.factory.ts:107 is a read-only GET before the topic-create PUT at :120."
+  },
+  {
+   "findingId": "d4a973f7e232cfb4",
+   "code": "MW1005",
+   "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+   "line": 131,
+   "function": "GoogleSubscriptionFactory.setupPubSubTopic",
+   "classification": "intended-risk",
+   "notes": "A topic without its IAM policy (factory :120/:131) is repaired by the idempotent subscribe, which main.ts:1038-1062 re-enqueues while gmail_sub_age (written last, :300) is missing."
+  },
+  {
+   "findingId": "a71ab1e70888bd25",
+   "code": "MW1005",
+   "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+   "line": 131,
+   "function": "GoogleSubscriptionFactory.setupPubSubTopic",
+   "classification": "intended-risk",
+   "notes": "As above: topic without IAM converges on the next subscribe_queue run enqueued by the cron (main.ts:1044-1062); steps are idempotent."
+  },
+  {
+   "findingId": "5e8c9e804cce020a",
+   "code": "MW1005",
+   "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+   "line": 157,
+   "function": "GoogleSubscriptionFactory.setTopicIamPolicy",
+   "classification": "false-positive",
+   "notes": "getIamPolicy at google-subscription.factory.ts:139 is a read-only GET; only setIamPolicy (:157) writes."
+  },
+  {
+   "findingId": "daed97e3f219a569",
+   "code": "MW1005",
+   "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+   "line": 157,
+   "function": "GoogleSubscriptionFactory.setTopicIamPolicy",
+   "classification": "false-positive",
+   "notes": "Duplicate pair: getIamPolicy (factory :139) is a read before setIamPolicy (:157)."
+  },
+  {
+   "findingId": "85aecdebf5465eac",
+   "code": "MW1005",
+   "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+   "line": 190,
+   "function": "GoogleSubscriptionFactory.createPubSubSubscription",
+   "classification": "false-positive",
+   "notes": "resourceExists at google-subscription.factory.ts:189 is a GET existence probe before the subscription PUT at :190."
+  },
+  {
+   "findingId": "8476ea21da24169b",
+   "code": "MW1005",
+   "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+   "line": 190,
+   "function": "GoogleSubscriptionFactory.createPubSubSubscription",
+   "classification": "false-positive",
+   "notes": "Same pair: the first fetch at google-subscription.factory.ts:189 is read-only."
+  },
+  {
+   "findingId": "bc72117c963a249c",
+   "code": "MW1005",
+   "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+   "line": 290,
+   "function": "GoogleSubscriptionFactory.subscribe",
+   "classification": "intended-risk",
+   "notes": "Stopping between setupPubSubTopic (factory :287) and createPubSubSubscription (:290) leaves gmail_sub_age unwritten (:300), so the cron re-enqueues the idempotent subscribe (main.ts:1038-1062)."
+  },
+  {
+   "findingId": "d593cc69030384d3",
+   "code": "MW1005",
+   "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+   "line": 300,
+   "function": "GoogleSubscriptionFactory.subscribe",
+   "classification": "intended-risk",
+   "notes": "A missing gmail_sub_age.put after the subscription (factory :290-303) only makes the cron (main.ts:1040-1061) re-run the idempotent subscribe."
+  },
+  {
+   "findingId": "16ded142f6286c39",
+   "code": "MW1005",
+   "file": "apps/server/src/main.ts",
+   "line": 1060,
+   "function": "Entry.scheduled",
+   "classification": "intended-risk",
+   "notes": "scheduled() unsnooze enqueue (main.ts:1025-1033) and subscribe sends (:1058-1062) are unrelated, recomputed from KV every run, and the unsnooze side is try/catch log-only."
+  },
+  {
+   "findingId": "3bebcd672be5e88f",
+   "code": "MW1005",
+   "file": "apps/server/src/routes/agent/index.ts",
+   "line": 1025,
+   "function": "ZeroDriver.renewMailboxWatch",
+   "classification": "intended-risk",
+   "notes": "renewMailboxWatch (agent/index.ts:1017-1029): a failed gmail_sub_age.put after the idempotent watchMailbox is caught and retried via mail_watch_renew_at; the cron re-subscribes stale entries."
+  },
+  {
+   "findingId": "b5b2a5c87858bbb8",
+   "code": "MW1004",
+   "file": "apps/server/src/routes/agent/index.ts",
+   "line": 1869,
+   "function": "ZeroDriver.disconnectImap",
+   "classification": "true-positive",
+   "notes": "disconnectImap (agent/index.ts:1862-1877) does two updates without a transaction; once tokens are nulled, runImapSync (:1614-1618) never re-runs it, so connectionImap.status can stay 'active' (low impact: nothing reads it today)."
+  },
+  {
+   "findingId": "6ad34eaa7cf2f3c0",
+   "code": "MW1005",
+   "file": "apps/server/src/routes/agent/index.ts",
+   "line": 3524,
+   "function": "ZeroDriver.unsnoozeThreadsHandler",
+   "classification": "intended-risk",
+   "notes": "unsnoozeThreadsHandler (agent/index.ts:3519-3525) rethrows on failed KV deletes; the expired keys stay and the cron (main.ts:996-1033) re-runs the idempotent label change and deletes."
+  },
+  {
+   "findingId": "d6eb0c0e59fe3ca6",
+   "code": "MW1001",
+   "file": "apps/server/src/routes/assistant.ts",
+   "line": 253,
+   "function": "decideAction",
+   "classification": "intended-risk",
+   "notes": "assistant.ts:231-232 comment: an indeterminate send is never retried because duplicate mail is worse than an error; the stuck 'running' state is accepted on purpose."
+  },
+  {
+   "findingId": "10af11f3c4b1edec",
+   "code": "MW1005",
+   "file": "apps/server/src/trpc/routes/bimi.ts",
+   "line": 138,
+   "function": "<anonymous@114:12>",
+   "classification": "false-positive",
+   "notes": "Both calls are read-only GETs (DNS-over-HTTPS lookup at bimi.ts:24 and the logo fetch) in a query procedure."
+  },
+  {
+   "findingId": "ed1f7c555bef9c04",
+   "code": "MW1005",
+   "file": "apps/server/src/trpc/routes/bimi.ts",
+   "line": 193,
+   "function": "<anonymous@178:12>",
+   "classification": "false-positive",
+   "notes": "getByDomain (bimi.ts:178-193) only does a DNS TXT GET and a logo GET; neither is a write."
+  },
+  {
+   "findingId": "24fa21e885e21ab8",
+   "code": "MW1005",
+   "file": "apps/server/src/trpc/routes/mail.ts",
+   "line": 194,
+   "function": "<anonymous@113:12>::<anonymous@173:39>",
+   "classification": "intended-risk",
+   "notes": "Unsnooze-on-access (mail.ts:193-198) is try/catch log-only; a leftover expired key is consumed by the cron (main.ts:996-1033)."
+  },
+  {
+   "findingId": "96d4f8870e9f74d7",
+   "code": "MW1005",
+   "file": "apps/server/src/trpc/routes/mail.ts",
+   "line": 623,
+   "function": "<anonymous@606:15>",
+   "classification": "true-positive",
+   "notes": "snoozeThreads applies SNOOZED and removes INBOX (mail.ts:619) before writing the wakeAt KV keys (:622-628); if the put fails the thread stays snoozed forever (cron main.ts:996-1022 never finds it), with no compensation."
+  },
+  {
+   "findingId": "dffdf9b53fcef78a",
+   "code": "MW1005",
+   "file": "apps/server/src/trpc/routes/mail.ts",
+   "line": 645,
+   "function": "<anonymous@638:15>",
+   "classification": "intended-risk",
+   "notes": "If the KV delete fails after the unsnooze label change (mail.ts:642-648), the stale key is consumed by the cron unsnooze path, which repeats the idempotent change."
+  }
+ ],
+ "corrections": [],
+ "reviewQueue": [
+  {
+   "knownPositive": "zero-KP09",
+   "findings": [
+    "dffdf9b53fcef78a"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  }
+ ]
+}

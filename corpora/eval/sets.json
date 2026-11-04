@@ -1,0 +1,64 @@
+{
+  "$comment": "Evaluation sets of scripts/eval.py (Linear DEV-147). dev: rules may be tuned against these projects. held-out: never tuned against; labels, configuration and revision are frozen in FROZEN.json. A held-out project that drives a fix moves to dev (record it in `history`) and a new held-out project is added from `reserve`. Every project is Drizzle + PostgreSQL (the supported ORM); the first proposed held-out candidates (cal.com, dub, documenso, formbricks) use Prisma and were not eligible. Checkouts live under .corpora/ (git-ignored) and are never executed or modified.",
+  "schemaVersion": 1,
+  "kind": "midwrite.eval-sets",
+  "projects": [
+    {
+      "name": "midday",
+      "set": "dev",
+      "repository": "https://github.com/midday-ai/midday.git",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "license": "AGPL-3.0",
+      "path": ".corpora/midday",
+      "config": "corpora/configs/midday.json",
+      "labels": "corpora/labels/midday.json",
+      "notes": "The project the rules were developed against (Phases 2-16). Labels: Phase 2 review of a sample of findings (corpora/labels/midday.json); no audited known positives, so recall is not computed for it."
+    },
+    {
+      "name": "kan",
+      "set": "held-out",
+      "repository": "https://github.com/kanbn/kan.git",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "license": "AGPL-3.0",
+      "path": ".corpora/kan",
+      "config": "corpora/configs/kan.json",
+      "labels": "corpora/eval/labels/kan.json",
+      "notes": "Kanban app: tRPC routers over repository functions, email, webhooks, Stripe, S3."
+    },
+    {
+      "name": "dittofeed",
+      "set": "held-out",
+      "repository": "https://github.com/dittofeed/dittofeed.git",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "license": "MIT",
+      "path": ".corpora/dittofeed",
+      "config": "corpora/configs/dittofeed.json",
+      "labels": "corpora/eval/labels/dittofeed.json",
+      "notes": "Customer messaging: Postgres through db(), Temporal workflows, ClickHouse, Kafka, message providers."
+    },
+    {
+      "name": "zero",
+      "set": "held-out",
+      "repository": "https://github.com/Mail-0/Zero.git",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "license": "MIT",
+      "path": ".corpora/zero",
+      "config": "corpora/configs/zero.json",
+      "labels": "corpora/eval/labels/zero.json",
+      "notes": "Email client on Cloudflare Workers: Drizzle, a database Durable Object, Gmail/Outlook APIs, queues, R2/KV."
+    }
+  ],
+  "reserve": [
+    {
+      "name": "vercel-chatbot",
+      "repository": "https://github.com/vercel/chatbot.git",
+      "notes": "Drizzle + PostgreSQL (drizzle.config.ts dialect postgresql), checked 2026-11-04; not pinned yet."
+    }
+  ],
+  "history": [
+    {
+      "date": "2026-11-04",
+      "change": "Sets created. Held-out configurations were written from the projects' source by agents that did not run the analyzer, before any held-out finding was looked at. Before that, one run with the default configuration only checked that the analyzer reaches each project's database code; its finding counts were seen, not the findings."
+    }
+  ]
+}
