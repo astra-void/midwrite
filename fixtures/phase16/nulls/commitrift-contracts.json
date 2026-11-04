@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "kind": "commitrift.contracts",
+  "description": "What the Phase 16 NULLS NOT DISTINCT slice's source cannot say: its business rules.",
+  "invariants": [
+    {
+      "name": "one-tag-per-place",
+      "description": "An owner has at most one tag with a given name in a given group (ungrouped included).",
+      "entries": ["src/services/tags.ts#createTag"],
+      "property": { "template": "atMostOne", "table": "tags", "key": ["ownerId", "groupId", "name"] }
+    },
+    {
+      "name": "one-badge-per-place",
+      "description": "An owner has at most one badge with a given name in a given group (ungrouped included).",
+      "entries": ["src/services/tags.ts#createBadge"],
+      "property": { "template": "atMostOne", "table": "badges", "key": ["ownerId", "groupId", "name"] }
+    },
+    {
+      "name": "one-device-per-serial",
+      "description": "At most one device per serial number (unknown included).",
+      "entries": ["src/services/tags.ts#registerDevice"],
+      "property": { "template": "atMostOne", "table": "devices", "key": ["serialNo"] }
+    },
+    {
+      "name": "one-scanner-per-serial",
+      "description": "At most one scanner per serial number (unknown included).",
+      "entries": ["src/services/tags.ts#registerScanner"],
+      "property": { "template": "atMostOne", "table": "scanners", "key": ["serialNo"] }
+    }
+  ]
+}

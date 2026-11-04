@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "kind": "commitrift.source-harness",
+  "harness": "phase16-retry",
+  "description": "Runs the Phase 16 retry application's original services and route handler against a disposable PostgreSQL database, one process per actor.",
+  "command": ["node", "--enable-source-maps", "dist/verify/harness.js"],
+  "runtime": { "node": ">=22" },
+  "schema": ["drizzle/0000_init.sql"],
+  "network": "deny",
+  "timeoutMs": 30000,
+  "entries": {
+    "placeOrder": {
+      "selector": "src/services/orders.ts#placeOrder",
+      "description": "A `for` retry loop around a plain INSERT (no idempotency key)."
+    },
+    "recordPayment": {
+      "selector": "src/services/orders.ts#recordPayment",
+      "description": "The same loop around INSERT ... ON CONFLICT DO NOTHING keyed by the reused idempotency key."
+    },
+    "withdraw": {
+      "selector": "src/services/orders.ts#withdraw",
+      "description": "A `while` loop re-running a SERIALIZABLE transaction on SQLSTATE 40001."
+    },
+    "POST": {
+      "selector": "src/app/api/orders/route.ts#POST",
+      "description": "Route handler: `await request.json()`, `placeOrder`, `Response.json(..., { status: 201 })`."
+    }
+  }
+}

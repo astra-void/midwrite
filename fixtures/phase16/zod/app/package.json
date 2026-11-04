@@ -1,0 +1,18 @@
+{
+  "name": "commitrift-fixture-phase16-zod-app",
+  "private": true,
+  "version": "0.0.0",
+  "description": "CommitRift Phase 16 Track A first-party application: server actions whose input is validated by zod 4 strict object schemas (UUID and email formats, an enum with a default, a nullish optional field) before a check-then-insert. Static source: never executed by the tests.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "dependencies": {
+    "drizzle-orm": "0.45.4",
+    "pg": "8.23.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/pg": "8.23.1",
+    "typescript": "5.9.3"
+  }
+}

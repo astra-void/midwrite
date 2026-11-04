@@ -1,0 +1,178 @@
+{
+  "schemaVersion": 1,
+  "kind": "commitrift.contracts",
+  "description": "Phase 16 evaluation application: what the source cannot say. The project-defined replica set src/lib/replicas.ts#createReplicaSet; the read-your-writes promise of the two digest-frequency entries; and the business rules (at most one row per key, non-negative balances) that the labeled hazards are about. A NULL in a declared key is equal to NULL for the rule (one 'ungrouped' label, one root collection, one 'every channel' rule), as each rule's description says.",
+  "invariants": [
+    {
+      "name": "one-project-per-slug",
+      "description": "A slug names at most one project of a workspace.",
+      "entries": ["src/services/projects.ts#createProject"],
+      "property": { "template": "atMostOne", "table": "projects", "key": ["workspaceId", "slug"] }
+    },
+    {
+      "name": "one-board-per-slug",
+      "description": "A slug names at most one board of a workspace.",
+      "entries": ["src/services/projects.ts#createBoard"],
+      "property": { "template": "atMostOne", "table": "boards", "key": ["workspaceId", "slug"] }
+    },
+    {
+      "name": "one-label-per-name",
+      "description": "At most one label with a given name per group of a workspace; ungrouped labels (groupId NULL) form one group.",
+      "entries": ["src/services/labels.ts#createLabel"],
+      "property": { "template": "atMostOne", "table": "labels", "key": ["workspaceId", "groupId", "name"] }
+    },
+    {
+      "name": "one-tag-per-name",
+      "description": "At most one tag with a given name per group of a workspace; ungrouped tags use group 0.",
+      "entries": ["src/services/labels.ts#createTag"],
+      "property": { "template": "atMostOne", "table": "tags", "key": ["workspaceId", "groupId", "name"] }
+    },
+    {
+      "name": "one-workspace-invite-per-email",
+      "description": "An email address has at most one pending workspace-level invitation per workspace.",
+      "entries": ["src/services/invites.ts#inviteMember", "src/services/invites.ts#inviteProjectMember"],
+      "property": { "template": "atMostOne", "table": "workspace_invites", "key": ["workspaceId", "email"] }
+    },
+    {
+      "name": "one-project-invite-per-email",
+      "description": "An email address has at most one invitation per project.",
+      "entries": ["src/services/invites.ts#inviteMember", "src/services/invites.ts#inviteProjectMember"],
+      "property": { "template": "atMostOne", "table": "project_invites", "key": ["projectId", "email"] }
+    },
+    {
+      "name": "one-reimbursement-per-expense",
+      "description": "An approved expense is reimbursed once.",
+      "entries": ["src/services/expenses.ts#approveExpense", "src/services/expenses.ts#approveExpenseOnce"],
+      "property": { "template": "atMostOne", "table": "reimbursements", "key": ["expenseId"] }
+    },
+    {
+      "name": "one-payment-per-request",
+      "description": "A client payment request is recorded once.",
+      "entries": ["src/services/payments.ts#recordPayment"],
+      "property": { "template": "atMostOne", "table": "payments", "key": ["requestId"] }
+    },
+    {
+      "name": "one-receipt-per-request",
+      "description": "A client payment request is recorded once.",
+      "entries": ["src/services/payments.ts#recordPaymentIdempotent"],
+      "property": { "template": "atMostOne", "table": "payment_receipts", "key": ["requestId"] }
+    },
+    {
+      "name": "one-credit-entry-per-request",
+      "description": "A credit grant request is applied once.",
+      "entries": ["src/services/credits.ts#grantCredits", "src/services/credits.ts#grantCreditsOnce"],
+      "property": { "template": "atMostOne", "table": "credit_entries", "key": ["requestId"] }
+    },
+    {
+      "name": "stock-non-negative",
+      "description": "Stock is never reserved beyond what is available.",
+      "entries": ["src/services/inventory.ts#reserveStock", "src/services/inventory.ts#reserveStockSerializable"],
+      "property": { "template": "nonNegative", "table": "stock_levels", "column": "available" }
+    },
+    {
+      "name": "one-outbox-event-per-request",
+      "description": "A withdrawal request is announced to the payout service once.",
+      "entries": ["src/services/withdrawals.ts#requestWithdrawal", "src/services/withdrawals.ts#requestWithdrawalTx"],
+      "property": { "template": "atMostOne", "table": "outbox_events", "key": ["requestId"] }
+    },
+    {
+      "name": "one-waitlist-entry-per-email",
+      "description": "An email address is on an event's waitlist at most once.",
+      "entries": ["src/app/api/waitlist/route.ts#POST"],
+      "property": { "template": "atMostOne", "table": "waitlist_entries", "key": ["eventId", "email"] }
+    },
+    {
+      "name": "one-rsvp-per-email",
+      "description": "An email address is registered for an event at most once.",
+      "entries": ["src/app/api/rsvp/route.ts#POST"],
+      "property": { "template": "atMostOne", "table": "rsvps", "key": ["eventId", "email"] }
+    },
+    {
+      "name": "one-run-per-job",
+      "description": "Jobs are never re-queued: a job is started at most once.",
+      "entries": ["src/services/jobs.ts#claimJob", "src/services/jobs.ts#claimJobAtomic"],
+      "property": { "template": "atMostOne", "table": "job_runs", "key": ["jobId"] }
+    },
+    {
+      "name": "one-collection-per-name",
+      "description": "At most one collection with a given name under the same parent; root collections (parentId NULL) share one parent.",
+      "entries": ["src/services/collections.ts#createCollection", "src/services/collections.ts#createCollectionLocked"],
+      "property": { "template": "atMostOne", "table": "collections", "key": ["workspaceId", "parentId", "name"] }
+    },
+    {
+      "name": "ledger-balance-non-negative",
+      "description": "A ledger account is never overdrawn.",
+      "entries": ["src/services/ledger.ts#transferFundsUnlocked", "src/services/ledger.ts#transferFunds"],
+      "property": { "template": "nonNegative", "table": "ledger_accounts", "column": "balance" }
+    },
+    {
+      "name": "one-claim-per-task",
+      "description": "A task is handed to at most one worker.",
+      "entries": [
+        "src/services/tasks.ts#claimBatchUnlocked",
+        "src/services/tasks.ts#claimBatch",
+        "src/services/tasks.ts#claimBatchNoWait"
+      ],
+      "property": { "template": "atMostOne", "table": "task_claims", "key": ["taskId"] }
+    },
+    {
+      "name": "one-mute-rule",
+      "description": "At most one mute rule per account, channel and event; 'every channel' rules (channelId NULL) count as one channel.",
+      "entries": ["src/services/notifications.ts#muteEvent"],
+      "property": { "template": "atMostOne", "table": "mute_rules", "key": ["accountId", "channelId", "event"] }
+    },
+    {
+      "name": "one-notification-rule",
+      "description": "At most one notification rule per account, channel and event; 'every channel' rules (channelId NULL) count as one channel.",
+      "entries": ["src/services/notifications.ts#addNotificationRule"],
+      "property": { "template": "atMostOne", "table": "notification_rules", "key": ["accountId", "channelId", "event"] }
+    },
+    {
+      "name": "one-payment-intent-per-order",
+      "description": "An order has at most one payment intent, so every caller is handed the id of the intent the order points to.",
+      "entries": ["src/services/checkout.ts#ensurePaymentIntent", "src/services/checkout.ts#ensurePaymentIntentLocked"],
+      "property": { "template": "atMostOne", "table": "payment_intents", "key": ["orderId"] }
+    },
+    {
+      "name": "refresh-token-used-once",
+      "description": "A refresh token is exchanged at most once (refresh token rotation).",
+      "entries": ["src/services/sessions.ts#refreshSession", "src/services/sessions.ts#refreshSessionChecked"],
+      "property": { "template": "atMostOne", "table": "token_rotations", "key": ["previousToken"] }
+    },
+    {
+      "name": "digest-read-your-writes",
+      "description": "The settings page is never told that a saved digest frequency was not saved.",
+      "entries": ["src/services/digests.ts#saveDigestFrequency"],
+      "property": {
+        "template": "formula",
+        "assert": { "le": [{ "actors": { "function": "saveDigestFrequency", "outcome": "ok", "returned": false } }, 0] }
+      }
+    },
+    {
+      "name": "digest-read-your-writes-tx",
+      "description": "The settings page is never told that a saved digest frequency was not saved.",
+      "entries": ["src/services/digests.ts#saveDigestFrequencyInTransaction"],
+      "property": {
+        "template": "formula",
+        "assert": {
+          "le": [{ "actors": { "function": "saveDigestFrequencyInTransaction", "outcome": "ok", "returned": false } }, 0]
+        }
+      }
+    },
+    {
+      "name": "one-redemption-per-coupon",
+      "description": "A single-use coupon is redeemed at most once.",
+      "entries": ["src/services/coupons.ts#redeemCoupon", "src/services/coupons.ts#redeemCouponLocked"],
+      "property": { "template": "atMostOne", "table": "coupon_redemptions", "key": ["couponId"] }
+    }
+  ],
+  "replicaFactories": [
+    {
+      "factory": "src/lib/replicas.ts#createReplicaSet",
+      "primaryArgument": 0,
+      "primaryOnlyMethods": ["usePrimaryOnly"],
+      "primaryProperties": ["$primary"],
+      "reason": "Read from the factory's source: select and $count run on a replica (round-robin); insert, update, delete, execute and transaction run on the primary (argument 0); $primary and usePrimaryOnly() return the primary. Replicas are asynchronous streaming standbys."
+    }
+  ]
+}

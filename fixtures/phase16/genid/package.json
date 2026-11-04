@@ -1,0 +1,18 @@
+{
+  "name": "commitrift-fixture-phase16-genid",
+  "private": true,
+  "version": "0.0.0",
+  "description": "CommitRift Phase 16 first-party application: properties over generated identifiers (a get-or-create share token whose concurrent callers are told different tokens, an id returned after a retried insert, a read-your-writes read of a generated id through a read replica), each with a safe counterpart; a replica read-modify-write whose outcomes the modeled replica permits; and midday-shaped team-membership and insight code that the Phase 16 contract templates are validated against. Drizzle ORM on node-postgres. Static source: never executed.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "dependencies": {
+    "drizzle-orm": "0.45.4",
+    "nanoid": "5.1.5",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/pg": "8.23.1",
+    "typescript": "5.9.3"
+  }
+}

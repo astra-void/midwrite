@@ -37,6 +37,7 @@ node_modules/
 /fixtures/phase13/**/dist/
 /fixtures/phase14/**/dist/
 /fixtures/phase15/**/dist/
+/fixtures/phase16/**/dist/
 # Phase 13–15: the request and worlds applications link the Phase 12 fixture's packages
 # locally (`npm ci` creates their own elsewhere); Python bytecode of scripts.
 /fixtures/phase13/request-app/node_modules

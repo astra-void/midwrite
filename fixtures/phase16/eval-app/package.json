@@ -1,0 +1,13 @@
+{
+  "name": "commitrift-fixture-phase16-eval-app",
+  "private": true,
+  "version": "0.0.0",
+  "description": "CommitRift Phase 16 evaluation application (labels frozen before any Phase 16 scoring): concurrency, retry, crash and replica-lag hazards behind zod 4 validation (strict objects, optional/nullable/default fields, validated actors), bounded retry loops and SQLSTATE retries, JSON request bodies in route handlers, hoisted and conditional Drizzle predicates, multi-row locks, NULLS NOT DISTINCT unique constraints, generated identifiers and read replicas. Static source: never executed.",
+  "type": "module",
+  "dependencies": {
+    "drizzle-orm": "0.45.4",
+    "nanoid": "5.1.5",
+    "pg": "8.23.1",
+    "zod": "4.6.5"
+  }
+}

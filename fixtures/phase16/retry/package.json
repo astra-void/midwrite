@@ -1,0 +1,21 @@
+{
+  "name": "commitrift-fixture-phase16-retry",
+  "private": true,
+  "version": "0.0.0",
+  "description": "CommitRift Phase 16 first-party application: retry loops written as `for`/`while` loops around database writes (an insert repeated after an ambiguous COMMIT, and its idempotent counterpart keyed by a reused idempotency key), a SERIALIZABLE transaction retried on SQLSTATE 40001, and a route handler reading `await request.json()` and answering `Response.json(...)`. Drizzle ORM on node-postgres.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@commitrift/replay": "file:../../../runtime/node",
+    "drizzle-orm": "0.45.4",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/pg": "8.23.1",
+    "typescript": "5.9.3"
+  }
+}
