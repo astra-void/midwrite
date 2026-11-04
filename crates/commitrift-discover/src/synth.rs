@@ -28,14 +28,15 @@ use serde_json::{Value as Json, json};
 
 use commitrift_model::engine::{Action, Recorder, apply, enabled, initial_state};
 use commitrift_model::invariant::{
-    ActorsRef, ExternalsRef, Formula, Invariant, OutcomeKind, RowRef, Term, TermOp, When,
+    ActorSel, ActorsRef, ExternalsRef, Formula, GeneratedBy, GeneratorSel, Invariant, OutcomeKind,
+    RowRef, Term, TermOp, When,
 };
 use commitrift_model::ir::{Op, SourceRef};
 use commitrift_model::model::Model;
 use commitrift_model::provider::ActorProvider;
 use commitrift_model::schema_facts::{SchemaDefault, SchemaTable};
 use commitrift_model::state::{ClosedStmt, State, TKind};
-use commitrift_model::value::{BinOp, Builtin, Expr, Row, Value};
+use commitrift_model::value::{BinOp, Builtin, Expr, GenId, Row, Value};
 
 use crate::candidate::{Candidate, Class, Property, Relation, Spec};
 use crate::detect::Analyzed;
@@ -1039,6 +1040,57 @@ fn set_path(root: &mut [Value], params: &[String], path: &str, value: Value) {
     }
 }
 
+/// Phase 16: remove the key at `path` (a property below a parameter) from
+/// its object.
+fn remove_path(root: &mut [Value], params: &[String], path: &str) {
+    let Some((parent, key)) = path.rsplit_once('.') else {
+        return;
+    };
+    let mut parts = parent.split('.');
+    let Some(i) = parts
+        .next()
+        .and_then(|first| params.iter().position(|p| p == first))
+    else {
+        return;
+    };
+    let mut cur = &mut root[i];
+    for part in parts {
+        let Value::Row(map) = cur else { return };
+        let Some(next) = map.get_mut(part) else {
+            return;
+        };
+        cur = next;
+    }
+    if let Value::Row(map) = cur {
+        map.remove(key);
+    }
+}
+
+/// Phase 16: make the arguments of `a` valid for the zod schemas that
+/// validate them (`commitrift_model::zodfn::conform`: valid values are
+/// kept, required keys added, keys a strict object rejects removed), then
+/// restore the values `commitrift-contracts.json` declares. A schema no
+/// synthesized value satisfies (a `.regex()` the placeholders miss) leaves
+/// the arguments as they are: the run stops at the validation and says so.
+fn conform_to_zod(a: &Analyzed, args: &mut [Value]) {
+    let params = &a.summary.params;
+    for z in crate::domains::zod_inputs(a) {
+        let current = get_path(args, params, &z.path);
+        let name = z.path.rsplit('.').next().unwrap_or(&z.path);
+        if let Some(v) =
+            commitrift_model::zodfn::conform(z.version, &z.schema, current.as_ref(), name)
+            && Some(&v) != current.as_ref()
+        {
+            set_path(args, params, &z.path, v);
+        }
+    }
+    if let Some(ct) = &a.contract {
+        for (path, value) in &ct.values {
+            set_path(args, params, path, value.clone());
+        }
+    }
+}
+
 pub fn get_path(args: &[Value], params: &[String], path: &str) -> Option<Value> {
     let mut parts = path.split('.');
     let first = parts.next()?;
@@ -1083,8 +1135,12 @@ pub(crate) fn varied_paths(c: &Candidate, a: &Analyzed, relation: Relation) -> V
         }
         Relation::DistinctRow | Relation::Swapped => {
             for op in c.conflict.iter().filter(|o| !o.is_external) {
+                // Phase 16: with swapped keys a row lock taken by a read
+                // (`SELECT ... FOR UPDATE`) is part of the conflict too.
                 if let Some(e) = a.summary.db.get(op.effect)
-                    && e.access.writes()
+                    && (e.access.writes()
+                        || (relation == Relation::Swapped
+                            && e.lock != commitrift_model::ir::LockMode::None))
                 {
                     vals.extend(
                         e.eq.iter()
@@ -1155,10 +1211,15 @@ fn arguments(
         .param_annotations(&index.root, &a.fact.selector);
     // Phase 15: a string-literal union (`kind: RouteKind`) admits only its
     // members.
-    let literals: BTreeMap<String, Vec<String>> = annotations
+    let mut literals: BTreeMap<String, Vec<String>> = annotations
         .iter()
         .filter_map(|(p, t)| crate::domains::literal_members(t).map(|m| (p.clone(), m)))
         .collect();
+    // Phase 16: so does a zod enum (base values take its first member,
+    // "different value" choices another one).
+    for (p, members) in crate::domains::zod_enum_members(a) {
+        literals.entry(p).or_insert(members);
+    }
     if !usage.is_empty() {
         for (path, u) in &usage {
             if let Some(ty) = usage_ty(path, u, annotations.get(path).map(String::as_str))? {
@@ -1198,6 +1259,8 @@ fn arguments(
             set_path(&mut args, params, path, value.clone());
         }
     }
+    // Phase 16: arguments a zod schema validates satisfy it.
+    conform_to_zod(a, &mut args);
     if k > 0 {
         match relation {
             Relation::Same => {}
@@ -1236,6 +1299,9 @@ fn arguments(
                 }
             }
         }
+        // Phase 16: a varied value the schema rejects is replaced by a
+        // valid one.
+        conform_to_zod(a, &mut args);
     }
     Ok(args)
 }
@@ -1488,13 +1554,19 @@ impl Rows<'_> {
                 self.add(&ptable, g, depth + 1)?;
             }
         }
-        // Keys must stay unique.
+        // Keys must stay unique. Phase 16: a `NULLS NOT DISTINCT` rule
+        // compares NULLs as equal (the model enforces it, so a world that
+        // repeated a NULL key would be refused by the loader).
+        let nulls_not_distinct = crate::detect::nulls_not_distinct_sets(self.index, table);
         for (set, predicate) in crate::detect::unique_sets(self.index, table) {
             if predicate.is_some() {
                 continue;
             }
             let key: Vec<Option<&Value>> = set.iter().map(|c| row.get(c)).collect();
-            if key.iter().any(|v| v.is_none_or(Value::is_null)) {
+            if key.iter().any(Option::is_none)
+                || (key.iter().any(|v| v.is_some_and(Value::is_null))
+                    && !nulls_not_distinct.contains(&set))
+            {
                 continue;
             }
             if self.rows.get(table).is_some_and(|rs| {
@@ -1954,7 +2026,11 @@ pub fn build_world(
             arguments: match arguments(c, a, index, variant.relation, k) {
                 Ok(mut args) => {
                     for o in world.args.iter().filter(|o| o.actors.contains(&k)) {
-                        set_path(&mut args, &a.summary.params, &o.path, o.value.clone());
+                        if o.absent {
+                            remove_path(&mut args, &a.summary.params, &o.path);
+                        } else {
+                            set_path(&mut args, &a.summary.params, &o.path, o.value.clone());
+                        }
                     }
                     args
                 }
@@ -2015,10 +2091,16 @@ pub fn build_world(
             formula: Formula::Eq([Term::Int(0), Term::Int(0)]),
         }],
         source_verification: None,
-        js_values: c
-            .actor_entries
-            .iter()
-            .any(|&ai| uses_js_values(&analyzed[ai].summary.codes)),
+        js_values: c.actor_entries.iter().any(|&ai| {
+            uses_js_values(&analyzed[ai].summary.codes)
+                // Phase 16: unrolled loops, inspected caught errors and
+                // request bodies exist only with JavaScript values.
+                || analyzed[ai].summary.assumptions.iter().any(|a| {
+                    a.starts_with("loop ")
+                        || a.starts_with("caught-errors: ")
+                        || a.starts_with("request: ")
+                })
+        }),
         replica_reads: c.actor_entries.iter().any(|&ai| {
             analyzed[ai].summary.codes.iter().flatten().any(|s| {
                 matches!(&s.op, commitrift_model::ir::Op::Db { stmt }
@@ -2034,6 +2116,25 @@ pub fn build_world(
     };
     preseed_argument_rows(c, &plan, analyzed, &mut rows);
     preseed_written_rows(c, &plan, analyzed, &mut rows);
+    // Phase 16: arguments validated by a zod schema were chosen to satisfy
+    // it: stated, never presented as observed.
+    for (k, actor) in plan.actors.iter().enumerate() {
+        let Some(a) = c.actor_entries.get(k).map(|&ai| analyzed[ai]) else {
+            continue;
+        };
+        for z in crate::domains::zod_inputs(a) {
+            if let Some(v) = get_path(&actor.arguments, &a.summary.params, &z.path) {
+                rows.notes.push(format!(
+                    "SYNTHESIZED input of `{}`: `{}` = {} satisfies its zod {} schema `{}` (chosen by discovery to pass validation; not observed from callers)",
+                    actor.selector,
+                    z.path,
+                    v.render(),
+                    z.version.tag(),
+                    commitrift_model::zodfn::render(&z.schema)
+                ));
+            }
+        }
+    }
     let mut iterations = 0;
     let mut observations = crate::worlds::Observations::default();
     let mut guard_fixes: BTreeSet<(String, String, String, Value)> = BTreeSet::new();
@@ -2389,6 +2490,14 @@ fn changed_nothing(a: &Action) -> bool {
             expect: Expect::Done(StmtResult::Affected(0)),
             ..
         }
+    ) || matches!(
+        // Phase 16: a multi-row lock that locked no row.
+        a,
+        Action::Stmt {
+            stmt: ClosedStmt::SelectMany { lock, .. },
+            expect: Expect::Done(StmtResult::Rows(rows)),
+            ..
+        } if *lock != commitrift_model::ir::LockMode::None && rows.is_empty()
     )
 }
 
@@ -2706,6 +2815,10 @@ fn seed_from(
                         continue;
                     }
                     (*table, pred, r.is_none())
+                }
+                // Phase 16: a multi-row select that returned nothing.
+                (ClosedStmt::SelectMany { table, pred, .. }, Expect::Done(StmtResult::Rows(r))) => {
+                    (*table, pred, r.is_empty())
                 }
                 (ClosedStmt::Count { table, pred }, Expect::Done(StmtResult::Count(n))) => {
                     (*table, pred, *n < 3)
@@ -3119,6 +3232,8 @@ pub fn invariants(
     let mut notes = Vec::new();
     for p in &c.properties {
         let describe = |extra: &str| format!("[{}] {}{}", p.origin.as_str(), p.description, extra);
+        let mut renamed_generated = false;
+        let mut replica_serial = false;
         let formula = match &p.spec {
             Spec::AtMostOne { table, key, filter } => {
                 let mut parts = Vec::new();
@@ -3334,23 +3449,7 @@ pub fn invariants(
                     continue;
                 }
                 match serial_values(plan, index, provider, table, column, &filter) {
-                    // Phase 14: an outcome an invariant term cannot state (a
-                    // generated value, a boolean, a row) is not turned into
-                    // `null` (which made every such outcome a violation).
-                    Ok(values) if values.values().flatten().any(|v| value_term(v).is_none()) => {
-                        let v = values
-                            .values()
-                            .flatten()
-                            .find(|v| value_term(v).is_none())
-                            .map(Value::render)
-                            .unwrap_or_default();
-                        notes.push(format!(
-                            "`{}`: a serial execution leaves {v} in `{table}.{column}`, which an invariant cannot state",
-                            p.name
-                        ));
-                        continue;
-                    }
-                    Ok(values) if !values.is_empty() => {
+                    Ok(serial) if !serial.values.is_empty() => {
                         // (completed == k and cell in V_k) for some k.
                         let term = || {
                             Term::Op(TermOp::Row(RowRef {
@@ -3359,31 +3458,60 @@ pub fn invariants(
                                 column: Some(column.clone()),
                             }))
                         };
-                        let mut by_count: Vec<Formula> = values
-                            .iter()
-                            .map(|(k, vs)| {
-                                let mut cells: Vec<Formula> = vs
-                                    .iter()
-                                    .filter_map(|v| value_term(v).map(|t| Formula::Eq([term(), t])))
-                                    .collect();
-                                let cell = if cells.len() == 1 {
-                                    cells.pop().expect("one")
-                                } else {
-                                    Formula::Or(cells)
-                                };
-                                Formula::And(vec![
-                                    Formula::Eq([
-                                        Term::Op(TermOp::Actors(ActorsRef {
-                                            function: None,
-                                            outcome: OutcomeKind::Ok,
-                                            returned: None,
-                                        })),
-                                        Term::Int(*k),
-                                    ]),
-                                    cell,
-                                ])
-                            })
-                            .collect();
+                        // Phase 14: an outcome an invariant term cannot state
+                        // (a boolean, a row) is not turned into `null` (which
+                        // made every such outcome a violation). Phase 16: a
+                        // generated identifier is stated by the actor and
+                        // generator of its generation event, when that is
+                        // faithful ([`SerialOutcomes::renaming`]).
+                        let mut refused = None;
+                        let mut by_count: Vec<Formula> = Vec::new();
+                        for (k, vs) in &serial.values {
+                            let mut cells: Vec<Formula> = Vec::new();
+                            for v in vs {
+                                match serial_cell(term(), v, &serial) {
+                                    Ok(f) => cells.push(f),
+                                    Err(why) => {
+                                        refused.get_or_insert(why);
+                                    }
+                                }
+                            }
+                            let cell = if cells.len() == 1 {
+                                cells.pop().expect("one")
+                            } else {
+                                Formula::Or(cells)
+                            };
+                            by_count.push(Formula::And(vec![
+                                Formula::Eq([
+                                    Term::Op(TermOp::Actors(ActorsRef {
+                                        function: None,
+                                        outcome: OutcomeKind::Ok,
+                                        returned: None,
+                                    })),
+                                    Term::Int(*k),
+                                ]),
+                                cell,
+                            ]));
+                        }
+                        if let Some(why) = refused {
+                            notes.push(match why {
+                                Refusal::Unstatable(v) => format!(
+                                    "`{}`: a serial execution leaves {v} in `{table}.{column}`, which an invariant cannot state",
+                                    p.name
+                                ),
+                                Refusal::NotFaithful(v, why) => format!(
+                                    "`{}`: a serial execution leaves the generated value {v} in `{table}.{column}`, which cannot be stated by its actor and generator: {why}",
+                                    p.name
+                                ),
+                            });
+                            continue;
+                        }
+                        if serial.renamed {
+                            renamed_generated = true;
+                        }
+                        if serial.replicas {
+                            replica_serial = true;
+                        }
                         if by_count.len() == 1 {
                             by_count.pop().expect("one")
                         } else {
@@ -3404,18 +3532,27 @@ pub fn invariants(
                 }
             }
         };
-        let extra = match &p.spec {
+        let mut extra = match &p.spec {
             Spec::SerialCell { .. } => {
                 " (the value of a serial execution of the requests that completed, computed by the model)"
             }
             _ => "",
-        };
+        }
+        .to_owned();
+        // Phase 16: how a serial outcome was stated (only when it applies,
+        // so that earlier descriptions are unchanged).
+        if renamed_generated {
+            extra.push_str("; a generated value is stated as generated by the same actor and generator as in the serial execution (any of that actor's generation events of that generator: a retried attempt generates a new value), never by its text");
+        }
+        if replica_serial {
+            extra.push_str("; the serial executions let the modeled asynchronous replica replay any prefix of the commits at every step (a stale read is permitted, as eventual consistency permits it)");
+        }
         out.push((
             p.clone(),
             Invariant {
                 name: p.name.clone(),
                 when: When::Final,
-                description: describe(extra),
+                description: describe(&extra),
                 formula,
             },
         ));
@@ -3432,9 +3569,129 @@ fn value_term(v: &Value) -> Option<Term> {
     }
 }
 
+/// Phase 16: why a serial outcome cannot be stated.
+enum Refusal {
+    /// A value no invariant term states (a boolean, a row, a clock
+    /// reading): its rendering.
+    Unstatable(String),
+    /// A generated identifier whose actor and generator do not identify
+    /// its generation event: its rendering and why.
+    NotFaithful(String, String),
+}
+
+/// The serial outcomes of a cell ([`serial_values`]).
+struct SerialOutcomes {
+    /// The values by the number of completed requests.
+    values: BTreeMap<i64, BTreeSet<Value>>,
+    /// Phase 16: for each generated identifier among the values, the
+    /// actor's name and the generator that state it, or why they do not.
+    renaming: BTreeMap<GenId, Result<(String, GeneratorSel), String>>,
+    /// Phase 16: a generated identifier was stated by actor and generator.
+    renamed: bool,
+    /// Phase 16: the serial executions explored replica progress.
+    replicas: bool,
+}
+
+/// One serial outcome as a formula over the cell `term`.
+fn serial_cell(term: Term, v: &Value, serial: &SerialOutcomes) -> Result<Formula, Refusal> {
+    if let Some(t) = value_term(v) {
+        return Ok(Formula::Eq([term, t]));
+    }
+    let Value::Gen(g) = v else {
+        return Err(Refusal::Unstatable(v.render()));
+    };
+    match serial.renaming.get(g) {
+        Some(Ok((actor, generator))) => Ok(Formula::GeneratedBy(Box::new(GeneratedBy {
+            value: term,
+            by: Some(ActorSel::Actor(actor.clone())),
+            generator: Some(generator.clone()),
+        }))),
+        // A clock reading keeps the Phase 14 wording.
+        Some(Err(_)) if is_clock_value(g) => Err(Refusal::Unstatable(v.render())),
+        Some(Err(why)) => Err(Refusal::NotFaithful(v.render(), why.clone())),
+        None => Err(Refusal::Unstatable(v.render())),
+    }
+}
+
+fn is_clock_value(g: &GenId) -> bool {
+    commitrift_model::db::is_clock(g) || g.actor == commitrift_model::db::CLOCK_PLACEHOLDER
+}
+
+/// Phase 16: the generation sites of `generator` in actor `actor`'s code:
+/// package calls ([`Op::Generate`]) for the call generator, INSERT rows
+/// into the column's table for a column generator. `None` when a backward
+/// jump could run a site more than once in one attempt.
+fn generation_sites(model: &Model, actor: usize, generator: u16) -> Option<usize> {
+    use commitrift_model::ir::{CALL_GENERATOR, StmtKind};
+    let gens = model.generators();
+    let mut sites = 0;
+    for code in &model.actors[actor].codes {
+        for (i, step) in code.iter().enumerate() {
+            match &step.op {
+                Op::Jump { target } | Op::JumpIf { target, .. } if *target <= i => return None,
+                Op::Generate { .. } if generator == CALL_GENERATOR => sites += 1,
+                Op::Db { stmt } if generator != CALL_GENERATOR => {
+                    if let StmtKind::Insert {
+                        table, more_rows, ..
+                    } = &stmt.kind
+                        && gens
+                            .get(generator as usize)
+                            .is_some_and(|(t, _, _)| model.schema.table(*t).name == *table)
+                    {
+                        sites += 1 + more_rows.len();
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    Some(sites)
+}
+
+/// Phase 16: whether the generated identifier `g` of a serial execution can
+/// be stated as "generated by actor A from generator G" faithfully: it is
+/// an identifier (not a clock reading), and actor A's code has exactly one
+/// generation site of G and no backward jump, so that every attempt of A
+/// generates at most one value of G, at that site, in the serial model and
+/// in the concurrent model alike (the same actors and code; only the fault
+/// bounds differ). Generation-event numbers are not compared: they shift
+/// with retries and with the actor's other generators.
+fn renaming(model: &Model, g: &GenId) -> Result<(String, GeneratorSel), String> {
+    if is_clock_value(g) {
+        return Err("a clock reading is not a generated identifier".to_owned());
+    }
+    let Some(spec) = model.actors.get(g.actor as usize) else {
+        return Err(format!("no actor {}", g.actor));
+    };
+    let generator = if g.generator == commitrift_model::ir::CALL_GENERATOR {
+        GeneratorSel::Call
+    } else {
+        let gens = model.generators();
+        let Some((t, c, _)) = gens.get(g.generator as usize) else {
+            return Err(format!("no generator {}", g.generator));
+        };
+        GeneratorSel::Column(format!("{}.{c}", model.schema.table(*t).name))
+    };
+    match generation_sites(model, g.actor as usize, g.generator) {
+        Some(1) => Ok((spec.name.clone(), generator)),
+        Some(n) => Err(format!(
+            "actor `{}` has {n} generation sites of that generator, so actor and generator do not identify the event",
+            spec.name
+        )),
+        None => Err(format!(
+            "actor `{}`'s code jumps backward, so one site may generate several values in one attempt",
+            spec.name
+        )),
+    }
+}
+
 /// The values `table.column` of the row `filter` has after every serial
 /// execution of a subset of the plan's actors (each actor alone, to
 /// completion, in every order), by the number of actors that completed.
+/// Phase 16: with the `replicas` feature, the replica may replay any prefix
+/// of the primary's commits at every step of a serial execution (the
+/// model's unbounded lag), so that a stale read and a fresh read are both
+/// serial outcomes; without it, exactly the Phase 14 computation.
 fn serial_values(
     plan: &Plan,
     index: &ProjectIndex,
@@ -3442,7 +3699,7 @@ fn serial_values(
     table: &str,
     column: &str,
     filter: &BTreeMap<String, Value>,
-) -> Result<BTreeMap<i64, BTreeSet<Value>>, String> {
+) -> Result<SerialOutcomes, String> {
     let mut p = plan.clone();
     p.max_crashes = 0;
     p.max_retries = 0;
@@ -3459,30 +3716,90 @@ fn serial_values(
         let mut orders: Vec<Vec<usize>> = Vec::new();
         permutations(&subset, &mut Vec::new(), &mut orders);
         for order in orders {
-            let mut s = initial_state(&model);
-            for a in order {
-                match run_alone(&model, s, a) {
-                    Solo::Finished { state, .. } => s = *state,
-                    Solo::Unsupported { detail, location } => {
-                        return Err(format!("{detail} at {location}"));
+            for s in serial_states(&model, &order)? {
+                let ok = s
+                    .actors
+                    .iter()
+                    .map(|a| i64::from(a.completions))
+                    .sum::<i64>();
+                for r in s.committed_rows(&model, t) {
+                    if filter.iter().all(|(k, v)| r.get(k) == Some(v))
+                        && let Some(v) = r.get(column)
+                    {
+                        values.entry(ok).or_default().insert(v.clone());
                     }
-                }
-            }
-            let ok = s
-                .actors
-                .iter()
-                .map(|a| i64::from(a.completions))
-                .sum::<i64>();
-            for r in s.committed_rows(&model, t) {
-                if filter.iter().all(|(k, v)| r.get(k) == Some(v))
-                    && let Some(v) = r.get(column)
-                {
-                    values.entry(ok).or_default().insert(v.clone());
                 }
             }
         }
     }
-    Ok(values)
+    let mut renamings = BTreeMap::new();
+    for v in values.values().flatten() {
+        if let Value::Gen(g) = v {
+            renamings.insert(*g, renaming(&model, g));
+        }
+    }
+    Ok(SerialOutcomes {
+        renamed: renamings.values().any(Result::is_ok),
+        values,
+        renaming: renamings,
+        replicas: model.features.replicas,
+    })
+}
+
+/// Phase 16: the most states one serial order's replica-progress
+/// exploration may visit.
+const MAX_SERIAL_STATES: usize = 20_000;
+
+/// The final states of the serial execution `order` (each actor alone, to
+/// completion). One state without the `replicas` feature (exactly the
+/// Phase 14 runs); with it, one per reachable choice of replica progress.
+fn serial_states(model: &Model, order: &[usize]) -> Result<Vec<State>, String> {
+    if !model.features.replicas {
+        let mut s = initial_state(model);
+        for &a in order {
+            match run_alone(model, s, a) {
+                Solo::Finished { state, .. } => s = *state,
+                Solo::Unsupported { detail, location } => {
+                    return Err(format!("{detail} at {location}"));
+                }
+            }
+        }
+        return Ok(vec![s]);
+    }
+    let mut out = Vec::new();
+    let mut seen: BTreeSet<(usize, Vec<u8>)> = BTreeSet::new();
+    let mut stack = vec![(initial_state(model), 0usize, 0usize)];
+    while let Some((s, pos, steps)) = stack.pop() {
+        if !seen.insert((pos, s.canonical(model))) {
+            continue;
+        }
+        if seen.len() > MAX_SERIAL_STATES {
+            return Err(format!(
+                "more than {MAX_SERIAL_STATES} states with replica progress"
+            ));
+        }
+        let Some(&a) = order.get(pos) else {
+            out.push(s);
+            continue;
+        };
+        let en = enabled(model, &s);
+        if let Some(t) = en.iter().find(|t| t.kind == TKind::Replicate)
+            && let Ok(applied) = apply(model, &s, *t, &mut Recorder::off())
+        {
+            stack.push((applied.state, pos, steps));
+        }
+        let next = en
+            .iter()
+            .find(|t| t.actor as usize == a && matches!(t.kind, TKind::Step | TKind::Resume));
+        match next {
+            Some(t) if steps < MAX_SOLO_STEPS => match apply(model, &s, *t, &mut Recorder::off()) {
+                Ok(applied) => stack.push((applied.state, pos, steps + 1)),
+                Err(u) => return Err(format!("{} at {}", u.detail, u.src.label())),
+            },
+            _ => stack.push((s, pos + 1, 0)),
+        }
+    }
+    Ok(out)
 }
 
 fn permutations(items: &[usize], prefix: &mut Vec<usize>, out: &mut Vec<Vec<usize>>) {
@@ -3591,6 +3908,7 @@ mod tests {
                         into: "p".into(),
                         joins: Vec::new(),
                         projection: None,
+                        many: None,
                     },
                 },
             },

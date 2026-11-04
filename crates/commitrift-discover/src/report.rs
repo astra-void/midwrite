@@ -297,7 +297,7 @@ pub fn next_step(c: &Candidate, status: &str, model_checked: bool) -> String {
         "STATIC_CANDIDATE" if !model_checked => "rerun with `--model-check` to explore the synthesized scenario".to_owned(),
         "STATIC_CANDIDATE" => "raise the candidate or state budgets (`--max-candidates`, `--max-total-states`) to build and check its scenario".to_owned(),
         "UNSUPPORTED" => "the first operation the model does not support is named above: declare it in commitrift-contracts.json if a contract applies, otherwise this candidate cannot be verified by CommitRift (docs/reference/limitations.md)".to_owned(),
-        "INCONCLUSIVE" => "no valid initial state or property instance was found: declare argument `values` or an `initialState` for the entry in commitrift-contracts.json (docs/user-guide/contracts.md)".to_owned(),
+        "INCONCLUSIVE" => "no valid initial state or property instance was found: declare the entry's inputs in commitrift-contracts.json under `entries` (`values` for parameter paths, or positional `arguments`); initial rows are always synthesized, no contract field declares them (docs/user-guide/contracts.md)".to_owned(),
         "MODEL_COUNTEREXAMPLE" if hypothesis => "decide whether the application requires this property; if it does, declare it in commitrift-contracts.json. Write the scenario with `--emit-scenarios <DIR>` and replay the counterexample with `commitrift model-check <DIR>/<file>`".to_owned(),
         "MODEL_COUNTEREXAMPLE" => "write the scenario with `--emit-scenarios <DIR>`, read the counterexample with `commitrift model-check <DIR>/<file>`; with an authorized harness, reproduce it on the original code with `--verify-source --allow-execution` (docs/user-guide/source-verification.md)".to_owned(),
         "NO_VIOLATION_WITHIN_BOUNDS" => "nothing to do within these bounds; a bounded search is not a proof (raise `--max-states` for a larger search)".to_owned(),
@@ -394,7 +394,36 @@ impl DiscoveryReport {
     }
 }
 
+/// Phase 16: options of the text rendering.
+#[derive(Clone, Debug, Default)]
+pub struct TextOptions {
+    /// Also list assumptions and rejected combinations.
+    pub verbose: bool,
+    /// List every explored and unexplored initial world.
+    pub explain_coverage: bool,
+    /// The `--emit-scenarios` directory as given on the command line: the
+    /// reproduction commands of a counterexample then name its files.
+    pub emit_dir: Option<String>,
+}
+
 pub fn render_text(r: &DiscoveryReport, verbose: bool, explain_coverage: bool) -> String {
+    render_text_with(
+        r,
+        &TextOptions {
+            verbose,
+            explain_coverage,
+            emit_dir: None,
+        },
+    )
+}
+
+/// The text rendering. Phase 16: repeated unsupported constructs are listed
+/// once with their locations, and BLOCKED, INCONCLUSIVE and
+/// MODEL_COUNTEREXAMPLE candidates get a concrete declaration skeleton or
+/// reproduction commands after their next step. Everything is derived from
+/// the report (and the emit directory), so the output stays deterministic.
+pub fn render_text_with(r: &DiscoveryReport, opts: &TextOptions) -> String {
+    let (verbose, explain_coverage) = (opts.verbose, opts.explain_coverage);
     let mut o = String::new();
     let _ = writeln!(
         o,
@@ -455,11 +484,13 @@ pub fn render_text(r: &DiscoveryReport, verbose: bool, explain_coverage: bool) -
                 } else {
                     ""
                 },
-                k.unsupported.join("; ")
+                group_unsupported(&k.unsupported)
             );
         }
-        if verbose {
-            for a in &k.assumptions {
+        // How each loop was bounded is part of the coverage statement, so
+        // `--explain-coverage` lists the loop assumptions too.
+        for a in &k.assumptions {
+            if verbose || (explain_coverage && a.kind == "loop") {
                 let _ = writeln!(o, "  Assumption ({}, {}): {}", a.kind, a.origin, a.text);
             }
         }
@@ -501,8 +532,12 @@ pub fn render_text(r: &DiscoveryReport, verbose: bool, explain_coverage: bool) -
         }
         let _ = writeln!(o, "  Status: {}", c.status);
         let _ = writeln!(o, "  {}", c.finding);
-        if !c.next_step.is_empty() {
-            let _ = writeln!(o, "  Next step: {}", c.next_step);
+        let next = c.next_step.clone();
+        if !next.is_empty() {
+            let _ = writeln!(o, "  Next step: {next}");
+        }
+        for line in help_lines(c, opts.emit_dir.as_deref()) {
+            let _ = writeln!(o, "  {line}");
         }
     }
     if verbose && !r.rejected.is_empty() {
@@ -525,6 +560,182 @@ pub fn render_text(r: &DiscoveryReport, verbose: bool, explain_coverage: bool) -
         "Important: a model counterexample against a HEURISTIC_HYPOTHESIS is not a confirmed defect; a bounded run without counterexample is not a proof."
     );
     o
+}
+
+/// Phase 16: `message (location)` items with the same message listed once,
+/// with their locations in order (`message (a:1:2, b:3:4)`); items without
+/// a location are kept as they are.
+fn group_unsupported(items: &[String]) -> String {
+    let mut groups: Vec<(&str, Vec<&str>)> = Vec::new();
+    for item in items {
+        match split_location(item) {
+            Some((message, at)) => match groups
+                .iter_mut()
+                .find(|(m, locs)| *m == message && !locs.is_empty())
+            {
+                Some((_, locs)) => {
+                    if !locs.contains(&at) {
+                        locs.push(at);
+                    }
+                }
+                None => groups.push((message, vec![at])),
+            },
+            None => groups.push((item, Vec::new())),
+        }
+    }
+    groups
+        .iter()
+        .map(|(m, locs)| {
+            if locs.is_empty() {
+                (*m).to_owned()
+            } else {
+                format!("{m} ({})", locs.join(", "))
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+/// `message (file:line:column)` split into its message and location.
+fn split_location(item: &str) -> Option<(&str, &str)> {
+    let (message, at) = item.strip_suffix(')')?.rsplit_once(" (")?;
+    let mut parts = at.rsplitn(3, ':');
+    let column = parts.next()?;
+    let line = parts.next()?;
+    let file = parts.next()?;
+    let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+    (digits(column) && digits(line) && !file.is_empty() && !file.contains(' '))
+        .then_some((message, at))
+}
+
+/// A JSON string literal.
+fn quoted(s: &str) -> String {
+    serde_json::to_string(s).unwrap_or_default()
+}
+
+/// A path as a shell word (single-quoted unless plainly safe).
+fn shell_word(s: &str) -> String {
+    if !s.is_empty()
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"_./-:@+,=".contains(&b))
+    {
+        s.to_owned()
+    } else {
+        format!("'{}'", s.replace('\'', r"'\''"))
+    }
+}
+
+/// Phase 16: concrete help after the next step: a declaration skeleton for
+/// a BLOCKED candidate (placeholders where only the developer knows the
+/// rule; CommitRift never fills in a business rule), the contract fields
+/// for the inputs of an INCONCLUSIVE one, and the reproduction commands of
+/// a MODEL_COUNTEREXAMPLE whose scenario was written (`--emit-scenarios`).
+fn help_lines(c: &CandidateReport, emit_dir: Option<&str>) -> Vec<String> {
+    let k = &c.candidate;
+    let mut selectors: Vec<&str> = Vec::new();
+    for e in &k.entries {
+        if !selectors.contains(&e.selector.as_str()) {
+            selectors.push(&e.selector);
+        }
+    }
+    let mut out = Vec::new();
+    match c.status.as_str() {
+        "BLOCKED" => {
+            let property = match k.resource.kind.as_str() {
+                "external-channel" => format!(
+                    r#"{{"template": "maxExternal", "channel": {}, "max": <n>}}"#,
+                    quoted(
+                        k.resource
+                            .columns
+                            .first()
+                            .map_or("<channel>", String::as_str)
+                    )
+                ),
+                "return-value" => {
+                    r#"{"template": "atMostOneSuccess", "returned": <value>}"#.to_owned()
+                }
+                _ => format!(
+                    r#"{{"template": "atMostOne", "table": {}, "key": ["<column>"]}}"#,
+                    quoted(if k.resource.table.is_empty() {
+                        "<table>"
+                    } else {
+                        &k.resource.table
+                    })
+                ),
+            };
+            out.push(format!(
+                r#"Declare a property: in commitrift-contracts.json, "invariants": [{{"name": "<rule-name>", "entries": [{}], "property": {property}}}] — the template shown is an example: use the one (atMostOne, atLeast, nonNegative, maxExternal, formula, atMostOneSuccess, exactlyOneSuccess, everySuccessReturns) that states a rule the application requires (docs/user-guide/contracts.md)"#,
+                selectors
+                    .iter()
+                    .map(|s| quoted(s))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+        "INCONCLUSIVE" => {
+            if let Some(first) = selectors.first() {
+                out.push(format!(
+                    r#"Declare inputs: in commitrift-contracts.json, "entries": {{{}: {{"values": {{"<parameter.path>": <value>}}}}}}{} — declared values replace synthesized ones and are reported as declared"#,
+                    quoted(first),
+                    if selectors.len() > 1 {
+                        format!(
+                            ", likewise for {}",
+                            selectors[1..]
+                                .iter()
+                                .map(|s| format!("`{s}`"))
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        )
+                    } else {
+                        String::new()
+                    }
+                ));
+            }
+        }
+        "MODEL_COUNTEREXAMPLE" => {
+            let deciding = c.scenarios.iter().find(|s| {
+                s.variant.kind == crate::synth::VariantKind::Actual
+                    && s.model
+                        .as_ref()
+                        .is_some_and(|m| m.verdict == "COUNTEREXAMPLE_FOUND")
+            });
+            if let Some(s) = deciding
+                && let Some(file) = &s.file
+            {
+                let at = |name: &str| {
+                    shell_word(&match emit_dir {
+                        Some(d) => format!("{}/{name}", d.trim_end_matches('/')),
+                        None => format!("<DIR>/{name}"),
+                    })
+                };
+                let scenario = at(file);
+                out.push(format!(
+                    "Reproduce in the model: commitrift model-check {scenario}"
+                ));
+                let validated = s
+                    .model
+                    .as_ref()
+                    .and_then(|m| m.validation.as_ref())
+                    .is_some_and(|v| v.replayed && v.violates);
+                if validated {
+                    out.push(format!(
+                        "Reproduction artifact: {}",
+                        at(&format!(
+                            "{}.counterexample.json",
+                            file.strip_suffix(".json").unwrap_or(file)
+                        ))
+                    ));
+                }
+                if s.source_verification {
+                    out.push(format!(
+                        "On the original code (executes application code; authorized harness only): commitrift model-check {scenario} --verify-source --allow-execution"
+                    ));
+                }
+            }
+        }
+        _ => {}
+    }
+    out
 }
 
 /// Phase 15: the input, schedule and source dimensions of a candidate.
@@ -731,11 +942,51 @@ pub fn render_html(r: &DiscoveryReport) -> String {
                 esc(&text)
             );
         }
-        if !c.next_step.is_empty() {
-            let _ = write!(o, "<p><b>Next step:</b> {}</p>", esc(&c.next_step));
+        let next = c.next_step.clone();
+        if !next.is_empty() {
+            let _ = write!(o, "<p><b>Next step:</b> {}</p>", esc(&next));
         }
         let _ = write!(o, "</div>");
     }
     o.push_str("</body></html>\n");
     o
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{group_unsupported, shell_word, split_location};
+
+    #[test]
+    fn repeated_unsupported_constructs_are_listed_once_with_their_locations() {
+        let items = [
+            "row locking is only supported with `.limit(1)` (a multi-row lock is not modeled) (src/a.ts:29:11)",
+            "call to `x.y`: method calls are not resolved (src/b.ts:3:4)",
+            "row locking is only supported with `.limit(1)` (a multi-row lock is not modeled) (src/a.ts:30:28)",
+            "row locking is only supported with `.limit(1)` (a multi-row lock is not modeled) (src/a.ts:29:11)",
+            "an operation without a location",
+        ]
+        .map(str::to_owned);
+        assert_eq!(
+            group_unsupported(&items),
+            "row locking is only supported with `.limit(1)` (a multi-row lock is not modeled) (src/a.ts:29:11, src/a.ts:30:28); call to `x.y`: method calls are not resolved (src/b.ts:3:4); an operation without a location"
+        );
+        // Distinct messages keep the Phase 15 rendering.
+        let single = ["m (src/a.ts:1:2)".to_owned(), "n (src/a.ts:3:4)".to_owned()];
+        assert_eq!(
+            group_unsupported(&single),
+            "m (src/a.ts:1:2); n (src/a.ts:3:4)"
+        );
+        assert_eq!(split_location("m (not a location)"), None);
+        assert_eq!(split_location("m (a b.ts:1:2)"), None);
+    }
+
+    #[test]
+    fn paths_are_quoted_only_when_needed() {
+        assert_eq!(
+            shell_word("out/cr-synth-1-actual.json"),
+            "out/cr-synth-1-actual.json"
+        );
+        assert_eq!(shell_word("my dir/x.json"), "'my dir/x.json'");
+        assert_eq!(shell_word("it's/x.json"), r"'it'\''s/x.json'");
+    }
 }

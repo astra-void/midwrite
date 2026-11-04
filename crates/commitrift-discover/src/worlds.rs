@@ -56,6 +56,10 @@ pub struct ArgOverride {
     pub actors: Vec<usize>,
     pub path: String,
     pub value: Value,
+    /// Phase 16: the key is removed from its object instead (`value` is
+    /// then unused).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub absent: bool,
 }
 
 /// A change of one cell of the base world's synthesized rows.
@@ -173,13 +177,29 @@ pub fn domain_worlds(
         let mut changed = Vec::new();
         for &k in &actors {
             let a = analyzed[c.actor_entries[k]];
-            let Some(base) = base_args
-                .get(k)
-                .and_then(|args| get_path(args, &a.summary.params, &path))
-            else {
-                continue;
+            let at = |p: &str| {
+                base_args
+                    .get(k)
+                    .and_then(|args| get_path(args, &a.summary.params, p))
             };
-            if let Some(v) = class.value(&base) {
+            let base = at(&path);
+            // Phase 16: a key of a zod-validated object may be absent from
+            // the base arguments (an optional key): it can be set when its
+            // object exists.
+            let parent_exists = match path.rsplit_once('.') {
+                Some((parent, _)) => matches!(at(parent), Some(Value::Row(_))),
+                None => true,
+            };
+            // `Some(None)`: remove the key.
+            let new: Option<Option<Value>> = match (&class, base) {
+                (ValueClass::Absent, Some(_)) => Some(None),
+                (ValueClass::Present { value }, None) if parent_exists => Some(Some(value.clone())),
+                (ValueClass::Null, None) if parent_exists => Some(Some(Value::Null)),
+                (ValueClass::Undefined, None) if parent_exists => Some(Some(Value::undefined())),
+                (ValueClass::Absent | ValueClass::Present { .. }, _) | (_, None) => None,
+                (_, Some(base)) => class.value(&base).map(Some),
+            };
+            if let Some(v) = new {
                 changed.push(k);
                 args.push((k, v));
             }
@@ -191,12 +211,18 @@ pub fn domain_worlds(
         // get the same new value).
         let mut overrides: Vec<ArgOverride> = Vec::new();
         for (k, v) in args {
-            match overrides.iter_mut().find(|o| o.value == v) {
+            let absent = v.is_none();
+            let v = v.unwrap_or_else(Value::undefined);
+            match overrides
+                .iter_mut()
+                .find(|o| o.value == v && o.absent == absent)
+            {
                 Some(o) => o.actors.push(k),
                 None => overrides.push(ArgOverride {
                     actors: vec![k],
                     path: path.clone(),
                     value: v,
+                    absent,
                 }),
             }
         }
@@ -219,6 +245,8 @@ pub fn domain_worlds(
             ValueClass::BelowOperand { .. } => ("below", 32),
             ValueClass::AboveOperand { .. } => ("above", 32),
             ValueClass::Negated => ("negated", 34),
+            ValueClass::Absent => ("absent", 21),
+            ValueClass::Present { .. } => ("present", 23),
         };
         let suffix = match &class {
             ValueClass::EqualToOperand { operand } => format!("={}", operand.render()),
@@ -283,16 +311,51 @@ pub fn actor_worlds(
             }
         }
     }
+    // Phase 16: arguments that take part in a read's predicate without
+    // being a recognized key: written to a column the predicate constrains
+    // in a conjunct that is not a plain `column = value` (a null-aware
+    // equality chosen by a conditional, `IS NULL`, a range), or compared
+    // with a column through a computation (`name = trim(lower($name))`).
+    // Varying such an argument between the actors changes what the check
+    // means, so the actors would no longer "share the key".
+    let mut checked: BTreeSet<(String, String)> = BTreeSet::new();
+    let mut in_predicate: BTreeSet<String> = BTreeSet::new();
+    for e in a
+        .summary
+        .db
+        .iter()
+        .filter(|e| matches!(e.access, crate::effects::Access::Read))
+    {
+        for (_, cols) in &e.other {
+            checked.extend(cols.iter().map(|c| (e.table.clone(), c.clone())));
+        }
+        for (_, v) in &e.eq {
+            if matches!(v, Val::Param { .. }) {
+                continue;
+            }
+            let mut leaves = Vec::new();
+            v.leaves(&mut leaves);
+            in_predicate.extend(leaves.into_iter().filter_map(|l| match l {
+                Val::Param { path } => Some(path),
+                _ => None,
+            }));
+        }
+    }
     let annotations = commitrift_analyzer::TsActorProvider::new(&index.root)
         .param_annotations(&index.root, &a.fact.selector);
     let mut out = Vec::new();
     for path in crate::synth::param_paths(a, index).keys() {
-        if keys.contains(path) {
+        if keys.contains(path)
+            || in_predicate.contains(path)
+            || column.get(path).is_some_and(|tc| checked.contains(tc))
+        {
             continue;
         }
+        // Phase 16: a zod enum is a literal domain too.
         let literals = annotations
             .get(path)
-            .and_then(|t| crate::domains::literal_members(t));
+            .and_then(|t| crate::domains::literal_members(t))
+            .or_else(|| crate::domains::zod_enum_members(a).remove(path));
         let first = get_path(&base_args[0], &a.summary.params, path);
         let Some(first) = first.filter(|v| !v.is_null()) else {
             continue;
@@ -317,6 +380,11 @@ pub fn actor_worlds(
             },
         };
         let Some(other) = other else { continue };
+        // Phase 16: a value the path's zod schema rejects is not a valid
+        // input.
+        if crate::domains::zod_accepts(a, path, &other) == Some(false) {
+            continue;
+        }
         out.push(WorldSpec {
             id: format!("actors-differ:{path}"),
             origin: WorldOrigin::Domain,
@@ -329,6 +397,7 @@ pub fn actor_worlds(
                 actors: (1..base_args.len()).collect(),
                 path: path.clone(),
                 value: other,
+                absent: false,
             }],
             cells: Vec::new(),
             feedback: None,

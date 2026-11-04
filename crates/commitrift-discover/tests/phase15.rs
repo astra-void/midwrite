@@ -157,15 +157,26 @@ fn worlds_app_finds_both_input_dependent_defects_and_keeps_the_safe_counterparts
     let export = by_entry(&r, "startExport");
     assert_eq!(export.status, "MODEL_COUNTEREXAMPLE");
     assert_eq!(deciding_world(export), "stored-boundary:quotas.remaining=1");
-    // A NULLS NOT DISTINCT unique key the model does not enforce: the
-    // model's violating schedule is not reported as a finding.
+    // Phase 16: the model enforces the NULLS NOT DISTINCT unique key (NULL
+    // equal to NULL), so the safe counterpart has no violating schedule in
+    // any world, the null one included. (Phase 15 reported INCONCLUSIVE:
+    // the model treated NULLs as distinct and found a schedule that the
+    // original code on PostgreSQL did not reproduce, 0/3; the lockstep
+    // differential of `crates/commitrift-model/tests/phase16_nulls.rs`
+    // shows model and PostgreSQL 17 agree on the rule.)
     let label = by_entry(&r, "createLabel");
-    assert_eq!(label.status, "INCONCLUSIVE");
-    assert!(
-        label.finding.contains("NULLS NOT DISTINCT"),
+    assert_eq!(
+        label.status, "NO_VIOLATION_WITHIN_BOUNDS",
         "{}",
         label.finding
     );
+    assert!(!label.finding.contains("INCONCLUSIVE"), "{}", label.finding);
+    assert!(label.scenarios.iter().any(|s| {
+        s.world.as_ref().is_some_and(|w| w.id == "null:parentId")
+            && s.model
+                .as_ref()
+                .is_some_and(|m| m.verdict == "NO_COUNTEREXAMPLE_WITHIN_BOUNDS" && m.complete)
+    }));
     // The atomic variant has no guarded-update candidate at all.
     assert!(r.candidates.iter().all(|c| {
         !c.candidate

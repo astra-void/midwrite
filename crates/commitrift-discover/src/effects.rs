@@ -362,6 +362,11 @@ struct Ctx<'a> {
     defs: BTreeMap<String, Vec<&'a Expr>>,
     /// local → (db effect, what the local holds).
     results: BTreeMap<String, (usize, ResultKind)>,
+    /// Phase 16: locals being expanded. A local reached again through its
+    /// own definitions (`i = i + 1`, the unrolled iterations of a loop) is
+    /// a leaf: expanding the cycle again adds no leaf, and expanding
+    /// chains of such locals is exponential in their number.
+    expanding: std::cell::RefCell<Vec<String>>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -370,7 +375,57 @@ enum ResultKind {
     Count,
 }
 
-impl Ctx<'_> {
+impl<'a> Ctx<'a> {
+    /// Phase 16: the expression of property `field` of the object literal
+    /// `e` denotes: an `Object`, the later operand of an `ObjectAssign`
+    /// that sets it (else the earlier one), or a local every definition of
+    /// which agrees on it (a definition that only adds other keys to the
+    /// local itself is skipped). `None` when it is not known exactly.
+    fn object_property<'e>(&'e self, e: &'e Expr, field: &str, depth: u32) -> Option<&'e Expr> {
+        use commitrift_model::value::Builtin;
+        if depth > 8 {
+            return None;
+        }
+        match e {
+            Expr::Object(fields) => fields.iter().find(|(k, _)| k == field).map(|(_, v)| v),
+            Expr::Call {
+                func: Builtin::ObjectAssign,
+                args,
+            } => match args.as_slice() {
+                [earlier, Expr::Object(later)] => match later.iter().find(|(k, _)| k == field) {
+                    Some((_, v)) => Some(v),
+                    None => self.object_property(earlier, field, depth + 1),
+                },
+                _ => None,
+            },
+            Expr::Local(name)
+                if !self.params.contains(name) && !self.results.contains_key(name) =>
+            {
+                let mut found: Option<&'e Expr> = None;
+                for d in self.defs.get(name)? {
+                    // An initial `null`/`undefined` slot, as in `local`.
+                    if matches!(d, Expr::Lit(Value::Null | Value::Undefined(_))) {
+                        continue;
+                    }
+                    let adds_others = matches!(d, Expr::Call { func: Builtin::ObjectAssign, args }
+                        if matches!(args.as_slice(), [Expr::Local(me), Expr::Object(later)]
+                            if me == name && !later.iter().any(|(k, _)| k == field)));
+                    if adds_others {
+                        continue;
+                    }
+                    let p = self.object_property(d, field, depth + 1)?;
+                    match found {
+                        None => found = Some(p),
+                        Some(f) if f == p => {}
+                        Some(_) => return None,
+                    }
+                }
+                found
+            }
+            _ => None,
+        }
+    }
+
     fn local(&self, name: &str, depth: u32) -> Val {
         if self.params.iter().any(|p| p == name) {
             return Val::Param {
@@ -388,6 +443,18 @@ impl Ctx<'_> {
                 text: name.to_owned(),
             };
         };
+        if self.expanding.borrow().iter().any(|n| n == name) {
+            return Val::Unknown {
+                text: name.to_owned(),
+            };
+        }
+        self.expanding.borrow_mut().push(name.to_owned());
+        let out = self.local_defs(name, defs, depth);
+        self.expanding.borrow_mut().pop();
+        out
+    }
+
+    fn local_defs(&self, name: &str, defs: &[&Expr], depth: u32) -> Val {
         // A helper's return slot is first initialized to `null`; the other
         // definition is the value it returns.
         let real: Vec<&&Expr> = defs
@@ -417,6 +484,12 @@ impl Ctx<'_> {
         match e {
             Expr::Lit(v) => Val::Lit { value: v.clone() },
             Expr::Local(name) => self.local(name, depth),
+            // Phase 16: a property of an object literal is that property's
+            // value (`({ k: e }).k` is `e`; the parsed value of a zod object
+            // schema is such a literal).
+            Expr::Field(base, field) if let Some(e) = self.object_property(base, field, 0) => {
+                self.val(e, depth + 1)
+            }
             Expr::Field(base, field) => match self.val(base, depth + 1) {
                 Val::Param { path } => Val::Param {
                     path: format!("{path}.{field}"),
@@ -590,6 +663,7 @@ pub fn summarize(extracted: &Extracted) -> EffectSummary {
         params: &extracted.params,
         defs,
         results,
+        expanding: Default::default(),
     };
     // Transactions (per code vector, in order).
     let mut tx_of: BTreeMap<(usize, usize), usize> = BTreeMap::new();
@@ -943,6 +1017,7 @@ mod tests {
                     into: into.into(),
                     joins: Vec::new(),
                     projection: None,
+                    many: None,
                 },
             },
         }

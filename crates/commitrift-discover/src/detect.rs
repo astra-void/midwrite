@@ -191,6 +191,23 @@ pub fn unique_sets(index: &ProjectIndex, table: &str) -> Vec<(Vec<String>, Optio
     out
 }
 
+/// Phase 16: the global unique sets (property names) of `table` declared
+/// `NULLS NOT DISTINCT`.
+pub fn nulls_not_distinct_sets(index: &ProjectIndex, table: &str) -> Vec<Vec<String>> {
+    let Some(t) = index.source_table(table) else {
+        return Vec::new();
+    };
+    let prop = |sql: &str| {
+        t.column_by_sql(sql)
+            .map_or_else(|| sql.to_owned(), |c| c.property.clone())
+    };
+    t.unique
+        .iter()
+        .filter(|u| u.nulls_not_distinct && u.predicate.is_none())
+        .map(|u| u.columns.iter().map(|c| prop(c)).collect())
+        .collect()
+}
+
 fn op(entry: usize, role: &str, e: &DbEffect) -> ConflictOp {
     ConflictOp {
         entry,
@@ -204,7 +221,7 @@ fn op(entry: usize, role: &str, e: &DbEffect) -> ConflictOp {
 }
 
 fn base_assumptions(a: &Analyzed) -> Vec<Assumption> {
-    let mut out = Vec::new();
+    let mut out = extraction_assumptions(a);
     match a.invocation().as_str() {
         "wrapper-awaited-when-guards-pass" => {
             let w = a.info.as_ref().and_then(|i| i.wrapper.as_ref());
@@ -238,6 +255,53 @@ fn base_assumptions(a: &Analyzed) -> Vec<Assumption> {
         _ => {}
     }
     out
+}
+
+/// Phase 16: the operations reachable from the handler of the innermost
+/// `try` block holding `at` (a retry loop's next iterations).
+fn retry_reach(s: &EffectSummary, at: (usize, usize)) -> BTreeSet<(usize, usize)> {
+    use commitrift_model::ir::Op;
+    let Some(code) = s.codes.get(at.0) else {
+        return BTreeSet::new();
+    };
+    let mut stack: Vec<usize> = Vec::new();
+    for step in code.iter().take(at.1) {
+        match &step.op {
+            Op::Try { handler, .. } => stack.push(*handler),
+            Op::EndTry => {
+                stack.pop();
+            }
+            _ => {}
+        }
+    }
+    match stack.last() {
+        Some(handler) => crate::effects::cfg_reach_from(code, *handler)
+            .into_iter()
+            .map(|pc| (at.0, pc))
+            .collect(),
+        None => BTreeSet::new(),
+    }
+}
+
+/// Phase 16: the loop, caught-error and request assumptions of the
+/// extraction (`loop ...`, `caught-errors: ...`, `request: ...`).
+fn extraction_assumptions(a: &Analyzed) -> Vec<Assumption> {
+    a.summary
+        .assumptions
+        .iter()
+        .filter_map(|text| {
+            let kind = if text.starts_with("loop ") {
+                "loop"
+            } else if text.starts_with("caught-errors: ") {
+                "caught-error"
+            } else if text.starts_with("request: ") {
+                "request"
+            } else {
+                return None;
+            };
+            Some(Assumption::new(kind, "source-derived", text.clone()))
+        })
+        .collect()
 }
 
 /// Unknown operations of an entry, and whether one can execute on a path
@@ -1773,8 +1837,12 @@ impl Detector<'_> {
                 && e.in_try
                 && (e.conn == Conn::Pool || (e.conn == Conn::Tx && e.tx.is_some()))
         }) {
+            // Phase 16: or a later iteration of a retry loop the handler
+            // continues to (the same write, reachable from the handler of
+            // the `try` that holds the first one).
+            let retried = retry_reach(s, first.at);
             let Some(second) = s.db.iter().find(|e| {
-                e.in_handler
+                (e.in_handler || (e.index != first.index && retried.contains(&e.at)))
                     && e.conn == first.conn
                     && e.access == first.access
                     && e.table == first.table

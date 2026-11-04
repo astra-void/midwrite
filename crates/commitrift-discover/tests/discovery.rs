@@ -137,8 +137,12 @@ fn labeled_entries_are_classified_as_labeled() {
         };
         assert_eq!(by[c.entry.as_str()], expected, "{}", c.entry);
     }
-    assert_eq!(e.unsupported_reported, 3);
-    assert_eq!(e.unsupported_missed, 0);
+    // Phase 16 models `request.json()`: the checkout route, labeled
+    // unsupported only because Phase 11 did not model it, is now analyzed
+    // (recorded in the labels' `corrections`, the label itself unchanged).
+    assert_eq!(e.unsupported_reported, 2);
+    assert_eq!(e.unsupported_missed, 1);
+    assert_eq!(e.labels_corrected, 1);
     // The false positive is against a hypothesis, never an established one.
     for c in own(r, "src/app/checkout.ts#checkoutIdempotent") {
         if c.status == "MODEL_COUNTEREXAMPLE" {

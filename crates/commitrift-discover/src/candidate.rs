@@ -193,7 +193,8 @@ pub struct Property {
 #[serde(rename_all = "camelCase")]
 pub struct Assumption {
     /// `invocation`, `concurrency`, `delivery`, `retry`, `fault`,
-    /// `external`, `precondition`, `bounds`.
+    /// `external`, `precondition`, `bounds`; Phase 16: `loop`,
+    /// `caught-error`, `request`.
     pub kind: String,
     /// `source-derived`, `declared`, `framework`, `discovery-default`.
     pub origin: String,

@@ -19,7 +19,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::Serialize;
 
 use commitrift_model::ir::Op;
-use commitrift_model::value::{BinOp, Expr, Value};
+use commitrift_model::value::{BinOp, Builtin, Expr, Value};
+use commitrift_model::zodfn;
 
 use crate::detect::Analyzed;
 use crate::effects::Val;
@@ -82,6 +83,14 @@ pub enum ValueClass {
     },
     /// The opposite of a boolean the code tests.
     Negated,
+    /// Phase 16: the key is absent from its object (the path's zod schema
+    /// admits a missing key; distinct from a key present with `undefined`).
+    Absent,
+    /// Phase 16: the key is present with a value its zod schema accepts
+    /// (the base world omits the optional key).
+    Present {
+        value: Value,
+    },
 }
 
 impl ValueClass {
@@ -99,6 +108,9 @@ impl ValueClass {
                 Value::Bool(b) => Value::Bool(!b),
                 _ => return None,
             },
+            // Phase 16: a removal, applied by the world (not a value).
+            Self::Absent => return None,
+            Self::Present { value } => value.clone(),
         };
         (v != *base).then_some(v)
     }
@@ -111,7 +123,206 @@ impl ValueClass {
             Self::BelowOperand { operand } => format!("{path} = {} (below {operand})", operand - 1),
             Self::AboveOperand { operand } => format!("{path} = {} (above {operand})", operand + 1),
             Self::Negated => format!("{path} negated"),
+            Self::Absent => format!("{path} absent (the key is missing)"),
+            Self::Present { value } => format!("{path} = {} (the key is present)", value.render()),
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Phase 16: zod-validated inputs
+// ---------------------------------------------------------------------------
+
+/// Phase 16: a parameter path whose value a zod schema validates (a
+/// `ZodCheck` the extractor emitted for `schema.parse(path)`).
+#[derive(Clone, Debug)]
+pub struct ZodInput {
+    pub path: String,
+    pub version: zodfn::Version,
+    pub schema: zodfn::Schema,
+}
+
+/// Phase 16: the zod-validated parameter paths of `a` (the input of a
+/// `ZodCheck`, followed through the local it is bound to).
+pub fn zod_inputs(a: &Analyzed) -> Vec<ZodInput> {
+    let params = &a.summary.params;
+    let mut defs: BTreeMap<&str, Vec<&Expr>> = BTreeMap::new();
+    for op in a.summary.codes.iter().flatten().map(|s| &s.op) {
+        if let Op::Let { local, expr } = op {
+            defs.entry(local.as_str()).or_default().push(expr);
+        }
+    }
+    let path = |e: &Expr| -> Option<String> {
+        let mut e = e;
+        for _ in 0..4 {
+            if let Some(p) = path_of(e, params) {
+                return Some(p);
+            }
+            match e {
+                Expr::Local(l) => match defs.get(l.as_str()).map(Vec::as_slice) {
+                    Some([one]) => e = one,
+                    _ => return None,
+                },
+                _ => return None,
+            }
+        }
+        None
+    };
+    let mut out: Vec<ZodInput> = Vec::new();
+    for op in a.summary.codes.iter().flatten().map(|s| &s.op) {
+        let Op::Let {
+            expr:
+                Expr::Call {
+                    func: Builtin::ZodCheck,
+                    args,
+                },
+            ..
+        } = op
+        else {
+            continue;
+        };
+        let [Expr::Lit(desc), input] = args.as_slice() else {
+            continue;
+        };
+        let (Ok((version, schema)), Some(p)) = (zodfn::from_value(desc), path(input)) else {
+            continue;
+        };
+        if !out.iter().any(|z| z.path == p && z.schema == schema) {
+            out.push(ZodInput {
+                path: p,
+                version,
+                schema,
+            });
+        }
+    }
+    out
+}
+
+/// Phase 16: the schema (with its wrappers) of the field at `rest` (dotted)
+/// below an object schema.
+pub fn zod_field<'s>(schema: &'s zodfn::Schema, rest: &str) -> Option<&'s zodfn::Schema> {
+    let mut cur = schema;
+    for part in rest.split('.').filter(|p| !p.is_empty()) {
+        let mut obj = cur;
+        while let zodfn::Schema::Optional(s)
+        | zodfn::Schema::Nullable(s)
+        | zodfn::Schema::Default(s, _) = obj
+        {
+            obj = s;
+        }
+        let (fields, _) = obj.object()?;
+        cur = &fields.iter().find(|(k, _)| k == part)?.1;
+    }
+    Some(cur)
+}
+
+/// Phase 16: whether the zod schema validating `path` (a validated path or
+/// a field below one) accepts `value` there; `None` when no modeled schema
+/// validates the path or the outcome is not modeled.
+pub fn zod_accepts(a: &Analyzed, path: &str, value: &Value) -> Option<bool> {
+    for z in zod_inputs(a) {
+        let rest = if path == z.path {
+            ""
+        } else {
+            match path.strip_prefix(&format!("{}.", z.path)) {
+                Some(r) => r,
+                None => continue,
+            }
+        };
+        let field = zod_field(&z.schema, rest)?;
+        return zodfn::parse(z.version, field, value)
+            .ok()
+            .map(|o| o.is_some());
+    }
+    None
+}
+
+/// Phase 16: the members of every zod enum (or string literal) a
+/// validated path holds, by path.
+pub fn zod_enum_members(a: &Analyzed) -> BTreeMap<String, Vec<String>> {
+    let mut out = BTreeMap::new();
+    for z in zod_inputs(a) {
+        let mut fields = vec![(z.path.clone(), &z.schema)];
+        zod_paths(&z.path, &z.schema, &mut fields);
+        for (p, mut s) in fields {
+            while let zodfn::Schema::Optional(i)
+            | zodfn::Schema::Nullable(i)
+            | zodfn::Schema::Default(i, _) = s
+            {
+                s = i;
+            }
+            let members = match s {
+                zodfn::Schema::Enum(items) => items.clone(),
+                zodfn::Schema::Literal(Value::Str(t)) => vec![t.clone()],
+                _ => continue,
+            };
+            out.entry(p).or_insert(members);
+        }
+    }
+    out
+}
+
+/// Phase 16: every field path of an object schema (`base.key`, nested
+/// objects below), with the field's schema.
+fn zod_paths<'s>(
+    base: &str,
+    schema: &'s zodfn::Schema,
+    out: &mut Vec<(String, &'s zodfn::Schema)>,
+) {
+    let mut obj = schema;
+    while let zodfn::Schema::Optional(s)
+    | zodfn::Schema::Nullable(s)
+    | zodfn::Schema::Default(s, _) = obj
+    {
+        obj = s;
+    }
+    let Some((fields, _)) = obj.object() else {
+        return;
+    };
+    for (k, s) in fields {
+        let p = format!("{base}.{k}");
+        out.push((p.clone(), s));
+        zod_paths(&p, s, out);
+    }
+}
+
+/// Phase 16: the domain facts a zod schema states for one path: its kind,
+/// whether `null`/`undefined` are accepted, whether the key may be absent,
+/// and a valid value.
+struct ZodFacts {
+    kind: DomainKind,
+    null: bool,
+    undefined: bool,
+    absent: bool,
+    valid: Option<Value>,
+    text: String,
+}
+
+fn zod_facts(z: &ZodInput, field: &zodfn::Schema, keyed: bool, name: &str) -> ZodFacts {
+    use zodfn::{Schema, StrCheck};
+    let accepts = |v: &Value| matches!(zodfn::parse(z.version, field, v), Ok(Some(_)));
+    let mut inner = field;
+    while let Schema::Optional(s) | Schema::Nullable(s) | Schema::Default(s, _) = inner {
+        inner = s;
+    }
+    let kind = match inner {
+        Schema::Str(checks) if checks.contains(&StrCheck::Uuid) => DomainKind::Uuid,
+        Schema::Str(_) => DomainKind::String,
+        Schema::Num(_) => DomainKind::Integer,
+        Schema::Bool => DomainKind::Boolean,
+        Schema::Enum(_) => DomainKind::Enum,
+        Schema::Literal(_) => DomainKind::Enum,
+        Schema::Array(..) => DomainKind::Array,
+        Schema::Object(_) | Schema::StrictObject(_) | Schema::LooseObject(_) => DomainKind::Object,
+        _ => DomainKind::Unknown,
+    };
+    ZodFacts {
+        kind,
+        null: accepts(&Value::Null),
+        undefined: accepts(&Value::undefined()),
+        absent: keyed && !matches!(zodfn::absent(z.version, field), Ok(zodfn::Absent::Fail)),
+        valid: zodfn::conform(z.version, inner, None, name),
+        text: zodfn::render(field),
     }
 }
 
@@ -488,7 +699,93 @@ pub fn entry_domains(a: &Analyzed, index: &ProjectIndex) -> Vec<PathDomain> {
             classes,
         });
     }
+    zod_domains(a, declared, &fixed, &mut out);
     out
+}
+
+/// Phase 16: a zod schema is the source contract of the paths it validates:
+/// its kind, whether `null` and `undefined` are accepted, whether a key may
+/// be absent (a missing key, `undefined` and `null` are three observable
+/// inputs: `{}`, `{ k: undefined }`, `{ k: null }` parse differently). Every
+/// field of a validated object gets a domain, whether the code reads it or
+/// not; declared values are not varied.
+fn zod_domains(a: &Analyzed, declared: bool, fixed: &BTreeSet<&String>, out: &mut Vec<PathDomain>) {
+    let permit = |b: bool| {
+        if b {
+            Permission::Permitted
+        } else {
+            Permission::Excluded
+        }
+    };
+    for z in zod_inputs(a) {
+        let mut fields = vec![(z.path.clone(), &z.schema)];
+        zod_paths(&z.path, &z.schema, &mut fields);
+        for (p, field) in fields {
+            let keyed = p != z.path;
+            let name = p.rsplit('.').next().unwrap_or(&p).to_owned();
+            let f = zod_facts(&z, field, keyed, &name);
+            let i = match out.iter().position(|d| d.path == p) {
+                Some(i) => i,
+                None => {
+                    out.push(PathDomain {
+                        path: p.clone(),
+                        kind: f.kind,
+                        key: false,
+                        null: Permission::Excluded,
+                        undefined: Permission::Excluded,
+                        provenance: Vec::new(),
+                        classes: Vec::new(),
+                    });
+                    out.len() - 1
+                }
+            };
+            let d = &mut out[i];
+            // A column's kind (uuid, timestamp, ...) is kept unless the
+            // schema is more precise.
+            if matches!(
+                d.kind,
+                DomainKind::String | DomainKind::Unknown | DomainKind::Object
+            ) || matches!(f.kind, DomainKind::Uuid | DomainKind::Enum)
+            {
+                d.kind = f.kind;
+            }
+            d.provenance.push(format!(
+                "zod {} schema of `{}`: `{}`{}",
+                z.version.tag(),
+                z.path,
+                f.text,
+                if f.absent {
+                    " (the key may be absent)"
+                } else {
+                    ""
+                }
+            ));
+            if declared || fixed.contains(&p) {
+                d.null = Permission::Excluded;
+                d.undefined = Permission::Excluded;
+                d.classes.clear();
+                continue;
+            }
+            d.null = permit(f.null);
+            d.undefined = permit(f.undefined);
+            d.classes
+                .retain(|c| !matches!(c, ValueClass::Null | ValueClass::Undefined));
+            if f.null {
+                d.classes.push(ValueClass::Null);
+            }
+            if f.undefined {
+                d.classes.push(ValueClass::Undefined);
+            }
+            if f.absent {
+                d.classes.push(ValueClass::Absent);
+                if let Some(v) = f.valid {
+                    d.classes.push(ValueClass::Present { value: v });
+                }
+            }
+            d.classes.sort();
+            d.classes.dedup();
+        }
+    }
 }
 
 #[cfg(test)]

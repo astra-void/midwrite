@@ -172,5 +172,12 @@
       "why": "request.json() is not modeled; the checkout service is analyzed as its own entry"
     }
   ],
-  "corrections": []
+  "corrections": [
+    {
+      "date": "2026-10-29",
+      "entry": "src/app/api/checkout/route.ts#POST",
+      "label": "unsupported (unchanged)",
+      "reason": "The label records a capability of the Phase 11 tool (\"request.json() is not modeled\"), not a property of the code. Phase 16 models `await request.json()` and `Response.json` (docs/phase16/FRAMEWORK-REQUESTS.md), so the route is now extracted and model-checked like the checkout service it forwards to, and the evaluation counts it as `missed` (not reported unsupported). The label is not edited: its ground truth for the stated property was never written, and the entry's behavior is that of src/app/checkout.ts#checkout, which is labeled separately."
+    }
+  ]
 }

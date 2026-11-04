@@ -1693,6 +1693,15 @@ fn model_check(
             .terms
             .iter()
             .map(|t| format!("{} = {}", t.term, t.value.render()))
+            // Phase 16: why a formula over generated identities failed
+            // (identity mismatch vs absent or stale value); empty for every
+            // earlier invariant.
+            .chain(
+                w.final_state
+                    .diagnosis
+                    .iter()
+                    .map(|d| format!("diagnosis: {d}")),
+            )
             .collect();
         // Validation: strict replay, violation, operations exercised.
         let replayed = commitrift_model::witness::replay(&model, &w.schedule, true);
@@ -1762,9 +1771,13 @@ fn deciding_scenario(scenarios: &[ScenarioResult]) -> Option<&ScenarioResult> {
 
 /// Phase 15: a unique rule of the candidate's table that the model does not
 /// enforce although PostgreSQL does: `NULLS NOT DISTINCT` over a nullable
-/// column (the model treats NULLs as distinct).
+/// column. Phase 16: the model enforces such a rule when it models every
+/// column of it (the scenario loader then lists it with NULL equal to NULL);
+/// only a rule with an unmodeled column (or on an unmodeled table) is still
+/// unenforced. Partial unique indexes are handled apart (`protections`).
 fn unenforced_unique(c: &Candidate, index: &ProjectIndex) -> Option<String> {
     let t = index.source_table(&c.resource.table)?;
+    let modeled = index.table_by_name(&c.resource.table);
     t.unique
         .iter()
         .find(|u| {
@@ -1773,6 +1786,10 @@ fn unenforced_unique(c: &Candidate, index: &ProjectIndex) -> Option<String> {
                 && u.columns
                     .iter()
                     .any(|col| t.column_by_sql(col).is_some_and(|x| !x.not_null))
+                && !u.columns.iter().all(|col| {
+                    t.column_by_sql(col)
+                        .is_some_and(|x| modeled.is_some_and(|m| m.columns.contains(&x.property)))
+                })
         })
         .map(|u| {
             format!(
@@ -1873,12 +1890,13 @@ fn status_of(
                 );
             }
             // Phase 15: the same for a NULLS NOT DISTINCT unique rule over
-            // a nullable column.
+            // a nullable column (Phase 16: only one the model does not
+            // enforce, see `unenforced_unique`).
             if let Some(rule) = unenforced {
                 return (
                     "INCONCLUSIVE".to_owned(),
                     format!(
-                        "INCONCLUSIVE: the model found a violating schedule, but the table has a {rule}, which the model does not enforce (it treats NULLs as distinct); PostgreSQL may reject the duplicate the schedule creates, so it is not reported as a counterexample."
+                        "INCONCLUSIVE: the model found a violating schedule, but the table has a {rule}, which the model does not enforce (a column of it is not modeled); PostgreSQL may reject the duplicate the schedule creates, so it is not reported as a counterexample."
                     ),
                 );
             }
