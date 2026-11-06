@@ -54,6 +54,7 @@ mod project;
 mod recognize;
 mod resolve;
 pub mod schema;
+mod sdk;
 mod semantic;
 
 pub(crate) use concurrency::expression_kind as concurrency_kind;
@@ -366,6 +367,7 @@ impl Analyzer {
         &self,
         path: &str,
         source: &str,
+        sdk: Option<&sdk::ImportedClients>,
     ) -> Result<LoweredModule, ParseFailure> {
         let allocator = Allocator::default();
         let source_type =
@@ -392,7 +394,7 @@ impl Analyzer {
         }
 
         let semantic = SemanticBuilder::new().build(&parsed.program).semantic;
-        let table = bindings::SymbolTable::collect(&parsed.program, semantic.scoping());
+        let table = bindings::SymbolTable::collect(&parsed.program, semantic.scoping(), sdk);
         let recognizer = recognize::Recognizer {
             config: &self.config,
             scoping: semantic.scoping(),
@@ -508,7 +510,7 @@ impl Analyzer {
     /// of functions declared in the same file are replaced by the callees'
     /// summaries; calls of imported functions stay unknown effects.
     pub fn lower_source(&self, path: &str, source: &str) -> Result<FileIr, ParseFailure> {
-        let module = self.lower_module(path, source)?;
+        let module = self.lower_module(path, source, None)?;
         let views = [module.view(0)];
         let mut imports = NoImports;
         let classes = ClassTable::build(&views, &mut imports);

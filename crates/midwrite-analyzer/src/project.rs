@@ -310,14 +310,23 @@ pub(crate) fn analyze(
     let mut paths: Vec<PathBuf> = Vec::new();
     let mut names: Vec<String> = Vec::new();
     let mut failures = Vec::new();
-    let lowered_files = parallel_map(files.iter().collect(), |file: &PathBuf| {
-        let display = name_of(file);
-        read(file).and_then(|source| {
-            analyzer
-                .lower_module(&display, &source)
-                .map_err(|failure| parse_failure(display.clone(), failure))
-        })
-    });
+    // DEV-148: SDK clients each file imports from project modules.
+    let sdk_imports = if analyzer.config().builtin_effects {
+        imported_sdk_clients(files, &name_of)
+    } else {
+        vec![crate::sdk::ImportedClients::new(); files.len()]
+    };
+    let lowered_files = parallel_map(
+        files.iter().zip(&sdk_imports).collect(),
+        |(file, sdk): (&PathBuf, &crate::sdk::ImportedClients)| {
+            let display = name_of(file);
+            read(file).and_then(|source| {
+                analyzer
+                    .lower_module(&display, &source, Some(sdk))
+                    .map_err(|failure| parse_failure(display.clone(), failure))
+            })
+        },
+    );
     for (file, lowered) in files.iter().zip(lowered_files) {
         let display = name_of(file);
         match lowered {
@@ -541,6 +550,85 @@ pub(crate) fn analyze(
             }),
         },
     }
+}
+
+/// DEV-148: for every file, the SDK clients it imports from project modules
+/// (`import { resend } from "@/services/resend"`, where that module does
+/// `export const resend = new Resend(key)`), following re-exports.
+fn imported_sdk_clients(
+    files: &[PathBuf],
+    name_of: &(dyn Fn(&PathBuf) -> String + Sync),
+) -> Vec<crate::sdk::ImportedClients> {
+    use oxc_allocator::Allocator;
+    use oxc_parser::Parser;
+    use oxc_span::SourceType;
+    let facts: Vec<crate::sdk::FileFacts> =
+        parallel_map(files.iter().collect(), |file: &PathBuf| {
+            let Ok(source) = std::fs::read_to_string(file) else {
+                return crate::sdk::FileFacts::default();
+            };
+            let allocator = Allocator::default();
+            let source_type = SourceType::from_path(file).unwrap_or_else(|_| SourceType::ts());
+            let parsed = Parser::new(&allocator, &source, source_type).parse();
+            if parsed.fatal_error {
+                return crate::sdk::FileFacts::default();
+            }
+            crate::sdk::file_facts(&parsed.program)
+        });
+    if facts.iter().all(|f| f.exports.is_empty()) {
+        return vec![crate::sdk::ImportedClients::new(); files.len()];
+    }
+    let paths: Vec<PathBuf> = files.iter().map(|f| absolute(f)).collect();
+    let mut resolver = Resolver::new(&paths, files.iter().map(name_of).collect());
+    fn lookup(
+        file: usize,
+        name: &str,
+        depth: usize,
+        facts: &[crate::sdk::FileFacts],
+        paths: &[PathBuf],
+        resolver: &mut Resolver,
+    ) -> Option<crate::sdk::Export> {
+        if depth > 8 {
+            return None;
+        }
+        let here = &facts[file];
+        if let Some(export) = here.exports.get(name) {
+            return Some(*export);
+        }
+        for (exported, specifier, imported) in &here.reexports {
+            if exported == name
+                && let Resolution::File(target) = resolver.resolve(&paths[file], specifier)
+            {
+                return lookup(target, imported, depth + 1, facts, paths, resolver);
+            }
+        }
+        if name == "default" {
+            return None;
+        }
+        for specifier in &here.stars {
+            if let Resolution::File(target) = resolver.resolve(&paths[file], specifier)
+                && let Some(export) = lookup(target, name, depth + 1, facts, paths, resolver)
+            {
+                return Some(export);
+            }
+        }
+        None
+    }
+    facts
+        .iter()
+        .enumerate()
+        .map(|(file, here)| {
+            let mut out = crate::sdk::ImportedClients::new();
+            for (specifier, name) in &here.imports {
+                if let Resolution::File(target) = resolver.resolve(&paths[file], specifier)
+                    && let Some(export) = lookup(target, name, 0, &facts, &paths, &mut resolver)
+                {
+                    out.insert((specifier.clone(), name.clone()), export);
+                }
+            }
+            out
+        })
+        .collect()
 }
 
 /// `items.map(f)` on a few threads, in input order. The output does not
