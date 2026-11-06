@@ -4,7 +4,7 @@
  "kind": "midwrite.eval-labels",
  "project": "zero",
  "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
- "set": "held-out",
+ "set": "dev",
  "labeling": {
   "knownPositives": {
    "by": "AI agent (Claude), source-only audit",

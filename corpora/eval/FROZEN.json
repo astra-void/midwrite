@@ -20,13 +20,13 @@
       "frozenAtUtc": "2026-11-04T23:17:23Z",
       "history": []
     },
-    "zero": {
-      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+    "vercel-chatbot": {
+      "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
       "files": {
-        "corpora/configs/zero.json": "68ff38d2cd75fb3fe33ea4b4751d3fe826be7e34dbab0f71e520967aaa4735ec",
-        "corpora/eval/labels/zero.json": "2076f2b4ac02bc8d920ea03eab93aad6384f994882e5eca98e9ea845e65041b9"
+        "corpora/configs/vercel-chatbot.json": "e74e388fbf52f3c5bee158877f83448313e3d00a668d2f38fe2e584198a14130",
+        "corpora/eval/labels/vercel-chatbot.json": "22b2694cccae17f8fa82af59fb31f7e973d49f318b79e0a53b6a5f9b91dd8d07"
       },
-      "frozenAtUtc": "2026-11-04T23:17:23Z",
+      "frozenAtUtc": "2026-11-06T04:49:38Z",
       "history": []
     }
   }

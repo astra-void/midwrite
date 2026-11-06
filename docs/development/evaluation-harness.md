@@ -20,9 +20,11 @@ still scored by `scripts/phase1N-eval.py`. This harness scores static
 | midday | dev | `51587319` | the project the rules were developed against (Phases 2–16) |
 | kan (kanbn/kan) | held-out | `1cc2f332` | tRPC + repositories, email, webhooks, Stripe, S3 |
 | dittofeed | held-out | `91277939` | Postgres through `db()`, Temporal, ClickHouse, Kafka |
-| zero (Mail-0/Zero) | held-out | `36132735` | Workers + Durable Objects, Gmail APIs, queues, R2/KV |
+| zero (Mail-0/Zero) | dev (held-out until 2026-11-06) | `36132735` | Workers + Durable Objects, Gmail APIs, queues, R2/KV |
+| vercel-chatbot (vercel/chatbot) | held-out (since 2026-11-06) | `a8989b52` | Next.js AI chat: queries in `lib/db/queries.ts`, Vercel Blob, Redis streams and rate limit |
 
-Reserve: vercel/chatbot. Every project uses Drizzle + PostgreSQL. The first
+Reserve: empty; add a project before the next held-out project moves to
+dev. Every project uses Drizzle + PostgreSQL. The first
 proposed candidates (cal.com, dub, documenso, formbricks) use Prisma, which
 Midwrite does not analyze.
 
@@ -134,3 +136,41 @@ Record: [`reports/eval/2026-11-05-first-scoring.json`](../../reports/eval/2026-1
   from Midday". Those are the Phase 16 synthetic frozen set's
   `discover --model-check` scores, not Midday's. Midday has never produced a
   model counterexample.
+
+## Second scoring (2026-11-06)
+
+Record: [`reports/eval/2026-11-06-second-scoring.json`](../../reports/eval/2026-11-06-second-scoring.json)
+(release build of commit `87186c0`; the analyzer is unchanged since the first
+scoring).
+
+Changes to the sets, following the rules above (`sets.json` `history`):
+
+* Zero moved to dev, so its `fetch` false positives can be fixed. Its frozen
+  entry was removed from `FROZEN.json`.
+* vercel/chatbot was promoted from reserve, pinned at `a8989b52`. Its
+  configuration was written from source before the analyzer ran on it. The
+  8 known positives come from a source-only audit, and a separate agent
+  classified the 11 findings without seeing them. 2 auditor/labeler
+  disagreements are in `reviewQueue`: the Redis rate-limit increment and the
+  resumable-stream row, which the labeler called intended-risk.
+
+| set | precision (hazard) | bug precision | recall |
+| --- | --- | --- | --- |
+| dev (midday + zero) | 0.84 (74/88) | 0.26 (23/88) | 0.30 (3/10), zero only |
+| **held-out** | **0.96 (118/123)** | 0.46 (57/123) | **0.77 (48/62)** |
+| kan | 0.96 (87/91) | 0.47 (43/91) | 0.94 (31/33) |
+| dittofeed | 0.95 (20/21) | 0.24 (5/21) | 0.48 (10/21) |
+| vercel-chatbot | 1.00 (11/11) | 0.82 (9/11) | 0.88 (7/8) |
+
+**Stage-1 gate: PASS** (0.96 ≥ 0.9).
+
+* The pass comes from changing the sets, not from a better analyzer. kan
+  and dittofeed alone already score 0.96 (107/112). vercel-chatbot adds
+  only 11 findings: a small project whose Drizzle helpers have no
+  transactions, so most windows are plain independent-commit chains
+  (MW1004).
+* The `fetch` rule that produced Zero's false positives is unchanged. It is
+  now dev work.
+* All labels are still AI-only, with no human review.
+* vercel-chatbot's one missed known positive is KP04: per-message
+  `updateMessage` / `saveMessages` calls inside `Promise.all` in `onEnd`.
