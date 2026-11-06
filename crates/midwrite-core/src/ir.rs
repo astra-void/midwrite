@@ -611,6 +611,10 @@ pub enum Execution {
     Awaited,
     /// Returned from an `async` function, which adopts and awaits it.
     Returned,
+    /// A lazy database builder returned from a non-async function: it runs
+    /// only if the caller awaits the call. Inlining into an awaiting caller
+    /// turns it into [`Execution::Returned`]; a fire-and-forget call drops it.
+    ReturnedLazy,
     /// Started without being awaited; it may complete after later operations.
     FireAndForget,
     /// Started together with other operations (e.g. `Promise.all`).
@@ -619,7 +623,7 @@ pub enum Execution {
 
 impl Execution {
     pub fn is_ordered(self) -> bool {
-        matches!(self, Self::Awaited | Self::Returned)
+        matches!(self, Self::Awaited | Self::Returned | Self::ReturnedLazy)
     }
 }
 

@@ -9,7 +9,7 @@ Concept summary: [supported semantics](../concepts/supported-semantics.md).
 
 | pattern | support |
 | --- | --- |
-| Drizzle writes `db.insert/update/delete(...)…` | executed when awaited, returned from an `async` function, run by `Promise.all`, or ended with `.execute()`/`.then()`; a builder that is only constructed is not a write |
+| Drizzle writes `db.insert/update/delete(...)…` | executed when awaited, returned from an `async` function, run by `Promise.all`, or ended with `.execute()`/`.then()`; a builder returned from a non-`async` function (`(db) => db.update(t)…`, `function save() { return db.insert(t)… }`) runs where the caller awaits the call, and not where the call is unawaited (an unawaited `xs.map(cb)`); a builder that is only constructed is not a write |
 | Drizzle reads `db.select(...)`, `db.query.<t>.findFirst/findMany`, `db.$count` | recognized; never a commit |
 | `db.transaction(async (tx) => …)` | writes on `tx` commit when the callback completes; nested `tx.transaction` = savepoint; writes on `db` inside are not part of the transaction; `tx.rollback()` is an exit |
 | builders stored in a `const` and awaited later | `const q = db.update(t).set(v); await q;` |

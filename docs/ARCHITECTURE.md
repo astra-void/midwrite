@@ -204,7 +204,7 @@ EffectKind = DatabaseRead { handle, table? }
            | Unknown { reason, detail }
 
 DbHandle   = Root { name } | Transaction { id }
-Execution  = awaited | returned | fireAndForget | concurrent
+Execution  = awaited | returned | returnedLazy | fireAndForget | concurrent   // returnedLazy: a builder a non-async function returns (DEV-148)
 SummaryOrigin = { calls: [CallSite { call, callee, label, location, callee_location }], on_every_path }
 Arm        = { label, body, facts: [Fact] }        // Fact = Never | Truthy | Equals | NotEquals on a variable
 DbHandle  += Parameter { index, name, configured } // bound by callers (Phase 2)

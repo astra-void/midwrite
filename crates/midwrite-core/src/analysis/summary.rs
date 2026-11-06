@@ -1039,6 +1039,10 @@ impl<'a> Inliner<'a> {
             binding: site_info.binding.as_deref(),
             binding_members: site_info.binding_members,
             outer: call_effect.execution,
+            // A lazy builder a non-async callee returns runs only if the
+            // call's result is awaited; a fire-and-forget call (an unawaited
+            // `xs.map(cb)`) never runs it.
+            drop_returned: std::cell::Cell::new(call_effect.execution == Execution::FireAndForget),
             frame: u64::from(call.0) + 1,
             values: &site_info.values,
             receiver: site_info.receiver.as_ref(),
@@ -1209,6 +1213,9 @@ struct Remap<'a> {
     /// ordered operations concurrent, a fire-and-forget call makes them
     /// fire-and-forget (the caller does not wait for them).
     outer: Execution,
+    /// Leave out the callee's [`Execution::ReturnedLazy`] builders (outside
+    /// transaction scopes): see where it is set.
+    drop_returned: std::cell::Cell<bool>,
     frame: u64,
     values: &'a [AbsValue],
     receiver: Option<&'a AbsValue>,
@@ -1345,6 +1352,11 @@ impl Remap<'_> {
     }
 
     fn execution(&self, execution: Execution) -> Execution {
+        // The call is consumed, so a builder the callee returns runs.
+        let execution = match execution {
+            Execution::ReturnedLazy => Execution::Returned,
+            other => other,
+        };
         match self.outer {
             Execution::Concurrent if execution.is_ordered() => Execution::Concurrent,
             Execution::FireAndForget if execution.is_ordered() => Execution::FireAndForget,
@@ -1353,10 +1365,19 @@ impl Remap<'_> {
     }
 
     fn nodes(&self, nodes: &[Node], next_effect: &mut u32) -> Vec<Node> {
-        nodes
-            .iter()
-            .map(|node| self.node(node, next_effect))
-            .collect()
+        let mut out = Vec::with_capacity(nodes.len());
+        for node in nodes {
+            if self.drop_returned.get()
+                && matches!(node, Node::Effect(effect) if effect.execution == Execution::ReturnedLazy)
+            {
+                // Keep the ids of the remaining effects where `positions`
+                // puts them.
+                *next_effect += 1;
+                continue;
+            }
+            out.push(self.node(node, next_effect));
+        }
+        out
     }
 
     fn arms(&self, arms: &[Arm], next_effect: &mut u32) -> Vec<Arm> {
@@ -1408,11 +1429,17 @@ impl Remap<'_> {
                     provenance,
                 })
             }
-            Node::Transaction(scope) => Node::Transaction(TransactionScope {
-                transaction: self.transaction(scope.transaction),
-                execution: self.execution(scope.execution),
-                body: self.nodes(&scope.body, next_effect),
-            }),
+            Node::Transaction(scope) => {
+                // Operations a transaction callback returns run with it.
+                let dropping = self.drop_returned.replace(false);
+                let body = self.nodes(&scope.body, next_effect);
+                self.drop_returned.set(dropping);
+                Node::Transaction(TransactionScope {
+                    transaction: self.transaction(scope.transaction),
+                    execution: self.execution(scope.execution),
+                    body,
+                })
+            }
             Node::Call(call) => Node::Call(CallScope {
                 call: self.call(call.call),
                 callee: call.callee.clone(),

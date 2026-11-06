@@ -209,7 +209,9 @@ fn explicit_execute_without_await_is_fire_and_forget() {
 }
 
 #[test]
-fn async_return_executes_a_builder_but_sync_return_does_not() {
+fn async_return_executes_a_builder_and_sync_return_leaves_it_to_the_caller() {
+    // DEV-148: a builder a non-async function returns runs when the caller
+    // awaits the call (`ReturnedLazy`); inlining decides (tests/returned_builders.rs).
     let ir = Analyzer::default()
         .lower_source(
             "test.ts",
@@ -222,7 +224,10 @@ fn async_return_executes_a_builder_but_sync_return_does_not() {
     assert_eq!(ir.functions[0].name, "executes");
     assert_eq!(ir.functions[0].effects()[0].execution, Execution::Returned);
     assert_eq!(ir.functions[1].name, "builds");
-    assert!(ir.functions[1].effects().is_empty());
+    assert_eq!(
+        ir.functions[1].effects()[0].execution,
+        Execution::ReturnedLazy
+    );
 }
 
 #[test]

@@ -480,7 +480,7 @@ impl Draft {
 fn execution_name(effect: &Effect) -> &'static str {
     match effect.execution {
         crate::ir::Execution::Awaited => "awaited",
-        crate::ir::Execution::Returned => "returned",
+        crate::ir::Execution::Returned | crate::ir::Execution::ReturnedLazy => "returned",
         crate::ir::Execution::FireAndForget => "fireAndForget",
         crate::ir::Execution::Concurrent => "concurrent",
     }
