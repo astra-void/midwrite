@@ -385,6 +385,15 @@
    "function": "<anonymous@638:15>",
    "classification": "intended-risk",
    "notes": "If the KV delete fails after the unsnooze label change (mail.ts:642-648), the stale key is consumed by the cron unsnooze path, which repeats the idempotent change."
+  },
+  {
+   "findingId": "183f20efdc6b6c5f",
+   "code": "MW1002",
+   "file": "apps/server/src/routes/assistant.ts",
+   "line": 253,
+   "function": "decideAction",
+   "classification": "intended-risk",
+   "notes": "The window is real: the action is claimed as 'running' (assistant.ts:233-249), the mail is sent (253), and only then is it marked 'completed' (254-259). A crash in between leaves the action stuck in 'running' and nothing sweeps it. The comment at 231-232 accepts this on purpose (it is never retried automatically because duplicate mail is worse than an error), and the catch at 261-271 marks it failed and tells the user to check their mailbox. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 returned-builder change.)"
   }
  ],
  "corrections": [],
@@ -393,6 +402,13 @@
    "knownPositive": "zero-KP09",
    "findings": [
     "dffdf9b53fcef78a"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  },
+  {
+   "knownPositive": "zero-KP08",
+   "findings": [
+    "183f20efdc6b6c5f"
    ],
    "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
   }

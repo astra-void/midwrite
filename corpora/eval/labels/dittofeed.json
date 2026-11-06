@@ -430,6 +430,15 @@
    "function": "handleOauthCallback",
    "classification": "true-positive",
    "notes": "handleOauthCallback (dashboard/src/lib/oauth.ts:258-323) commits tokens and the integration before startHubspotIntegrationWorkflow (its only caller); a failure leaves the integration enabled without a sync workflow."
+  },
+  {
+   "findingId": "9ce210754461e404",
+   "code": "MW1004",
+   "file": "packages/backend-lib/src/requestContext.ts",
+   "line": 353,
+   "function": "getMultiTenantRequestContext",
+   "classification": "intended-risk",
+   "notes": "The account-link insert (requestContext.ts:337-344, onConflictDoNothing) and the domain auto-join role inserts (88-97, onConflictDoNothing) are lazy get-or-create steps that run on every authenticated request. findAndCreateRoles recomputes the missing domain roles each time (81-83), so an account row without its role is fixed on the user's next request. Until then the user just looks not-onboarded, which is harmless by design. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 returned-builder change.)"
   }
  ],
  "corrections": [],

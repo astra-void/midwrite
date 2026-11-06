@@ -11,8 +11,8 @@
       "license": "AGPL-3.0",
       "path": ".corpora/midday",
       "config": "corpora/configs/midday.json",
-      "labels": "corpora/labels/midday.json",
-      "notes": "The project the rules were developed against (Phases 2-16). Labels: Phase 2 review of a sample of findings (corpora/labels/midday.json); no audited known positives, so recall is not computed for it."
+      "labels": "corpora/eval/labels/midday.json",
+      "notes": "The project the rules were developed against (Phases 2-16). Findings: Phase 2 review of a sample (from corpora/labels/midday.json). Known positives: source-only audit added 2026-11-06 (DEV-148), so dev recall includes midday."
     },
     {
       "name": "kan",
@@ -68,6 +68,10 @@
     {
       "date": "2026-11-06",
       "change": "zero moved from held-out to dev: all 10 of its false positives in the first scoring come from the generic `fetch` configuration rule, and fixing that is tuning against it. Its frozen entry (revision 36132735, config 68ff38d2..., labels 2076f2b4...) was removed from FROZEN.json. vercel-chatbot promoted from reserve to held-out at a8989b52 (HEAD of main on 2026-11-06): configuration written from source before the analyzer was run on it, known positives from a source-only audit, findings classified by a separate agent. The reserve is now empty."
+    },
+    {
+      "date": "2026-11-06",
+      "change": "midday gets audited known positives (30, source-only audit that did not see Midwrite output) in corpora/eval/labels/midday.json, so dev recall is no longer zero-only (DEV-148)."
     }
   ]
 }

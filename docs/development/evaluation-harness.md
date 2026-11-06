@@ -174,3 +174,52 @@ Changes to the sets, following the rules above (`sets.json` `history`):
 * All labels are still AI-only, with no human review.
 * vercel-chatbot's one missed known positive is KP04: per-message
   `updateMessage` / `saveMessages` calls inside `Promise.all` in `onEnd`.
+
+## Missed cases (DEV-148, 2026-11-06)
+
+Fixes are chosen from **dev** misses only (midday, zero). Held-out misses are
+listed for the record and were not used to pick or shape a fix. midday now
+has known positives: a source-only audit (30, capped; the auditor listed
+11 more windows it left out), so dev recall covers midday too.
+
+Dev misses by cause, before the fix below (20 of 52 dev positives):
+
+| cause | dev misses | examples |
+| --- | --- | --- |
+| external effect not recognized (not in the configuration, no built-in) | 8 | midday: `notifications.create` email (KP02), accounting provider push (KP06, KP07), Supabase auth admin and Resend contacts (KP13), BullMQ `job.remove()` (KP20), Polar SDK (KP22), Supabase storage `remove` (KP24), Redis cache delete (KP28) |
+| database writes behind a project RPC stub that Midwrite does not model | 4 | zero: `getZeroDB(userId).deleteConnection/deleteUser` (KP02–KP05); reported as MW9001 |
+| writes through a non-Drizzle client (Supabase JS `from(t).upsert/update/insert`) | 3 | midday KP04, KP14, KP30 |
+| async callback flows | 3 | midday KP05 (writes in a CSV parser `chunk` callback), zero KP07 (`onSecretRotated` callback), zero KP10 (email inside `Effect.runPromise`) |
+| lazy builder returned from a non-async function | 1 | zero KP08: `withAssistantDb((db) => db.update(...))` after an email. **Fixed** |
+| class instance created with `new` and a private method | 1 | midday KP29 (`new InboxConnector(...).exchangeCodeForAccount` → `#saveAccount`) |
+
+Held-out misses (not used for fixes): 14. Mostly ClickHouse and Temporal
+effects reached through helpers in dittofeed (11), plus kan KP09 and KP21 and
+vercel-chatbot KP04.
+
+**What was fixed.** Lazy builders returned from non-async functions now run
+where the caller awaits the call (`Execution::ReturnedLazy`). An unawaited
+call drops them, because a builder nobody awaits never runs
+(`crates/midwrite-analyzer/tests/returned_builders.rs`). This is a small group (1 dev miss),
+chosen because it is an analyzer bug. The largest group, unrecognized
+external effects, is a configuration-coverage question and is left open:
+built-in recognition of common SDKs would change the default rules, and
+needs a decision first.
+
+Record: [`reports/eval/2026-11-06-dev148-returned-builders.json`](../../reports/eval/2026-11-06-dev148-returned-builders.json).
+Differences from the second scoring:
+
+* Removed findings: none.
+* New findings: 3, all labeled intended-risk by a separate agent: midday
+  `enrich-transaction.ts:147`, zero `assistant.ts:253` (KP08, auditor and
+  labeler disagree → `reviewQueue`), and held-out dittofeed
+  `requestContext.ts:353`. dittofeed was refrozen with that reason; no
+  existing label changed.
+
+| set | precision (hazard) | recall |
+| --- | --- | --- |
+| dev (midday + zero) | 0.84 (76/90) | 0.63 (33/52); was 0.62 (32/52) |
+| held-out | 0.96 (119/124); was 0.96 (118/123) | 0.77 (48/62), unchanged |
+
+Stage-1 gate: still PASS.
+
