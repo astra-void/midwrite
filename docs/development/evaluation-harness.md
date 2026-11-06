@@ -223,3 +223,41 @@ Differences from the second scoring:
 
 Stage-1 gate: still PASS.
 
+### Built-in SDK effects (largest group)
+
+The largest dev group, unrecognized external effects, is addressed by
+built-in recognition of common SDK clients (`builtinEffects`, on by default;
+[configuration](../reference/configuration.md#built-in-sdk-effects)). Clients
+are matched by provenance: constructed or typed in the file, or imported from
+a project module that constructs or returns one. A name alone never matches.
+
+Record: [`reports/eval/2026-11-06-dev148-sdk-builtins.json`](../../reports/eval/2026-11-06-dev148-sdk-builtins.json).
+
+* midday known positives found: 17/30 → 20/30. KP13 (Supabase auth admin and
+  Resend contacts), KP20 (BullMQ `job.remove()` through `getQueue()` and
+  `getJob()`) and KP22 (Polar) are found now.
+* Still missed from that group: KP02, KP06 and KP07 (effects inside
+  project classes reached through dynamic providers), KP24 (the storage
+  helper's client parameter has a local structural type, `StorageClient`,
+  not the SDK's client type, so nothing proves it is a Supabase client), and
+  KP28 (a Redis client held in a class field, `this.redis`, behind an object
+  service).
+* New findings: midday 32 (dev) and dittofeed 3 (held-out). Separate agents
+  labeled them:
+  * midday: 6 true-positive, 20 intended-risk, 6 false-positive. All 6
+    false positives pair a real effect with a commit on a path where both
+    cannot happen, mostly cleanup on failure (`if (!updated) await
+    job.remove()`). The recognition is right; the path reasoning is the
+    weak point.
+  * dittofeed: 3 intended-risk (a best-effort "view in browser" copy before
+    the send). dittofeed was refrozen with that reason; no existing label
+    changed.
+
+| set | precision (hazard) | recall |
+| --- | --- | --- |
+| dev (midday + zero) | 0.84 (102/121); was 0.84 (76/90) | 0.70 (38/54); was 0.63 (33/52) |
+| held-out | 0.96 (122/127); was 0.96 (119/124) | 0.77 (48/62), unchanged |
+
+Stage-1 gate: still PASS. Recall denominators grow when a new finding is a
+true positive outside the audit (midday 12 → 14).
+

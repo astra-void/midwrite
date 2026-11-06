@@ -793,6 +793,294 @@
    "function": "EnrichTransactionProcessor.process::<anonymous@67:7>",
    "classification": "intended-risk",
    "notes": "The two writes go to disjoint transaction rows (updates vs noUpdateNeeded), and each row update sets enrichmentCompleted on its own, so no invariant spans them. On a thrown error the catch at enrich-transaction.ts:202-217 marks the whole batch completed on purpose (comment 209-210). On a crash, BullMQ retries (transactions.config.ts:14, attempts: 3), and getTransactionsForEnrichment (transaction-enrichment.ts:58) re-selects only rows with enrichmentCompleted=false, so the retry converges and the leftover partial state is harmless. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 returned-builder change.)"
+  },
+  {
+   "findingId": "d0a0d4cd557f637f",
+   "code": "MW1002",
+   "file": "apps/api/src/rest/routers/invoice-payments.ts",
+   "line": 533,
+   "function": "<anonymous@388:3>",
+   "classification": "intended-risk",
+   "notes": "invoice-payments.ts:528-550: PaymentIntent is created with a deterministic idempotencyKey (invoice id+amount+currency); if updateInvoice fails the client gets a 500 and a retry sees no paymentIntentId and gets the same intent back from Stripe, then saves it. An unconfirmed intent charges nothing, so the window converges by design. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "de95f0c41e0f93e7",
+   "code": "MW1001",
+   "file": "apps/api/src/rest/routers/invoices.ts",
+   "line": 563,
+   "function": "<anonymous@406:3>",
+   "classification": "false-positive",
+   "notes": "rest/routers/invoices.ts:556-575: job.remove() runs only when updateInvoice returned no row, so the update matched nothing and committed no change. The remove is the compensation for the triggerJob at 528. The claimed commit-then-effect state does not exist. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "0828fa3b87157ff1",
+   "code": "MW1002",
+   "file": "apps/api/src/trpc/routers/billing.ts",
+   "line": 294,
+   "function": "<anonymous@251:15>",
+   "classification": "intended-risk",
+   "notes": "billing.ts:294-306: if updateTeamById fails after Polar cancelAtPeriodEnd, the Polar subscription.canceled webhook (webhooks/polar/index.ts:148-166) also sets teams.canceledAt, so the DB converges without the request. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "450f9f4e131fd5a1",
+   "code": "MW1002",
+   "file": "apps/api/src/trpc/routers/billing.ts",
+   "line": 339,
+   "function": "<anonymous@317:5>",
+   "classification": "true-positive",
+   "notes": "billing.ts:339-349: Polar is uncanceled first, then canceledAt is cleared. If the DB write fails, a retry hits NOT_FOUND (the sub no longer has cancelAtPeriodEnd, line 330) and the Polar webhook handler has no uncanceled/updated case to clear canceledAt. teams.canceledAt stays set (read by isTeamStillCanceled, teams.ts:715). (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "324f9c0c7b567ce4",
+   "code": "MW1002",
+   "file": "apps/api/src/trpc/routers/invoice-payments.ts",
+   "line": 149,
+   "function": "<anonymous@99:15>",
+   "classification": "intended-risk",
+   "notes": "trpc/invoice-payments.ts:149-161: refund then status update; comment at 154-155 relies on the Stripe charge.refunded webhook (webhooks/stripe/index.ts:169-201), which sets status=refunded/refundedAt if the inline update is lost. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "dc81cf6d12ed7cad",
+   "code": "MW1001",
+   "file": "apps/api/src/trpc/routers/invoice-recurring.ts",
+   "line": 560,
+   "function": "<anonymous@500:15>",
+   "classification": "intended-risk",
+   "notes": "invoice-recurring.ts:509-563: DB changes commit in one transaction, and job removal is deliberately done after commit (comment 557). A leftover schedule-invoice job is harmless because ScheduleInvoiceProcessor skips invoices whose status is not 'scheduled' (schedule-invoice.ts:35-42). (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "a55ee7c8886c6655",
+   "code": "MW1001",
+   "file": "apps/api/src/trpc/routers/invoice-recurring.ts",
+   "line": 630,
+   "function": "<anonymous@571:15>",
+   "classification": "intended-risk",
+   "notes": "invoice-recurring.ts:580-633: same pattern as delete. Invoices are reverted to draft in one transaction and jobs are removed afterwards on purpose. A stale job no-ops because schedule-invoice.ts:35 checks status !== 'scheduled'. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "72736950588f9427",
+   "code": "MW1002",
+   "file": "apps/api/src/trpc/routers/invoice.ts",
+   "line": 513,
+   "function": "<anonymous@450:15>",
+   "classification": "true-positive",
+   "notes": "trpc/invoice.ts:505-543: the old scheduled job is removed before updateInvoice records the new scheduledJobId. If the update fails or the process crashes in between, the DB still points at the removed old job, and the new job is skipped as stale by schedule-invoice.ts:60-72. The invoice stays 'scheduled' and is never sent. updateSchedule (lines 725-732) avoids this by removing only after the DB update. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "1dbdf33173ff58ed",
+   "code": "MW1005",
+   "file": "apps/api/src/trpc/routers/invoice.ts",
+   "line": 513,
+   "function": "<anonymous@450:15>",
+   "classification": "intended-risk",
+   "notes": "trpc/invoice.ts:484-519: the new job is created first on purpose (comment 483, 503). If removing the old job fails or is interrupted, the comment at 514-515 accepts it: the DB still points to the old job, and the orphan new job no-ops in schedule-invoice.ts (status/stale-id checks). (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "ea3d9e8a07bbde95",
+   "code": "MW1001",
+   "file": "apps/api/src/trpc/routers/invoice.ts",
+   "line": 552,
+   "function": "<anonymous@450:15>",
+   "classification": "false-positive",
+   "notes": "trpc/invoice.ts:545-553: job.remove() is on the !data path, where updateInvoice matched no row and committed nothing. The remove is cleanup of the orphan job, so there is no DB commit before it. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "d429d8f864f2b134",
+   "code": "MW1001",
+   "file": "apps/api/src/trpc/routers/invoice.ts",
+   "line": 705,
+   "function": "<anonymous@644:15>",
+   "classification": "false-positive",
+   "notes": "trpc/invoice.ts:699-710: newJob.remove() runs only when updateInvoice returned no row (no committed change). It is the compensation for the triggerJob at 677, so the claimed commit-then-effect window is not real. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "c7f2f07d0f227ad3",
+   "code": "MW1001",
+   "file": "apps/api/src/trpc/routers/invoice.ts",
+   "line": 725,
+   "function": "<anonymous@644:15>",
+   "classification": "intended-risk",
+   "notes": "trpc/invoice.ts:692-732: the DB is updated to the new job id first, then the old job is removed best-effort with .catch. The comment at 728-729 says a leftover old job is detected as stale by the processor (schedule-invoice.ts:60-72). (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "aa5b615577c1bf28",
+   "code": "MW1002",
+   "file": "apps/api/src/trpc/routers/invoice.ts",
+   "line": 760,
+   "function": "<anonymous@739:15>",
+   "classification": "true-positive",
+   "notes": "trpc/invoice.ts:760-773: the BullMQ job is removed before the invoice is reset to draft. If updateInvoice fails, the invoice stays 'scheduled' with scheduledJobId pointing at a deleted job: the UI shows a scheduled send that will never happen. Only a manual retry fixes it, and the reverse order would be safe given the processor's status guard. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "aac8686ba1bdcbba",
+   "code": "MW1001",
+   "file": "apps/api/src/trpc/routers/user.ts",
+   "line": 79,
+   "function": "<anonymous@74:39>",
+   "classification": "true-positive",
+   "notes": "user.ts:77-85 with users.ts:139-145: the DB delete of the user and sole-member teams and supabaseAdmin.auth.admin.deleteUser run concurrently in Promise.all with no compensation. If the DB delete succeeds and the auth delete fails, the user's data is gone but the auth account can still sign in. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "0659c4604c0f851b",
+   "code": "MW1005",
+   "file": "apps/api/src/trpc/routers/user.ts",
+   "line": 80,
+   "function": "<anonymous@74:39>",
+   "classification": "true-positive",
+   "notes": "user.ts:79-83: the auth user delete and resend.contacts.remove run concurrently, and the Resend SDK reports errors in its return value rather than throwing. If the contact removal fails after the account is deleted, the email stays in the marketing audience, and a retry is impossible once the auth user is gone. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "e49a741bc94128ee",
+   "code": "MW1002",
+   "file": "apps/worker/src/processors/documents/process-document.ts",
+   "line": 147,
+   "function": "ProcessDocumentProcessor.process",
+   "classification": "false-positive",
+   "notes": "process-document.ts:147-157,184: the path goes through `!uploadedData` (upload returned no data, i.e. failed) into the catch-block fallback update at 184, so no upload was durably performed before that DB write. On the success path the upload is an in-place upsert that a BullMQ retry redoes. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "74fbecc77d453ef4",
+   "code": "MW1005",
+   "file": "apps/worker/src/processors/documents/process-document.ts",
+   "line": 147,
+   "function": "ProcessDocumentProcessor.process",
+   "classification": "intended-risk",
+   "notes": "process-document.ts:44-63: the document_uploaded notification is wrapped in try/catch as non-critical. If the job stops before the HEIC upload, BullMQ retry (attempts 3) reruns the conversion; at worst the activity notification is duplicated. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "bb3c809e9d0e6ba7",
+   "code": "MW1005",
+   "file": "apps/worker/src/processors/documents/process-document.ts",
+   "line": 317,
+   "function": "ProcessDocumentProcessor.process",
+   "classification": "intended-risk",
+   "notes": "process-document.ts:147-160,317: the converted JPEG overwrites the same vault path (upsert). If the job stops before classify-image, BullMQ retries (documents queue attempts 3); sharp re-converts the already-JPEG file (image-processing.ts:145) and classification is triggered, so the job converges. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "8d3d33cc4ab5a6eb",
+   "code": "MW1005",
+   "file": "apps/worker/src/processors/documents/process-document.ts",
+   "line": 472,
+   "function": "ProcessDocumentProcessor.process",
+   "classification": "false-positive",
+   "notes": "process-document.ts:147-166 vs 305: the HEIC upload path always sets processedMimetype='image/jpeg', which then takes the image/ branch and returns at 330. classify-document at 472 is only reached on the non-image else path, so the upload and this effect are mutually exclusive. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "e0d0ae23ec86049b",
+   "code": "MW1002",
+   "file": "apps/worker/src/processors/inbox/process-attachment.ts",
+   "line": 108,
+   "function": "ProcessAttachmentProcessor.process",
+   "classification": "intended-risk",
+   "notes": "inbox/process-attachment.ts:108-139: in-place upsert of the converted JPEG, then contentType is updated. A BullMQ retry (inbox attempts 3) reloads the item, re-converts and updates again; the job is idempotent and converges. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "77cf2a7e7b4bc26d",
+   "code": "MW1002",
+   "file": "apps/worker/src/processors/inbox/slack-upload.ts",
+   "line": 148,
+   "function": "SlackUploadProcessor.process",
+   "classification": "intended-risk",
+   "notes": "slack-upload.ts:148-176: upload is an upsert to a deterministic path and createInbox uses ON CONFLICT on referenceId slack_<fileId> (inbox.ts:1786). A BullMQ retry (default attempts 3) converges. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "2591c96dad4f1812",
+   "code": "MW1002",
+   "file": "apps/worker/src/processors/inbox/sync-scheduler.ts",
+   "line": 195,
+   "function": "SyncSchedulerProcessor.process",
+   "classification": "false-positive",
+   "notes": "sync-scheduler.ts:198-239: uploadedAttachments contains exactly the uploads that returned data, so the reported `uploadedAttachments.length > 0` else path means no upload succeeded and no durable effect precedes updateInboxAccount. Even on the success path, lastAccessed is not advanced until the end, so the next sync re-uploads (upsert) and converges. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "aa3a39c117c1781b",
+   "code": "MW1005",
+   "file": "apps/worker/src/processors/inbox/sync-scheduler.ts",
+   "line": 247,
+   "function": "SyncSchedulerProcessor.process",
+   "classification": "intended-risk",
+   "notes": "sync-scheduler.ts:207,247-249: uploads are upserts to deterministic paths and lastAccessed is updated only at 283. If the job stops before process-attachment is enqueued, the retry or next sync re-fetches (no inbox rows exist yet), re-uploads and enqueues; process-attachment dedupes via getInboxByFilePath/ON CONFLICT. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "37e97f9d53b82d88",
+   "code": "MW1005",
+   "file": "apps/worker/src/processors/inbox/sync-scheduler.ts",
+   "line": 254,
+   "function": "SyncSchedulerProcessor.process",
+   "classification": "intended-risk",
+   "notes": "sync-scheduler.ts:251-271: the inbox_new notification is in try/catch, explicitly non-critical ('Don't fail the entire process'). The reported path (length>0 yet map body not run) is contradictory, but the upload-then-notification window is real and accepted. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "d754726c71173f71",
+   "code": "MW1002",
+   "file": "apps/worker/src/processors/invoices/generate-invoice.ts",
+   "line": 60,
+   "function": "GenerateInvoiceProcessor.process",
+   "classification": "intended-risk",
+   "notes": "generate-invoice.ts:60-90: the PDF goes to a deterministic path (invoiceNumber.pdf) with upsert, and a DB update failure throws, so the job retries (job-client default attempts 3) and overwrites idempotently. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "7827a13ba5308682",
+   "code": "MW1002",
+   "file": "apps/worker/src/processors/transactions/export.ts",
+   "line": 214,
+   "function": "ExportTransactionsProcessor.process",
+   "classification": "intended-risk",
+   "notes": "export.ts:214-235: the code labels the documents-table update 'non-critical' (line 227). If it fails, the job retries and regenerates the export; the leftover zip/document row is accepted. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "2e15ce8fa6ec34c0",
+   "code": "MW1005",
+   "file": "apps/worker/src/processors/transactions/export.ts",
+   "line": 266,
+   "function": "ExportTransactionsProcessor.process",
+   "classification": "intended-risk",
+   "notes": "export.ts:214-283: the accountant notification after upload is wrapped in try/catch with a warning (best-effort). A crash before it leads to a BullMQ retry that regenerates the zip and re-sends. The `!pathTokens` path condition is infeasible but irrelevant. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "a3d4c5b21cf0783f",
+   "code": "MW1002",
+   "file": "apps/worker/src/processors/transactions/process-attachment.ts",
+   "line": 47,
+   "function": "ProcessTransactionAttachmentProcessor.process",
+   "classification": "intended-risk",
+   "notes": "transactions/process-attachment.ts:47-99: in-place upsert of the HEIC->JPEG conversion, then the tax fields are updated. A retry (transactions queue attempts 3) re-converts (sharp accepts JPEG) and re-extracts, so it converges. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "18607cde6a2b53b1",
+   "code": "MW1005",
+   "file": "apps/worker/src/processors/transactions/process-attachment.ts",
+   "line": 114,
+   "function": "ProcessTransactionAttachmentProcessor.process",
+   "classification": "intended-risk",
+   "notes": "transactions/process-attachment.ts:112-131: the process-document trigger is explicitly non-critical (try/catch, 'Don't fail the entire process'), after an idempotent in-place upload. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "7b376da1aa67181c",
+   "code": "MW1002",
+   "file": "packages/bot/src/inbox-upload.ts",
+   "line": 145,
+   "function": "processInboxUpload",
+   "classification": "true-positive",
+   "notes": "bot/inbox-upload.ts:145-171: the file is uploaded to vault, then createInbox runs. If the insert fails, callers (bot/runtime.ts:748-783, rest/routers/chat.ts:101-120) only log a warning, with no retry or cleanup, leaving an orphan vault file with no inbox item. Unlike the worker jobs, nothing re-runs this. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "47b50958e7f268f5",
+   "code": "MW1005",
+   "file": "packages/jobs/src/tasks/inbox/provider/sync-account.ts",
+   "line": 250,
+   "function": "run",
+   "classification": "intended-risk",
+   "notes": "sync-account.ts:206,241-257: the uploads are upserts and the only missing step is an informational inbox_new notification. The trigger.dev retry (maxAttempts 3, line 32) reprocesses, and a lost notification is harmless. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "cbe3695b588517f1",
+   "code": "MW1005",
+   "file": "packages/jobs/src/tasks/team/onboarding.ts",
+   "line": 41,
+   "function": "run",
+   "classification": "intended-risk",
+   "notes": "onboarding.ts:33-49: if the task stops after resend.contacts.create, the trigger.dev default retry (trigger.config.ts maxAttempts 3) re-runs. Re-creating the contact is harmless (the Resend SDK returns errors rather than throwing), and the welcome email is then sent. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
   }
  ],
  "corrections": [],

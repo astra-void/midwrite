@@ -15,9 +15,9 @@
       "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
       "files": {
         "corpora/configs/dittofeed.json": "9c69f1b494e926de643ea6c89e6453c1dfb9d0314c49fd2b449dd6a3a88e1943",
-        "corpora/eval/labels/dittofeed.json": "6cb0b350dfb0e36b8572addfe044e32980deb380307e03eb2b6761b7deaefd05"
+        "corpora/eval/labels/dittofeed.json": "354040532b683e3baeff643bf7eed9c4655b98720a9aebf4c393755ed71ac7d5"
       },
-      "frozenAtUtc": "2026-11-06T06:35:24Z",
+      "frozenAtUtc": "2026-11-06T07:40:00Z",
       "history": [
         {
           "previous": {
@@ -29,6 +29,17 @@
             "frozenAtUtc": "2026-11-04T23:17:23Z"
           },
           "reason": "Label added for a finding that the DEV-148 analyzer change (lazy builders returned from non-async functions) newly reports (9ce210754461e404, classified intended-risk by a separate agent that did not see the change's motivation). No existing label changed."
+        },
+        {
+          "previous": {
+            "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+            "files": {
+              "corpora/configs/dittofeed.json": "9c69f1b494e926de643ea6c89e6453c1dfb9d0314c49fd2b449dd6a3a88e1943",
+              "corpora/eval/labels/dittofeed.json": "6cb0b350dfb0e36b8572addfe044e32980deb380307e03eb2b6761b7deaefd05"
+            },
+            "frozenAtUtc": "2026-11-06T06:35:24Z"
+          },
+          "reason": "Labels added for 3 findings that the DEV-148 built-in SDK effects newly report (2e0a09c0253930e9, cd600080513c83a1, 6613a8c1fddd79bf; all intended-risk, classified by a separate agent). No existing label changed."
         }
       ]
     },
