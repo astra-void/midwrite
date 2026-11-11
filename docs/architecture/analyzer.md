@@ -21,21 +21,23 @@ per function:         path enumeration (feasibility, merging, compact summaries)
 | provenance | `bindings.rs` | what an identifier is: import, `drizzle(...)` instance, transaction handle, pending builder, call result, contrary value | same |
 | recognition | `recognize.rs` | database read/write/transaction, configured external effect, lookalike (unknown with the path to configure) | same |
 | lowering | `lower.rs`, `functions.rs` | structured Effect IR per function: effects, transactions, calls, branches with facts, switches, loops, `try`, exits | [ARCHITECTURE § Effect IR](../ARCHITECTURE.md#effect-ir-midwrite-coreir) |
-| values | `values.rs`, `core::absint` | bounded abstract values, heap, provenance, return facts (Phase 5) | [Phase 5 analysis design](../phase5/ANALYSIS-DESIGN.md) |
-| resolution | `resolve.rs`, `exports.rs`, `project.rs`, `link.rs`, `classes.rs` | relative imports, `tsconfig` `paths`/`baseUrl`, workspace packages, re-exports, classes across modules; ambiguity is never resolved by choice | [Phase 2 cross-module analysis](../phase2/CROSS-MODULE-ANALYSIS.md), [Phase 5 class resolution](../phase5/CLASS-RESOLUTION.md) |
-| summaries | `core::analysis::summary` | callee bodies inlined at call sites up to `--max-call-depth`, handles bound to parameters, memoized; inert callees resolved at any depth | [ARCHITECTURE § call summaries](../ARCHITECTURE.md#call-summaries-midwrite-coreanalysissummary), [Phase 5 interprocedural summaries](../phase5/INTERPROCEDURAL-SUMMARIES.md) |
-| paths | `core::analysis::paths` | traces per function (cap `--max-paths`), contradictory branch facts pruned, compact summaries spliced per call (Phase 7), shared path summaries (Phase 8) | [Phase 7 compact summaries](../phase7/COMPACT-SUMMARIES.md), [Phase 8 parameterized summaries](../phase8/PARAMETERIZED-SUMMARIES.md) |
+| values | `values.rs`, `core::absint` | bounded abstract values, heap, provenance, return facts | [value analysis](value-analysis.md) |
+| resolution | `resolve.rs`, `exports.rs`, `project.rs`, `link.rs`, `classes.rs` | relative imports, `tsconfig` `paths`/`baseUrl`, workspace packages, re-exports, classes across modules; ambiguity is never resolved by choice | [ARCHITECTURE § project analysis](../ARCHITECTURE.md#project-analysis-midwrite-analyzerproject-resolve), [class resolution](value-analysis.md#class-and-method-resolution) |
+| summaries | `core::analysis::summary` | callee bodies inlined at call sites up to `--max-call-depth`, handles bound to parameters, memoized; inert callees resolved at any depth | [ARCHITECTURE § call summaries](../ARCHITECTURE.md#call-summaries-midwrite-coreanalysissummary), [interprocedural summaries](value-analysis.md#interprocedural-summaries) |
+| paths | `core::analysis::paths` | traces per function (cap `--max-paths`), contradictory branch facts pruned, compact and shared path summaries spliced per call | [ARCHITECTURE § failure-path analysis](../ARCHITECTURE.md#failure-path-analysis-midwrite-coreanalysis) |
 | detection | `core::analysis::detect` | points (commit, staged, visible), adjacent-pair hazards, MW9001 placement | [ARCHITECTURE § failure-path analysis](../ARCHITECTURE.md#failure-path-analysis-midwrite-coreanalysis) |
 | rendering | `core::analysis::render`, CLI | message, failure sequence, evidence, confidence, fingerprint, policy severity | [`DIAGNOSTICS.md`](../DIAGNOSTICS.md) |
-| traces | `core::trace` | failure trace IR and crash simulation (Phase 3) | [Phase 3 trace format](../phase3/TRACE-FORMAT.md) |
+| traces | `core::trace` | failure trace IR and crash simulation | [trace format](../reference/trace-format.md) |
 
 ## Boundaries
 
 * `midwrite-core` never sees an AST; a new frontend only has to produce
   `FunctionIr` plus call sites.
-* The static analyzer does not use the concurrency extractor: Phase 13's
-  source-resolution work changed discovery, and the static `check` output
-  stayed byte-identical (144/144, `reports/phase13/analyzer/check-identity.txt`).
+* The static analyzer does not use the concurrency extractor: changes to
+  source resolution for discovery leave the static `check` output
+  byte-identical, which the corpus identity check compares.
+* `trace` output can be turned into runtime evidence by an authorized
+  harness: [single-request replay](replay-protocol.md).
 * Results are deterministic and independent of thread scheduling (up to 8
   threads, `MIDWRITE_THREADS` overrides).
 
@@ -43,8 +45,8 @@ per function:         path enumeration (feasibility, merging, compact summaries)
 
 | variable | effect |
 | --- | --- |
-| `MIDWRITE_THREADS` (legacy `CRASHPROOF_THREADS`) | worker threads for per-file work |
-| `MIDWRITE_PATHS=legacy\|compact\|shared` | path mode: `shared` (default since Phase 8), `compact` (Phase 7), `legacy` (walk every trace through inlined bodies); any other value is an error |
+| `MIDWRITE_THREADS` | worker threads for per-file work |
+| `MIDWRITE_PATHS=legacy\|compact\|shared` | path mode: `shared` (default), `compact`, `legacy` (walk every trace through inlined bodies); any other value is an error |
 
-The three path modes are compared in every phase's corpus identity check
-(they must produce identical output).
+The three path modes must produce identical output; the corpus identity
+check and `MIDWRITE_PATHS_DIFFERENTIAL=1` compare them.

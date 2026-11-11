@@ -37,7 +37,7 @@ Each arrow is opt-in, and each step answers a narrower question:
   never marked reproduced.
 * Confidence (`high`, `medium`, `low`) says how certain the path and the
   recognition are, not how likely a bug is.
-* Common non-bugs found in the Phase 2 review: best-effort notifications,
+* Common non-bugs found when corpus findings were reviewed: best-effort notifications,
   effects repaired by job retries or redelivery, two adjacent but unrelated
   operations, test and seed scripts. Declare recovery
   ([configuration](../reference/configuration.md#recovery-declarations)),
@@ -73,11 +73,11 @@ framework, or `discovery-default`), printed with the candidate.
 * A replica counterexample cannot go beyond `model-counterexample`: no
   streaming replication is run.
 
-* Phase 15: a discovery verdict is relative to the **initial worlds** it
+* A discovery verdict is relative to the **initial worlds** it
   explored. Read the candidate's coverage section: how many worlds, which
   input relationships, whether each world's schedule search completed, and
   what was not explored. `domainExhaustive` is never true for synthesized
-  inputs ([verdict semantics](../phase15/VERDICT-SEMANTICS.md)).
+  inputs ([world search](../architecture/world-search.md#coverage-and-what-a-verdict-claims)).
 
 ## Runtime results
 
@@ -100,5 +100,5 @@ framework, or `discovery-default`), printed with the candidate.
 * That a heuristic property is a requirement.
 * That a first-party fixture result transfers to another application.
 * That any finding was confirmed by an independent human reviewer: **no
-  independent human review has been performed** for any phase
+  independent human review has been performed** for any result
   ([evaluation methodology](../research/evaluation-methodology.md)).

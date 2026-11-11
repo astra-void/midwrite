@@ -27,11 +27,13 @@ reporting matter more than coverage.
   the report.
 * **Document limitations.** If a change adds an approximation, list it in
   the current limitations document,
-  [`docs/reference/limitations.md`](docs/reference/limitations.md) (and in
-  the phase's own `LIMITATIONS.md` when the change belongs to a phase).
-  `docs/LIMITATIONS.md` and `docs/phaseN/` are historical records.
+  [`docs/reference/limitations.md`](docs/reference/limitations.md), and
+  in [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) when it concerns the
+  static analyzer or replay. Describe behavior in the topic documents
+  under `docs/`; do not add phase-numbered documents, tests, fixtures or
+  reports ([development history](docs/HISTORY.md)).
 * **Keep documentation links valid.** Run
-  `python3 scripts/check-doc-links.py --historical report`; see
+  `python3 scripts/check-doc-links.py`; see
   [`docs/development/testing.md`](docs/development/testing.md).
 
 ## Before opening a pull request
@@ -61,7 +63,7 @@ them they print `SKIPPED` and pass, unless `MIDWRITE_REQUIRE_REPLAY=1` is
 set. A skipped replay test is not runtime verification.
 `scripts/linux-replay-docker.sh` runs fmt, clippy and the full suite with
 required replay on Linux in a container. A change to replay should keep
-`scripts/demo.sh` and `scripts/demo-phase4.sh` working, and the vendored client of
+`scripts/demo.sh` and `scripts/demo-init-replay.sh` working, and the vendored client of
 `fixtures/replay/drizzle-node/generated-harness/midwrite-runtime/` in sync
 with `runtime/node` (copy the files; do not run `init-replay --force` there,
 which would also overwrite the completed manifest and harness). A test fails

@@ -5,10 +5,11 @@ real projects (Linear DEV-147). It replaces "one number from the project the
 rules were built against" with two numbers: one on a **dev set** you may tune
 against, and one on a **held-out set** you never tune against.
 
-The scores in the phase reports (for example Phase 16's precision 1.000
-(6/6), recall 0.333 (6/18)) come from synthetic frozen applications under
-`fixtures/phase13`–`phase16`, which score `discover --model-check`. They are
-still scored by `scripts/phase1N-eval.py`. This harness scores static
+The discovery scores (for example precision 1.000 (6/6), recall 0.333
+(6/18) on the newest frozen set) come from synthetic frozen applications
+under `fixtures/eval/p11`–`p16`, which score `discover --model-check`
+([evaluation datasets](../research/evaluation-datasets.md)). They are
+still scored by `scripts/eval-sets.py`. This harness scores static
 `check` findings on third-party code.
 
 ## Sets
@@ -17,7 +18,7 @@ still scored by `scripts/phase1N-eval.py`. This harness scores static
 
 | project | set | revision | why |
 | --- | --- | --- | --- |
-| midday | dev | `51587319` | the project the rules were developed against (Phases 2–16) |
+| midday | dev | `51587319` | the project the rules were developed against |
 | kan (kanbn/kan) | held-out | `1cc2f332` | tRPC + repositories, email, webhooks, Stripe, S3 |
 | dittofeed | held-out | `91277939` | Postgres through `db()`, Temporal, ClickHouse, Kafka |
 | zero (Mail-0/Zero) | held-out | `36132735` | Workers + Durable Objects, Gmail APIs, queues, R2/KV |
@@ -46,7 +47,7 @@ Midwrite does not analyze.
 
 ## Labels
 
-`corpora/eval/labels/<project>.json` (dev midday reuses the Phase 2 list in
+`corpora/eval/labels/<project>.json` (dev midday reuses the first corpus review's list in
 `corpora/labels/midday.json`):
 
 * `knownPositives`: unhandled half-written-state windows found by an
@@ -57,7 +58,8 @@ Midwrite does not analyze.
 * `findings`: every reported hazard (MW1001–MW1005), keyed by fingerprint,
   classified as `true-positive` (window exists, unhandled), `intended-risk`
   (window exists, accepted on purpose), `false-positive` (the partial state
-  is not real) or `unclear`. These are the Phase 2 classes.
+  is not real) or `unclear`. These are the corpus review classes
+  ([evaluation methodology](../research/evaluation-methodology.md#static-finding-review)).
 
 ## Scores
 
@@ -85,6 +87,29 @@ python3 scripts/eval.py run -o eval.json       # all sets; table, per-set lines,
 python3 scripts/eval.py run --set held-out --gate   # exit 1 unless the gate passes
 python3 scripts/eval.py freeze --project kan    # after labeling a held-out project
 ```
+
+## CI precision gate
+
+The `held-out precision >= 0.9` job in `.github/workflows/ci.yml` runs on
+every push and pull request (Linear DEV-149). It builds the static analyzer
+in release mode, fetches only the held-out projects at their pinned
+revisions with `python3 scripts/eval.py fetch --set held-out`, and runs:
+
+```bash
+python3 scripts/eval.py run --set held-out --gate -o eval.json
+```
+
+The job fails when aggregate held-out hazard precision is below 0.9,
+without rounding the score. Exactly 0.9 passes. It also fails for unlabeled
+held-out findings, missing or changed frozen inputs, or no decided held-out
+labels. Fetch or analyzer errors fail the job as well. Scores, counts and
+gate failure reasons appear in the job log; `eval.json` stays in the job's
+workspace. Recall and dev-set precision do not determine this gate.
+
+The first recorded baseline below already fails the threshold. Enabling
+the job does not lower the threshold or change the frozen labels to make
+that baseline pass. Follow the set rotation rules above when a held-out
+result drives an analyzer change.
 
 ## Caveats
 
@@ -131,6 +156,6 @@ Record: [`reports/eval/2026-11-05-first-scoring.json`](../../reports/eval/2026-1
   activities whose retry converges. Neither label was changed; a person
   should decide them.
 * The issue that asked for this harness quoted "precision 1.0, recall 0.33
-  from Midday". Those are the Phase 16 synthetic frozen set's
+  from Midday". Those are the newest synthetic frozen set's (`fixtures/eval/p16`)
   `discover --model-check` scores, not Midday's. Midday has never produced a
   model counterexample.

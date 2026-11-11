@@ -5,8 +5,8 @@ restart, timeout or failed call between two independently committed side
 effects can leave partial state. It never executes code.
 
 The outputs below were produced by the release binary built from the
-current tree on 2026-10-27 (`midwrite 0.1.0`, Phase 13 working tree,
-before any Phase 14 change), run from the repository root.
+current tree on 2026-10-27 (`midwrite 0.1.0`), run from the repository
+root. Later sections name the binary that produced them.
 
 ## 1. Check one file
 
@@ -89,16 +89,16 @@ warning(s), 0 error(s), 1 info` (exit 0).
   scenarios: discovery, model checking, optional runtime verification.
 * [Interpreting results](../user-guide/interpreting-results.md).
 
-## Discover concurrency and retry candidates (Phase 14)
+## Discover concurrency and retry candidates
 
 `midwrite discover` indexes a project's entry points and database
 effects, proposes candidates, synthesizes scenarios and, with
 `--model-check`, explores them. It never executes application code. The
-output below was produced by the Phase 14 release binary (2026-10-28) on the
-first-party fixture `fixtures/phase14/request-app`, from the repository root:
+output below was produced by a release binary of 2026-10-28 on the
+first-party fixture `fixtures/apps/retry-wrapper-app`, from the repository root:
 
 ```bash
-midwrite discover fixtures/phase14/request-app --model-check --entry payments.ts
+midwrite discover fixtures/apps/retry-wrapper-app --model-check --entry payments.ts
 ```
 
 ```text
@@ -135,7 +135,7 @@ reported (0 when none is; [discover](../user-guide/discover.md)). Follow
 the next step to see the schedule:
 
 ```bash
-midwrite discover fixtures/phase14/request-app --model-check --entry payments.ts#settlePayment --emit-scenarios /tmp/midwrite-quickstart
+midwrite discover fixtures/apps/retry-wrapper-app --model-check --entry payments.ts#settlePayment --emit-scenarios /tmp/midwrite-quickstart
 ```
 
 ```bash
@@ -165,7 +165,7 @@ disposable PostgreSQL, the project needs an authorized harness (this
 fixture has one) and an explicit `--verify-source --allow-execution`:
 [first verification](first-verification.md) and
 [source verification](../user-guide/source-verification.md). For this
-fixture that run reproduces the duplicate payment (`docs/phase14/FINAL-REPORT.md`),
+fixture that run reproduces the duplicate payment ([evidence index](../research/evidence-index.md#5-original-code-reproduction)),
 under the stated assumption that the server handles node-postgres client
 errors.
 
@@ -175,17 +175,17 @@ against one is not a confirmed defect, and properties about what callers
 are told (return values) are never inferred — declare them
 ([contracts](../user-guide/contracts.md)).
 
-## Explore input worlds and save a counterexample (Phase 15)
+## Explore input worlds and save a counterexample
 
-Validated with the Phase 15 binary on the first-party application
-`fixtures/phase15/worlds-app`, whose defects appear only for some valid
+Validated with a release binary of 2026-10-28 on the first-party application
+`fixtures/apps/worlds-app`, whose defects appear only for some valid
 inputs: a root folder (`parentId = null`) and a quota with one export left.
 
 1. Build (once): `cargo build --release`.
 2. Analyze and model-check, listing every explored world:
 
    ```bash
-   target/release/midwrite discover fixtures/phase15/worlds-app --model-check --entry createFolder --explain-coverage
+   target/release/midwrite discover fixtures/apps/worlds-app --model-check --entry createFolder --explain-coverage
    ```
 
    The candidate's property is `USER_DECLARED` (from the app's
@@ -208,7 +208,7 @@ inputs: a root folder (`parentId = null`) and a quota with one export left.
 3. Save the scenarios and the reproduction artifact:
 
    ```bash
-   target/release/midwrite discover fixtures/phase15/worlds-app --model-check --emit-scenarios /tmp/cr-worlds
+   target/release/midwrite discover fixtures/apps/worlds-app --model-check --emit-scenarios /tmp/cr-worlds
    ```
 
    `/tmp/cr-worlds/cr-synth-438686-actual--null-parentid.counterexample.json`
@@ -236,14 +236,14 @@ explored initial world(s) of the actual configuration … The input domain
 was not exhaustively explored; general application safety is not
 established."
 
-## Retry loops, request bodies and coverage (Phase 16)
+## Retry loops, request bodies and coverage
 
-Validated with the final Phase 16 release binary on the first-party
-application `fixtures/phase16/retry` (a Next.js route handler that reads
+Validated with a release binary of 2026-10-29 on the first-party
+application `fixtures/apps/retry` (a Next.js route handler that reads
 `request.json()` and a `for` loop that retries an insert):
 
 ```bash
-target/release/midwrite discover fixtures/phase16/retry --model-check --explain-coverage
+target/release/midwrite discover fixtures/apps/retry --model-check --explain-coverage
 ```
 
 The first candidate, `CR-SYNTH-7644DD [MODEL_COUNTEREXAMPLE]` (the route
@@ -259,5 +259,5 @@ bounded:
 `recordPayment` (the same loop with an idempotent insert) is
 `NO_VIOLATION_WITHIN_BOUNDS`. Each command of the complete walkthrough,
 from reproduction to the optional original-code run, is checked by
-`scripts/phase16-alpha-check.sh`; see the
+`scripts/alpha-check.sh`; see the
 [Closed Alpha guide](../alpha/README.md).

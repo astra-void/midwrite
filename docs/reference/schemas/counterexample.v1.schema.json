@@ -1,0 +1,272 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "midwrite.counterexample.v1",
+  "title": "Midwrite counterexample reproduction artifact, schema 1",
+  "definitions": {
+    "value": {
+      "description": "A model value (midwrite_model::value::Value, untagged): null, boolean, 64-bit integer, string, a list, or an object. Objects are rows and the tagged forms {\"$generated\": n, \"actor\": a, \"n\": k}, {\"$undefined\": true}, {\"$map\": [[key, value], ...]} and {\"$set\": [item, ...]}, all of which are objects whose members are values. There are no floating-point values.",
+      "type": [
+        "null",
+        "boolean",
+        "integer",
+        "string",
+        "array",
+        "object"
+      ],
+      "items": {
+        "$ref": "#/definitions/value"
+      },
+      "additionalProperties": {
+        "$ref": "#/definitions/value"
+      }
+    },
+    "row": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/value"
+      }
+    },
+    "tables": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "$ref": "#/definitions/row"
+        }
+      }
+    }
+  },
+  "type": "object",
+  "properties": {
+    "kind": {
+      "const": "midwrite.counterexample"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "candidate": {
+      "type": "string",
+      "pattern": "^CR-SYNTH-[0-9A-F]{6}$"
+    },
+    "class": {
+      "enum": [
+        "check-then-act",
+        "status-transition",
+        "read-modify-write",
+        "write-skew",
+        "duplicate-processing",
+        "external-effect-gap",
+        "ambiguous-commit",
+        "lock-order",
+        "resubmitted-write",
+        "parent-child",
+        "return-value"
+      ]
+    },
+    "variant": {
+      "type": "string"
+    },
+    "world": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "origin": {
+          "enum": [
+            "base",
+            "domain",
+            "relationship"
+          ]
+        },
+        "relationships": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "origin",
+        "relationships"
+      ]
+    },
+    "property": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "origin": {
+          "enum": [
+            "SCHEMA_ENFORCED",
+            "SOURCE_ASSERTED",
+            "USER_DECLARED",
+            "FRAMEWORK_CONTRACT",
+            "HEURISTIC_HYPOTHESIS"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "origin"
+      ]
+    },
+    "scenario": {
+      "type": "string"
+    },
+    "initialState": {
+      "$ref": "#/definitions/tables"
+    },
+    "actors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "selector": {
+            "type": "string"
+          },
+          "arguments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/value"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "selector",
+          "arguments"
+        ]
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "bounds": {
+      "type": "object",
+      "properties": {
+        "maxSteps": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxStates": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxCrashes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxRetries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxInFlight": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "maxSteps",
+        "maxStates",
+        "maxCrashes",
+        "maxRetries",
+        "maxInFlight"
+      ]
+    },
+    "algorithm": {
+      "type": "string",
+      "pattern": "^(sleep-sets|source-dpor:(stateful-sleep|stateful|stateless-sleep))$"
+    },
+    "schedule": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "finalTerms": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "sourceFingerprint": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string"
+          },
+          "fnv64": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{16}$"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "file",
+          "fnv64"
+        ]
+      }
+    },
+    "evidence": {
+      "const": "model counterexample (not an original-code reproduction)"
+    },
+    "reproduce": {
+      "type": "string",
+      "pattern": "^midwrite model-check "
+    },
+    "reproduceOnOriginalCode": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^midwrite model-check .* --verify-source --allow-execution$"
+    },
+    "status": {
+      "const": "MODEL_COUNTEREXAMPLE"
+    },
+    "finding": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schemaVersion",
+    "candidate",
+    "class",
+    "variant",
+    "world",
+    "property",
+    "scenario",
+    "initialState",
+    "actors",
+    "assumptions",
+    "bounds",
+    "algorithm",
+    "schedule",
+    "finalTerms",
+    "sourceFingerprint",
+    "evidence",
+    "reproduce",
+    "reproduceOnOriginalCode",
+    "status",
+    "finding"
+  ],
+  "description": "Phase 16: the reproduction artifact `<scenario>.counterexample.json` that `midwrite discover --model-check --emit-scenarios DIR` writes next to the deciding scenario of each MODEL_COUNTEREXAMPLE candidate (Phase 15). Every value in it was synthesized; it is a model counterexample, not an original-code reproduction."
+}

@@ -31,7 +31,7 @@ upstream reports, every diagnostic's review, and the HTTP false-positive fix.
 > quickstart, CLI reference, supported technologies, the verification
 > workflow, evidence levels, the [current limitations](docs/reference/limitations.md),
 > architecture, the [evidence index](docs/research/evidence-index.md) and
-> the historical phase reports.
+> the [development history](docs/HISTORY.md).
 
 ```ts
 export async function completeOrder(orderId: string) {
@@ -56,57 +56,38 @@ warning[MW1001]: database commit followed by an independent external effect
   help: Record the intent in the same database transaction as the state change (transactional outbox) and perform the external effect from a relay that retries until it succeeds, or make a reconciliation job derive the missing effect from database state.
 ```
 
-> **Status: experimental (Phase 13 working tree; Phase 13 changes are
-> uncommitted).** Beyond the static analysis below, Midwrite model-checks
-> bounded concurrent and crash/retry scenarios against a model of PostgreSQL
-> (Phase 6), runs counterexamples against the original application code on a
-> disposable database (Phases 7–10), discovers candidates and synthesizes
-> scenarios without a hand-written scenario (Phase 11), and models
-> generated keys, multi-module schemas (Phase 12), foreign-key and row-lock
-> modes, return values, the response step, read replicas and upserts
-> (Phase 13). All original-code evidence comes from first-party fixtures;
-> no independent human review has been performed. Current state:
+> **Status: experimental.** Beyond the static analysis below, Midwrite
+> model-checks bounded concurrent and crash/retry scenarios against a model
+> of PostgreSQL, runs counterexamples against the original application code
+> on a disposable database, discovers candidates and synthesizes scenarios
+> (including their initial data and inputs) without a hand-written
+> scenario, and models generated keys, multi-module schemas, foreign-key and
+> row-lock modes, return values, the response step, read replicas, upserts,
+> zod validation, bounded loops and caught database errors. All
+> original-code evidence comes from first-party fixtures; no independent
+> human review has been performed. Current state:
 > [`docs/README.md`](docs/README.md); current limitations:
-> [`docs/reference/limitations.md`](docs/reference/limitations.md). The
-> history below describes Phases 2–5.
+> [`docs/reference/limitations.md`](docs/reference/limitations.md).
 >
 > The static analysis (`midwrite check`) is deliberately narrow:
 > Drizzle ORM on PostgreSQL and configured external effects, one function at a
 > time plus bounded summaries of the functions it calls, in the same file or
 > imported from other analyzed modules. Expect false positives and false
 > negatives; both are documented below and in
-> [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md). The Phase 2 evaluation on
-> real projects, with manually reviewed precision, is in
-> [`docs/phase2/`](docs/phase2/FINAL-REPORT.md). Phase 3 added failure traces
-> and opt-in runtime replay that turns a selected failure window into observed
-> evidence: [`docs/phase3/`](docs/phase3/FINAL-REPORT.md). Phase 4 made that
-> workflow usable on real code: replay with **Node.js and the real Drizzle
-> ORM**, isolated replay on **Linux** (bubblewrap), a **harness generator**
+> [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md). Precision was reviewed
+> manually on real projects ([evidence index](docs/research/evidence-index.md#1-static-analysis-accuracy)).
+> Failure traces and opt-in runtime replay turn a selected failure window
+> into observed evidence, with **Node.js and the real Drizzle ORM**,
+> isolated replay on **Linux** (bubblewrap), a **harness generator**
 > (`midwrite init-replay`), regression comparison of replay results and
-> function-level recovery contracts: [`docs/phase4/`](docs/phase4/FINAL-REPORT.md).
-> Phase 5 extended the static engine into a bounded interprocedural abstract
-> interpreter: abstract values and a per-function heap, provenance across
-> calls and returns, method dispatch on known receivers, callbacks and
-> wrappers, concurrent calls, inertness summaries over the call graph, and
-> value-flow relationships between the operations of a finding:
-> [`docs/phase5/`](docs/phase5/FINAL-REPORT.md).
+> function-level recovery contracts ([replay protocol](docs/architecture/replay-protocol.md)).
+> The static engine is a bounded interprocedural abstract interpreter:
+> abstract values and a per-function heap, provenance across calls and
+> returns, method dispatch on known receivers, callbacks and wrappers,
+> concurrent calls, inertness summaries over the call graph, and value-flow
+> relationships between the operations of a finding
+> ([value analysis](docs/architecture/value-analysis.md)).
 > No bug in an external application has been runtime-confirmed.
-
-> **Renamed.** Midwrite was called *CommitRift* until 2026-11-04 and
-> *CrashProof* before Phase 3. Diagnostic codes moved from the `CP` prefix to
-> `MW` (`CP1001` is now `MW1001`; `midwrite explain`, recovery contracts and
-> every other code input still accept the `CP` form). Finding fingerprints,
-> baseline files and the report schemas (including their `kind` values such
-> as `commitrift.discovery`) are unchanged. Legacy `commitrift` and
-> `crashproof` executables (same behavior, plus a deprecation note on
-> stderr), the `commitrift.json` and `crashproof.json` configuration files
-> (read only when `midwrite.json` does not exist; files are never merged),
-> `commitrift-contracts.json` (read only when `midwrite-contracts.json` does
-> not exist), the `commitrift.contracts` and `commitrift.source-harness`
-> kinds, and the `COMMITRIFT_THREADS` and `CRASHPROOF_THREADS` variables
-> still work. Other `COMMITRIFT_*` environment variables are now
-> `MIDWRITE_*`. The historical records under `docs/phaseN/` and `reports/`
-> and the frozen evaluation sets keep the old names.
 
 ### Across modules
 
@@ -181,7 +162,7 @@ guessed.
 The fixture [`fixtures/replay/drizzle-node`](fixtures/replay/drizzle-node)
 is an order service on Node.js, `drizzle-orm` 0.45.4 and `pg` 8.23.1. The
 whole workflow, with the steps that are automated and the one that is not,
-is scripted in [`scripts/demo-phase4.sh`](scripts/demo-phase4.sh):
+is scripted in [`scripts/demo-init-replay.sh`](scripts/demo-init-replay.sh):
 
 ```bash
 cd fixtures/replay/drizzle-node && npm ci && npm run build
@@ -211,8 +192,8 @@ not instrumented, and a commit is only claimed when PostgreSQL acknowledged
 it. The same fixture shows a Drizzle transaction rolling back, an event that
 escapes a transaction whose COMMIT PostgreSQL rejects, and a transactional
 outbox that never loses the intent (but delivers at least once). Details:
-[`docs/phase4/NODE-DRIZZLE.md`](docs/phase4/NODE-DRIZZLE.md),
-[`docs/phase4/HARNESS-GENERATION.md`](docs/phase4/HARNESS-GENERATION.md).
+[replay protocol](docs/architecture/replay-protocol.md),
+[harness generation](docs/architecture/replay-protocol.md#harness-generation-init-replay).
 
 A runtime result describes that harness under the recorded conditions; it
 never changes a finding's static confidence and does not show that other
@@ -256,12 +237,13 @@ within the declared bounds — not a proof of race freedom), `INCONCLUSIVE`
 or `UNSUPPORTED`, with diagnostics `MW7001` (invariant violated), `MW7002`
 (inconclusive), `MW7003` (unsupported behavior), `MW7101` (PostgreSQL did not
 reproduce), `MW7102` (validation unavailable) and `MW7103` (the original
-code did not reproduce the counterexample, Phase 7). Semantics, supported
+code did not reproduce the counterexample). Semantics, supported
 subset, validation against PostgreSQL and limitations:
-[`docs/phase6/`](docs/phase6/FINAL-REPORT.md) and
-[`docs/phase7/`](docs/phase7/FINAL-REPORT.md).
+[model checker](docs/architecture/model-checker.md),
+[model semantics](docs/concepts/model-semantics.md),
+[PostgreSQL model](docs/architecture/postgres-model.md).
 
-## Original-code verification (Phase 7, opt-in, executes code)
+## Original-code verification (opt-in, executes code)
 
 A scenario can select an actor's entry function by a **source selector** —
 including the anonymous callback of a wrapped Server Action
@@ -269,7 +251,7 @@ including the anonymous callback of a wrapped Server Action
 wrapper's source to learn how it invokes the callback and requires the
 scenario to declare any precondition it cannot prove. Joins, projections,
 `RETURNING`, generated keys, defaults, `try`/`catch`/`finally`, `switch` and
-loops over literal arrays are now modeled.
+bounded loops are modeled ([source extraction](docs/architecture/source-extraction.md)).
 
 With an authorized source harness, the counterexample is then run against
 the **original application code**: one worker per actor, every SQL
@@ -278,7 +260,7 @@ PostgreSQL's answers and lock waits observed, and the invariant evaluated
 on the rows the run left.
 
 ```bash
-midwrite model-check fixtures/phase7/scenarios/team-app-invite-double-submit.json \
+midwrite model-check fixtures/scenarios/server-actions/team-app-invite-double-submit.json \
   --verify-source --allow-execution --source-repeat 5
 ```
 
@@ -290,9 +272,9 @@ Evidence: OriginalCodeReproduced — the actors' original application code ran u
 
 `--validate-postgres` still replays only the model's SQL; running code
 needs `--allow-execution`. Details:
-[`docs/phase7/FINAL-REPORT.md`](docs/phase7/FINAL-REPORT.md).
+[runtime verification](docs/user-guide/source-verification.md).
 
-## Scenario discovery (Phase 11, static)
+## Scenario discovery (static)
 
 `midwrite discover <project>` finds concurrency and failure candidates in
 the original TypeScript without a hand-written scenario: check-then-act,
@@ -313,29 +295,28 @@ midwrite model-check ./midwrite-scenarios/<id>-actual.json --verify-source --all
 `--emit-scenarios` writes them in the `model-check` format. What source
 cannot say (external effects, delivery, retries, business invariants,
 harness inputs) goes in an optional `midwrite-contracts.json`. Details:
-[`docs/phase11/FINAL-REPORT.md`](docs/phase11/FINAL-REPORT.md).
+[`discover`](docs/user-guide/discover.md),
+[scenario synthesis](docs/architecture/scenario-synthesis.md),
+[contracts](docs/user-guide/contracts.md).
 
-Phase 12 extends what discovery and extraction understand: generated keys
+Discovery and extraction understand generated keys
 (`uuid().defaultRandom()`, `$defaultFn` with a recognized generator such as
-`crypto.randomUUID()`) are modeled as values whose identity is the
-generation event, carried through `returning({ id: t.id })` into foreign
-keys; schemas split over several modules (scenarios may list several
-`extraction.schema` modules and name tables `module#binding`); barrel
-re-exports, repository objects and classes, and `getDb()`-style database
-factories are resolved; one shared project context serves every extraction.
-Details: [`docs/phase12/FINAL-REPORT.md`](docs/phase12/FINAL-REPORT.md).
-
-Phase 13 (uncommitted) adds, each opt-in per scenario so that earlier
+`crypto.randomUUID()`) as values whose identity is the generation event,
+carried through `returning({ id: t.id })` into foreign keys; schemas split
+over several modules; barrel re-exports, repository objects and classes,
+and `getDb()`-style database factories. Opt-in per scenario, so that other
 scenarios keep their state spaces: PostgreSQL row-lock modes and
 foreign-key checks (`features: ["foreign-keys"]`; `NO ACTION`/`RESTRICT`,
 immediate constraints), invariants over what callers are told
 (`"returned"`), a response step that a crash can precede
 (`"response": true`), read-replica handles (`withReplicas` from
-`drizzle-orm/pg-core`, or a declared project factory) with replica staleness as a
-model-only result (`features: ["replicas"]`), `INSERT … ON CONFLICT DO
-UPDATE` and the `.for("share" | "key share" | "no key update")` strengths.
-Details: [`docs/phase13/`](docs/phase13/ARCHITECTURE.md) and
-[`docs/reference/limitations.md`](docs/reference/limitations.md).
+`drizzle-orm/pg-core`, or a declared project factory) with replica
+staleness as a model-only result (`features: ["replicas"]`), JavaScript
+values, timestamps and JSON. Discovery searches over typed input domains
+and initial worlds ([world search](docs/architecture/world-search.md)).
+Details: [supported semantics](docs/concepts/supported-semantics.md#versioned-semantics),
+[supported patterns](docs/reference/supported-patterns.md) and
+[limitations](docs/reference/limitations.md).
 
 ## What Midwrite does not do
 
@@ -382,13 +363,13 @@ Details: [`docs/phase13/`](docs/phase13/ARCHITECTURE.md) and
 | Functions | Declarations, expressions, arrows, class and object methods, `export default`, Next.js route handlers and server actions. Nested functions are analyzed as separate units. |
 | Same-file helpers | `await helper(...)` and `return helper(...)` (in an `async` function) where `helper` is a function declaration or a `const` arrow/function expression of the same file: the helper's summarized operations are analyzed in the caller, up to 3 calls deep (`--max-call-depth`), never recursively. Diagnostics point at the call; operations the helper performs only on some paths get at most `medium` confidence. |
 | Object services | `const orders = { async markPaid() {...}, close: closeOrder }` declared in the same file or imported: `await orders.markPaid(id)` is summarized like a function call. Objects whose properties are assigned or deleted in their file are not followed. |
-| Classes (Phase 5) | `new C().m()`, `const x = new C(); x.m()` (exact dispatch), `this.m()` when no analyzed subclass overrides `m`, static methods, `super(...)`/`super.m()`, inheritance across modules. Dynamic reassignment or several possible targets → not resolved. An unanalyzed (package) superclass → resolved under a recorded assumption, confidence ≤ medium. See [`docs/phase5/CLASS-RESOLUTION.md`](docs/phase5/CLASS-RESOLUTION.md). |
-| Callbacks and wrappers (Phase 5) | `await execute(async () => ...)` when `execute` awaits its parameter; `withTimeout(op(), ms)`-style wrappers proven inert, with the awaited argument kept as the operation; IIFEs; `setTimeout` callbacks are deferred, never serialized. See [`docs/phase5/ASYNC-SEMANTICS.md`](docs/phase5/ASYNC-SEMANTICS.md). |
-| Inert helpers (Phase 5) | A call of a function that performs no write, transaction, external effect or unknown call on any path (transitively, recursion included, builtins modeled) is resolved instead of reported as unknown. |
-| Value relationships (Phase 5) | Diagnostics and traces carry `valueRelation` (`provenShared`, `possiblyRelated`, `noRelationEstablished`, `unknown`) from argument provenance across calls. Descriptive only. |
-| Imported functions | The same, for functions imported from other analyzed files: named, aliased, default and namespace imports; `export { f } from`, `export *` barrels; relative specifiers, `tsconfig.json` `paths`/`baseUrl` (with relative `extends`), and workspace packages (`package.json` `name` + `exports`). Ambiguous modules or exports are not chosen; type-only imports are never calls. See [`docs/phase2/CROSS-MODULE-ANALYSIS.md`](docs/phase2/CROSS-MODULE-ANALYSIS.md). |
+| Classes | `new C().m()`, `const x = new C(); x.m()` (exact dispatch), `this.m()` when no analyzed subclass overrides `m`, static methods, `super(...)`/`super.m()`, inheritance across modules. Dynamic reassignment or several possible targets → not resolved. An unanalyzed (package) superclass → resolved under a recorded assumption, confidence ≤ medium. See [value analysis](docs/architecture/value-analysis.md#class-and-method-resolution). |
+| Callbacks and wrappers | `await execute(async () => ...)` when `execute` awaits its parameter; `withTimeout(op(), ms)`-style wrappers proven inert, with the awaited argument kept as the operation; IIFEs; `setTimeout` callbacks are deferred, never serialized. See [value analysis](docs/architecture/value-analysis.md#asynchronous-and-higher-order-semantics). |
+| Inert helpers | A call of a function that performs no write, transaction, external effect or unknown call on any path (transitively, recursion included, builtins modeled) is resolved instead of reported as unknown. |
+| Value relationships | Diagnostics and traces carry `valueRelation` (`provenShared`, `possiblyRelated`, `noRelationEstablished`, `unknown`) from argument provenance across calls. Descriptive only. |
+| Imported functions | The same, for functions imported from other analyzed files: named, aliased, default and namespace imports; `export { f } from`, `export *` barrels; relative specifiers, `tsconfig.json` `paths`/`baseUrl` (with relative `extends`), and workspace packages (`package.json` `name` + `exports`). Ambiguous modules or exports are not chosen; type-only imports are never calls. See [ARCHITECTURE.md](docs/ARCHITECTURE.md#project-analysis-midwrite-analyzerproject-resolve). |
 | Handle arguments | A direct identifier argument that is a transaction handle, a configured receiver (including a configured call such as `getDb()`) or a `drizzle(...)` instance is bound to the callee's parameter: `await save(tx, id)` puts `save`'s writes in the caller's transaction. Any other argument (`getDb()`, a computed value) leaves the callee's writes unknown. |
-| Branch correlation | Paths whose decisions contradict each other on a variable that is never reassigned (`flag` / `!flag`, `x === "a"` / `x === "b"`, `switch` cases, `const` literals) are discarded. A literal or object returned by an inline transaction callback is known for the `const` holding the transaction's result (`const r = await db.transaction(...)`; `if (r === "forbidden")`). Phase 5: the same for a summarized helper's returned literals and object-literal properties (`const r = await save(); if (r.ok)`), and for property tests of unescaped objects. |
+| Branch correlation | Paths whose decisions contradict each other on a variable that is never reassigned (`flag` / `!flag`, `x === "a"` / `x === "b"`, `switch` cases, `const` literals) are discarded. A literal or object returned by an inline transaction callback is known for the `const` holding the transaction's result (`const r = await db.transaction(...)`; `if (r === "forbidden")`). The same holds for a summarized helper's returned literals and object-literal properties (`const r = await save(); if (r.ok)`), and for property tests of unescaped objects. |
 
 ## Supported platforms
 
@@ -440,7 +421,7 @@ midwrite explain MW1001
 | --- | --- |
 | `midwrite check [PATHS]...` | Analyze files/directories (default `.`). Directories are searched recursively for `.ts`, `.tsx`, `.mts`, `.cts`, skipping `node_modules`, `.git`, `dist`, `build`, `out`, `.next`, `.nuxt`, `.output`, `.turbo`, `.vercel`, `.svelte-kit`, `coverage`, and `.d.ts` files. Explicitly named files are always analyzed. |
 | `--format text\|json\|sarif` | Human-readable (default), JSON ([schema](docs/DIAGNOSTICS.md#json-output)), or SARIF 2.1.0. |
-| `--config <FILE>` | Configuration file. Default: `./midwrite.json` if present, else the legacy `./crashproof.json`, else built-in defaults. |
+| `--config <FILE>` | Configuration file. Default: `./midwrite.json` if present, else built-in defaults. |
 | `--fail-on error\|warning\|info\|never` | Exit with status 1 when a diagnostic at or above this severity exists (default `warning`). |
 | `--max-paths <N>` | Paths explored per function (default 512); functions with more paths get `MW9001`. |
 | `--max-call-depth <N>` | Levels of calls inlined from summaries (default 3; `0` disables summaries). |
@@ -450,10 +431,10 @@ midwrite explain MW1001
 | `-v, --verbose` | Text output: also print evidence, path certainty, evidence strength and general limitations. |
 | `midwrite explain [CODE]` | Documentation for a code, or the list of codes. |
 | `midwrite ir [PATHS]... [--format text\|json]` | Print the Effect IR. |
-| `midwrite trace [PATHS]... [--format text\|json] [--finding ID]` | Print the failure trace behind each finding ([format](docs/phase3/TRACE-FORMAT.md)). Static only. |
-| `midwrite replay <HARNESS> [--case ID\|CODE] [--finding ID] [--repeat N] [--allow-execution]` | Run an authorized replay harness ([protocol](docs/phase3/REPLAY-PROTOCOL.md), [Node.js](docs/phase4/NODE-DRIZZLE.md), [security](docs/phase4/SECURITY-REVIEW.md)). Without `--allow-execution` only the plan is printed. Needs PostgreSQL server binaries, Node.js ≥ 22 or Bun ≥ 1.2, and OS isolation (macOS `sandbox-exec`, Linux bubblewrap). |
+| `midwrite trace [PATHS]... [--format text\|json] [--finding ID]` | Print the failure trace behind each finding ([format](docs/reference/trace-format.md)). Static only. |
+| `midwrite replay <HARNESS> [--case ID\|CODE] [--finding ID] [--repeat N] [--allow-execution]` | Run an authorized replay harness ([protocol](docs/architecture/replay-protocol.md), [security](docs/reference/security.md)). Without `--allow-execution` only the plan is printed. Needs PostgreSQL server binaries, Node.js ≥ 22 or Bun ≥ 1.2, and OS isolation (macOS `sandbox-exec`, Linux bubblewrap). |
 | `midwrite replay … --baseline OLD.json [--regression-output R.json]` | Compare every case with an earlier verification report: still / no longer / newly reproduced, inconclusive, not executed. Exit 1 on a change, 3 when a case is inconclusive or was not executed. |
-| `midwrite init-replay --trace T.json --finding ID --output DIR [--runtime node\|bun]` | Generate an editable replay harness skeleton for one finding ([guide](docs/phase4/HARNESS-GENERATION.md)). Writes only into `DIR` (inside the project); executes and installs nothing. |
+| `midwrite init-replay --trace T.json --finding ID --output DIR [--runtime node\|bun]` | Generate an editable replay harness skeleton for one finding ([guide](docs/architecture/replay-protocol.md#harness-generation-init-replay)). Writes only into `DIR` (inside the project); executes and installs nothing. |
 | `midwrite report <JSON> [-o FILE]` | Render a trace or verification report as a self-contained, script-free HTML page. |
 | `midwrite model-check <SCENARIO>` | Bounded model checking of a scenario; `--validate-postgres`, `--verify-source --allow-execution` ([guide](docs/user-guide/model-check.md)). |
 | `midwrite discover <ROOT>` | Candidates, properties and synthesized scenarios from source; `--model-check`, `--emit-scenarios` ([guide](docs/user-guide/discover.md)). Never executes application code. |
@@ -480,12 +461,17 @@ keeps the match; a finding that moved to another file is still matched when
 the match is unambiguous. Parse failures are never suppressed (exit status 3).
 SARIF output carries the same fingerprint (`partialFingerprints`).
 
+To silence a specific rule at a reported line, add
+`// midwrite-ignore MW1001: compensated by nightly reconciliation job`
+immediately above it or at the end of that line. A non-empty reason is
+required. See [inline suppressions](docs/user-guide/check.md#inline-suppressions).
+
 ### Policies
 
 | Policy | Warnings | Info |
 | --- | --- | --- |
 | `recommended` (default) | MW1001, MW1002, MW1003; MW1004 when a write bypasses its enclosing transaction | other MW1004 and MW1005 (review candidates), MW9001; unrecognized calls after a commit are grouped into one MW9001 per function |
-| `strict` | every hazard (Phase 1 behavior) | MW9001, one per call |
+| `strict` | every hazard (the original behavior) | MW9001, one per call |
 | `audit` | as `strict` | as `strict`, plus unknown calls before the first recognized operation (possible unconfigured effects) |
 
 The codes and their meaning are the same under every policy; only the
@@ -553,7 +539,7 @@ A covered finding is still reported with the same fingerprint; under
 `recommended` a warning becomes `info`, with a `recovery` note
 (`"source": "configuration"`, `"verified": false`) and the cited evidence.
 `reconciled` contracts cannot cover MW1002/MW1003. See
-[`docs/phase4/RECOVERY-SEMANTICS.md`](docs/phase4/RECOVERY-SEMANTICS.md).
+[configuration](docs/reference/configuration.md#recovery-declarations).
 
 Defaults: `databaseReceivers: ["db"]`, `transactionMethods: ["transaction"]`,
 and one external effect, `queue.publish` (`message-publish`). Categories:
@@ -563,7 +549,7 @@ Unknown fields are rejected.
 `"exclude": ["tests/**", "**/*.test.ts", "scripts/**"]` skips files when a
 directory is scanned (a pattern with `/` is matched against the path relative
 to the scanned directory, one without against each file and directory name).
-In the Phase 2 evaluation, test and seed files produced most of the
+In the corpus evaluation, test and seed files produced most of the
 `MW1004`/`MW9001` volume of one project.
 
 **Trust model.** Configuration entries are *assertions you make*. A bare name
@@ -632,10 +618,10 @@ Known **false positives** (reported, but not a real problem):
   (`if (input.a) write(); if (!input.a) publish();` is still reported).
 * Idempotent consumers, job retries, webhook redelivery and reconciliation
   jobs elsewhere are invisible unless declared (`recovery`,
-  `recoveryContracts`); in the Phase 2 review, most structurally
+  `recoveryContracts`); in the manual precision review, most structurally
   correct findings that were not bugs were best-effort notifications or
-  operations repaired by job retries (see
-  [`docs/phase2/CORPUS-EVALUATION.md`](docs/phase2/CORPUS-EVALUATION.md)).
+  operations repaired by job retries (see the
+  [evidence index](docs/research/evidence-index.md#1-static-analysis-accuracy)).
 * Two adjacent operations are reported even when the second is not related
   to the first (a notification followed by an unrelated update).
 
@@ -643,7 +629,7 @@ Known **false negatives** (real hazards that are not reported):
 
 * Effects inside methods on receivers whose class is not known
   (`service.save()` with `service` a parameter or a factory result; methods
-  of known classes are followed since Phase 5), callbacks run by
+  of known classes are followed), callbacks run by
   unanalyzed code, packages outside the analyzed files, and functions
   whose module or export cannot be resolved. A call after a recognized commit becomes `MW9001`; one
   before the first commit is not reported (except under `--policy audit`).
@@ -680,8 +666,8 @@ Known **false negatives** (real hazards that are not reported):
   allow the network. External database URLs and credential-like environment
   variables in a manifest are refused. This protects against accidents in a
   *trusted* harness; it is **not** a sandbox for malicious code. See
-  [`docs/phase4/SECURITY-REVIEW.md`](docs/phase4/SECURITY-REVIEW.md) and
-  [`docs/phase4/LINUX-ISOLATION.md`](docs/phase4/LINUX-ISOLATION.md).
+  [security](docs/reference/security.md) and
+  [isolation](docs/architecture/replay-protocol.md#isolation).
 * Reports are written only where you ask. Nothing is uploaded anywhere.
 
 ## Project layout
@@ -691,16 +677,15 @@ crates/midwrite-core       Effect IR, failure-path analysis, diagnostics, config
 crates/midwrite-analyzer   TypeScript frontend: Oxc parsing, provenance, recognition, lowering, module resolution, project analysis; concurrency extractor, schema facts
 crates/midwrite-discover   Candidate discovery and scenario synthesis (`midwrite discover`)
 crates/midwrite-model      Bounded explicit-state model checker, PostgreSQL model, lockstep oracle, original-code differential
-crates/midwrite-cli        The `midwrite` (and legacy `crashproof`) binary: text, JSON, SARIF and HTML output, baselines, every command
+crates/midwrite-cli        The `midwrite` binary: text, JSON, SARIF and HTML output, baselines, every command
 crates/midwrite-replay     Opt-in runtime execution: manifest validation, disposable PostgreSQL, isolation, replay supervisor, source coordinator, fault proxy
-crates/midwrite-corpus     Developer tool (not published): corpus runs, run comparison, reviewed precision, phase memory profile
+crates/midwrite-corpus     Developer tool (not published): corpus runs, run comparison, reviewed precision, memory profile
 runtime/node/                Dependency-free replay client (Node.js and Bun), pg adapter, event-log transport (workspace package @midwrite/replay, unpublished)
-runtime/typescript/          Phase 3 import path for Bun harnesses (re-exports runtime/node)
+runtime/typescript/          Legacy import path for Bun harnesses (re-exports runtime/node)
 ci/, .github/workflows/      Linux test image; CI and release workflows (not yet run on GitHub)
-fixtures/                    vulnerable/, safe/, unsupported/ single-file examples, projects/ multi-file examples, all with `// @expect` annotations; replay/ runnable replay harnesses
+fixtures/                    vulnerable/, safe/, unsupported/ single-file examples, projects/ multi-file examples, all with `// @expect` annotations; replay/ runnable replay harnesses; apps/ first-party applications, scenarios/ and model/ model-check scenarios, eval/ frozen evaluation sets, reports/ report files used as test inputs
 corpora/                     Evaluation corpus manifests, per-project configurations and review labels
-docs/                        README.md (index of the current documentation), getting-started/, user-guide/, concepts/, architecture/, reference/, development/, research/; ARCHITECTURE.md, DIAGNOSTICS.md, LIMITATIONS.md; phase2/ … phase13/ (historical records)
-reports/                     Raw evidence of each phase (reports/phaseN/)
+docs/                        README.md (index of the current documentation), getting-started/, user-guide/, concepts/, architecture/, reference/, development/, research/; ARCHITECTURE.md, DIAGNOSTICS.md, LIMITATIONS.md; HISTORY.md (development phases; their records are in the git tag history/phase-records)
 ```
 
 ## Contributing
@@ -740,7 +725,7 @@ revisions; nothing is executed or modified):
 ```bash
 corpora/fetch.sh
 cargo run --release -p midwrite-corpus -- run --manifest corpora/manifest.json --output reports/after.json
-cargo run --release -p midwrite-corpus -- compare reports/phase3/corpus-phase3.json reports/after.json
+cargo run --release -p midwrite-corpus -- compare reports/before.json reports/after.json
 cargo run --release -p midwrite-corpus -- precision --report reports/after.json --labels corpora/labels
 ```
 

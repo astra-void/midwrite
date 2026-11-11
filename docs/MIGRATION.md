@@ -1,162 +1,57 @@
-# Documentation migration (2026-10-28)
+# Documentation migration
 
-A current documentation layer was added on top of the historical phase
-records. Nothing was deleted or moved; no `docs/phaseN/` file and nothing
-under `reports/` was changed. Index: [`docs/README.md`](README.md).
+The documentation is organized by topic. Until November 2026 it also
+carried a phase-by-phase engineering record (one documentation directory
+per phase, with a matching directory of raw evidence). That record was removed from the
+working tree; it is preserved unchanged in the git tag
+`history/phase-records`, and [development history](HISTORY.md) explains
+how to read it. Everything in it that still describes the system was
+folded into the topic documents below. Index: [`docs/README.md`](README.md).
 
-## Created
+## Where phase topics went
 
-| area | files |
+If you have an old link to a phase document, the current home of its
+subject is:
+
+| subject of the phase documents | current document |
 | --- | --- |
-| index | `docs/README.md`, `docs/MIGRATION.md` (this file) |
-| getting started | `getting-started/installation.md`, `quickstart.md`, `first-verification.md` |
-| user guide | `user-guide/check.md`, `discover.md`, `model-check.md`, `source-verification.md`, `interpreting-results.md`, `contracts.md` |
-| concepts | `concepts/failure-model.md`, `concurrency-model.md`, `invariants.md`, `evidence-levels.md`, `supported-semantics.md` |
-| architecture | `architecture/overview.md`, `analyzer.md`, `source-extraction.md`, `scenario-synthesis.md`, `model-checker.md`, `postgres-model.md`, `runtime-verification.md` |
-| reference | `reference/cli.md`, `configuration.md`, `output-formats.md`, `supported-patterns.md`, `limitations.md`, `security.md` |
-| development | `development/testing.md`, `benchmarks.md`, `corpus-evaluation.md`, `roadmap.md` (contributing stays in [`CONTRIBUTING.md`](../CONTRIBUTING.md)) |
-| research | `research/evidence-index.md`, `research/evaluation-methodology.md` |
-| tooling | `scripts/check-doc-links.py` (Python 3 standard library) |
+| cross-module analysis, call summaries, compact and parameterized path summaries | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| abstract domain, heap and aliases, interprocedural summaries, async semantics, class resolution, effect relationships | [architecture/value-analysis.md](architecture/value-analysis.md) |
+| precision changes, policies | [DIAGNOSTICS.md](DIAGNOSTICS.md), [user-guide/check.md](user-guide/check.md) |
+| trace format | [reference/trace-format.md](reference/trace-format.md) |
+| replay protocol, Node.js + Drizzle replay, harness generation, Linux isolation | [architecture/replay-protocol.md](architecture/replay-protocol.md) |
+| recovery semantics and contracts | [reference/configuration.md](reference/configuration.md#recovery-declarations) |
+| model design, semantics, formal model, epistemic semantics, process and task model | [concepts/model-semantics.md](concepts/model-semantics.md) |
+| database model, PostgreSQL isolation, FK locks, multi-row locks, NULLS NOT DISTINCT, replica consistency, PostgreSQL validation and differential matrices | [architecture/postgres-model.md](architecture/postgres-model.md) |
+| partial-order reduction, DPOR, source-set DPOR, dependence and enabling relations, formal assumptions, POR correctness, adversarial generation | [architecture/partial-order-reduction.md](architecture/partial-order-reduction.md) |
+| state-space storage, counterexamples, verdict semantics | [architecture/model-checker.md](architecture/model-checker.md) |
+| failure and retry, crash-retry semantics, ambiguous commit, operation lifecycle | [concepts/failure-model.md](concepts/failure-model.md) |
+| invariants, generated-ID invariants | [concepts/invariants.md](concepts/invariants.md) |
+| generated-value semantics, JavaScript value semantics | [concepts/value-semantics.md](concepts/value-semantics.md) |
+| source identity, callback resolution, control flow, Drizzle extraction, predicates, request bodies, return values and responses, source resolution, package contracts, source-model fidelity | [architecture/source-extraction.md](architecture/source-extraction.md) |
+| schema extraction and schema fidelity | [architecture/schema-extraction.md](architecture/schema-extraction.md) |
+| loop semantics, caught errors | [architecture/loops-and-errors.md](architecture/loops-and-errors.md) |
+| zod validation | [reference/zod.md](reference/zod.md) |
+| runtime scheduler, original-code recovery, postgres-js adapter, runtime verification, test reliability | [architecture/runtime-verification.md](architecture/runtime-verification.md), [development/testing.md](development/testing.md) |
+| protocol fault injection, connection pool runs, live connection failures, postgres-js in flight | [architecture/fault-injection.md](architecture/fault-injection.md) |
+| candidate discovery, effect index, invariant synthesis, state synthesis, contracts | [architecture/scenario-synthesis.md](architecture/scenario-synthesis.md), [user-guide/contracts.md](user-guide/contracts.md) |
+| input domains, constraint synthesis, feedback-guided search, coverage | [architecture/world-search.md](architecture/world-search.md) |
+| every phase's `SECURITY.md` | [reference/security.md](reference/security.md) |
+| every phase's `LIMITATIONS.md` | [reference/limitations.md](reference/limitations.md) (static analyzer detail: [LIMITATIONS.md](LIMITATIONS.md)) |
+| evaluation datasets, precision and recall, independent evaluation | [research/evaluation-datasets.md](research/evaluation-datasets.md), [research/evaluation-methodology.md](research/evaluation-methodology.md) |
+| corpus and real-world evaluation | [development/corpus-evaluation.md](development/corpus-evaluation.md) |
+| quality gates, alpha readiness | [development/testing.md](development/testing.md), [alpha/README.md](alpha/README.md) |
+| report schemas (per-phase `schemas/` directories) | [reference/schemas/](reference/schemas) |
+| baselines, implementation plans, performance measurements, final reports | archived only; headline numbers in [research/evidence-index.md](research/evidence-index.md) |
 
-Configuration lives in `reference/configuration.md` (no separate
-getting-started page). The planned `reference/report-formats.md` is named
-`reference/output-formats.md` (the authoring tool refused file names
-containing "report"); rename it if the original name is preferred and
-update the links to it in `docs/README.md`,
-`architecture/model-checker.md` and `reference/cli.md`.
+## Moved files
 
-## Consolidated (sources kept unchanged)
+Test and fixture names no longer carry phase numbers either: for example
+the first-party applications are under `fixtures/apps/`, model-check
+scenarios under `fixtures/scenarios/` and `fixtures/model/`, the frozen
+evaluation sets under `fixtures/eval/p11` … `p16`, and report files that
+tests read under `fixtures/reports/`. Integration tests are named by the
+behavior they cover ([testing](development/testing.md)).
 
-| new document | built from |
-| --- | --- |
-| `reference/limitations.md` — the single current limitations document, with a "Phase 14 changes" placeholder | `docs/LIMITATIONS.md` and `docs/phase6` … `phase13/LIMITATIONS.md`; items lifted by later phases moved to a "lifted" table (FK locks, return values, response step, replicas, upserts and lock strengths in Phase 13; generated keys and multi-module schemas in 12; live connection loss and postgres-js in-flight in 10; in-flight operations, pools and shared processes in 9; crash/retry and postgres-js in 8; extraction coverage in 7) |
-| `research/evidence-index.md` | every phase's `FINAL-REPORT.md`, `BASELINE.md`, evaluation and performance documents; raw paths checked to exist under `reports/` |
-| `reference/cli.md` | `--help` of every subcommand of the release binary built 2026-10-27 (pre-Phase 14); exit statuses read from `crates/commitrift-cli/src` |
-| `reference/supported-patterns.md` | README "Supported patterns", `docs/LIMITATIONS.md` support levels, Phase 6/7/12/13 extraction documents |
-| `user-guide/contracts.md` | `docs/phase11/CONTRACTS.md`, Phase 13 `replicaFactories`, `crates/commitrift-discover/src/contracts.rs` field list |
-| `concepts/evidence-levels.md` | Phase 3, 6, 7, 8, 13 evidence definitions and `EvidenceLevel` in `crates/commitrift-model/src/report.rs` |
-| `reference/security.md` | README "Security considerations" and the per-phase `SECURITY.md` files |
-
-Example outputs in the getting-started and reference pages were produced
-by the pre-Phase-14 binary with read-only commands (`check`, `trace`,
-`explain`, `model-check` without validation flags, `discover`, `schema`
-without `--migrations`). Nothing was run with `--allow-execution`.
-
-## Modified
-
-| file | change |
-| --- | --- |
-| `README.md` | documentation callout near the top; status block updated from "Phase 5" to the Phase 13 state (Phases 2–5 history kept below it); a Phase 13 paragraph after the Phase 12 one; `model-check`, `discover`, `schema` rows and a CLI-reference link in the usage table; one false-negative bullet corrected (methods of known classes are followed since Phase 5); project layout lists `commitrift-discover`, `commitrift-model`, the new docs and `reports/`; link to the testing page. No section was removed and no heading changed, so existing anchors (`#configuration`, `#supported-patterns`, `#policies`, …) still resolve. |
-| `CONTRIBUTING.md` | limitations go into `docs/reference/limitations.md`; run the link checker |
-| `docs/LIMITATIONS.md`, `docs/ARCHITECTURE.md` | one-paragraph pointer to the current documents at the top; content unchanged |
-
-## Moved
-
-Nothing.
-
-## Intentionally retained
-
-* `docs/phase2/` … `docs/phase13/`: the historical engineering record,
-  unchanged. `docs/phase13/` is being completed by the lead engineer.
-* `reports/phase2/` … `reports/phase13/`: raw evidence, unchanged.
-* `docs/LIMITATIONS.md` (static analyzer detail, Phases 1–7),
-  `docs/ARCHITECTURE.md` (static analyzer design), `docs/DIAGNOSTICS.md`
-  (the diagnostics catalog, still current).
-* README's deep sections (configuration, policies, transaction semantics,
-  false positives/negatives, security): duplicated in the new reference
-  pages but kept, because they are linked into and remain accurate.
-
-## Link check
-
-`python3 scripts/check-doc-links.py --historical report` at the end of
-this migration: README/CONTRIBUTING 0 broken, current docs 0 broken,
-historical `docs/phaseN/` 0 broken relative links (187 relative Markdown
-links in phase documents). No historical file needed a link fix.
-
-Not checked by the tool (plain-text path references, not links), noted for
-the phase owners:
-
-* `docs/phase13/POSTGRESQL-FK-LOCKS.md` cited `reports/phase13/evidence/`,
-  which did not exist then; resolved at the Phase 13 closeout (the evidence
-  script was fixed and run; the directory now exists).
-* `docs/phase13/FINAL-REPORT.md` listed `REAL-WORLD-EVALUATION.md` and
-  `PERFORMANCE.md`; resolved at the closeout (both are sections of the
-  final report; the list says so).
-
-## Phase 14 additions (lead)
-
-* `docs/phase14/` (baseline, architecture, value semantics, replica
-  integration, source coverage, Drizzle differential, evaluation,
-  real-world results, performance, security, limitations, final report).
-* Updated current pages: `reference/limitations.md` (Phase 14 changes),
-  `user-guide/discover.md` (new families, next step), `user-guide/contracts.md`
-  (return-value templates), `getting-started/quickstart.md` (a discovery
-  walk-through with Phase 14 output), this index.
-
-## Phase 15 additions
-
-* `docs/phase15/` (baseline, architecture, input domains, constraint
-  synthesis, feedback-guided search, verdict semantics, source coverage,
-  real-world evaluation, PostgreSQL differential, precision/recall,
-  performance, alpha readiness, security, limitations, final report). The
-  brief's STATE-SPACE-SAMPLING, INPUT-COVERAGE, MIDDAY-EVALUATION and
-  SCHOOL-LEDGER-EVALUATION are consolidated into FEEDBACK-GUIDED-SEARCH,
-  VERDICT-SEMANTICS and REAL-WORLD-EVALUATION.
-* Updated current pages: `reference/cli.md` (`--max-worlds`,
-  `--all-worlds`, `--explain-coverage`, reproduction artifacts),
-  `reference/output-formats.md` (`coverage`, `commitrift.counterexample`),
-  `reference/limitations.md` (Phase 15 changes), `user-guide/discover.md`
-  (input exploration), `user-guide/interpreting-results.md` (verdicts are
-  relative to explored worlds), `getting-started/quickstart.md` (an
-  input-world walk-through validated with the Phase 15 binary),
-  `research/evidence-index.md` (Phase 15 rows), this index.
-* No historical `docs/phaseN/` file was changed.
-
-# Rename to Midwrite (2026-11-04)
-
-CommitRift is now **Midwrite** (Linear DEV-146). Before the rename, on
-2026-11-04, the planned name *Faultline* was checked and dropped. It was
-already used by developer tooling: npm `faultline` and `faultline-cli`,
-crates.io `faultline` and `faultline-core`, the GitHub organization
-`faultline`, and the `.dev`, `.sh`, `.io` and `.tools` domains. `midwrite`
-was free on npm, crates.io and GitHub. No formal trademark search has been
-made.
-
-## Changed
-
-* Crates `commitrift-*` → `midwrite-*`, and the executable `commitrift` →
-  `midwrite`.
-* Configuration and contracts files: `midwrite.json` and
-  `midwrite-contracts.json`. Contracts and source-harness kinds:
-  `midwrite.contracts` and `midwrite.source-harness`.
-* Diagnostic codes `CPnnnn` → `MWnnnn`.
-* Environment variables `COMMITRIFT_*` → `MIDWRITE_*`.
-* The current documentation (`README.md`, `CONTRIBUTING.md`, `docs/` outside
-  `docs/phaseN/`), scripts, CI, fixtures and the Node.js runtime package
-  (`midwrite-runtime`).
-
-## Still accepted (compatibility)
-
-* The `commitrift` and `crashproof` executables, which print a deprecation
-  note.
-* `commitrift.json`, then `crashproof.json`, when `midwrite.json` does not
-  exist. Only one file is read.
-* `commitrift-contracts.json` when `midwrite-contracts.json` does not exist.
-* The kinds `commitrift.contracts` and `commitrift.source-harness`.
-* `CP` codes wherever a code is read (`explain`, recovery contracts).
-* `COMMITRIFT_THREADS` and `CRASHPROOF_THREADS`.
-
-## Intentionally unchanged
-
-* Finding fingerprints. They are computed from the pre-rename `CP` code, so
-  existing baselines keep matching.
-* The `kind` values of published report formats (`commitrift.discovery`,
-  `commitrift.model-check`, `commitrift.traces`, `commitrift.verification`,
-  `commitrift.regression`, `commitrift.counterexample`, …) and their
-  schemas. They are a versioned wire format. Renaming them needs new schema
-  versions, which this change does not make.
-* SARIF `partialFingerprints["crashproof/v1"]`.
-* Historical records: `docs/phaseN/`, `reports/`, and every file of the
-  frozen evaluation sets listed in `fixtures/phase13`–`phase16/FROZEN.json`.
-  The frozen sets keep `commitrift-contracts.json` and are read through the
-  compatibility path above, so their checksums still verify.
+Identifiers that are part of a wire format or of a frozen evaluation set
+were not renamed by this reorganization.

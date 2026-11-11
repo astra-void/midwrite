@@ -53,6 +53,37 @@ Every static finding is a potential hazard (`"kind": "potentialHazard"`,
 Codes and meanings do not change between policies; only severity (and so
 the exit status) does.
 
+## Inline suppressions
+
+Silence a rule at a finding's reported line with a `// midwrite-ignore`
+comment and a required reason:
+
+```ts
+await db.update(orders).set({ status: "paid" });
+// midwrite-ignore MW1001: compensated by nightly reconciliation job
+await queue.publish("order.completed", { id });
+```
+
+Put the comment immediately above the reported line, or at the end of that
+line. A standalone comment targets exactly the next line; blank lines break
+adjacency. The directive takes one known rule ID, including `MW9001`, and
+suppresses only that rule at that primary location. Other rules and lines
+remain reported. For a finding reported at a summarized call, put the
+directive at the caller's reported line.
+
+Suppressed findings are omitted from text, JSON, SARIF, failure traces and
+new baselines, and do not count toward `--fail-on`. Operations stay in the
+IR and call summaries. The reason is recorded in source; Midwrite does not
+verify the claimed recovery mechanism. Strings, block comments and comments
+that merely mention the directive are not suppression directives. There is
+no file-wide or function-wide suppression.
+
+A missing or whitespace-only reason, unknown rule, wildcard or list of rules
+is rejected as a file parse error with the comment's position. That file is
+not analyzed; the run remains incomplete (exit status 3 unless another
+finding reaches `--fail-on`), even with `--fail-on never`. Syntax and read
+errors cannot be suppressed.
+
 ## Baselines (adopting it in CI)
 
 ```bash
@@ -61,8 +92,59 @@ midwrite check . --baseline midwrite-baseline.json          # fails only on new 
 ```
 
 Entries are matched by a fingerprint of code, file, function and the
-operations' source labels (no line numbers); SARIF carries it as
-`partialFingerprints`. Parse failures are never suppressed.
+operations' compact source labels, including related call sites. Line and
+column numbers are excluded, even from generated anonymous-function names,
+so adding comments, shifting lines or reflowing member chains keeps the ID.
+SARIF carries the same ID as `partialFingerprints["midwrite/v1"]`; traces
+use it as `findingId`. Parse failures are never suppressed.
+
+Changing the rule, function name or operation labels changes the ID. File
+moves change the ID, but baselines still match a unique file-independent
+identity. Findings with identical inputs get occurrence suffixes (`-2`,
+`-3`, …) in source order; inserting or removing an identical occurrence can
+reassign those suffixes. Use the same analysis root across runs to keep file
+paths consistent. Older baselines and replay selectors for anonymous
+callbacks need refreshing once after the position-normalization fix;
+named-function IDs are unchanged.
+
+## GitHub code scanning
+
+Run the scan from the repository root to keep paths and fingerprints
+consistent between CI runs. Each SARIF result includes the same stable
+fingerprint as JSON in `partialFingerprints["midwrite/v1"]`, plus its
+diagnostic code, severity, source range and related effects.
+
+Add these steps to a GitHub Actions job after checking out the repository
+and [installing Midwrite](../getting-started/installation.md). Give the job
+`contents: read` and `security-events: write` permissions:
+
+```yaml
+permissions:
+  contents: read
+  security-events: write
+
+steps:
+  # Check out your repository and install midwrite before these steps.
+  - name: Analyze failure paths
+    run: midwrite check . --format sarif > midwrite.sarif
+  - name: Upload code scanning results
+    if: ${{ !cancelled() }}
+    uses: github/codeql-action/upload-sarif@v4
+    with:
+      sarif_file: midwrite.sarif
+      category: midwrite
+```
+
+The upload step runs even when findings make the scan exit with status 1.
+For an annotation-only scan, add `--fail-on never`; read and parse errors
+still produce an incomplete run and exit status 3. With `--baseline`,
+existing findings remain in SARIF with `baselineState: "unchanged"` and
+only new findings count toward the failure threshold.
+
+GitHub supports these uploads for public repositories. Alerts can appear
+on pull requests when the reported lines are in the diff. See GitHub's
+[upload guide](https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/integrate-with-existing-tools/upload-sarif-file)
+and [SARIF support](https://docs.github.com/en/code-security/reference/code-scanning/sarif-files/sarif-support).
 
 ## Exit status
 
@@ -86,18 +168,18 @@ default 512; exceeding it adds `MW9001`). Full table:
 
 | Command | Purpose |
 | --- | --- |
-| `midwrite trace [PATHS] [--finding ID] [--format json]` | the failure trace behind each finding (static candidate) — [format](../phase3/TRACE-FORMAT.md) |
+| `midwrite trace [PATHS] [--finding ID] [--format json]` | the failure trace behind each finding (static candidate) — [format](../reference/trace-format.md) |
 | `midwrite ir [PATHS] [--format json]` | the Effect IR the frontend derived |
 | `midwrite report TRACE.json -o trace.html` | self-contained, script-free HTML |
-| `midwrite init-replay` / `midwrite replay` | turn one trace into a runtime replay harness ([source verification](source-verification.md#single-request-replay-harnesses)) |
+| `midwrite init-replay` / `midwrite replay` | turn one trace into a runtime replay harness ([source verification](source-verification.md#single-request-replay-harnesses), [protocol](../architecture/replay-protocol.md)) |
 
 ## Accuracy
 
-The reviews of `check` findings on real projects are the Phase 2 review by
-the Phase 2 implementer, from source code alone (103 findings, 97 with a
+The reviews of `check` findings on real projects are a first review by the
+implementer of the cross-module analysis, from source code alone (103
+findings, 97 with a
 decided label; the window existed in 92, 27 were judged likely bugs), and a
-blind automated re-review of 18 of them in Phase 3 by a separate model
-session. Neither is an independent human review, and no maintainer
+blind automated re-review of 18 of them by a separate model session. Neither is an independent human review, and no maintainer
 confirmed a finding. Numbers and caveats:
 [evidence index](../research/evidence-index.md#1-static-analysis-accuracy).
 Read findings as review candidates.

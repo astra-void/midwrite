@@ -4,8 +4,8 @@ This package is for developers invited to try Midwrite on
 TypeScript + Drizzle + PostgreSQL code. It is **not** a public release:
 nothing is published to a package registry, and this guide is not
 distributed automatically. Every command below is run end to end by
-`scripts/phase16-alpha-check.sh` (last result: see
-`docs/phase16/ALPHA-READINESS.md`).
+`scripts/alpha-check.sh`, which checks that each step shows what
+this guide says; run it after changing the guide or the binary.
 
 | document | for |
 | --- | --- |
@@ -61,11 +61,11 @@ server binaries are needed only for step 8.
 
 ## 4. First run
 
-The example application `fixtures/phase16/retry` places orders in a retry
+The example application `fixtures/apps/retry` places orders in a retry
 loop. Run discovery with model checking:
 
 ```bash
-target/release/midwrite discover fixtures/phase16/retry --model-check
+target/release/midwrite discover fixtures/apps/retry --model-check
 ```
 
 Read the first candidate:
@@ -87,7 +87,7 @@ Read the first candidate:
 ## 5. Coverage: what was and was not explored
 
 ```bash
-target/release/midwrite discover fixtures/phase16/retry --model-check --explain-coverage
+target/release/midwrite discover fixtures/apps/retry --model-check --explain-coverage
 ```
 
 Every candidate states its input exploration (which initial worlds and
@@ -100,7 +100,7 @@ run beyond the explored bound).
 ## 6. Reproduce a counterexample in the model
 
 ```bash
-target/release/midwrite discover fixtures/phase16/retry --model-check --emit-scenarios out/scenarios
+target/release/midwrite discover fixtures/apps/retry --model-check --emit-scenarios out/scenarios
 target/release/midwrite model-check out/scenarios/cr-synth-65f47a-actual.json
 ```
 
@@ -112,7 +112,7 @@ schedule step by step with the source location of each statement.
 ## 7. Unsupported behavior
 
 ```bash
-target/release/midwrite discover fixtures/phase16/loops
+target/release/midwrite discover fixtures/apps/loops
 ```
 
 When a path uses something outside the subset, the candidate is
@@ -126,11 +126,11 @@ Only with your explicit authorization, on code you trust, against a
 disposable PostgreSQL cluster Midwrite creates and deletes:
 
 ```bash
-cd fixtures/phase16/retry && npm ci && npm run build && cd -
+cd fixtures/apps/retry && npm ci && npm run build && cd -
 target/release/midwrite model-check out/scenarios/cr-synth-65f47a-actual.json --verify-source --allow-execution --source-repeat 2
 ```
 
-The harness (`fixtures/phase16/retry/verify/harness.ts`,
+The harness (`fixtures/apps/retry/verify/harness.ts`,
 `midwrite-source.json`) is written by the developer and says how each
 entry is called. Without `--allow-execution` nothing runs. Read
 [security instructions](../reference/security.md) first.
@@ -142,8 +142,8 @@ entry is called. Without `--allow-execution` nothing runs. Read
    `HEURISTIC_HYPOTHESIS`).
 2. Declare the rules your application requires in
    `midwrite-contracts.json` ([contracts](../user-guide/contracts.md);
-   templates for generated identifiers:
-   [GENERATED-ID-INVARIANTS.md](../phase16/GENERATED-ID-INVARIANTS.md#appendix-contract-templates)).
+   templates for multi-row and generated-identifier rules:
+   [contracts § templates](../user-guide/contracts.md#templates-for-multi-row-invariants)).
    Never declare a rule only to obtain a finding.
 3. Send what you saw with the [feedback template](feedback-template.md);
    wrong results with the [bug-report template](bug-report-template.md).
@@ -154,7 +154,8 @@ entry is called. Without `--allow-execution` nothing runs. Read
   loops unrolled at most 8 times. `NO_VIOLATION_WITHIN_BOUNDS` is not a
   proof.
 * On the larger real projects measured so far, most candidates still stop
-  at an unsupported construct (`docs/phase16/REAL-WORLD-COVERAGE.md`).
+  at an unsupported construct
+  ([corpus evaluation § current blockers](../development/corpus-evaluation.md#current-blockers)).
 * Lock order without `.orderBy(primaryKey)` follows primary-key order in
   the model; PostgreSQL may use another order.
 * Replica counterexamples are model-only.

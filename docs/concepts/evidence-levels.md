@@ -32,8 +32,14 @@ production frequency.
 | `UNSUPPORTED` | a reachable operation is not modeled; the result is withheld, not approximated |
 
 A run that violates the property along a **different** schedule than the
-model's is `diverged`, never a reproduction (the Phase 12 foreign-key lock
-case: [Phase 12 final report](../phase12/FINAL-REPORT.md#original-code-reproduction-first-party-workspace-app-discovered-automatically)).
+model's is `diverged`, never a reproduction. Example: before foreign-key
+locks were modeled, a discovered check-then-act on the first-party
+`fixtures/apps/workspace-app` diverged in every run — PostgreSQL's
+foreign-key check made the unlocked actor's `INSERT` wait behind the other
+actor's `FOR UPDATE`, and the property was violated along a different
+schedule ([PostgreSQL model](../architecture/postgres-model.md)). A replica
+counterexample cannot be promoted beyond `model-counterexample`: its
+schedule is refused for original-code runs.
 
 ## Property origin is a separate axis
 
@@ -50,15 +56,14 @@ Within a static finding, `evidenceStrength` (`provenance`,
 `truncated`, `unknown`) explain the confidence. Configured assumptions
 (`recovery`, `recoveryContracts`, `bestEffort`) are listed with
 `"source": "configuration"` and `"verified": false`. Table:
-[`docs/LIMITATIONS.md` § kinds of evidence](../LIMITATIONS.md#kinds-of-evidence-phase-5).
+[`docs/LIMITATIONS.md` § kinds of evidence](../LIMITATIONS.md#kinds-of-evidence).
 
 ## Where the levels are defined
 
 * Model checker levels: `EvidenceLevel` in
-  `crates/midwrite-model/src/report.rs`; history in
-  [Phase 6 counterexamples](../phase6/COUNTEREXAMPLES.md#evidence-levels),
-  [Phase 7 differential verification](../phase7/DIFFERENTIAL-VERIFICATION.md#evidence-levels),
-  [Phase 8 original-code recovery](../phase8/ORIGINAL-CODE-RECOVERY.md),
-  [Phase 13 model correctness § 4](../phase13/MODEL-CORRECTNESS.md#4-evidence-statuses).
-* Static and replay levels: [Phase 3 final report](../phase3/FINAL-REPORT.md),
-  [Phase 3 replay protocol](../phase3/REPLAY-PROTOCOL.md).
+  `crates/midwrite-model/src/report.rs`; how each level is produced:
+  [model checker](../architecture/model-checker.md),
+  [runtime verification](../architecture/runtime-verification.md).
+* Static and replay levels: `crates/midwrite-replay` and
+  [runtime verification](../architecture/runtime-verification.md).
+* How the ladder grew: [project history](../HISTORY.md).

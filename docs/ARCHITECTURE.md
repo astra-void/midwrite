@@ -3,7 +3,11 @@
 > **Current overview:** [`architecture/overview.md`](architecture/overview.md)
 > (all crates, including `midwrite-model` and `midwrite-discover`). This
 > page remains the detailed design of the static analyzer (`check`,
-> `trace`, `ir`; Phases 1–7).
+> `trace`, `ir`). Companion pages:
+> [value analysis](architecture/value-analysis.md) (abstract values,
+> inertness, dispatch, callbacks),
+> [failure trace format](reference/trace-format.md) and
+> [single-request replay](architecture/replay-protocol.md).
 
 Midwrite is a pipeline with one job: for every function, find the points at
 which state becomes durable or externally visible, and report where a failure
@@ -23,21 +27,22 @@ between two of them leaves partial state.
 | --- | --- | --- |
 | `midwrite-core` | Effect IR, failure-path analysis, diagnostics and code catalog, configuration, report model, line/column mapping. Language independent. | `serde`, `thiserror` |
 | `midwrite-analyzer` | TypeScript frontend: file discovery, Oxc parsing and semantic analysis, identifier provenance, effect recognition, branch facts, lowering to IR, export collection, module resolution (`resolve.rs`), project analysis (`project.rs`), and the `Analyzer` driver. | `midwrite-core`, Oxc, `serde_json` (tsconfig/package.json) |
-| `midwrite-replay` | Opt-in runtime replay (Phase 3): manifest validation, disposable PostgreSQL clusters, the checkpoint-protocol supervisor, observations and invariants; Phase 4: OS isolation backends (`isolation.rs`: macOS sandbox-exec, Linux bubblewrap), runtime preflight (Node.js/Bun). Never used by `check`. | `midwrite-core`, `libc` |
-| `midwrite-cli` | Argument parsing, configuration discovery (`midwrite.json`, legacy `crashproof.json`), text/JSON/SARIF/HTML rendering, baselines, exit codes, the `trace`, `report` and (feature `replay`) `replay` and `init-replay` commands. Builds `midwrite` and the legacy `crashproof` executable. | the above, `clap` |
-| `midwrite-corpus` | Developer tool, not published: corpus runs, run comparison, reviewed precision, per-phase memory profile; Phase 4: trace coverage/validation (`traces`), blind review packets (`review-packet`, `review-check`). | core, analyzer, `clap` |
+| `midwrite-replay` | Opt-in runtime execution: manifest validation, disposable PostgreSQL clusters, the checkpoint-protocol supervisor, observations and invariants, OS isolation backends (`isolation.rs`: macOS sandbox-exec, Linux bubblewrap), runtime preflight (Node.js/Bun), and the original-code coordinator and fault proxy used by `model-check --verify-source`. Never used by `check`. | `midwrite-core`, `libc` |
+| `midwrite-cli` | Argument parsing, configuration discovery (`midwrite.json`), text/JSON/SARIF/HTML rendering, baselines, exit codes, the `trace`, `report` and (feature `replay`) `replay` and `init-replay` commands. Builds the `midwrite` executable. | the above, `clap` |
+| `midwrite-corpus` | Developer tool, not published: corpus runs, run comparison, reviewed precision, per-stage memory profile, trace coverage/validation (`traces`), blind review packets (`review-packet`, `review-check`). | core, analyzer, `clap` |
 
-Phase 3 additions to `midwrite-core`: `trace` (Failure Trace IR, crash
-simulation, validation) and `verification` (verification levels and report
-types). How a finding becomes a trace, and a trace runtime evidence, is
-described in [`phase3/ARCHITECTURE.md`](phase3/ARCHITECTURE.md).
-
-Phase 4 additions: `midwrite-core::recovery` (function-level recovery
-contracts, applied after detection; fingerprints and traces unchanged),
-replay regression comparison in `verification` (`compare_with_baseline`,
-verification report schema version 2), the JavaScript replay client and
-driver adapters in `runtime/node`, and the harness generator
-(`midwrite-cli/src/init_replay.rs`). See [`phase4/`](phase4/FINAL-REPORT.md).
+Further modules of `midwrite-core` used by the static side:
+`trace` (Failure Trace IR, crash simulation, validation —
+[format](reference/trace-format.md)), `verification` (verification levels,
+report types, regression comparison `compare_with_baseline`), and
+`recovery` (function-level recovery contracts, applied after detection;
+fingerprints and traces unchanged —
+[configuration](reference/configuration.md#recovery-declarations)). The
+JavaScript replay client and driver adapters live in `runtime/node`, the
+harness generator in `midwrite-cli/src/init_replay.rs`
+([replay protocol](architecture/replay-protocol.md)). Other crates
+(`midwrite-model`, `midwrite-discover`) are described in
+[architecture/overview.md](architecture/overview.md).
 
 The core never sees an AST. A future frontend (another ORM, another language)
 only has to produce `FunctionIr`.
@@ -102,7 +107,7 @@ read or write on such a parameter is lowered with
 `DbHandle::Parameter { index, name, configured }` instead of being dropped:
 `configured` says whether the name matches a configured receiver. The
 function analyzed on its own treats a configured parameter as that root
-handle (as in Phase 1) and an operation on any other parameter as an
+handle and an operation on any other parameter as an
 unrecognized call; a caller that passes a handle decides what it really is
 (see call summaries). Only reads and writes are lowered this way; other
 calls on an unconfigured parameter are classified as before.
@@ -207,7 +212,7 @@ DbHandle   = Root { name } | Transaction { id }
 Execution  = awaited | returned | fireAndForget | concurrent
 SummaryOrigin = { calls: [CallSite { call, callee, label, location, callee_location }], on_every_path }
 Arm        = { label, body, facts: [Fact] }        // Fact = Never | Truthy | Equals | NotEquals on a variable
-DbHandle  += Parameter { index, name, configured } // bound by callers (Phase 2)
+DbHandle  += Parameter { index, name, configured } // bound by callers
 Location   = { line, column, end_line, end_column, file? }   // file: index into FileIr.sources
 ```
 
@@ -241,13 +246,22 @@ its own (in parallel; results are kept in file order), then:
    analyzed files, by `name`, through `exports` or `main`); with candidates
    `.ts`, `.tsx`, `/index.ts`, `/index.tsx` and `.js`→`.ts` mapping. Only
    analyzed files are candidates. Several candidates are reported as
-   ambiguous, never chosen. Bare specifiers that match nothing are package
-   imports and are not followed.
+   ambiguous, never chosen (TypeScript would prefer `X.ts`; Midwrite does
+   not guess). Bare specifiers that match nothing are package imports and
+   are not followed. Not supported: `node_modules`, `typesVersions`,
+   project references, `paths` with several `*`, non-relative `extends`,
+   `imports` (`#x`) maps, dynamic `import()`, CommonJS `require`.
 2. **Resolves exports**: `export function`, `export const f = () => ...`,
    `export default function`, `export { a as b }`, `export { a } from`,
    `export *` (not for `default`), re-exports of imports. A name exported
    twice, or provided by several `export *` modules, is ambiguous; re-export
    chains are bounded (16) and memoized, which also makes cycles terminate.
+   A `const` object literal of functions (`export const svc = { async m()
+   {} }`) is an object service whose methods are linked; type-only exports
+   and imports, classes (linked separately, see
+   [value analysis](architecture/value-analysis.md#class-and-method-resolution)),
+   enums, `export * as ns` and `export const x = wrap(...)` are not
+   summarizable functions.
 3. Places **all functions in one table** (file order, then source order).
    Function identity is the table index, never an AST symbol id. A call is
    linked to a callee only through a resolved import and export, never by
@@ -306,16 +320,28 @@ makes such calls:
    recursive call was cut during the expansion (the result then depends on
    the chain being expanded).
 
-The callee's effects keep their own locations and recognition (or, for
-bound parameters, the argument's). Because the inlined body is ordinary IR,
+Arguments are classified at each call:
+
+| argument | handle passed |
+| --- | --- |
+| a transaction callback parameter (or a `const` alias of it) | `Transaction { id }` of the caller |
+| a `drizzle(...)` instance, or an identifier / member path matching `databaseReceivers` | `Root { name }` |
+| a call matching a configured call path (`getDb()`) | `Root { name: "getDb()" }` |
+| a parameter of the calling function | `Parameter { … }`, bound later by the caller's own callers |
+| anything else (an unconfigured `getDb()`, `tx ?? db`, literals, spreads) | none |
+
+An operation on a parameter is never treated as a write on an unrelated
+root handle. The callee's effects keep their own locations and recognition
+(or, for bound parameters, the argument's). Because the inlined body is ordinary IR,
 ordering, transactions (including a helper that writes on `db` inside the
 caller's transaction) and branches inside the callee are handled by the same
 path enumeration and replay as the caller's own code.
 
-## Value layer and Phase 5 summaries (`midwrite-core::absint`, analyzer `values`, `classes`, `link`, `builtins`)
+## Value layer (`midwrite-core::absint`, analyzer `values`, `classes`, `link`, `builtins`)
 
-Phase 5 adds a bounded abstract interpreter alongside lowering
-([`phase5/ANALYSIS-DESIGN.md`](phase5/ANALYSIS-DESIGN.md)):
+A bounded abstract interpreter runs alongside lowering; its domains,
+fixpoints, dispatch rules and soundness assumptions are in
+[value analysis](architecture/value-analysis.md). In outline:
 
 ```text
 lowering (per function)                     project / single file
@@ -352,11 +378,8 @@ lowering (per function)                     project / single file
 **1. Path enumeration** (`paths.rs`). Traces are enumerated forward. Each IR
 node maps the set of traces reaching it to the traces leaving it normally,
 plus traces leaving via `return`, `throw`, `break` and `continue`.
-Since Phase 7 an inlined call whose facts share no variable with facts
-outside it is walked once per effect context and its exit-grouped trace
-fragments are spliced onto every incoming trace (*compact summaries*,
-exact, the default; `MIDWRITE_PATHS=legacy` walks every trace through the
-body as before — [`phase7/COMPACT-SUMMARIES.md`](phase7/COMPACT-SUMMARIES.md)):
+Inlined calls are walked through *path summaries* (described after this
+list); per node:
 
 * `Branch`: one copy of the incoming traces per arm, each tagged with a
   `Decision`. A copy whose arm facts contradict the facts of an earlier
@@ -386,6 +409,38 @@ body as before — [`phase7/COMPACT-SUMMARIES.md`](phase7/COMPACT-SUMMARIES.md))
 The number of traces per function is capped (`--max-paths`, default 512).
 When the cap is hit the analysis keeps going on the explored prefix and adds
 a `MW9001` diagnostic.
+
+**Path summaries of inlined calls.** Walking every incoming trace through an inlined body multiplies with call
+depth, so the walker summarizes calls (`paths.rs`, `PathMode`):
+
+* **Compact summaries.** For one inlined call and the effect context it is
+  reached in (innermost loop, `try` guard, handler), the callee is walked
+  once from an empty trace; the fragments are grouped by exit (`normal`
+  with return facts, `thrown` with rollback events, unsupported) and merged
+  by the same dominance rule as the full walk; at the call site every
+  fragment is appended to every incoming trace. This is exact when no fact
+  variable of the callee is mentioned by a fact outside it (the walker's
+  `live` set is empty): pruning depends only on facts sharing a variable,
+  so every incoming trace sees the same pruning, merges and truncation.
+  Otherwise the call is walked trace by trace. Pruned/merged/truncated
+  counts are accounted per incoming trace, so even the report counters are
+  unchanged.
+* **Shared summaries** (default). Two call scopes of the same callee with a
+  structure-preserving correspondence (a bijection of walkable nodes,
+  transaction ids and fact variables, verified node by node; a shape hash
+  only selects candidates) make the same decisions, so the first's summary
+  is mapped onto the second instead of walking it. Anything that does not
+  map aborts the instantiation and the call is walked.
+* **Depth-canonical expansions.** An IR expansion records the smallest
+  remaining depth at which all its call-site decisions are the same and is
+  reused for any depth at or above it; expansions whose decisions depended
+  on reaching depth 0 stay keyed by depth. The `callsSummarized` counter is
+  replayed exactly, so output is byte-identical.
+
+`MIDWRITE_PATHS=legacy|compact|shared` selects the mode; the three modes
+must produce identical output, which the corpus identity check and
+`MIDWRITE_PATHS_DIFFERENTIAL=1 midwrite-corpus run` (every function
+enumerated in each mode and compared event by event) verify.
 
 **2. Replay and points** (`detect.rs`). Each trace is replayed with a stack of
 open transactions. The replay produces the trace's *points*, the moments at
@@ -462,7 +517,7 @@ are lowered in source order; summaries are inlined in source order with
 identifiers allocated in traversal order; traces are enumerated in a fixed order; findings
 are keyed in a `BTreeMap`; the final report is sorted by file, position, code
 and related locations. No hash-map iteration order reaches the output.
-Phase 2 lowers files and analyzes files on up to 8 threads
+Files are lowered and analyzed on up to 8 threads
 (`MIDWRITE_THREADS` overrides); results are collected by index, so the
 output does not depend on scheduling (checked by tests and by comparing
 corpus runs).
@@ -478,11 +533,12 @@ corpus runs).
 * **A new language** is a new frontend producing `FunctionIr` (and, for call
   summaries, the call sites per function with their argument handles).
 
-## Phase 7: source identity and original-code verification
+## Source identity and original-code verification
 
-Function identity by source position shared with the concurrency
-extractor (`analyzer::identity`), wrapper invocation analysis
+Function identity by source position is shared with the concurrency
+extractor (`analyzer::identity`); wrapper invocation analysis
 (`analyzer::wrapper`), the original-code coordinator
-(`midwrite-replay::source`, `runtime/node/source.js`) and the
-differential comparison (`midwrite-model::source_verify`):
-[`phase7/ARCHITECTURE.md`](phase7/ARCHITECTURE.md).
+(`midwrite-replay::source`, `runtime/node/source.js`) and the differential
+comparison (`midwrite-model::source_verify`) belong to the concurrency
+pipeline: [source extraction](architecture/source-extraction.md),
+[runtime verification](architecture/runtime-verification.md).

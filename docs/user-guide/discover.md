@@ -7,11 +7,11 @@ property candidates with a stated origin, synthesizes small valid initial
 states, writes ordinary `model-check` scenarios and, with `--model-check`,
 explores them within budgets. It never executes application code.
 
-Introduced in Phase 11 ([final report](../phase11/FINAL-REPORT.md)),
-extended in Phase 12 (generated keys, multi-module schemas, repositories,
-shared project context) and Phase 13 (foreign keys, return values, the
-response step, read replicas, upserts, row-lock strengths). Internals:
-[scenario synthesis](../architecture/scenario-synthesis.md). All flags:
+It handles generated keys, multi-module schemas, repositories, foreign
+keys, return values and the response step, read replicas, upserts,
+row-lock strengths, zod validation, bounded loops and request bodies.
+Internals: [scenario synthesis](../architecture/scenario-synthesis.md) and
+[world search](../architecture/world-search.md). All flags:
 [CLI reference](../reference/cli.md#discover).
 
 ## Typical use
@@ -36,20 +36,19 @@ otherwise (errors: `2`).
 | `status-transition` | read a row, test its state, unconditional `UPDATE` to another state, consequences under the same guard | at most one consequence / effect per transition |
 | `read-modify-write` | `UPDATE` of a column computed from a value read earlier | the cell equals some serial execution |
 | `write-skew` | a predicate read deciding a write of another row of the group | **declared only**; otherwise `BLOCKED` |
-| `duplicate-processing` | declared at-least-once delivery with external effects (Phase 14: also the inserts a declared invariant covers) | at most one effect per message (`FRAMEWORK_CONTRACT`); declared invariants on the inserted tables |
+| `duplicate-processing` | declared at-least-once delivery with external effects, or with inserts a declared invariant covers | at most one effect per message (`FRAMEWORK_CONTRACT`); declared invariants on the inserted tables |
 | `external-effect-gap` | external effect followed by writes, with a declared retry (or inside a transaction the code re-runs) | at most one effective effect per request |
-| `ambiguous-commit` | an autocommit write in `try` repeated in its `catch`; Phase 14: also a write in a transaction whose COMMIT is in the `try` (a retry wrapper's callback) | at most one row per key |
+| `ambiguous-commit` | an autocommit write in `try` repeated in its `catch`, or a write in a transaction whose COMMIT is in the `try` (a retry wrapper's callback) | at most one row per key |
 | `lock-order` | two row locks on one table in one transaction keyed by different parameters | no request fails (bounded liveness) |
-| `resubmitted-write` (Phase 12) | an entry with a declared crash retry whose `INSERT` (Phase 14: also a multi-row `INSERT`) can commit before the crash | only with a declared invariant on the table or a covering unique constraint; otherwise a recorded rejection |
-| `parent-child` (Phase 14) | a read finds a parent row by a unique key and decides an `INSERT` of a child holding that key, while another entry deletes the parent | no orphan child: `SCHEMA_ENFORCED` with a `NO ACTION` foreign key (a 23503 is not an application defect), `HEURISTIC_HYPOTHESIS` without one |
-| `return-value` (Phase 14) | an entry named by a **declared** property over what callers are told (`atMostOneSuccess`, `exactlyOneSuccess`, `everySuccessReturns`, or a formula reading `returned`) | the declared property only; never inferred |
+| `resubmitted-write` | an entry with a declared crash retry whose `INSERT` (single or multi-row) can commit before the crash | only with a declared invariant on the table or a covering unique constraint; otherwise a recorded rejection |
+| `parent-child` | a read finds a parent row by a unique key and decides an `INSERT` of a child holding that key, while another entry deletes the parent | no orphan child: `SCHEMA_ENFORCED` with a `NO ACTION` foreign key (a 23503 is not an application defect), `HEURISTIC_HYPOTHESIS` without one |
+| `return-value` | an entry named by a **declared** property over what callers are told (`atMostOneSuccess`, `exactlyOneSuccess`, `everySuccessReturns`, or a formula reading `returned`) | the declared property only; never inferred |
 
-Source: [Phase 11 candidate discovery](../phase11/CANDIDATE-DISCOVERY.md),
-[Phase 12 architecture § 5](../phase12/ARCHITECTURE.md#5-discovery-changes).
-Phase 13 changed two rules: only `FOR UPDATE` and `FOR NO KEY UPDATE` count
-as a protection (two `FOR SHARE` readers do not exclude each other), and
-actors whose caller retries after a crash get the response step
-([Phase 13 advanced Drizzle](../phase13/ADVANCED-DRIZZLE.md#2-row-lock-strengths--implemented)).
+Rules, rejections and pairing:
+[scenario synthesis § detectors](../architecture/scenario-synthesis.md#detectors).
+Only `FOR UPDATE` and `FOR NO KEY UPDATE` count as a protection (two
+`FOR SHARE` readers do not exclude each other), and actors whose caller
+retries after a crash get the response step.
 
 ## Reading a candidate
 
@@ -91,14 +90,17 @@ explicit `model-check --verify-source --allow-execution`
 ([source verification](source-verification.md)); `discover` itself never
 runs code.
 
-Phase 14: every candidate ends with a **next step** (`nextStep` in JSON,
-"Next step:" in text and HTML); a synthesized scenario is checked to
-re-extract exactly what discovery extracted (round trip) before it is
-model-checked; discovery extracts with JavaScript value semantics and opts
-its scenarios into the `js-values`, `timestamps` and `json` features when
-they need them ([Phase 14](../phase14/FINAL-REPORT.md)).
+Every candidate ends with a **next step** (`nextStep` in JSON, "Next
+step:" in text and HTML): a BLOCKED or INCONCLUSIVE candidate prints a
+declaration skeleton, a counterexample the exact `model-check` command for
+the `--emit-scenarios` directory (and labels the `--verify-source
+--allow-execution` command as executing application code). A synthesized
+scenario is checked to re-extract exactly what discovery extracted (round
+trip) before it is model-checked; discovery extracts with JavaScript value
+semantics and opts its scenarios into the `js-values`, `timestamps` and
+`json` features when they need them.
 
-## Input exploration (Phase 15)
+## Input exploration
 
 With `--model-check`, each actual variant is checked in up to
 `--max-worlds` (default 8) **initial worlds**: the synthesized one, then
@@ -118,7 +120,7 @@ plus branch outcomes and the list of worlds and gaps
 (`--explain-coverage` prints them). A `NO_VIOLATION_WITHIN_BOUNDS` result
 always says how many worlds were explored and that the input domain was
 not exhaustively explored. Details:
-[Phase 15 verdict semantics](../phase15/VERDICT-SEMANTICS.md).
+[world search](../architecture/world-search.md).
 
 ```text
   Input exploration (relationship-search): 3 world(s) model-checked, controls included — actual configuration: 1 distinct row set(s), 2 distinct argument vector(s)
@@ -133,30 +135,24 @@ not exhaustively explored. Details:
 
 ## Known blind spots
 
-Phase 16: on its fresh frozen set (40 cases), first scoring and final
-both precision 1.000, recall 0.333. The most frequent causes of misses are
-JavaScript standard-library calls (`Set.prototype.has`,
-`Number.isSafeInteger`, `Math.min`) and status transitions keyed by the
-id of a row read first. On real projects: zod refinements (`.superRefine`),
-optional chains on call results, `Promise.all` with a used result
-([Phase 16 evaluation](../phase16/PRECISION-RECALL.md),
-[real-world coverage](../phase16/REAL-WORLD-COVERAGE.md)). Phase 16 lifted:
-zod `strictObject` and string formats, bounded loops, request bodies,
-hoisted predicates and multi-row `FOR UPDATE` (below).
+Measured on the frozen evaluation sets
+([evaluation datasets](../research/evaluation-datasets.md); numbers in the
+[evidence index](../research/evidence-index.md)), precision has stayed at
+1.000 while recall is low (one third of the positives on the newest set).
+The most frequent causes of misses:
 
-Phase 15: on its fresh input-domain set, first scoring recall 0.308,
-post-feedback 0.615, precision 1.000; the Phase 13 set's E26 and the
-Phase 14 set's E21 are now found
-([Phase 15 evaluation](../phase15/PRECISION-RECALL.md)). Still not
-covered (Phase 15): zod `strictObject` and string formats, loops,
-request bodies, time arithmetic, predicates hoisted into locals, multi-row
-`FOR UPDATE`. Earlier:
-Recall on the Phase 14 evaluation set is still low (first scoring 0.000,
-post-feedback 0.222, precision 1.000; on the Phase 13 frozen set 0.467,
-post-feedback; [Phase 14 evaluation](../phase14/EVALUATION.md)). Not covered:
-computed keys, loops other than `for … of` over a known array, `values(obj)`
-of a parameter object, framework request objects (`req.json()`), time
-arithmetic, JSON projections and comparisons, a stale replica read without a
-declared property, and return-value properties without a declaration. On the real corpus no candidate has been model-checked to a
-counterexample except saas-starter's heuristic one (Phase 11, never
-executed). See [limitations](../reference/limitations.md).
+* JavaScript standard-library calls (`Set.prototype.has`,
+  `Number.isSafeInteger`, `Math.min`): the candidate is `UNSUPPORTED`;
+* status transitions whose write is keyed by the id of a row read first
+  (no candidate is detected);
+* on real projects: zod refinements (`.superRefine()`), optional chains on
+  call results, `Promise.all` with a used result, multi-row invariants
+  nobody declared (write skew stays `BLOCKED`);
+* computed keys, time arithmetic, JSON projections and comparisons, a stale
+  replica read without a declared property, and return-value properties
+  without a declaration.
+
+On the real corpus no candidate has been model-checked to a counterexample
+except saas-starter's heuristic one (never executed). See
+[limitations](../reference/limitations.md) and
+[corpus evaluation](../development/corpus-evaluation.md#current-blockers).

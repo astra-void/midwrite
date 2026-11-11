@@ -7,6 +7,7 @@ acknowledgments and connection pools, and reports a counterexample to a
 declared invariant. `midwrite check` never runs it.
 
 Semantics: [concurrency model](../concepts/concurrency-model.md),
+[model semantics](../concepts/model-semantics.md),
 [PostgreSQL model](../architecture/postgres-model.md). Flags:
 [CLI reference](../reference/cli.md#model-check).
 
@@ -39,27 +40,54 @@ code did not reproduce). `midwrite explain` lists MW7001–MW7102;
 
 ## Scenario files
 
-A scenario is JSON (`schemaVersion` 1). The format is defined in
-[Phase 6 § scenarios and invariants](../phase6/INVARIANTS.md); later phases
-added optional fields only.
+A scenario is JSON (`schemaVersion` 1); every field added over time is
+optional, so older scenarios load and serialize unchanged. Unknown fields
+anywhere are refused (`deny_unknown_fields`).
 
-| field | content | since |
-| --- | --- | --- |
-| `extraction` | `root`, table mapping, `externals`, `maxInlineDepth`; `schema` module(s) to read tables from Drizzle source (several modules, tables named `module#binding`); `transactionRetries` | 6; schema from source 8; several modules 12 |
-| `database` | `isolation` (`read-committed`, `repeatable-read`, `serializable`), declared `tables` (columns, primary key, unique, checks, `foreignKeys`), `initialState` | 6; foreign keys 13 |
-| `features` | `foreign-keys` (enforce the source schema's foreign keys), `replicas` (route replica reads); unknown names are refused | 13 |
-| `actors[]` | `function` + `file`, a source selector `entry.selector` (callbacks, methods, `module#name/arg[1]`), or a declared `program`; `arguments`; `process`; `retry`; `response: true` (insert the response step) | 6; selectors 7; response 13 |
-| `channels` | external-effect channels and their declared deduplication | 6 |
-| `app` | in-process variables and their initial values | 6 |
-| `pools` | bounded connection pools (name → capacity) | 9 |
-| `bounds` | `maxActors`, `maxSteps`, `maxStates`, `maxCrashes`, `maxRetries`, `maxContextSwitches`, `maxTransitions`, `maxWallMs`, a memory bound; `maxInFlight` and `crashPolicy` | 6; in-flight 9 |
-| `options` | `por`, `strategy`, `minimize`, `dpor`, `sourceDpor` | 6; DPOR 9–10 |
-| `invariants[]` | `name`, `when` (`final` / `always`), `assert` formula | 6; `returned` terms 13 |
-| `sourceVerification` | harness manifest and per-actor input for `--verify-source` | 7 |
+| field | content |
+| --- | --- |
+| `extraction` | `root`, table mapping, `externals` (callee, channel, `keyArgument`), `maxInlineDepth` (default 3); `schema` module(s) to read tables from Drizzle source (several modules, tables named `module#binding`); `replicaFactories`; `transactionRetries` |
+| `database` | `isolation` (`read-committed`, `repeatable-read`, `serializable`), declared `tables` (columns with `type` and `notNull`, primary key, `unique`, `checks`, `foreignKeys`), `initialState` |
+| `features` | `foreign-keys` (enforce the source schema's foreign keys), `replicas` (route replica reads), `js-values`, `timestamps`, `json` ([value semantics](../concepts/value-semantics.md)); unknown names are refused |
+| `actors[]` | `function` + `file` (positional `arguments`, every parameter given), a source selector `entry.selector` (callbacks, methods, `module#name/arg[1]`), a declared `program` (named `arguments`), or pre-lowered `codes`; `process`; `retry` (`trigger`: `onFailure`, `onCrash`, `onFailureOrCrash`, `atLeastOnce`; `guaranteed`); `response: true` (insert the response step) |
+| `channels` | external-effect channels and their declared deduplication (`none`, `byKey`) |
+| `app` | in-process variables and their initial values |
+| `pools` | bounded connection pools (process → capacity) |
+| `bounds` | `maxActors`, `maxSteps`, `maxStates`, `maxCrashes`, `maxRetries`, `maxContextSwitches`, `maxTransitions`, `maxWallMs`, `maxMemoryBytes`, `maxInFlight`, `crashPolicy` |
+| `options` | `por`, `strategy`, `minimize`, `dpor`, `sourceDpor`, `termination` (a stuck state violates the implicit invariant `termination`) |
+| `invariants[]` | `name`, `when` (`final` / `always`), `description`, `assert` formula |
+| `sourceVerification` | harness manifest and per-actor input for `--verify-source` |
+
+Validation refuses, with the path of the field (exit 2): unknown schema
+versions and isolation levels; duplicate tables, columns, actors or
+invariants; constraints on unknown columns; CHECK expressions that
+reference locals; initial rows of unknown tables, with unknown columns,
+violating a constraint, or containing generated values; too many actors;
+statements on unknown tables or columns; locals read but never assigned;
+external effects on undeclared channels; functions that cannot be found or
+extracted; missing or extra arguments; invariants referring to unknown
+tables, columns or functions; no invariant at all; replica statements
+without the `replicas` feature; foreign-key actions the model refuses
+([PostgreSQL model](../architecture/postgres-model.md#foreign-keys)).
+Missing database state is never invented: tables without rows are empty
+and omitted nullable columns are `null`. Assumptions made while loading
+(primary-key order of `LIMIT 1` reads, generated values distinct, lock
+order of multi-row locks, the replica model) are listed in the report
+(`-v`).
+
+**Declared programs** (`dsl.rs`) describe an actor without source; their
+operations are labeled `declared` everywhere (report, oracle SQL). One
+statement per line, `@column` for columns: `begin [isolation …] [retry n]
+… commit`, `let x = select T where … [for update [skip locked | nowait]]`,
+`let rows = select all T where … [order by @id] [limit n] [for …]`,
+`replica select`, `update`, `insert … [on conflict do nothing] [into n]`,
+`delete`, `if … { } else { }`, `fail`, `return`, `external ch [key e] [set
+k = e]`, `spawn [detached] { } { }`, `join`, `read_app`/`write_app`,
+`generate "…"`, `unknown "…"`.
 
 Example: [`fixtures/concurrency/scenarios/inventory-oversell.json`](../../fixtures/concurrency/scenarios/inventory-oversell.json);
-with return values: [`fixtures/phase13/request-app/scenarios/claim-race.json`](../../fixtures/phase13/request-app/scenarios/claim-race.json);
-with a replica: [`fixtures/phase13/model/replica-read-your-writes.json`](../../fixtures/phase13/model/replica-read-your-writes.json).
+with return values: [`fixtures/apps/request-app/scenarios/claim-race.json`](../../fixtures/apps/request-app/scenarios/claim-race.json);
+with a replica: [`fixtures/model/replicas/replica-read-your-writes.json`](../../fixtures/model/replicas/replica-read-your-writes.json).
 `midwrite discover --emit-scenarios DIR` writes scenarios in this format.
 
 Invariants are data, never inferred by `model-check`
@@ -71,15 +99,15 @@ Invariants are data, never inferred by `model-check`
 | --- | --- |
 | default | depth-first search with sleep-set partial-order reduction and full state deduplication |
 | `--no-por` | explore every interleaving (`--strategy bfs\|dfs`) |
-| `--dpor` | classic stateless DPOR (Phase 9); refused with an `always` invariant or a context-switch bound |
-| `--source-dpor [stateful-sleep\|stateful\|stateless-sleep]` | source-set DPOR (Phase 10), experimental, opt-in |
+| `--dpor` | classic stateless DPOR; refused with an `always` invariant or a context-switch bound |
+| `--source-dpor [stateful-sleep\|stateful\|stateless-sleep]` | source-set DPOR, experimental, opt-in; recommended for large models with only `final` invariants |
 | `--max-steps`, `--max-states`, `--max-wall-ms`, `--max-in-flight` | override the scenario's bounds |
 | `--fault-mode any\|in-flight` | which crash points are explored |
 | `--no-minimize` | report the first counterexample unminimized |
 | `--profile-storage` | memory of the visited-state structures |
 
 The reductions are evidence-checked against the unreduced search, not
-proved ([model checker](../architecture/model-checker.md#reductions)).
+proved ([partial-order reduction](../architecture/partial-order-reduction.md)).
 Sleep sets are the default.
 
 ## Reading a counterexample

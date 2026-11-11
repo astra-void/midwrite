@@ -5,10 +5,10 @@ packages; build it from source.
 
 ## Requirements
 
-| What | Needed for | Version measured in the phase reports |
+| What | Needed for | Version used for the recorded evidence |
 | --- | --- | --- |
-| Rust toolchain | building | `rust-version = "1.97"` in `Cargo.toml`; phases 7–13 built with rustc 1.98.1 (macOS) and 1.99.1 (Linux container) |
-| PostgreSQL server binaries (`initdb`, `pg_ctl`, `postgres`) | `model-check --validate-postgres`, `--verify-source`, `schema --migrations`, `replay` | 17.11 (macOS, Homebrew `postgresql@17`), 15.19 (Linux container). Crash plans need PostgreSQL 14 or newer (`client_connection_check_interval`, [phase 8](../phase8/DIFFERENTIAL-VERIFICATION.md#postgresql-versions)) |
+| Rust toolchain | building | `rust-version = "1.97"` in `Cargo.toml`; built with rustc 1.98.1 (macOS) and 1.99.1 (Linux container) |
+| PostgreSQL server binaries (`initdb`, `pg_ctl`, `postgres`) | `model-check --validate-postgres`, `--verify-source`, `schema --migrations`, `replay` | 17.11 (macOS, Homebrew `postgresql@17`), 15.19 (Linux container). Crash plans need PostgreSQL 14 or newer (`client_connection_check_interval`, [crashes](../architecture/runtime-verification.md#crashes)) |
 | Node.js ≥ 22 | original-code verification and replay harnesses | 22.23.2 (macOS), 22.23.4 (Linux container) |
 | Bun ≥ 1.2 | optional replay-harness runtime (`init-replay --runtime bun`) | — |
 | macOS `sandbox-exec` or Linux bubblewrap with unprivileged user namespaces | anything that executes code (`--allow-execution`) | bubblewrap 0.8.0 in the Linux container |
@@ -34,9 +34,6 @@ $ midwrite --version
 midwrite 0.1.0
 ```
 
-The build also produces a legacy `crashproof` executable (the project was
-called CrashProof until Phase 3; see the [README](../../README.md)).
-
 `crates/midwrite-cli` has one default feature, `replay`, which pulls in
 `midwrite-replay` and the model checker's PostgreSQL validation. Its
 `Cargo.toml` comment says that without it the binary contains only static
@@ -51,8 +48,8 @@ checksum.
 
 | Platform | Status |
 | --- | --- |
-| macOS arm64 | development machine of every phase; full test suite with required replay |
-| Linux aarch64 (Debian 12 container on the same machine) | full test suite with required replay in phases 4–10 and 12 (Phase 7: 411 of the 412 macOS tests, see its [final report](../phase7/FINAL-REPORT.md#2-correctness)); Phase 11 was not run on Linux; Phase 13 Linux results are not in `reports/phase13/` at the time of writing |
+| macOS arm64 | development machine; full test suite with required replay |
+| Linux aarch64 (Debian 12 container on the same machine) | full test suite with required replay run repeatedly during development, not for every change; see the platform column of the [evidence index](../research/evidence-index.md) |
 | Linux x86_64, macOS x86_64 | not run |
 | Windows | not supported; not run |
 

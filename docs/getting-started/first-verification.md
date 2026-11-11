@@ -6,8 +6,7 @@ private PostgreSQL and, in step 5, execute application code; they are
 described but were **not run** for this documentation.
 
 Outputs were produced by the release binary built from the current tree on
-2026-10-27 (`midwrite 0.1.0`, Phase 13 working tree, pre-Phase 14),
-with `--no-timing` so that they are reproducible.
+2026-10-27 (`midwrite 0.1.0`), with `--no-timing` so that they are reproducible.
 
 The workflow and what each step can claim:
 [verification workflow](../user-guide/interpreting-results.md#the-verification-workflow),
@@ -63,12 +62,12 @@ inventory-row-lock: NO_COUNTEREXAMPLE_WITHIN_BOUNDS
 Evidence: None — no invariant violation exists in any behavior within the declared bounds (this does not prove the application race-free)
 ```
 
-Invariants can also read what callers were told (Phase 13). In
-`fixtures/phase13/request-app/scenarios/claim-race.json` two `claimTask`
+Invariants can also read what callers were told. In
+`fixtures/apps/request-app/scenarios/claim-race.json` two `claimTask`
 calls both return `true`; the table alone ends in a legal state:
 
 ```text
-$ midwrite model-check fixtures/phase13/request-app/scenarios/claim-race.json --no-timing
+$ midwrite model-check fixtures/apps/request-app/scenarios/claim-race.json --no-timing
 claim-race: COUNTEREXAMPLE_FOUND
 ...
 Invariant `at-most-one-caller-told-it-claimed` (final state):
@@ -84,7 +83,7 @@ states and scenarios, and with `--model-check` explores them. It never
 executes application code.
 
 ```text
-$ midwrite discover fixtures/phase13/eval-app --model-check --format text --no-timing
+$ midwrite discover fixtures/eval/p13/eval-app --model-check --format text --no-timing
 midwrite discover: eval-app (26 modules, 41 entry candidates, 35 extracted, 22 effectful)
 mode: discover+model-check; application code executed: no; search: sleep-set partial-order reduction (default)
 candidates: 13 (5 model counterexamples, 1 against hypotheses; 3 deduplicated findings)
@@ -109,16 +108,16 @@ Important: a model counterexample against a HEURISTIC_HYPOTHESIS is not a confir
 
 The property's origin decides what a counterexample means
 ([invariants](../concepts/invariants.md)): here it is `USER_DECLARED` in
-`fixtures/phase13/eval-app/midwrite-contracts.json`. Without
+`fixtures/eval/p13/eval-app/commitrift-contracts.json`. Without
 `--model-check` the same command builds the scenarios and stops
 (`STATIC_CANDIDATE`). The 13 candidates and 5 counterexamples above equal
-the `post-feedback-1` scoring recorded in
-`reports/phase13/eval/post-feedback-1.json`.
+the post-feedback scoring of the p13 set recorded in the
+[evidence index](../research/evidence-index.md#2-candidate-discovery-accuracy).
 
 To keep the synthesized scenarios and re-run one by hand:
 
 ```bash
-midwrite discover fixtures/phase13/eval-app --emit-scenarios /tmp/scenarios
+midwrite discover fixtures/eval/p13/eval-app --emit-scenarios /tmp/scenarios
 midwrite model-check /tmp/scenarios/<id>-actual.json
 ```
 
@@ -145,8 +144,8 @@ It never runs application code. A matching replay is
 ## 5. Optional: run the counterexample against the original code
 
 ```bash
-(cd fixtures/phase7/team-app && npm ci --ignore-scripts && npm run build)   # as scripts/phase12-linux-docker.sh does
-midwrite model-check fixtures/phase7/scenarios/team-app-invite-double-submit.json \
+(cd fixtures/apps/team-app && npm ci --ignore-scripts && npm run build)   # as scripts/linux-docker.sh does
+midwrite model-check fixtures/scenarios/server-actions/team-app-invite-double-submit.json \
   --verify-source --allow-execution --source-repeat 5
 ```
 
@@ -158,8 +157,8 @@ order against a disposable PostgreSQL. The best result is
 and retry schedules); a disagreement is reported statement by statement
 (`MW7103`). Requirements, guarantees and limits:
 [source verification](../user-guide/source-verification.md). Not run for
-this page; the recorded runs of this fixture are in
-[Phase 7](../phase7/FINAL-REPORT.md) (5 of 5 runs, `original-code-reproduced`).
+this page; the recorded runs of this fixture are in the
+[evidence index](../research/evidence-index.md#5-original-code-reproduction) (5 of 5 runs, `original-code-reproduced`).
 
 ## What you have and have not shown
 

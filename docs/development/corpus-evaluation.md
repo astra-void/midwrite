@@ -22,7 +22,11 @@ Precision and recall with a dev / held-out split are measured by
 
 Manifests and per-project configurations: `corpora/manifest*.json`,
 `corpora/configs/`, review labels `corpora/labels/`, discovery contracts
-`corpora/contracts/` (Phase 13: midday's replica factory). The public
+`corpora/contracts/` (midday's declared replica factory). Each project's
+configuration was written from its database and client modules before any
+result was looked at, and is not changed afterwards; no `exclude` patterns
+were added, so test and seed files are analyzed. The private projects are
+analyzed from `git archive`s of pinned revisions in a scratch directory. The public
 projects are cloned at pinned revisions by `corpora/fetch.sh` into
 `.corpora/` (ignored by git).
 
@@ -31,14 +35,14 @@ projects are cloned at pinned revisions by `corpora/fetch.sh` into
 ```bash
 corpora/fetch.sh
 cargo run --release -p midwrite-corpus -- run --manifest corpora/manifest.json --output reports/after.json
-cargo run --release -p midwrite-corpus -- compare reports/phase3/corpus-phase3.json reports/after.json
+cargo run --release -p midwrite-corpus -- compare reports/before.json reports/after.json
 cargo run --release -p midwrite-corpus -- precision --report reports/after.json --labels corpora/labels
 midwrite discover .corpora/midday --model-check --contracts corpora/contracts/midday.json --format json -o midday.json
-python3 scripts/phase13-analyzer-corpus.py      # the Phase 13 measurement (see the script for arguments)
+python3 scripts/corpus.py               # discovery on the corpus, stage by stage, two binaries
 ```
 
-The identity checks of each phase (`scripts/phase7-identity.sh`,
-`scripts/phase8-identity.sh`, and the phase evidence scripts) compare the
+The identity checks (`scripts/check-identity.sh`,
+`scripts/check-identity.sh`, and the evidence scripts) compare the
 previous and new binaries on all four projects × depths 3, 6, 12 × three
 path modes × json, sarif, text, trace (144 outputs).
 
@@ -56,32 +60,51 @@ path modes × json, sarif, text, trace (144 outputs).
   been performed). No maintainers were contacted for those corpus scores;
   later [upstream reports](upstream-review.md) are recorded separately.
 
+## What is measured
+
+* **Static analysis** (`check`): per project, functions with recognized
+  effects, resolved and unresolved cross-file calls, calls replaced by a
+  summary, truncated functions, contradictory paths pruned, diagnostics by
+  code, and wall time and peak RSS. Two runs of the same command produce
+  byte-identical reports (also with 1 and 8 threads). Findings are reviewed
+  as described in [evaluation methodology § static-finding review](../research/evaluation-methodology.md#static-finding-review).
+* **Discovery** (`discover --model-check`): per project, modules, entry
+  candidates, entries not reaching a database, extracted and effectful
+  entries, unknown operations by category, tables modeled and refused,
+  candidates, model-checkable candidates, statuses, counterexamples, wall
+  time (median of 3) and peak RSS (maximum), with the previous and the new
+  binary on the same machine and inputs. Each candidate's **first blocker**
+  (the stage where it stopped) is recorded; for private projects only its
+  generic category. No contracts are written for corpus projects except
+  where a project's own source states the fact (midday's replica factory):
+  a contract would be an assumption about their behavior.
+
 ## What the corpus has shown
 
-Summarized with numbers in the [evidence index § 1](../research/evidence-index.md#1-static-analysis-accuracy)
-and [§ 8](../research/evidence-index.md#8-real-world-corpus-coverage-static-discovery):
+Numbers are in the [evidence index § 1](../research/evidence-index.md#1-static-analysis-accuracy)
+and [§ 8](../research/evidence-index.md#8-real-world-corpus-coverage-static-discovery).
 
-* Static analysis: Phase 2 review (implementer) and Phase 3 blind
-  automated re-review; most structurally correct findings were deliberate
-  (best-effort notifications, job retries).
-* Discovery: one heuristic model counterexample (saas-starter, Phase 11,
-  never executed). Phase 12 made most tables modelable (generated keys);
-  Phase 13 bound midday's replicated database through a declared factory
-  and resolved school-ledger's alias blockers, which then reached
-  inconclusive or unsupported synthesis. No new corpus counterexample was
-  found in Phases 12 and 13.
-* Phase 16 (`scripts/phase16-corpus.py`, which also records each
-  candidate's stage): midday's portal-settings candidate became
-  model-checkable (NO_VIOLATION_WITHIN_BOUNDS against a heuristic
-  property stated over generated identity); school-ledger's seven
-  provisioning candidates now pass zod `strictObject` and stop at
-  `.superRefine()`. Still no corpus counterexample
-  ([Phase 16 real-world coverage](../phase16/REAL-WORLD-COVERAGE.md)).
+* Static analysis: the first review (implementer) and a blind automated
+  re-review found most structurally correct findings deliberate
+  (best-effort notifications, job retries); all true positives were found
+  through cross-module summaries.
+* Discovery: one heuristic model counterexample (saas-starter's
+  invitation check-then-act, never executed). Generated keys made most
+  tables modelable; a declared replica factory bound midday's replicated
+  database; authorization guards in school-ledger are now satisfied with
+  stated preconditions. No other corpus counterexample has been found.
 
-Per-phase write-ups: [2](../phase2/CORPUS-EVALUATION.md),
-[5](../phase5/CORPUS-EVALUATION.md), [6](../phase6/CORPUS-EVALUATION.md),
-[7](../phase7/CORPUS-EVALUATION.md), [8](../phase8/CORPUS-EVALUATION.md),
-[9](../phase9/CORPUS-EVALUATION.md), [10](../phase10/CORPUS-EVALUATION.md),
-[11](../phase11/REAL-WORLD-EVALUATION.md), [12](../phase12/REAL-WORLD-COVERAGE.md),
-[13 midday](../phase13/MIDDAY-COVERAGE.md),
-[13 school-ledger](../phase13/SCHOOL-LEDGER-COVERAGE.md).
+### Current blockers
+
+| project | candidates | first blocker | what would unblock it faithfully |
+| --- | ---: | --- | --- |
+| school-ledger | 7 | zod `.superRefine()` on an array | a declared or modeled refinement, verified against zod |
+| school-ledger | 2 | method call on a value of unresolved type | type resolution of that value |
+| midday | 1 | `?.` on a call result; `Promise.all` whose result is used | optional chains on non-identifier bases; `Promise.all` with a destructured result |
+| midday | 2 | no declared invariant (write skew) | a team declaring its rule ([templates](../user-guide/contracts.md#templates-for-multi-row-invariants)) |
+| midday | 1 | none: model-checkable, `NO_VIOLATION_WITHIN_BOUNDS` against a heuristic property over generated identity | — |
+| saas-starter | 1 | model-checkable (the heuristic counterexample above); the other candidate is unsupported | — |
+| unnamed-ai-project | 0 | no candidate | — |
+
+The per-phase corpus write-ups are archived with the rest of the
+development record ([history](../HISTORY.md)).

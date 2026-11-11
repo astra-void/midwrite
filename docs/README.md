@@ -11,24 +11,11 @@ TypeScript ─► Oxc semantic analysis ─► interprocedural effect extraction
            ─► optional PostgreSQL replay / original-code verification ─► evidence report
 ```
 
-**Status.** Experimental. These pages describe the current system: the
-Phase 16 working tree (base commit `1efa383`; Phase 16 changes
-uncommitted). Phase 16 added zod object validation (zod 3 and 4,
-differentially checked against the pinned runtimes), bounded loops and
-retry loops, caught database errors, `request.json()`, held Drizzle
-predicates, multi-row row locks, `NULLS NOT DISTINCT`, properties over
-generated identifiers, a discovery-report JSON Schema and a Closed Alpha
-package ([Phase 16 final report](phase16/FINAL-REPORT.md)). Phase 14 added JavaScript values, closures, zod validation,
-multi-row inserts, predicates, timestamps/JSON subsets and new candidate
-families ([Phase 14 final report](phase14/FINAL-REPORT.md)); Phase 15 added
-typed input domains, a feedback-guided search over initial worlds,
-guard-satisfying synthesis and coverage accounting in four dimensions
-([Phase 15 final report](phase15/FINAL-REPORT.md)). Example outputs name
-the binary that produced them. No independent human review of any result
-has been performed, and no external application has been executed.
-
-The `docs/phaseN/` directories are the historical engineering record and
-are not rewritten; this layer links to them for detail.
+**Status.** Experimental. These pages describe the current system by
+topic. Example outputs name the binary that produced them. No independent
+human review of any result has been performed, and no external
+application has been executed. How the system was built, phase by phase,
+and where the archived phase records are: [development history](HISTORY.md).
 [What changed in the documentation](MIGRATION.md).
 
 ## Start here
@@ -58,6 +45,9 @@ are not rewritten; this layer links to them for detail.
 | [CLI reference](reference/cli.md) | every command and flag of the current binary, exit statuses, environment |
 | [Configuration](reference/configuration.md) | `midwrite.json`, recovery declarations, trust model |
 | [Output formats](reference/output-formats.md) | text, JSON kinds and schema versions, SARIF, HTML |
+| [Report schemas](reference/schemas) | JSON Schemas of every report version |
+| [Trace format](reference/trace-format.md) | the failure-trace report |
+| [zod support](reference/zod.md) | supported zod subset, versions, semantics |
 | [Diagnostics](DIAGNOSTICS.md) | `MW1001`–`MW9001`, `MW7001`–`MW7103`, JSON fields |
 | [Supported patterns](reference/supported-patterns.md) | what the analyzer and the extractor recognize |
 | [**Limitations**](reference/limitations.md) | the single current limitations document |
@@ -72,6 +62,8 @@ are not rewritten; this layer links to them for detail.
 | [Concurrency model](concepts/concurrency-model.md) | actors, schedules, bounds, reductions |
 | [Invariants](concepts/invariants.md) | assertion language, property origins, templates |
 | [Evidence levels](concepts/evidence-levels.md) | from static candidate to original-code reproduction |
+| [Model semantics](concepts/model-semantics.md) | state, transitions, processes, bounds, possible worlds: what "sound" means |
+| [Value semantics](concepts/value-semantics.md) | SQL vs JavaScript values, generated values, clock, JSON |
 
 ## Architecture
 
@@ -79,12 +71,19 @@ are not rewritten; this layer links to them for detail.
 | --- | --- |
 | [Overview](architecture/overview.md) | pipeline, crates and their boundaries |
 | [Analyzer](architecture/analyzer.md) | Oxc frontend, Effect IR, failure-path analysis |
+| [Value analysis](architecture/value-analysis.md) | abstract values, heap, summaries, classes and callbacks for `check` |
 | [Source extraction](architecture/source-extraction.md) | TypeScript → model IR |
+| [Schema extraction](architecture/schema-extraction.md) | Drizzle schemas, defaults and generated values, catalog comparison |
+| [Loops and caught errors](architecture/loops-and-errors.md) | loop unrolling, retry loops, caught database errors |
 | [Scenario synthesis](architecture/scenario-synthesis.md) | discovery pipeline |
+| [World search](architecture/world-search.md) | typed input domains, guard satisfaction, initial worlds, coverage |
 | [Model checker](architecture/model-checker.md) | engine, state identity, reductions |
+| [Partial-order reduction](architecture/partial-order-reduction.md) | sleep sets, DPOR, source-set DPOR, formal assumptions, how they are checked |
 | [PostgreSQL model](architecture/postgres-model.md) | modeled and refused PostgreSQL behavior |
-| [Runtime verification](architecture/runtime-verification.md) | coordinator, worker protocol, proxy, isolation |
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | detailed static-analyzer design (Phases 1–7), still accurate for `check` |
+| [Runtime verification](architecture/runtime-verification.md) | coordinator, worker protocol, original-code runs |
+| [Fault injection](architecture/fault-injection.md) | protocol proxy, lost acknowledgments, live connection loss |
+| [Replay protocol](architecture/replay-protocol.md) | single-request replay, checkpoints, `init-replay`, isolation |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | detailed static-analyzer design, current for `check` |
 
 ## Development and research
 
@@ -95,42 +94,22 @@ are not rewritten; this layer links to them for detail.
 | [Benchmarks](development/benchmarks.md) | benchmark methodology and scripts |
 | [Corpus evaluation](development/corpus-evaluation.md) | the real-world corpus and its rules |
 | [Evaluation harness](development/evaluation-harness.md) | precision and recall on dev and held-out projects (`scripts/eval.py`) |
-| [Roadmap](development/roadmap.md) | open problems named by the phase reports |
-| [Evidence index](research/evidence-index.md) | every major measured result with its revision, environment and raw evidence |
+| [Roadmap](development/roadmap.md) | open problems |
+| [Evidence index](research/evidence-index.md) | headline measured results, the tests and fixtures behind them, archived raw evidence |
 | [Evaluation methodology](research/evaluation-methodology.md) | how results are measured; independence |
+| [Evaluation datasets](research/evaluation-datasets.md) | the frozen evaluation sets in `fixtures/eval/` |
+| [Development history](HISTORY.md) | what each development phase added; the `history/phase-records` tag |
 
-## Historical phase records
+## Earlier records
 
-Each phase directory holds a baseline, design notes, evaluations and a
-final report; raw evidence is under `reports/phaseN/`. Phase 1 has no
-separate directory. Numbers in these records belong to the binary of that
-phase.
-
-| phase | topic | final report |
-| --- | --- | --- |
-| 2 | real-world evaluation, cross-module analysis, policies, baselines | [phase2](phase2/FINAL-REPORT.md) |
-| 3 | rename to Midwrite; failure traces; opt-in runtime replay | [phase3](phase3/FINAL-REPORT.md) |
-| 4 | Node.js + Drizzle replay, Linux isolation, harness generation, recovery contracts | [phase4](phase4/FINAL-REPORT.md) |
-| 5 | bounded interprocedural abstract interpretation: values, classes, callbacks, async | [phase5](phase5/FINAL-REPORT.md) |
-| 6 | explicit-state model checker, PostgreSQL isolation model, lockstep validation | [phase6](phase6/FINAL-REPORT.md) |
-| 7 | source selectors, wrapped callbacks, Drizzle fidelity, original-code verification, compact summaries | [phase7](phase7/FINAL-REPORT.md) |
-| 8 | crash and retry against original code, postgres-js, schema extraction, shared summaries | [phase8](phase8/FINAL-REPORT.md) |
-| 9 | lost acknowledgments (in-flight operations), client knowledge, pools, DPOR, compact state storage | [phase9](phase9/FINAL-REPORT.md) |
-| 10 | source-set DPOR, adversarial testing of reductions, live connection loss, postgres-js in-flight | [phase10](phase10/FINAL-REPORT.md) |
-| 11 | automatic scenario synthesis (`discover`), property provenance, contracts | [phase11](phase11/FINAL-REPORT.md) |
-| 12 | schema fidelity, generated values, cross-module resolution, shared analysis context | [phase12](phase12/FINAL-REPORT.md) |
-| 13 | foreign-key and row-lock semantics, return values and the response step, read replicas, upserts, source resolution | [phase13](phase13/FINAL-REPORT.md) |
-| 14 | JavaScript values, closures, zod, multi-row inserts, predicates, timestamps/JSON, replica round trip, parent-child and return-value families, next steps | [phase14](phase14/FINAL-REPORT.md) |
-| 15 | typed input domains, feedback-guided search over initial worlds, guard-satisfying synthesis, coverage in four dimensions, reproduction artifacts, a fresh frozen evaluation set | [phase15](phase15/FINAL-REPORT.md) |
-| 16 | zod validation, bounded and retry loops, caught errors, request bodies, held predicates, multi-row locks, NULLS NOT DISTINCT, generated-identity properties, discovery-report schema, Closed Alpha package | [phase16](phase16/FINAL-REPORT.md) |
-
-Top-level records kept as they were: [`LIMITATIONS.md`](LIMITATIONS.md)
-(static analyzer, Phases 1–7; superseded as the *current* list by
-[reference/limitations.md](reference/limitations.md)),
-[`ARCHITECTURE.md`](ARCHITECTURE.md), [`DIAGNOSTICS.md`](DIAGNOSTICS.md).
+[`LIMITATIONS.md`](LIMITATIONS.md) is the detailed list for the static
+analyzer (`check`, `trace`, replay); [reference/limitations.md](reference/limitations.md)
+is the current list for everything. The per-phase design notes, reports
+and raw evidence are archived in the git tag `history/phase-records`
+([development history](HISTORY.md)).
 
 ## Checking these documents
 
 ```bash
-python3 scripts/check-doc-links.py --historical report
+python3 scripts/check-doc-links.py
 ```

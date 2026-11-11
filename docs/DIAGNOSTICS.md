@@ -17,12 +17,16 @@ from code structure, not a confirmed violation of an application invariant.
 `error` is reserved for that (future) case.
 
 **Policies** (`--policy`) change severities, never codes or their meaning.
-`strict` uses the catalog severities (the Phase 1 behavior). `recommended`
+`strict` uses the catalog severities. `recommended`
 keeps cross-resource hazards and transaction bypasses as warnings and reports
 broad atomicity checks (two sequential writes, two sequential external
-effects) as `info` review candidates: in the Phase 2 review most of them were
-real windows that the code accepts on purpose (see
-`docs/phase2/PRECISION-CHANGES.md`). `recommended` also reports the
+effects) as `info` review candidates: in the first corpus review most of
+them were real windows that the code accepts on purpose, and they far
+outnumber the cross-resource findings (two sequential effects on the same
+resource are usually ordered deliberately, while a database/external pair
+cannot be made atomic by any transaction). The cost is that reviewed true
+positives among sequential writes are `info` under `recommended`; use
+`--policy strict` to make them fail CI. `recommended` also reports the
 unrecognized calls of a function that are relevant only because of their
 context (after a commit, inside a transaction with writes) as one MW9001 per
 function, listing the others in `limitations`. `audit` is `strict` plus a
@@ -49,13 +53,13 @@ the summary and through which chain of calls. A hazard entirely inside one
 callee is reported once, for the callee. Unknown calls inside one inlined
 call are reported once per call.
 
-**Phase 5 resolution.** The called function may also be a method found by
+**Resolved methods, callbacks and concurrent calls.** The called function may also be a method found by
 dispatch on a receiver of known class, a callback passed to an analyzed
 function, an immediately invoked function expression, or a `Promise.all`
 element (its operations are then `concurrent`, confidence `low`). When a
 method was resolved under an assumption (an unanalyzed superclass, an
 escaped receiver), confidence is at most `medium` and `limitations` names the
-assumption. Calls of functions proven inert are not unknown calls and
+assumption ([value analysis](architecture/value-analysis.md)). Calls of functions proven inert are not unknown calls and
 produce no MW9001. The detail of a remaining unknown call says why its callee
 is not inert or not resolved ("may dispatch to an override in `Loud`",
 "calls `job.updateProgress(…)`, whose target is not known").
@@ -165,7 +169,8 @@ does not understand and makes no claim about it:
 Produced only by `midwrite model-check` (a separate category: the codes
 above are never reused for concurrency results, and a sequential finding is
 never promoted to one). Details:
-[`phase6/COUNTEREXAMPLES.md`](phase6/COUNTEREXAMPLES.md).
+[model-check guide](user-guide/model-check.md),
+[interpreting results](user-guide/interpreting-results.md).
 
 ## MW7001: invariant violated by a bounded concurrent schedule
 
@@ -198,7 +203,7 @@ model counterexample.
 
 ## MW7103: original code did not reproduce the counterexample
 
-Phase 7. With `midwrite model-check --verify-source --allow-execution`,
+With `midwrite model-check --verify-source --allow-execution`,
 the actors' original application code ran through an authorized source
 harness under the counterexample's schedule against a disposable
 PostgreSQL database, and the run did not reproduce the violation: the
@@ -207,7 +212,7 @@ differently, an expected statement never came (`inconclusive`), the
 verification could not run (`blocked`, `unsupported`), or the invariant held
 on the observed rows (`not-reproduced`). The counterexample keeps its own
 evidence level; `sourceVerification` lists every difference statement by
-statement. See [`docs/phase7/DIFFERENTIAL-VERIFICATION.md`](phase7/DIFFERENTIAL-VERIFICATION.md).
+statement. See [runtime verification](architecture/runtime-verification.md).
 
 ## Confidence
 
@@ -232,7 +237,7 @@ Two dimensions are reported separately and combined into `confidence`:
 | `confidence` | Meaning |
 | --- | --- |
 | `high` | `straightLine` path and no `memberPath` evidence. |
-| `medium` | `conditional` path, or any `memberPath` evidence (Phase 2: a member-path match alone never yields `high`). |
+| `medium` | `conditional` path, or any `memberPath` evidence (a member-path match alone never yields `high`; configured names are not capped, because they are explicit assertions by the user). |
 | `low` | `approximated` path, or a MW9001 limitation. |
 
 Branch conditions are checked for simple contradictions only: a path whose
@@ -251,13 +256,13 @@ not reported at all; all other conditions are assumed satisfiable together.
 ## JSON output
 
 `midwrite check --format json` prints one object. `schemaVersion` changes on
-any incompatible change. All keys are camelCase. Phases 2 and 3 only added
-fields, so `schemaVersion` is still 1 (Phase 5 added the optional
-`valueRelation`; the trace report moved to schema v2 for the same optional
-field, see [`phase5/EFFECT-RELATIONSHIPS.md`](phase5/EFFECT-RELATIONSHIPS.md)). Since the rename `tool.name` is
-`midwrite` (it was `crashproof`). Failure traces and verification reports
-are separate documents: [`phase3/TRACE-FORMAT.md`](phase3/TRACE-FORMAT.md),
-[`phase3/REPLAY-PROTOCOL.md`](phase3/REPLAY-PROTOCOL.md).
+any incompatible change. All keys are camelCase. Every addition so far was
+an optional field, so `schemaVersion` is still 1 (the trace report moved to
+schema v2 for the optional `valueRelation`, see
+[value analysis](architecture/value-analysis.md#effect-relationships-valuerelation)).
+`tool.name` is `midwrite`. Failure traces and verification reports are
+separate documents: [trace format](reference/trace-format.md),
+[replay protocol](architecture/replay-protocol.md#reports).
 
 ```text
 Report {
@@ -267,7 +272,7 @@ Report {
   summary: {
     filesDiscovered, filesAnalyzed, filesFailed, functionsAnalyzed: number
     diagnostics: { error, warning, info: number }
-    analysis: {                         // Phase 2, measured coverage (not correctness)
+    analysis: {                         // measured coverage (not correctness)
       functionsWithEffects, truncatedFunctions, prunedPaths, mergedPaths: number
       sameFileCalls, crossFileCallsResolved, crossFileCallsUnresolved, packageCalls, callsSummarized: number
     }
@@ -293,20 +298,20 @@ Diagnostic {
   evidence: string[]                    // why each operation was recognized
   mitigation: string
   limitations: string[]                 // instance-specific notes, then the code's general limitation
-  pathCertainty: "straightLine" | "conditional" | "approximated" | "truncated" | "unknown"   // Phase 2
-  evidenceStrength: "provenance" | "configuredImport" | "configuredName" | "memberPath" | "unknown"   // Phase 2
-  fingerprint: string                   // Phase 2: stable id (16 hex digits, "-N" suffix for repeats); no line numbers
+  pathCertainty: "straightLine" | "conditional" | "approximated" | "truncated" | "unknown"
+  evidenceStrength: "provenance" | "configuredImport" | "configuredName" | "memberPath" | "unknown"
+  fingerprint: string                   // stable id (16 hex digits, "-N" suffix for repeats); no positions, including anonymous-function names
   baseline?: "new" | "existing"         // only with --baseline
-  recovery?: RecoveryNote[]             // Phase 3: recovery declarations from the configuration that bear on this finding
-  relationship?: {                      // Phase 3, descriptive only (never changes severity):
+  recovery?: RecoveryNote[]             // recovery declarations from the configuration that bear on this finding
+  relationship?: {                      // descriptive only (never changes severity):
     status: "sharedArguments" | "noSharedArgument" | "notComparable",
     shared: string[]                    //   variables both operations' arguments refer to (by name, same function)
   }
-  valueRelation?: {                     // Phase 5, descriptive only (never changes severity or existence):
+  valueRelation?: {                     // descriptive only (never changes severity or existence):
     status: "provenShared" | "possiblyRelated" | "noRelationEstablished" | "unknown",
                                         //   ("provenDisjoint" is reserved and never produced)
     shared?: [{ kind: "derivedFromResult" | "sameValue", first: string, second: string, exact?: true }]
-  }                                     //   from abstract value provenance across summarized calls; see phase5/EFFECT-RELATIONSHIPS.md
+  }                                     //   from abstract value provenance across summarized calls; see architecture/value-analysis.md
 }
 
 RecoveryNote {
@@ -370,8 +375,16 @@ Example (abridged):
 
 `--format sarif` emits SARIF 2.1.0 with one rule per code, one result per
 diagnostic (`relatedLocations` are the related effects, possibly in other
-files; `partialFingerprints["crashproof/v1"]` is the fingerprint;
+files; `partialFingerprints["midwrite/v1"]` is the fingerprint;
 `baselineState` is `new` or `unchanged` with `--baseline`; `properties` carry
 `function`, `confidence`, `pathCertainty`, `evidenceStrength`, `kind`,
 `reproduced` and `limitations`), and parse or read failures as tool execution
 notifications.
+
+Source paths are URI-escaped, including related-effect locations. Absolute
+paths use `file:` URIs; the invocation records the working directory so
+consumers can resolve them against the checkout. Lines and columns are
+1-based, end columns are exclusive, and `columnKind: "unicodeCodePoints"`
+matches the analyzer's Unicode character columns.
+
+For an upload workflow, see [GitHub code scanning](user-guide/check.md#github-code-scanning).

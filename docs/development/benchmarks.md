@@ -8,11 +8,11 @@ page does not restate them.
 ## Methodology
 
 * **Same machine, same inputs, two binaries.** Every comparison runs the
-  previous phase's preserved release binary and the new one in the same
-  session (for example `reports/phase13/baseline/commitrift-phase12`).
+  previous release binary (preserved outside version control) and the new
+  one in the same session.
   Figures from different sessions are not compared directly.
-* **Medians and maxima.** Wall time is the median of repeated runs (3 in
-  Phases 11–13), peak RSS the maximum, from `/usr/bin/time -l` on macOS.
+* **Medians and maxima.** Wall time is the median of repeated runs (3 for
+  discovery and corpus runs), peak RSS the maximum, from `/usr/bin/time -l` on macOS.
 * **Identical results first.** A speed-up counts only when outputs are
   identical (static analysis byte-identical; model checking identical
   states, transitions and verdicts).
@@ -23,24 +23,25 @@ page does not restate them.
 
 ## Scripts
 
-| script | measures | phase |
-| --- | --- | --- |
-| `scripts/bench.py`, `scripts/compare-phase1.py` | static analysis on the corpus; run comparison | 2 |
-| `scripts/phase5-attribute.py` | cost attribution per analysis phase | 5 |
-| `scripts/phase7-depth-bench.py`, `scripts/phase8-depth-bench.py` | static analysis at increasing call depths | 7, 8 |
-| `scripts/phase7-model-bench.py`, `scripts/phase8-model-bench.py`, `scripts/phase9-model-bench.py` | model checking by number of actors | 7–9 |
-| `scripts/phase9-profile-bench.py` | profile of the visited-state structures | 9 |
-| `scripts/phase10-por-bench.py`, `scripts/phase10-workloads.py` | reductions on 13 workloads × 6 modes | 10 |
-| `scripts/phase12-corpus.py`, `scripts/phase13-analyzer-corpus.py` | discovery on the corpus (wall, RSS, counts) | 12, 13 |
-| `midwrite model-check --profile-storage` | memory of visited states for one scenario | 9+ |
-| `midwrite-corpus` (`cargo run --release -p midwrite-corpus -- …`) | corpus runs, comparisons, phase memory profile | 2+ |
+| script | measures |
+| --- | --- |
+| `scripts/bench.py` | static analysis on the corpus |
+| `scripts/depth-bench.py` | static analysis at increasing call depths (`--old BIN` compares with an older binary) |
+| `scripts/model-bench.py` | model checking by fixture, number of actors, crash/retry dimensions, reduction and in-flight sections |
+| `scripts/por-bench.py` | the partial-order reduction matrix |
+| `scripts/perf.py`, `scripts/corpus.py` | discovery cold/warm cache and corpus runs, optionally against an older binary |
+| `scripts/profile-bench.py` | profile of the visited-state structures |
+| `scripts/por-bench.py`, `scripts/por-bench.py` | reductions on 13 workloads × 6 modes |
+| `scripts/corpus.py`, `scripts/corpus.py` | discovery on the corpus (wall, RSS, counts) |
+| `midwrite model-check --profile-storage` | memory of visited states for one scenario |
+| `midwrite-corpus` (`cargo run --release -p midwrite-corpus -- …`) | corpus runs, comparisons, memory profile per analysis stage |
 
 ## Workloads
 
 * **Static analysis:** the four corpus projects at depths 3, 6, 12 (and up
   to 8 in depth benchmarks) and the three path modes.
-* **Model checking:** the team-app invitation action at 4–8 actors (Phases
-  7–10), the Phase 10 workload matrix (independent, mostly independent,
+* **Model checking:** the team-app invitation action at 4–8 actors, the
+  reduction workload matrix (independent, mostly independent,
   conflicting-safe, pool contention, write skew, crash/retry, team-app),
   fixture scenarios.
 * **Discovery:** the commerce, workspace and evaluation applications and
@@ -48,20 +49,16 @@ page does not restate them.
 
 ## Where results are
 
-`reports/phase{5,6,7,8}/perf/`, `reports/phase9/model-bench.md`,
-`reports/phase10/final/por-bench.md`, `reports/phase11/evidence/SUMMARY.md`,
-`reports/phase12/corpus/`, `reports/phase13/analyzer/corpus/`,
-`reports/phase13/compat/state-space-overhead.md`. Per-phase write-ups:
-[6](../phase6/PERFORMANCE.md), [7](../phase7/PERFORMANCE.md),
-[8](../phase8/PERFORMANCE.md), [9](../phase9/PERFORMANCE.md),
-[10](../phase10/STATE-SPACE-PERFORMANCE.md), [11](../phase11/PERFORMANCE.md),
-[12](../phase12/PERFORMANCE.md). Phase 13's performance write-up is not yet
-in `docs/phase13/`.
+Current measurements are recorded where the script that produced them
+writes (see each script's arguments) and summarized in the
+[evidence index § 6](../research/evidence-index.md#6-performance). The
+per-phase performance records, raw benchmark outputs and write-ups of the
+development history are archived ([history](../HISTORY.md)).
 
 ## Known scale limits
 
 The model-checking state space is exponential in the number of actors
-(≈ 7× per actor on the Phase 8 workload); 8 actors finish on the Phase 9
-benchmark workload, 9 were not run. Classic DPOR saves memory but executes
+(≈ 7× per actor on the team-app invitation benchmark); 8 actors finish
+with the compact state storage (about 4.5 million states), 9 were not run. Classic DPOR saves memory but executes
 far more transitions than sleep sets; source-DPOR is opt-in and slower than
 sleep sets on highly conflicting safe workloads.

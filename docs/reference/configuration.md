@@ -1,8 +1,7 @@
 # Configuration (`midwrite.json`)
 
 Read by `check`, `trace`, `ir` and `init-replay` (`--config FILE`, default
-`./midwrite.json`; the legacy `./crashproof.json` is read only when
-`midwrite.json` does not exist, and the two are never merged). Every
+`./midwrite.json`). Every
 field is optional; unknown fields are rejected. Discovery has its own file,
 [`midwrite-contracts.json`](../user-guide/contracts.md); scenarios carry
 their own `extraction` section ([model-check](../user-guide/model-check.md#scenario-files)).
@@ -80,8 +79,48 @@ verifies them. Applied declarations appear in diagnostics with
 | `recoveryContracts[]` with `strategy: "retried"` | an outside mechanism re-executes the whole function after a failure; covered codes (any of MW1001–MW1005) become `info` with the cited evidence |
 | `recoveryContracts[]` with `strategy: "reconciled"` | a separate process derives missing effects from committed state; can cover MW1001, MW1004, MW1005, not MW1002/MW1003 |
 
-Covered findings keep their fingerprint. Details:
-[Phase 4 recovery semantics](../phase4/RECOVERY-SEMANTICS.md).
+Rules for `recoveryContracts[]`, all checked when the configuration is
+loaded:
+
+* `function` is matched **exactly** as diagnostics name it
+  (`Class.method`); there are no patterns, so no blanket suppression.
+  `file` is optional and disambiguates equal names.
+* `covers` lists codes explicitly; a contract never applies to codes it
+  was not written for. `retried` may cover MW1001–MW1005; `reconciled` only
+  MW1001, MW1004 and MW1005 (reconciliation from database state cannot undo
+  an external effect whose database change never committed). MW9001 cannot
+  be covered: it is an analysis limitation, not a failure window.
+* `evidence` is required (at least 10 characters) and should say where the
+  mechanism is configured; `limits` says when it gives up.
+* Two contracts for the same function and file are refused.
+
+Effect on a covered finding: it is **still reported**, with the same
+fingerprint, location, failure sequence and trace; under `recommended` a
+warning becomes `info`, under `strict` and `audit` severity is unchanged; a
+`recovery` note (`declaration`, `scope: "function"`,
+`source: "configuration"`, `verified: false`, `effectOnFinding`, the cited
+`evidence` and `limits`) is attached in text, JSON and SARIF
+(`properties.recovery`); a limitation says the contract is not verified
+and, for `retried`, that the effect completed before the failure is
+performed again (it must be idempotent or its duplicates acceptable).
+
+Recovery is **never inferred from names**: a function called
+`retryFailedJobs`, or arguments named `outbox` or `idempotencyKey`, change
+nothing (`recovery.rs: recovery_is_never_inferred_from_names`). Nor is it
+inferred from `try/catch` around a best-effort call, because real bugs sit
+inside `try/catch` too; declare such effects with `bestEffort`.
+
+Where a recovery property comes from decides where it appears:
+
+| `source` | meaning | where |
+| --- | --- | --- |
+| `sourceCode` | established by supported analysis (a transactional outbox: the state change and the outbox insert on one transaction handle) | implicit: no finding at all |
+| `configuration` | asserted in `midwrite.json`, `verified: false` | static reports |
+| `runtimeObservation` | observed by a replay harness's recovery scenarios | verification reports only ([replay protocol](../architecture/replay-protocol.md#verification-levels)) |
+| `unknown` | anything else (retries, cron jobs, webhook redelivery) | nothing is attached |
+
+A configuration declaration is never displayed as runtime proof, and a
+runtime observation never changes a static finding.
 
 ## Trust model
 

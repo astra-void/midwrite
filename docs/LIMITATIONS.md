@@ -1,16 +1,28 @@
 # Limitations
 
 > **Current limitations:** [`reference/limitations.md`](reference/limitations.md)
-> consolidates this page and every phase's `LIMITATIONS.md`, with the
-> limitations later phases lifted. This page is kept as the detailed record
-> for the static analyzer (Phases 1–7) and is not updated per phase.
+> is the single current list for every command. This page is the detailed
+> record for the static analyzer (`check`, `trace`, `ir`) and single-request
+> replay; where the two disagree, the reference page wins.
 
 Midwrite is a narrow analysis. This page lists what it gets wrong or does
 not attempt, so that a clean run is not mistaken for a guarantee. Many
 entries are pinned by tests or fixtures (named in parentheses). Measured
-rates on real projects are in `docs/phase2/CORPUS-EVALUATION.md`.
+rates on real projects are summarized in the
+[evidence index](research/evidence-index.md#1-static-analysis-accuracy).
 
 ## What a result means
+
+* Inline suppressions match a rule and its primary reported line, including
+  every finding of that rule on the same line. They affect `check` and
+  `trace`, not concurrency model checking or discovery. Reasons are user
+  assertions, not verified recovery evidence; see
+  [inline suppressions](user-guide/check.md#inline-suppressions).
+
+* Static finding fingerprints exclude positions, including those in generated
+  anonymous-function names. Otherwise identical findings use occurrence
+  suffixes in source order, so adding or removing an identical occurrence
+  can reassign those IDs ([baselines](user-guide/check.md#baselines-adopting-it-in-ci)).
 
 * A diagnostic is a **potential** partial-completion hazard derived from code
   structure. Midwrite cannot know whether the application tolerates the
@@ -19,23 +31,23 @@ rates on real projects are in `docs/phase2/CORPUS-EVALUATION.md`.
 * No diagnostic is reproduced at runtime (`"reproduced": false`). Runtime
   evidence exists only for findings exercised by an authorized replay
   harness, in a separate verification report, against invariants the harness
-  declares; see [`phase3/`](phase3/FINAL-REPORT.md) and
-  [`phase4/`](phase4/FINAL-REPORT.md). Runtime reproductions so far are of
+  declares; see [single-request replay](architecture/replay-protocol.md).
+  Runtime reproductions so far are of
   first-party fixtures (including one on the real Drizzle ORM) and of one
   real-world pattern in an isolated re-write; no bug in an original
   application has been runtime-confirmed.
 * No result proves consistency. Midwrite does not replace database
   constraints, integration tests, or fault-injection testing.
-* In the Phase 2 review of 103 findings on four real projects (97 with a
+* In the first review of 103 findings on four real projects (97 with a
   decided label), the reported window existed in 92 cases, but only 27 were
   judged likely bugs; most of the rest were deliberate (best-effort
   notifications, operations repaired by job retries, orderings documented in
   the code). Read findings as review candidates. The review was done by the
-  Phase 2 implementer from source code alone, not by the projects'
-  maintainers, and nothing was reproduced at runtime. A blind automated
-  re-review of 18 of those findings in Phase 3 (a separate model session,
-  not a human) agreed with 3 of the 7 sampled "likely bug" labels; see
-  [`phase3/PRECISION.md`](phase3/PRECISION.md).
+  implementer of the cross-module analysis from source code alone, not by
+  the projects' maintainers, and nothing was reproduced at runtime. A blind
+  automated re-review of 18 of those findings (a separate model session,
+  not a human) agreed with 3 of the 7 sampled "likely bug" labels; see the
+  [evidence index](research/evidence-index.md#1-static-analysis-accuracy).
 
 ## Support levels
 
@@ -43,7 +55,7 @@ rates on real projects are in `docs/phase2/CORPUS-EVALUATION.md`.
 | --- | --- |
 | Fully supported (tested end to end) | Drizzle writes/reads/transactions on recognized receivers, including handles returned by a configured call (`getDb()`); savepoints; `tx` vs `db` inside callbacks; same-file and imported function summaries (relative imports, named/aliased/default/namespace imports, `export { } from`, `export *` barrels); methods of `const` object-literal services; transaction handles and root handles passed as direct identifier arguments or configured calls; contradictory simple conditions, including literals returned by an inline transaction callback; baselines; policies; best-effort effects. |
 | Supported within a documented subset | `tsconfig.json` `paths`/`baseUrl` (single `*`, relative `extends` only); workspace packages (`package.json` `name` + `exports` string targets, single-`*` patterns, conditions `types`/`import`/`module`/`default`/`require`/`node`, or `main`/`module`/`types`); constant conditions on `const` literals. |
-| Supported within a documented subset (Phase 5) | Methods of receivers whose class is known (`new C()`, `this` without analyzed overrides, static, `super`), across modules; callbacks invoked by analyzed functions (per call-site context, ≤ 8 contexts per callee); IIFEs; resolved calls inside `Promise.all`; `Promise.all(xs.map(cb))` / `xs.forEach(cb)`; inertness summaries with modeled builtins; return-value facts and property facts of unescaped objects; value provenance and `valueRelation`; loop value fixpoints. See [`phase5/`](phase5/FINAL-REPORT.md). |
+| Supported within a documented subset ([value analysis](architecture/value-analysis.md)) | Methods of receivers whose class is known (`new C()`, `this` without analyzed overrides, static, `super`), across modules; callbacks invoked by analyzed functions (per call-site context, ≤ 8 contexts per callee); IIFEs; resolved calls inside `Promise.all`; `Promise.all(xs.map(cb))` / `xs.forEach(cb)`; inertness summaries with modeled builtins; return-value facts and property facts of unescaped objects; value provenance and `valueRelation`; loop value fixpoints. |
 | Heuristic | Configured names and member paths (trusted as written); `Promise.all` treated as concurrent; loops as zero or one iteration for effects; catch handlers entered as if the `try` failed before its effects; method dispatch under a package superclass (recorded assumption, medium confidence); `map`/`forEach`/`flatMap` with a function argument assumed to run it per element without awaiting; modeled globals assumed not replaced; `console` output not an effect. |
 | Unsupported | Methods on values of unknown class (parameters, SDK clients, factory results), callbacks run by unanalyzed code, `.then/.catch/.finally` continuation bodies, captured variables and transaction handles inside callbacks, dynamic `import()`, CommonJS `require`, `node_modules` packages, handles from unconfigured calls or calls with arguments (`getDb("replica")`), raw SQL, other ORMs, labeled `break`/`continue`, generators' resumption. |
 
@@ -53,9 +65,9 @@ rates on real projects are in `docs/phase2/CORPUS-EVALUATION.md`.
 | --- | --- | --- |
 | A parameter or global named like a configured receiver (`db: Map<...>`) | Bare names are trusted unless the same file shows a contrary initializer (`analysis.rs: known_false_positive_parameter_named_like_receiver`). | Use `importedFrom`. |
 | A configured member path that holds something else | Only the names along the path are checked; such findings are capped at `medium` confidence. | Configure member paths only where they always denote the database or client. |
-| Correlated conditions on members of objects from parameters or unknown calls, calls, or reassigned variables (`if (input.a) w(); if (!input.a) p();`) | Only variables that are never reassigned, and (Phase 5) properties of unescaped objects without accessors (literals, rows, analyzed callees' results), are correlated (`phase2.rs: members_calls_and_complex_conditions_stay_unknown`, `phase5.rs: member_tests_on_unknown_objects_are_not_correlated`). | — |
+| Correlated conditions on members of objects from parameters or unknown calls, calls, or reassigned variables (`if (input.a) w(); if (!input.a) p();`) | Only variables that are never reassigned, and properties of unescaped objects without accessors (literals, rows, analyzed callees' results), are correlated (`transactions.rs: members_calls_and_complex_conditions_stay_unknown`, `value_layer.rs: member_tests_on_unknown_objects_are_not_correlated`). | — |
 | Correlation through database state (`getOrCreate()` whose insert cannot run because the row was just created) | Database contents are not modeled (one reviewed false positive in the corpus). | — |
-| Correlation through return values other than literals and object-literal properties (`return computeOk()`), or when the result escapes (`audit(result)`) | Phase 5 correlates a summarized helper's returned literals and literal properties with the caller's `const` binding (`vulnerable/return_value_correlation.ts`); anything else is not a fact (`phase5.rs: an_escaping_result_is_not_correlated`). | — |
+| Correlation through return values other than literals and object-literal properties (`return computeOk()`), or when the result escapes (`audit(result)`) | A summarized helper's returned literals and literal properties are correlated with the caller's `const` binding (`vulnerable/return_value_correlation.ts`); anything else is not a fact (`value_layer.rs: an_escaping_result_is_not_correlated`). | — |
 | An object service whose properties are changed outside its file, or through `Object.assign` | Only assignments and `delete` of its properties in its own file disable it. | — |
 | Adjacent but unrelated operations (a notification, then an unrelated update; a write in one loop and an enqueue for other records in a later loop) | A failure between *any* two adjacent durable or visible points is reported; whether the second is owed because of the first is not known (four reviewed false positives). | — |
 | Effects already compensated elsewhere (job retries, webhook redelivery, idempotent relays, documented manual recovery) | Not visible to the analysis (most of the reviewed "intended risk" findings). | Declare them (`externalEffects[].recovery`, function-level `recoveryContracts` with cited evidence: the finding stays, as `info` under `recommended`), baseline them, or use the `recommended` policy for MW1004/MW1005. |
@@ -66,13 +78,13 @@ rates on real projects are in `docs/phase2/CORPUS-EVALUATION.md`.
 
 | Case | Behavior |
 | --- | --- |
-| Effects inside methods whose receiver's class is not known (`service.save()` with `service` a parameter or a factory result), methods with an analyzed override or dynamic reassignment, callbacks run by unanalyzed code | Not followed. A call after a recognized commit becomes MW9001 with the reason; one before the first commit is silent (reported under `--policy audit`). Known receivers are followed since Phase 5 (`vulnerable/class_this_dispatch.ts`, `unsupported/class_override_dispatch.ts`, `projects/class_hierarchy`). |
-| Callees that are resolved but not inert and perform no recognized operation (`render()` returning a package call, `BaseProcessor.updateProgress` calling BullMQ) | One unknown effect for the call, as in Phase 4; the detail says which inner call prevents inertness, but the inner unknown is not shown as its own trace step. |
+| Effects inside methods whose receiver's class is not known (`service.save()` with `service` a parameter or a factory result), methods with an analyzed override or dynamic reassignment, callbacks run by unanalyzed code | Not followed. A call after a recognized commit becomes MW9001 with the reason; one before the first commit is silent (reported under `--policy audit`). Known receivers are followed (`vulnerable/class_this_dispatch.ts`, `unsupported/class_override_dispatch.ts`, `projects/class_hierarchy`). |
+| Callees that are resolved but not inert and perform no recognized operation (`render()` returning a package call, `BaseProcessor.updateProgress` calling BullMQ) | One unknown effect for the call; the detail says which inner call prevents inertness, but the inner unknown is not shown as its own trace step. |
 | Captured values in callbacks (`items.map((i) => tx.update(...))`, `{ id }` from the enclosing function) | The callback's own lowering does not know the enclosing frame: a captured transaction handle is not recognized (the call stays unknown) and captured values have unknown provenance. |
-| Effects more than `--max-call-depth` (3) calls deep | Still unknown unless the chain is inert. Measured on school-ledger: depth 6 would add 261 findings; the default is unchanged pending review (`phase5/CORPUS-EVALUATION.md`). |
-| Imports that do not resolve: packages outside the analyzed files, unsupported aliases, ambiguous modules or exports, exports that are not function declarations (`export const f = wrap(...)`) | The call stays an unknown effect whose detail says why (`projects/missing_module`, `projects/ambiguous_exports`, `phase2.rs: ambiguous_module_candidates_are_not_chosen`). |
-| Calls neither awaited nor returned from an `async` function (`notify(id);`) | Not summarized: silent (`unsupported/unawaited_helper.ts`, `projects/unawaited`). Resolved calls inside `Promise.all` are summarized since Phase 5 (concurrent, low confidence). |
-| Callees without a recognized operation that are not proven inert, recursive calls, calls more than `--max-call-depth` (default 3) levels deep, callees with unsupported control flow | Not summarized; the call stays an unknown effect, MW9001 after a commit (`unsupported/local_helper_unknown.ts`, `unsupported/recursive_helper.ts`, `unsupported/deep_helpers.ts`). Inert callees are resolved at any depth and in recursion since Phase 5 (`safe/inert_helpers.ts`, `projects/pure_helper`). A recursive call cut inside an inlined callee is not reported separately (`projects/recursive_imports`). |
+| Effects more than `--max-call-depth` (3) calls deep | Still unknown unless the chain is inert. Deeper analysis changes findings (on one private corpus project it roughly doubled them at depth 6), so the default stays 3 pending a reviewed policy decision. |
+| Imports that do not resolve: packages outside the analyzed files, unsupported aliases, ambiguous modules or exports, exports that are not function declarations (`export const f = wrap(...)`) | The call stays an unknown effect whose detail says why (`projects/missing_module`, `projects/ambiguous_exports`, `transactions.rs: ambiguous_module_candidates_are_not_chosen`). |
+| Calls neither awaited nor returned from an `async` function (`notify(id);`) | Not summarized: silent (`unsupported/unawaited_helper.ts`, `projects/unawaited`). Resolved calls inside `Promise.all` are summarized (concurrent, low confidence). |
+| Callees without a recognized operation that are not proven inert, recursive calls, calls more than `--max-call-depth` (default 3) levels deep, callees with unsupported control flow | Not summarized; the call stays an unknown effect, MW9001 after a commit (`unsupported/local_helper_unknown.ts`, `unsupported/recursive_helper.ts`, `unsupported/deep_helpers.ts`). Inert callees are resolved at any depth and in recursion (`safe/inert_helpers.ts`, `projects/pure_helper`). A recursive call cut inside an inlined callee is not reported separately (`projects/recursive_imports`). |
 | Helpers that return an unexecuted query builder for the caller to await | The helper executes nothing itself, so its summary is empty: MW9001 after a commit. |
 | Handle arguments that are not a direct identifier, configured path or configured call (`save(tx ?? db)`, `save(getDb())` without a `"getDb()"` entry, spread arguments) | The callee's writes on that parameter become unknown effects (`projects/unknown_handle`); never assumed to be root writes. |
 | `tx.rollback()`, raw SQL and transactions on an *unconfigured* parameter of an inlined callee | Not modeled through the parameter. |
@@ -97,7 +109,7 @@ rates on real projects are in `docs/phase2/CORPUS-EVALUATION.md`.
 | Optional calls (`queue?.publish()`) | Treated as unconditional. |
 | Generators, `yield` | Analyzed like ordinary functions; resumption is not modeled. |
 | `with` statements | Lowered without special scoping. |
-| Unawaited `db.transaction(...)` | Lowered as a transaction with `fireAndForget` execution; findings that depend on its commit get at most `medium` confidence (`phase2.rs: transaction_model_audit`). |
+| Unawaited `db.transaction(...)` | Lowered as a transaction with `fireAndForget` execution; findings that depend on its commit get at most `medium` confidence (`transactions.rs: transaction_model_audit`). |
 
 ## Recognition trust model
 
@@ -166,7 +178,7 @@ rates on real projects are in `docs/phase2/CORPUS-EVALUATION.md`.
   representative of the callee paths that have the same effects; the path
   conditions shown are those of that representative.
 
-## Failure traces and runtime replay (Phase 3)
+## Failure traces and single-request replay
 
 * A failure trace is the reported path, not proof that it is reachable:
   branch conditions are not solved (only contradictions are pruned), and
@@ -180,16 +192,16 @@ rates on real projects are in `docs/phase2/CORPUS-EVALUATION.md`.
 * The crash simulation models only a process crash; exceptions run
   application handlers that the model does not execute.
 * Replay supports one database provider (a disposable local PostgreSQL
-  cluster). Phase 4 status of the other Phase 3 limits is in the next
-  section.
+  cluster).
 * `RUNTIME_NOT_REPRODUCED` holds for the harness, its declared invariants and
   the recorded environment only.
 * Recovery declarations (`recovery`) are assertions, never verified; the
   `relationship` field is a naming heuristic that did not separate bugs from
   non-bugs on the reviewed corpus and is never used for severity.
-* Class methods and `this.method()` are still not followed.
+* Class methods and `this.method()` are followed only under the dispatch
+  rules of [value analysis](architecture/value-analysis.md#class-and-method-resolution).
 
-## Replay, harness generation and recovery (Phase 4)
+## Replay runtimes, isolation, harness generation and recovery
 
 * Runtimes: Node.js ≥ 22 (compiled JavaScript; replay never compiles or
   installs) and Bun ≥ 1.2. The driver adapter covers node-postgres (`pg`)
@@ -201,27 +213,32 @@ rates on real projects are in `docs/phase2/CORPUS-EVALUATION.md`.
   readable inside the sandbox, and a live Unix socket inside them would be
   reachable; on macOS, processes that leave the harness's process group can
   outlive the run. Neither platform limits CPU or memory.
-* Linux CI on GitHub-hosted runners and the release workflow have not run
-  yet; Linux was exercised in an unprivileged Debian container.
+* No run of the GitHub CI or release workflow is recorded; Linux replay was
+  exercised in an unprivileged Debian container. Only `aarch64` macOS and
+  Linux release archives were built and verified; GNU tar archives are
+  reproducible, macOS (BSD tar) archives are not bit-reproducible.
 * `midwrite init-replay` generates a skeleton; observations, invariants,
   schema, inputs and the scenario call are always manual. Its `tsconfig.json`
   suits projects that compile with plain `NodeNext` settings.
 * Recovery contracts are assertions with cited evidence; Midwrite does not
   verify that the mechanism exists, covers the window or runs after a crash.
   Runtime recovery observations hold for the harness only.
-* The 140 incomplete corpus traces are all caused by unknown calls inside the
-  failure window; their number did not change in Phase 4.
+* Incomplete corpus traces are caused by unknown calls inside the failure
+  window.
+* Generated harnesses vendor the replay client; after an upgrade the copy
+  must be refreshed by hand, and nothing checks its version beyond the
+  protocol version.
 * No human review of corpus findings exists yet (a blind review workflow is
   ready: `midwrite-corpus review-packet`).
 
-## Kinds of evidence (Phase 5)
+## Kinds of evidence
 
 | Kind | Meaning | Where it shows |
 | --- | --- | --- |
 | Recognized operation | a Drizzle write/read or configured external effect matched by syntax, provenance or configuration (never by types) | `effects`, `evidenceStrength` |
 | Must-effect (within the model) | performed on every modeled path of the callee (`SummaryOrigin.onEveryPath`) | full confidence; otherwise ≤ medium |
 | May-effect | performed on some modeled paths | ≤ medium, "only on some of its paths" note |
-| Inferred call target | resolved by name/import (Phase 2), or by dispatch, callback context or IIFE (Phase 5) | `CallSite.resolution` in IR and traces |
+| Inferred call target | resolved by name/import, or by dispatch, callback context or IIFE | `CallSite.resolution` in IR and traces |
 | Assumed target | dispatch that relies on an unanalyzed superclass or an escaped receiver | `resolution.assumption`, ≤ medium, limitation note |
 | Proven inert | the callee and everything it may run perform nothing durable or visible on any modeled path, given the modeled builtins | `CallScope.inert`; no MW9001 |
 | Configured assumption | `databaseReceivers`, `externalEffects`, `bestEffort`, `recovery`, `recoveryContracts` | evidence and limitations; never verified |
@@ -229,7 +246,7 @@ rates on real projects are in `docs/phase2/CORPUS-EVALUATION.md`.
 | Abstract execution prediction | everything above: a static, bounded model of some paths | every diagnostic and trace (`STATIC_CANDIDATE`) |
 | Runtime-observed evidence | observed PostgreSQL state in an authorized replay | verification reports only; never feeds back into static confidence |
 
-## Phase 5 soundness assumptions
+## Value-layer soundness assumptions
 
 1. Closed world for classes: subclasses exist only in the analyzed files.
 2. Modeled globals (`Promise`, timers, `Math`, `JSON`, `Object.keys`, …) are
@@ -244,21 +261,15 @@ rates on real projects are in `docs/phase2/CORPUS-EVALUATION.md`.
 5. Recognized effects do not mutate their arguments.
 6. Module-level data is static (`Static` atoms are neither inputs nor
    unknown).
-7. All Phase 1–4 assumptions still hold.
+7. The recognition trust model above holds (configured receivers are
+   trusted as written; every awaited operation may fail).
 
-## Phase 6: concurrency model checking
+## Concurrency model checking and original-code verification
 
-`midwrite model-check` is opt-in and separate from `check`. Its results
-hold only for the declared scenario (actors, data, isolation level, bounds)
-and the model's semantics; SERIALIZABLE is a conservative serialization-graph
-abstraction, and the TypeScript and SQL subsets are small. Full list:
-[`phase6/LIMITATIONS.md`](phase6/LIMITATIONS.md).
-
-## Phase 7: source selectors and original-code verification
-
-Wrapped callbacks are modeled from their own body; the wrapper's guards are
-declared preconditions, not proofs. `original-code-reproduced` holds for the
-harness inputs, the schedule and the disposable database of the run, not
-for production traffic. Only Node.js + `pg` + Drizzle are coordinated;
-crashes and retries are not executed against original code. Full list:
-[`phase7/LIMITATIONS.md`](phase7/LIMITATIONS.md).
+`midwrite model-check` and `midwrite discover` are opt-in and separate from
+`check`. Their results hold only for the declared or synthesized scenario
+(actors, data, isolation level, bounds) and the model's semantics; wrapped
+callbacks are modeled from their own body and the wrapper's guards are
+declared preconditions, not proofs; an original-code reproduction holds for
+the harness inputs, the schedule and the disposable database of that run.
+Full, current list: [reference/limitations.md](reference/limitations.md).
