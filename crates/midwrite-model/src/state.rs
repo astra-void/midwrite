@@ -42,9 +42,9 @@ pub enum ClosedStmt {
         values: Row,
         on_conflict: OnConflict,
         returning: bool,
-        /// Phase 12: the columns `RETURNING` lists (all when `None`).
+        /// The columns `RETURNING` lists (all when `None`).
         returning_columns: Option<Vec<String>>,
-        /// Phase 13: `ON CONFLICT (target) DO UPDATE`, with closed
+        /// `ON CONFLICT (target) DO UPDATE`, with closed
         /// expressions.
         upsert: Option<crate::ir::Upsert>,
     },
@@ -52,7 +52,7 @@ pub enum ClosedStmt {
         table: u16,
         pred: Expr,
     },
-    /// Phase 14: a multi-row `INSERT` (a separate variant, so that the
+    /// A multi-row `INSERT` (a separate variant, so that the
     /// encoding of single-row inserts is unchanged). Its progress is part of
     /// the statement: rows before `cursor` are done; `rows[cursor]` has its
     /// defaults once `row_started`; `out` holds the rows `RETURNING`
@@ -71,7 +71,7 @@ pub enum ClosedStmt {
         out: Vec<Row>,
         touched: Vec<RowId>,
     },
-    /// Phase 16: a multi-row `SELECT` (a separate variant, so that the
+    /// A multi-row `SELECT` (a separate variant, so that the
     /// encoding of single-row selects is unchanged): every matching row (at
     /// most `limit`) in primary-key order. Its progress is part of the
     /// statement: `out` holds the rows returned (and, with a lock, locked)
@@ -134,14 +134,14 @@ pub struct Pending {
     pub blocked_on: Option<TxnId>,
     /// Whether candidate rows have been determined (the snapshot is used).
     pub started: bool,
-    /// Phase 13: foreign-key checks the statement still has to run (its
+    /// Foreign-key checks the statement still has to run (its
     /// AFTER triggers, fired at the end of the statement), first first.
     pub fk: Vec<FkCheck>,
-    /// Phase 13: the statement's result, while its foreign-key checks run.
+    /// The statement's result, while its foreign-key checks run.
     pub deferred: Option<crate::exec::StmtResult>,
 }
 
-/// One foreign-key check of a statement (Phase 13), as PostgreSQL's RI
+/// One foreign-key check of a statement, as PostgreSQL's RI
 /// triggers run it.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum FkCheck {
@@ -177,7 +177,7 @@ pub enum TStatus {
     DoneFailed,
 }
 
-/// Phase 9: a task's claim on a connection of its process's bounded pool for
+/// A task's claim on a connection of its process's bounded pool for
 /// its next operation (a BEGIN or a statement outside a transaction).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Lease {
@@ -190,7 +190,7 @@ pub enum Lease {
     Held,
 }
 
-/// Phase 9: the state of one process's bounded connection pool.
+/// The state of one process's bounded connection pool.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PoolState {
     /// Connections checked out (by tasks about to use them, open
@@ -259,32 +259,32 @@ pub struct ActorState {
     pub attempt: u32,
     pub txn_seq: u32,
     pub insert_seq: u32,
-    /// Phase 12: generation events of this actor so far (column defaults
+    /// Generation events of this actor so far (column defaults
     /// that generate identifiers). Never reset: a retried or rolled-back
     /// insert generates a new value.
     pub gen_seq: u32,
     /// Whether the current attempt has performed a visible operation.
     pub touched: bool,
-    /// Phase 9: operations of this actor whose acknowledgment was lost
+    /// Operations of this actor whose acknowledgment was lost
     /// (physical outcome and what the application can exclude). Empty unless
     /// `Bounds::max_in_flight` is set; part of the canonical encoding.
     pub ambiguous: Vec<Ambiguity>,
-    /// Phase 13: the value the current attempt's main task returns (set by
+    /// The value the current attempt's main task returns (set by
     /// [`crate::ir::Op::ReturnValue`]; `Err` holds why it is unknown). Only
     /// tracked when an invariant reads return values.
     pub result: Option<ReturnSlot>,
-    /// Phase 13: the return value of every attempt that completed normally,
+    /// The return value of every attempt that completed normally,
     /// in order: what the callers were told.
     pub returned: Vec<ReturnSlot>,
 }
 
-/// A return value (Phase 13): known, or unknown with the reason (an
+/// A return value: known, or unknown with the reason (an
 /// expression the extractor did not understand). `undefined` is `null`.
 pub type ReturnSlot = Result<Value, String>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Txn {
-    /// Phase 9: the transaction holds a connection of a bounded pool.
+    /// The transaction holds a connection of a bounded pool.
     pub leased: bool,
     pub actor: u16,
     pub iso: Isolation,
@@ -310,7 +310,7 @@ pub struct ExternalEvent {
     pub deduplicated: bool,
 }
 
-/// Phase 9: an operation the server received from a client that is gone (or
+/// An operation the server received from a client that is gone (or
 /// no longer listening) and has not completed yet: a COMMIT whose
 /// transaction is still open on the server, or an autocommit write that has
 /// not run. Its completion is the separate [`TKind::ServerComplete`]
@@ -340,18 +340,18 @@ pub struct State {
     pub externals: Vec<ExternalEvent>,
     pub crashes: u32,
     pub retries: u32,
-    /// Phase 9: acknowledgments lost so far on this schedule.
+    /// Acknowledgments lost so far on this schedule.
     pub in_flight: u32,
-    /// Phase 9: operations received by the server and not completed yet.
+    /// Operations received by the server and not completed yet.
     pub orphans: Vec<Orphan>,
-    /// Phase 9: one pool per process when any pool is bounded, else empty.
+    /// One pool per process when any pool is bounded, else empty.
     pub pools: Vec<PoolState>,
     /// Serialization dependency edges between transactions (SERIALIZABLE).
     pub deps: BTreeSet<(TxnId, TxnId)>,
     /// Next value of each sequence-backed column (`Model::sequences` order).
     /// Not transactional: an aborted insert does not give its value back.
     pub seqs: Vec<i64>,
-    /// Phase 13: the prefix of the primary's commit sequence the read
+    /// The prefix of the primary's commit sequence the read
     /// replica has replayed (feature `replicas`; asynchronous streaming
     /// replication applies commits in commit order). Replica reads see
     /// exactly the versions committed at or before it.
@@ -377,25 +377,25 @@ pub enum TKind {
     /// PostgreSQL's deadlock detector aborts one waiting transaction of a
     /// wait-for cycle (which one depends on timer order: any member).
     Deadlock,
-    /// Phase 9: the operation a task submitted (COMMIT, or an autocommit
+    /// The operation a task submitted (COMMIT, or an autocommit
     /// write) reached the server, which will complete it (see
     /// [`TKind::ServerComplete`]), but its acknowledgment is lost: the
     /// application gets a connection error and cannot tell this from
     /// [`TKind::LostNotCommitted`].
     LostCommitted,
-    /// Phase 9: the same observation for the application, but the server
+    /// The same observation for the application, but the server
     /// never executed the operation (or rolled it back).
     LostNotCommitted,
-    /// Phase 9: a process crashes with operations in flight. `actor` holds
+    /// A process crashes with operations in flight. `actor` holds
     /// the bit mask of which in-flight operations committed (bit *i* is the
     /// *i*-th operation of [`crate::engine::in_flight_ops`]); `thread` is the
     /// process index.
     CrashInFlight,
-    /// Phase 9: the server completes an operation it received earlier from a
+    /// The server completes an operation it received earlier from a
     /// client that is gone (`actor` the submitting actor, `thread` the
     /// operation's sequence number).
     ServerComplete,
-    /// Phase 13: the read replica replays the next commit of the primary
+    /// The read replica replays the next commit of the primary
     /// (feature `replicas`). Optional: replication lag is unbounded in the
     /// model, so a replica may stay behind for the whole schedule.
     Replicate,
@@ -469,7 +469,7 @@ impl State {
     }
 
     /// The canonical encoding with the external-effect log reordered stably
-    /// by channel (Phase 10): the equivalence the reductions preserve.
+    /// by channel: the equivalence the reductions preserve.
     ///
     /// Effects on one channel conflict (their order is kept); effects on
     /// different channels are independent, so a reduction explores one of
@@ -491,7 +491,7 @@ impl State {
         s.canonical(model)
     }
 
-    /// The canonical encoding as a sequence of interned fragments (Phase 9):
+    /// The canonical encoding as a sequence of interned fragments:
     /// the same bytes as [`Self::canonical`], cut into units (one per row
     /// chain, lock, transaction, task, ...) that [`Interner`] replaces by
     /// integers. Two states have the same key exactly when they have the same
@@ -533,7 +533,7 @@ impl State {
                 }
             }
         }
-        // Phase 13: the read replica holds the snapshot of its replayed
+        // The read replica holds the snapshot of its replayed
         // prefix.
         if model.features.replicas {
             holders.push(((u32::MAX, u16::MAX), self.replica_seq));
@@ -562,7 +562,7 @@ impl State {
                         for (_, s) in &holders {
                             e.u8(u8::from(c <= *s));
                         }
-                        // Phase 13: the order in which the replica will
+                        // The order in which the replica will
                         // replay the commits it has not replayed yet.
                         if replicas {
                             e.u32(c.saturating_sub(self.replica_seq) as u32);
@@ -585,7 +585,7 @@ impl State {
         }
         e.u32(self.store.locks.len() as u32);
         e.cut();
-        // Phase 13: lock modes matter only to models that can request a
+        // Lock modes matter only to models that can request a
         // shared mode (foreign keys, `FOR [KEY] SHARE`); without one, every
         // two locks conflict, a row has one holder, and the encoding is the
         // Phase 6-12 one.
@@ -685,7 +685,7 @@ impl State {
                             None => e.u8(0),
                         }
                         e.u32(p.blocked_on.map_or(u32::MAX, |t| t.0));
-                        // Phase 13: written only while foreign-key checks
+                        // Written only while foreign-key checks
                         // are pending.
                         if !p.fk.is_empty() || p.deferred.is_some() {
                             e.u8(0xF4);
@@ -756,7 +756,7 @@ impl State {
                 e.value(&Value::Int(*n));
             }
         }
-        // Phase 13: return values, written only when some are recorded
+        // Return values, written only when some are recorded
         // (models whose invariants read them), so encodings of other models
         // are unchanged.
         if self
@@ -786,7 +786,7 @@ impl State {
                 }
             }
         }
-        // Phase 12: generation counters, written only when an actor has
+        // Generation counters, written only when an actor has
         // generated a value, so encodings of other models are unchanged.
         if self.actors.iter().any(|a| a.gen_seq != 0) {
             e.u8(0xC2);
@@ -800,7 +800,7 @@ impl State {
             e.u16(t);
             e.u32(self.switches);
         }
-        // Phase 9: connection pools.
+        // Connection pools.
         if pooled {
             e.u8(0xB0);
             for p in &self.pools {
@@ -813,7 +813,7 @@ impl State {
             }
             e.cut();
         }
-        // Phase 9: unresolved outcomes are part of the state. Written only
+        // Unresolved outcomes are part of the state. Written only
         // when present, so encodings of models without in-flight faults are
         // unchanged.
         if self.actors.iter().any(|a| !a.ambiguous.is_empty()) || !self.orphans.is_empty() {
@@ -861,7 +861,7 @@ impl State {
     }
 }
 
-/// Maps canonical-encoding fragments to small integers (Phase 9). Equal
+/// Maps canonical-encoding fragments to small integers. Equal
 /// fragments get equal integers and different fragments different ones: the
 /// fragments themselves are stored, so no equality rests on a hash.
 #[derive(Default)]

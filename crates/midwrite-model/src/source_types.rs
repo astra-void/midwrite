@@ -28,14 +28,14 @@ pub struct SourceSpec {
     #[serde(default)]
     pub harness: Option<String>,
     pub actors: BTreeMap<String, SourceActor>,
-    /// Phase 8: when the model finds NO counterexample (a safe or
+    /// When the model finds NO counterexample (a safe or
     /// idempotent alternative), run this bounded recovery schedule against
     /// the original code instead and check that it keeps the invariant.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recovery_probe: Option<RecoveryProbe>,
 }
 
-/// Phase 8: which recovery schedule to run when there is no counterexample.
+/// Which recovery schedule to run when there is no counterexample.
 /// The model checker picks the SHORTEST complete schedule within the
 /// declared bounds that contains the required events in order; the
 /// schedule is the model's, never written by hand.
@@ -90,7 +90,7 @@ pub struct RunSummary {
     pub invariant: String,
     pub reproduced: bool,
     pub elapsed_ms: u64,
-    /// Phase 8: crash checkpoints, restarts, effects and attempts agree
+    /// Crash checkpoints, restarts, effects and attempts agree
     /// with the model (absent when the schedule has none of them).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recovery_agrees: Option<bool>,
@@ -101,7 +101,7 @@ pub struct RunSummary {
     pub recovery_reproduced: Option<bool>,
 }
 
-/// Phase 9: the operation that was in flight at a crash, as the model
+/// The operation that was in flight at a crash, as the model
 /// describes it and as the wire and PostgreSQL showed it. Each fact says
 /// whether it was observed (by the proxy or by PostgreSQL) — none is
 /// inferred from timing.
@@ -134,7 +134,7 @@ pub struct InFlightCheck {
     pub physical_outcome: String,
 }
 
-/// Phase 9: a stuck state observed on the original code (every remaining
+/// A stuck state observed on the original code (every remaining
 /// task waits for a pool connection, or for a lock the application itself
 /// holds), next to what the model predicted.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -162,7 +162,7 @@ pub struct StuckObservation {
     pub detail: String,
 }
 
-/// Phase 9: the server completing a held operation.
+/// The server completing a held operation.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompletionCheck {
@@ -180,7 +180,7 @@ pub struct CompletionCheck {
     pub differences: Vec<String>,
 }
 
-/// Phase 10: one connection that broke under a live worker, as the model
+/// One connection that broke under a live worker, as the model
 /// predicts it and as it was observed.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -234,12 +234,12 @@ pub struct LossCheck {
     pub differences: Vec<String>,
 }
 
-/// Phase 8: one planned crash, as the model describes it and as it
+/// One planned crash, as the model describes it and as it
 /// happened.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CrashCheck {
-    /// Phase 9: set when an operation was in flight at the crash.
+    /// Set when an operation was in flight at the crash.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub in_flight: Option<InFlightCheck>,
     pub transition: usize,
@@ -271,7 +271,7 @@ pub struct CrashCheck {
     pub differences: Vec<String>,
 }
 
-/// Phase 8: one new execution of an actor.
+/// One new execution of an actor.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RestartCheck {
@@ -290,7 +290,7 @@ pub struct RestartCheck {
     pub status: String,
 }
 
-/// Phase 8: the external effects the model predicts and the channel test
+/// The external effects the model predicts and the channel test
 /// double received (`channel key=… actor#attempt [deduplicated]`).
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -300,7 +300,7 @@ pub struct EffectComparison {
     pub agree: bool,
 }
 
-/// Phase 8: crash and recovery evidence of the first run.
+/// Crash and recovery evidence of the first run.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecoveryVerification {
@@ -308,10 +308,10 @@ pub struct RecoveryVerification {
     pub crashes: Vec<CrashCheck>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub restarts: Vec<RestartCheck>,
-    /// Phase 9: held operations the server completed.
+    /// Held operations the server completed.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub completions: Vec<CompletionCheck>,
-    /// Phase 10: connections that broke under a live worker.
+    /// Connections that broke under a live worker.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub losses: Vec<LossCheck>,
     pub effects: EffectComparison,
@@ -368,40 +368,40 @@ pub struct SourceVerification {
     /// `UNSUPPORTED`, `DIVERGED`, `NOT_REPRODUCED`.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub evidence: String,
-    /// Phase 8: the schedule that was run, when it is a recovery probe
+    /// The schedule that was run, when it is a recovery probe
     /// rather than a counterexample (`kind actor[/thread]`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub probe_schedule: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recovery: Option<RecoveryVerification>,
-    /// Phase 8: the extracted schema facts compared with the catalog of the
+    /// The extracted schema facts compared with the catalog of the
     /// database the original code ran on (after its migrations).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub schema_fidelity: Option<crate::schema_fidelity::SchemaFidelity>,
-    /// Phase 8: statements the database driver issued for itself (catalog
+    /// Statements the database driver issued for itself (catalog
     /// reads after connecting): not part of the application, not held.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub driver_internal: Vec<String>,
-    /// Phase 8: transaction configuration a driver sent in a statement of
+    /// Transaction configuration a driver sent in a statement of
     /// its own right after a planned BEGIN (postgres-js: `set transaction
     /// isolation level ...`), released as part of that BEGIN.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub transaction_config: Vec<String>,
-    /// Phase 9: the proxy's redacted wire log of the first run (only with
+    /// The proxy's redacted wire log of the first run (only with
     /// in-flight steps).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub wire_log: Vec<String>,
-    /// Phase 9: the stuck state the run observed (termination
+    /// The stuck state the run observed (termination
     /// counterexamples).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stuck: Option<StuckCheck>,
-    /// Phase 9: processes that ran several tasks (name → tasks) and the
+    /// Processes that ran several tasks (name → tasks) and the
     /// pool capacity the run verified.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub shared_processes: Vec<String>,
 }
 
-/// Semantic operation coverage of one extracted actor (Phase 7). Counts
+/// Semantic operation coverage of one extracted actor. Counts
 /// operations of the concurrency IR, not AST nodes.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -419,7 +419,7 @@ pub struct Coverage {
     pub unsupported: Vec<String>,
 }
 
-/// The machine-readable extraction report of one actor (Phase 7).
+/// The machine-readable extraction report of one actor.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtractionReport {

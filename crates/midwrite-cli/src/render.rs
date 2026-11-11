@@ -256,10 +256,9 @@ pub fn sarif(report: &Report) -> String {
                 "message": { "text": text },
                 "locations": [{ "physicalLocation": physical_location(&diagnostic.location) }],
                 "relatedLocations": related,
-                // The key names the fingerprint algorithm, which predates the
-                // rename; changing it would make code-scanning services treat
-                // every existing alert as new.
-                "partialFingerprints": { "crashproof/v1": diagnostic.fingerprint },
+                // Keep the versioned key and the shared finding identity stable
+                // so code-scanning services can match alerts across runs.
+                "partialFingerprints": { "midwrite/v1": diagnostic.fingerprint },
                 "properties": {
                     "function": diagnostic.function,
                     "confidence": diagnostic.confidence,
@@ -292,19 +291,30 @@ pub fn sarif(report: &Report) -> String {
             })
         })
         .collect();
+    let mut invocation = json!({
+        "executionSuccessful": report.failures.is_empty(),
+        "toolExecutionNotifications": notifications,
+    });
+    if let Ok(directory) = std::env::current_dir() {
+        let mut uri = artifact_uri(&midwrite_analyzer::display_path(&directory));
+        if !uri.ends_with('/') {
+            uri.push('/');
+        }
+        invocation["workingDirectory"] = json!({ "uri": uri });
+    }
     let document = json!({
         "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
         "version": "2.1.0",
         "runs": [{
+            // SourceLocation columns count Unicode scalar values, whereas
+            // SARIF's default is UTF-16 code units.
+            "columnKind": "unicodeCodePoints",
             "tool": { "driver": {
                 "name": report.tool.name,
                 "version": report.tool.version,
                 "rules": rules,
             }},
-            "invocations": [{
-                "executionSuccessful": report.failures.is_empty(),
-                "toolExecutionNotifications": notifications,
-            }],
+            "invocations": [invocation],
             "results": results,
         }],
     });
@@ -323,7 +333,7 @@ fn sarif_level(severity: Severity) -> &'static str {
 
 fn physical_location(location: &midwrite_core::location::SourceLocation) -> Value {
     json!({
-        "artifactLocation": { "uri": location.file },
+        "artifactLocation": { "uri": artifact_uri(&location.file) },
         "region": {
             "startLine": location.line,
             "startColumn": location.column,
@@ -331,4 +341,25 @@ fn physical_location(location: &midwrite_core::location::SourceLocation) -> Valu
             "endColumn": location.end_column,
         },
     })
+}
+
+/// Encode a filesystem path as a URI reference. A literal `%`, `#` or `?`
+/// belongs to the filename, rather than an escape, fragment or query.
+fn artifact_uri(file: &str) -> String {
+    let mut uri = if file.starts_with('/') {
+        String::from("file://")
+    } else {
+        String::new()
+    };
+    for byte in file.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' | b'/' => {
+                uri.push(char::from(byte));
+            }
+            _ => {
+                let _ = write!(uri, "%{byte:02X}");
+            }
+        }
+    }
+    uri
 }

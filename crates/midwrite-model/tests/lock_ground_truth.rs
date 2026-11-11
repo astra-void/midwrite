@@ -1,6 +1,6 @@
-//! Phase 13: the model against the independently recorded PostgreSQL
-//! row-lock / foreign-key ground truth (`scripts/phase13-lock-matrix.py`,
-//! PostgreSQL 17.11; translated by `scripts/phase13-lock-replay-plan.py`).
+//! The model against the independently recorded PostgreSQL
+//! row-lock / foreign-key ground truth (`scripts/lock-matrix.py`,
+//! PostgreSQL 17.11; translated by `scripts/lock-replay-plan.py`).
 //!
 //! Each cell is replayed in the model in the order PostgreSQL received the
 //! statements: a session's next statement is sent after its previous one
@@ -19,7 +19,7 @@ use serde_json::{Value as Json, json};
 fn plan() -> Json {
     let path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../fixtures/phase13/lock-matrix/model-replay.json"
+        "/../../fixtures/model/lock-matrix/model-replay.json"
     );
     serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
 }

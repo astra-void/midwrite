@@ -1,0 +1,14 @@
+{
+  "$comment": "Demonstration: midday with evidence-cited recovery contracts (configs/midday.contracts.json). Not an independent measurement.",
+  "projects": [
+    {
+      "name": "midday",
+      "category": "service-db-messaging-large",
+      "origin": "external",
+      "repository": "https://github.com/midday-ai/midday.git",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "path": "../.corpora/midday",
+      "config": "configs/midday.contracts.json"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
-//! Phase 16: zod schemas as model values, and `schema.safeParse(x)` for
-//! the documented subset (`docs/phase16/ZOD-VALIDATION.md`).
+//! Zod schemas as model values, and `schema.safeParse(x)` for
+//! the documented subset (`docs/reference/zod.md`).
 //!
 //! A schema the extractor reads (`crate::value::Builtin::ZodCheck`'s first
 //! argument) is a literal [`Value`] *descriptor* (see [`to_value`]) carrying
@@ -8,7 +8,7 @@
 //! `Err(why)` when the outcome is not modeled (never a guess).
 //!
 //! The semantics were read from the package sources and are checked against
-//! the real runtimes by `crates/midwrite-analyzer/tests/phase16_zod.rs`:
+//! the real runtimes by `crates/midwrite-analyzer/tests/zod.rs`:
 //!
 //! * zod 3 (`zod` 3.x, `zod/v3` of 3.25 and 4.x): `zod/v3/types.js` and
 //!   `zod/v3/helpers/parseUtil.js` of 3.25.76;
@@ -76,17 +76,17 @@ pub enum Schema {
     Enum(Vec<String>),
     /// `z.object({...})` (unknown keys stripped): keys in shape order.
     Object(Vec<(String, Schema)>),
-    /// Phase 16: `z.strictObject`, `.strict()`: unknown keys rejected.
+    /// `z.strictObject`, `.strict()`: unknown keys rejected.
     StrictObject(Vec<(String, Schema)>),
-    /// Phase 16: `.passthrough()`, zod 4 `z.looseObject`: unknown keys kept.
+    /// `.passthrough()`, zod 4 `z.looseObject`: unknown keys kept.
     LooseObject(Vec<(String, Schema)>),
-    /// Phase 16: `z.array(item)` with its length checks.
+    /// `z.array(item)` with its length checks.
     Array(Box<Schema>, Vec<ArrCheck>),
-    /// Phase 16: `.optional()`.
+    /// `.optional()`.
     Optional(Box<Schema>),
-    /// Phase 16: `.nullable()`.
+    /// `.nullable()`.
     Nullable(Box<Schema>),
-    /// Phase 16: `.default(literal)`.
+    /// `.default(literal)`.
     Default(Box<Schema>, Value),
 }
 
@@ -101,11 +101,11 @@ pub enum StrCheck {
     StartsWith(String),
     EndsWith(String),
     Includes(String),
-    /// Phase 16: `.uuid()` / zod 4 `z.uuid()` (each version's pattern).
+    /// `.uuid()` / zod 4 `z.uuid()` (each version's pattern).
     Uuid,
-    /// Phase 16: `.email()` / zod 4 `z.email()` (each version's pattern).
+    /// `.email()` / zod 4 `z.email()` (each version's pattern).
     Email,
-    /// Phase 16: `.regex(/pattern/flags)` (the subset of [`crate::jsregex`]).
+    /// `.regex(/pattern/flags)` (the subset of [`crate::jsregex`]).
     Regex {
         pattern: String,
         flags: String,
@@ -122,13 +122,13 @@ pub enum NumCheck {
     Le(i64),
     /// `lt`/`negative` (n = 0).
     Lt(i64),
-    /// Phase 16: `.int()` (zod 3: `Number.isInteger`; zod 4: a safe
+    /// `.int()` (zod 3: `Number.isInteger`; zod 4: a safe
     /// integer). The model's numbers are integers within ±(2^53 − 1)
     /// ([`parse`] refuses others), where both hold.
     Int,
 }
 
-/// Phase 16: `z.array(...).min/max/length/nonempty`.
+/// `z.array(...).min/max/length/nonempty`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ArrCheck {
     Min(i64),

@@ -1,2 +1,0 @@
-fmt exit 0
-clippy exit 0

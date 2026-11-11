@@ -53,7 +53,7 @@ struct RawScenario {
     channels: Channels,
     #[serde(default)]
     app: BTreeMap<String, Value>,
-    /// Phase 9: bounded connection pools, process name → capacity.
+    /// Bounded connection pools, process name → capacity.
     #[serde(default)]
     pools: BTreeMap<String, u16>,
     actors: Vec<RawActor>,
@@ -65,11 +65,11 @@ struct RawScenario {
     invariants: Vec<Invariant>,
     #[serde(default)]
     extraction: RawExtraction,
-    /// Phase 7: how to run each actor's original code
+    /// How to run each actor's original code
     /// (`midwrite model-check --verify-source`).
     #[serde(default)]
     source_verification: Option<crate::source_types::SourceSpec>,
-    /// Phase 13: model features beyond the Phase 12 semantics, opted into
+    /// Model features beyond the Phase 12 semantics, opted into
     /// explicitly so that earlier scenarios keep their meaning:
     /// `foreign-keys` (enforce the source schema's foreign keys and their
     /// row locks), `replicas` (reads through a replicated database see a
@@ -106,7 +106,7 @@ struct RawTable {
     primary_key: Vec<String>,
     #[serde(default)]
     unique: Vec<Vec<String>>,
-    /// Phase 16: unique sets declared `NULLS NOT DISTINCT` (PostgreSQL 15+),
+    /// Unique sets declared `NULLS NOT DISTINCT` (PostgreSQL 15+),
     /// kept apart from `unique` (whose sets are NULLS DISTINCT). With
     /// `from`, a non-empty list must agree with the source.
     #[serde(default)]
@@ -114,21 +114,21 @@ struct RawTable {
     /// CHECK constraints as expressions over `@column`.
     #[serde(default)]
     checks: Vec<String>,
-    /// Phase 8: the Drizzle table binding (or SQL name) in
+    /// The Drizzle table binding (or SQL name) in
     /// `extraction.schema` this table is read from.
     #[serde(default)]
     from: Option<String>,
-    /// Phase 8: declared facts that intentionally differ from the source.
+    /// Declared facts that intentionally differ from the source.
     #[serde(default)]
     overrides: Option<RawOverrides>,
-    /// Phase 13: declared foreign keys (tables written in the scenario; a
+    /// Declared foreign keys (tables written in the scenario; a
     /// table read from the source gets its foreign keys from the source,
     /// with the `foreign-keys` feature).
     #[serde(default)]
     foreign_keys: Vec<crate::db::ForeignKeySchema>,
 }
 
-/// Facts a scenario states against its source, with the reason (Phase 8).
+/// Facts a scenario states against its source, with the reason.
 /// Every override is listed in the report as `scenario-override`.
 #[derive(Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -155,12 +155,12 @@ struct RawOptions {
     por: Option<bool>,
     strategy: Option<Strategy>,
     minimize: Option<bool>,
-    /// Phase 9: dynamic partial-order reduction instead of sleep sets.
+    /// Dynamic partial-order reduction instead of sleep sets.
     dpor: Option<bool>,
-    /// Phase 10: source-set DPOR (`stateful-sleep`, `stateful`,
+    /// Source-set DPOR (`stateful-sleep`, `stateful`,
     /// `stateless-sleep`).
     source_dpor: Option<crate::model::SourceDpor>,
-    /// Phase 9: report states in which tasks wait forever.
+    /// Report states in which tasks wait forever.
     termination: Option<bool>,
 }
 
@@ -174,15 +174,15 @@ struct RawExtraction {
     tables: BTreeMap<String, String>,
     #[serde(default)]
     externals: Vec<RawExternal>,
-    /// Phase 8: the Drizzle schema module (relative to `root`) that tables
+    /// The Drizzle schema module (relative to `root`) that tables
     /// with `from` are read from. Phase 12: or a list of modules; a table's
     /// `from` is then `binding` (unique across them) or `module#binding`.
     schema: Option<SchemaModules>,
-    /// Phase 8: helpers that re-run a transaction after 40001/40P01.
+    /// Helpers that re-run a transaction after 40001/40P01.
     #[serde(default)]
     transaction_retries: Vec<RawTransactionRetry>,
     max_inline_depth: Option<usize>,
-    /// Phase 13: project functions declared to return a replicated
+    /// Project functions declared to return a replicated
     /// database (`withReplicas` routing).
     #[serde(default)]
     replica_factories: Vec<crate::provider::ReplicaFactoryBinding>,
@@ -238,7 +238,7 @@ struct RawActor {
     function: String,
     #[serde(default)]
     file: Option<String>,
-    /// Phase 7: select the entry function by a source selector (anonymous
+    /// Select the entry function by a source selector (anonymous
     /// callbacks, methods, returned functions) with optional declared
     /// invocation assumptions.
     #[serde(default)]
@@ -258,7 +258,7 @@ struct RawActor {
     retry: Option<OperationRetry>,
     #[serde(default)]
     description: String,
-    /// Phase 13: the actor is a request handler whose response is a
+    /// The actor is a request handler whose response is a
     /// separate step after its last operation ([`Op::Respond`]): a crash can
     /// happen after the work committed and before the client got the
     /// response.
@@ -290,13 +290,13 @@ enum RawArguments {
 pub struct LoadReport {
     /// Extraction assumptions per actor.
     pub assumptions: Vec<(String, Vec<String>)>,
-    /// Selected entry functions per actor (Phase 7).
+    /// Selected entry functions per actor.
     pub entries: Vec<(String, crate::provider::EntryInfo)>,
-    /// The scenario's `sourceVerification` section (Phase 7).
+    /// The scenario's `sourceVerification` section.
     pub source: Option<crate::source_types::SourceSpec>,
-    /// Phase 8: the facts behind each table read from the source schema.
+    /// The facts behind each table read from the source schema.
     pub schema: Vec<crate::schema_facts::TableFacts>,
-    /// Phase 8: the extracted schema (for the catalog comparison).
+    /// The extracted schema (for the catalog comparison).
     pub extracted_schema: Option<crate::schema_facts::ExtractedSchema>,
 }
 
@@ -350,7 +350,6 @@ fn build(
         match f.as_str() {
             "foreign-keys" => features.foreign_keys = true,
             "replicas" => features.replicas = true,
-            // Phase 14.
             "js-values" => features.js_values = true,
             "timestamps" => features.timestamps = true,
             "json" => features.json = true,
@@ -566,11 +565,11 @@ fn build(
 }
 
 // ---------------------------------------------------------------------------
-// Phase 8: tables read from the application's Drizzle schema
+// Tables read from the application's Drizzle schema
 // ---------------------------------------------------------------------------
 
 /// The model type of an extracted column, if the model represents it.
-/// Phase 14: time and JSON columns with the features `timestamps` / `json`
+/// Time and JSON columns with the features `timestamps` / `json`
 /// (Drizzle's default modes only: a `Date` for `timestamp`, a string for
 /// `date`, a parsed value for `json`/`jsonb`).
 fn model_type(
@@ -598,7 +597,7 @@ fn model_type(
     }
 }
 
-/// Phase 14: `() => new Date()` (a Drizzle `$defaultFn` / `$onUpdate`
+/// `() => new Date()` (a Drizzle `$defaultFn` / `$onUpdate`
 /// callback reading the application clock), as the extractor recorded it.
 fn is_clock_callback(text: &str) -> bool {
     let t: String = text.chars().filter(|c| !c.is_whitespace()).collect();
@@ -673,7 +672,7 @@ fn link_source_schema(
     let mut tables = Vec::new();
     let mut facts = Vec::new();
     let mut used: Vec<(String, String)> = Vec::new();
-    // Phase 13: (index in `tables`, index in `facts`, module, declaration)
+    // (index in `tables`, index in `facts`, module, declaration)
     // of every table read from the source.
     let mut linked: Vec<(usize, usize, String, crate::schema_facts::SchemaTable)> = Vec::new();
     for (i, t) in raw.iter().enumerate() {
@@ -905,7 +904,7 @@ fn link_table(
             .generation
             .as_ref()
             .and_then(|g| g.fresh_identifier().map(|id| (g, id)));
-        // Phase 14: clock defaults of time columns (feature `timestamps`).
+        // Clock defaults of time columns (feature `timestamps`).
         let time = crate::db::is_time_type(Some(ty));
         let clock_default = match &c.default {
             Some(SchemaDefault::Expression { text })
@@ -949,7 +948,7 @@ fn link_table(
         };
         let default = match &c.default {
             Some(_) if clock_default.is_some() => clock_default.clone(),
-            // Phase 12: a recognized identifier generator, database side
+            // A recognized identifier generator, database side
             // (`defaultRandom()`) or application side (`$defaultFn` with a
             // recognized callback). Other defaults keep their earlier
             // treatment.
@@ -1076,7 +1075,6 @@ fn link_table(
                         },
                         g.generator
                     ),
-                    // Phase 14.
                     Some(ColumnDefault::Now) =>
                         " DEFAULT now() (the transaction's start time, an opaque clock reading)"
                             .to_owned(),
@@ -1168,7 +1166,7 @@ fn link_table(
     }
     // Uniqueness: only global rules over modeled columns.
     let mut unique: Vec<Vec<String>> = Vec::new();
-    // Phase 16: NULLS NOT DISTINCT rules over a nullable column.
+    // NULLS NOT DISTINCT rules over a nullable column.
     let mut nulls_not_distinct: Vec<Vec<String>> = Vec::new();
     for u in &x.unique {
         let name = u.name.clone().unwrap_or_else(|| u.columns.join("_"));
@@ -1189,7 +1187,7 @@ fn link_table(
                 at(u.line),
             );
         } else if let (true, true, Some(cols)) = (u.nulls_not_distinct, nullable, &mapped) {
-            // Phase 16: enforced with NULL equal to NULL.
+            // Enforced with NULL equal to NULL.
             fact(
                 &mut facts,
                 format!(
@@ -1261,7 +1259,7 @@ fn link_table(
             ),
         );
     }
-    // Phase 16: declared NULLS NOT DISTINCT sets agree with the source.
+    // Declared NULLS NOT DISTINCT sets agree with the source.
     if !t.nulls_not_distinct.is_empty()
         && sorted(&t.nulls_not_distinct) != sorted(&nulls_not_distinct)
     {
@@ -1367,7 +1365,7 @@ fn build_schema(
                     ),
                 );
             }
-            // Phase 14: clock defaults belong to `timestamp`/`timestamptz`
+            // Clock defaults belong to `timestamp`/`timestamptz`
             // columns.
             let clock_ok = time && c.sql_type.as_deref() != Some("date");
             if matches!(
@@ -1463,7 +1461,7 @@ fn build_schema(
         });
     }
     let schema = Schema { tables };
-    // Phase 13: a foreign key references a key of a modeled table.
+    // A foreign key references a key of a modeled table.
     for (i, t) in schema.tables.iter().enumerate() {
         for (j, fk) in t.foreign_keys.iter().enumerate() {
             let path = format!("database.tables[{i}].foreignKeys[{j}]");
@@ -1502,7 +1500,7 @@ fn build_schema(
     Ok(schema)
 }
 
-/// Phase 13: the source schema's foreign keys between modeled tables
+/// The source schema's foreign keys between modeled tables
 /// (feature `foreign-keys`). A foreign key whose referenced table or
 /// columns are not modeled stays a `not-modeled` fact.
 fn link_foreign_keys(
@@ -1603,7 +1601,7 @@ fn link_foreign_keys(
     }
 }
 
-/// Phase 13: reads routed to the replica need the `replicas` feature and
+/// Reads routed to the replica need the `replicas` feature and
 /// are plain reads (a replica refuses writes and row locks).
 fn check_replica_reads(model: &Model) -> Result<(), ScenarioError> {
     for (ai, a) in model.actors.iter().enumerate() {
@@ -1637,7 +1635,7 @@ fn check_replica_reads(model: &Model) -> Result<(), ScenarioError> {
     Ok(())
 }
 
-/// Phase 13: an invariant may read what an actor returned only if every
+/// An invariant may read what an actor returned only if every
 /// return value of its main task is modeled; an unknown one is reported,
 /// never guessed.
 fn check_return_values(model: &Model) -> Result<(), ScenarioError> {
@@ -1671,7 +1669,7 @@ fn check_return_values(model: &Model) -> Result<(), ScenarioError> {
     Ok(())
 }
 
-/// Phase 13: refuse scenarios whose statements would run a foreign-key
+/// Refuse scenarios whose statements would run a foreign-key
 /// behavior the model does not execute (a referential action other than NO
 /// ACTION / RESTRICT, a check deferred to COMMIT).
 fn check_foreign_keys(model: &Model) -> Result<(), ScenarioError> {
@@ -1771,7 +1769,7 @@ fn build_initial(
                 if !table.has_column(k) {
                     return bad(&path, format!("unknown column `{k}`"));
                 }
-                // Phase 12: a generated value is produced by an insert of
+                // A generated value is produced by an insert of
                 // the explored execution; it is not data of the initial
                 // state (which holds concrete values only).
                 if contains_generated(v) {
@@ -1791,14 +1789,14 @@ fn build_initial(
                 path: path.clone(),
                 message: e.message,
             })?;
-            // Phase 14: time and JSON columns hold the values the model
+            // Time and JSON columns hold the values the model
             // represents.
             if let Some(why) = crate::db::typed_row_problem(table, &full) {
                 return bad(&path, why);
             }
             for rule in table.key_rules() {
                 let key = crate::db::key_tuple(&full, &rule.columns);
-                // Phase 16: NULLS NOT DISTINCT rules check NULL keys too.
+                // NULLS NOT DISTINCT rules check NULL keys too.
                 if !rule.checks(&key) {
                     continue;
                 }
@@ -1825,7 +1823,7 @@ type ActorBuild = (
     Option<crate::provider::EntryInfo>,
 );
 
-/// Phase 13: what the extraction of an actor must produce beyond Phase 12.
+/// What the extraction of an actor must produce beyond Phase 12.
 #[derive(Clone, Copy)]
 struct Wants {
     replicas: bool,
@@ -1833,7 +1831,7 @@ struct Wants {
     return_values: bool,
 }
 
-/// Phase 13: insert [`Op::Respond`] before every return of the main task
+/// Insert [`Op::Respond`] before every return of the main task
 /// (code 0), keeping jump targets: a jump to a return now reaches its
 /// response first.
 fn insert_responses(codes: &mut [Vec<Step>]) {
@@ -1953,7 +1951,7 @@ fn actor_program(
                 .unwrap_or_else(|| t.name.clone()),
             table: t.name.clone(),
             columns: t.columns.iter().map(|c| c.name.clone()).collect(),
-            // Phase 12: a table read from a schema module of a list is
+            // A table read from a schema module of a list is
             // bound by declaration identity. With a single module (Phase
             // 8–11 scenarios) binding stays by name, unchanged.
             source: facts
@@ -2043,7 +2041,7 @@ fn actor_program(
 }
 
 /// Make every operation whose expression is unknown an [`Op::Unknown`]
-/// (Phase 7). Evaluating an unknown expression used to fail the actor, which
+///. Evaluating an unknown expression used to fail the actor, which
 /// silently turned unsupported source into a modeled exception; reaching it
 /// now makes the result `UNSUPPORTED`. Indices are kept, so jumps stay valid.
 pub fn seal_unknowns(codes: &mut [Vec<Step>]) {
@@ -2075,7 +2073,7 @@ pub fn seal_unknowns(codes: &mut [Vec<Step>]) {
                 _ => {}
             }
             if let Some(detail) = exprs.iter().find_map(|e| e.unknown_detail()) {
-                // Phase 12: what the operation would have assigned.
+                // What the operation would have assigned.
                 let defines: Vec<String> = match &step.op {
                     Op::Let { local, .. } => vec![local.clone()],
                     Op::Db { stmt } => match &stmt.kind {
@@ -2120,7 +2118,7 @@ pub fn validate(model: &Model) -> Result<(), ScenarioError> {
                     Op::AppRead { into, .. } => {
                         defined.insert(into.clone());
                     }
-                    // Phase 12: assigned by an unsupported operation (no
+                    // Assigned by an unsupported operation (no
                     // value: the path ends there as unsupported).
                     Op::Unknown { defines, .. } => {
                         defined.extend(defines.iter().cloned());
@@ -2294,20 +2292,20 @@ fn check_step(
             Ok(())
         }
         Op::AppWrite { expr, .. } => check_expr(model, expr, None, defined, at),
-        // Phase 13: an unknown return value is allowed here (it is refused
+        // An unknown return value is allowed here (it is refused
         // only when an invariant reads it).
         Op::ReturnValue { expr } if expr.unknown_detail().is_none() => {
             check_expr(model, expr, None, defined, at)
         }
         Op::Db { stmt } => match &stmt.kind {
-            // Phase 16: the multi-row mode reads one table (joins are not
+            // The multi-row mode reads one table (joins are not
             // modeled with it).
             StmtKind::Select {
                 joins,
                 many: Some(_),
                 ..
             } if !joins.is_empty() => bad(at, "a multi-row select with joins is not modeled"),
-            // Phase 16: `ORDER BY` only by the single-column primary key (the
+            // `ORDER BY` only by the single-column primary key (the
             // model's order).
             StmtKind::Select {
                 table,
@@ -2411,7 +2409,7 @@ fn check_step(
                 ..
             } => {
                 let t = table_of(table)?;
-                // Phase 14: a multi-row insert, bounded.
+                // A multi-row insert, bounded.
                 if more_rows.len() + 1 > crate::ir::MAX_INSERT_ROWS {
                     return bad(
                         at,
@@ -2441,7 +2439,7 @@ fn check_step(
 fn standard_assumptions(model: &Model, report: &LoadReport) -> Vec<String> {
     let mut v = vec![
         format!(
-            "database default isolation: {} (PostgreSQL semantics, see docs/phase6/POSTGRES-ISOLATION.md)",
+            "database default isolation: {} (PostgreSQL semantics, see docs/architecture/postgres-model.md)",
             model.isolation.name()
         ),
         "a database statement is atomic unless it must wait for another transaction; waiting statements resume with their original snapshot".into(),
@@ -2452,12 +2450,11 @@ fn standard_assumptions(model: &Model, report: &LoadReport) -> Vec<String> {
         "a process crash rolls back open transactions and loses local state; committed data and performed external effects remain".into(),
     ];
     if model.uses_serializable() {
-        v.push("SERIALIZABLE is modeled by a serialization-graph check at commit (conservative over-approximation of the histories PostgreSQL allows; PostgreSQL's SSI may abort more); see docs/phase6/POSTGRES-ISOLATION.md".into());
+        v.push("SERIALIZABLE is modeled by a serialization-graph check at commit (conservative over-approximation of the histories PostgreSQL allows; PostgreSQL's SSI may abort more); see docs/architecture/postgres-model.md".into());
     }
     if model.bounds.max_context_switches.is_some() {
         v.push("partial-order reduction is disabled because maxContextSwitches is set".into());
     }
-    // Phase 16.
     let nnd: Vec<String> = model
         .schema
         .tables
@@ -2496,7 +2493,7 @@ fn standard_assumptions(model: &Model, report: &LoadReport) -> Vec<String> {
         ));
         v.push("generated values have no known order: rows with generated keys are ordered by generation event where a LIMIT 1 read needs an order (PostgreSQL orders them by their random value)".into());
     }
-    // Phase 14: clock readings.
+    // Clock readings.
     if model
         .schema
         .tables

@@ -37,13 +37,13 @@ pub enum Class {
     AmbiguousCommit,
     /// Rows are locked in an order that depends on the arguments.
     LockOrder,
-    /// Phase 12: an insert committed before a crash is repeated by the
+    /// An insert committed before a crash is repeated by the
     /// caller's declared retry (with a generated key it cannot collide).
     ResubmittedWrite,
-    /// Phase 14: a read finds a parent row, then a child row referencing it
+    /// A read finds a parent row, then a child row referencing it
     /// is inserted, while another entry deletes the parent.
     ParentChild,
-    /// Phase 14: a DECLARED property over what callers are told (return
+    /// A DECLARED property over what callers are told (return
     /// values); never inferred.
     ReturnValue,
 }
@@ -66,7 +66,7 @@ impl Class {
     }
 }
 
-/// Where a property comes from (`docs/phase11/INVARIANT-SYNTHESIS.md`).
+/// Where a property comes from (`docs/architecture/scenario-synthesis.md`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Origin {
@@ -153,13 +153,13 @@ pub enum Spec {
     },
     /// No actor fails.
     NoFailedActors,
-    /// Phase 14: every successful call of `function` returned the value of
+    /// Every successful call of `function` returned the value of
     /// its parameter path `argument` (how the first actor computes it).
     ReturnsArgument {
         function: Option<String>,
         argument: Val,
     },
-    /// Phase 14: no committed `child` row whose `column` is the key (how
+    /// No committed `child` row whose `column` is the key (how
     /// the first actor computes it) without a `parent` row whose
     /// `parent_column` is that key.
     NoOrphan {

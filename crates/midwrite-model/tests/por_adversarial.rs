@@ -1,4 +1,4 @@
-//! The adversarial scenario campaign (Phase 10): generated scenarios with
+//! The adversarial scenario campaign: generated scenarios with
 //! pools, shared processes, tasks, locks, sequences, application state and
 //! faults, compared across the unreduced search, the sleep-set search, the
 //! classic DPOR and every configuration of the source-set DPOR.
@@ -198,7 +198,7 @@ fn dump_seed() {
 // reports. They do not assume that every reordering preserves fairness or
 // bounded context switches (neither is in play: no context-switch bound, no
 // liveness), and they leave pooled scenarios' declaration order alone (pool
-// arrival at start-up follows it, `docs/phase9/LIMITATIONS.md`).
+// arrival at start-up follows it, `docs/reference/limitations.md`).
 // ---------------------------------------------------------------------------
 
 use common::adversarial::generate_profile;

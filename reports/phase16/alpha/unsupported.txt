@@ -1,5 +1,0 @@
-commitrift discover: loops (3 modules, 17 entry candidates, 17 extracted, 14 effectful)
-mode: discover; application code executed: no; search: sleep-set partial-order reduction (default)
-candidates: 0 (0 model counterexamples, 0 against hypotheses; 0 deduplicated findings)
-
-Important: a model counterexample against a HEURISTIC_HYPOTHESIS is not a confirmed defect; a bounded run without counterexample is not a proof.

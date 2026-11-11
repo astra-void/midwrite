@@ -1,0 +1,1085 @@
+{
+ "algorithm": "sleep-set partial-order reduction (default)",
+ "budgets": {
+  "candidatesFound": 2,
+  "candidatesOverBudget": 0,
+  "candidatesReported": 2,
+  "maxCandidates": 64,
+  "maxPartners": 6,
+  "maxStatesPerScenario": 200000,
+  "maxTotalStates": 5000000,
+  "maxWallMsPerScenario": 60000,
+  "partnersTruncated": 0,
+  "scenariosBuilt": 4,
+  "scenariosModelChecked": 4,
+  "scenariosSkippedForBudget": 0,
+  "totalStatesExplored": 131
+ },
+ "candidates": [
+  {
+   "actorEntries": [
+    0,
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "framework",
+     "text": "two requests can run the Server Action at the same time (double submit, two tabs, client retry)"
+    },
+    {
+     "kind": "precondition",
+     "origin": "source-derived",
+     "text": "`validatedActionWithUser` runs the callback only when its guards pass; the scenario assumes they do: `const user = await getUser();` may reject before the call (src/lib/auth/middleware.ts:31:5); `if (!user)` \u2192 throw (src/lib/auth/middleware.ts:32:5); `if (!result.success)` \u2192 return (src/lib/auth/middleware.ts:37:5)"
+    }
+   ],
+   "class": "check-then-act",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "<anonymous@43:3>",
+     "location": "src/app/actions.ts:63:38",
+     "operation": "SELECT invitations WHERE email = $data.email AND teamId = read#0.teamId AND status = \"pending\"",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "<anonymous@43:3>",
+     "location": "src/app/actions.ts:80:11",
+     "operation": "INSERT invitations",
+     "role": "act"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/app/actions.ts@43:3",
+     "guards": [
+      "`const user = await getUser();` may reject before the call (src/lib/auth/middleware.ts:31:5)",
+      "`if (!user)` \u2192 throw (src/lib/auth/middleware.ts:32:5)",
+      "`if (!result.success)` \u2192 return (src/lib/auth/middleware.ts:37:5)"
+     ],
+     "invocation": "wrapper-awaited-when-guards-pass",
+     "kind": "server-action",
+     "name": "inviteTeamMember(validatedActionWithUser)",
+     "selector": "src/app/actions.ts#inviteTeamMember/arg[1]",
+     "wrapper": "validatedActionWithUser"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `at-most-one-invitations-per-key` (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). That the application requires this property has NOT been established; this is not a confirmed defect.",
+   "fingerprint": "4c780edf2579d184",
+   "group": "395b685d1873b663",
+   "id": "CR-SYNTH-4C780E",
+   "inconclusiveIf": [
+    "the intended uniqueness of the key is not established by the source",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "at most one `invitations` row per (email = $data.email, teamId = read#0.teamId, status = \"pending\")",
+     "evidence": [
+      "guard `!(_length8 > 0)` at src/app/actions.ts:75:9"
+     ],
+     "name": "at-most-one-invitations-per-key",
+     "origin": "HEURISTIC_HYPOTHESIS",
+     "rationale": "the code inserts only after a read finds no row with this key (src/app/actions.ts:75:9); that suggests, but does not establish, that the application intends one row per key. No supported UNIQUE constraint on these columns was found in the analyzed schema",
+     "spec": {
+      "filter": {
+       "status": "pending"
+      },
+      "key": [
+       [
+        "email",
+        {
+         "kind": "param",
+         "path": "data.email"
+        }
+       ],
+       [
+        "teamId",
+        {
+         "column": "teamId",
+         "effect": 0,
+         "kind": "read"
+        }
+       ]
+      ],
+      "table": "invitations",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 1,
+   "ranking": [
+    "property origin: HEURISTIC_HYPOTHESIS",
+    "no unsupported operation on the path",
+    "entries are request handlers or have declared contracts",
+    "2 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "email",
+     "teamId",
+     "status"
+    ],
+    "kind": "unique-key",
+    "table": "invitations",
+    "text": "invitations(email = $data.email, teamId = read#0.teamId, status = \"pending\")"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "email": "alice@example.test",
+         "role": "role-1"
+        },
+        null,
+        {
+         "id": 1
+        }
+       ],
+       "invocation": "awaited",
+       "name": "inviteTeamMember-1",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `validatedActionWithUser` pass (`const user = await getUser();` may reject before the call (src/lib/auth/middleware.ts:31:5); `if (!user)` \u2192 throw (src/lib/auth/middleware.ts:32:5); `if (!result.success)` \u2192 return (src/lib/auth/middleware.ts:37:5))"
+       ],
+       "selector": "src/app/actions.ts#inviteTeamMember/arg[1]"
+      },
+      {
+       "arguments": [
+        {
+         "email": "alice@example.test",
+         "role": "role-1"
+        },
+        null,
+        {
+         "id": 1
+        }
+       ],
+       "invocation": "awaited",
+       "name": "inviteTeamMember-2",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `validatedActionWithUser` pass (`const user = await getUser();` may reject before the call (src/lib/auth/middleware.ts:31:5); `if (!user)` \u2192 throw (src/lib/auth/middleware.ts:32:5); `if (!result.success)` \u2192 return (src/lib/auth/middleware.ts:37:5))"
+       ],
+       "selector": "src/app/actions.ts#inviteTeamMember/arg[1]"
+      }
+     ],
+     "initialState": {
+      "team_members": [
+       {
+        "id": 1,
+        "role": "role-1",
+        "teamId": 10,
+        "userId": 1
+       }
+      ],
+      "teams": [
+       {
+        "id": 10,
+        "name": "name-1"
+       }
+      ],
+      "users": [
+       {
+        "email": "email-1",
+        "id": 1,
+        "name": null,
+        "passwordHash": "passwordHash-1",
+        "role": "member"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"invitations\", filter: {\"email\": Str(\"alice@example.test\"), \"status\": Str(\"pending\"), \"teamId\": Int(10)}, column: None })), Int(1)])",
+       "name": "at-most-one-invitations-per-key",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "model-counterexample",
+      "finalTerms": [
+       "count(invitations[email=\"alice@example.test\",status=\"pending\",teamId=10]) = 2"
+      ],
+      "schedule": [
+       "inviteTeamMember-1 read SELECT users LEFT JOIN team_members ON users.id = team_members.userId WHERE (@users.id = 1) \u2192 {teamId=10, user={email=\"email-1\", id=1, name=null, passwordHash=\"passwordHash-1\", role=\"member\"}}  (src/lib/db/queries.ts:27:24)",
+       "inviteTeamMember-1 local h1$_length3 = 1  (src/lib/db/queries.ts:27:24)",
+       "inviteTeamMember-1 local CHECK h1$_row2 is null \u2192 false  (src/lib/db/queries.ts:27:24)",
+       "inviteTeamMember-1 local h1$ret = {teamId=10, user={email=\"email-1\", id=1, name=null, passwordHash=\"passwordHash-1\", role=\"member\"}}  (src/lib/db/queries.ts:37:3)",
+       "inviteTeamMember-1 local userWithTeam = {teamId=10, user={email=\"email-1\", id=1, name=null, passwordHash=\"passwordHash-1\", role=\"member\"}}  (src/app/actions.ts:45:11)",
+       "inviteTeamMember-1 local _opt4 = null  (src/app/actions.ts:47:10)",
+       "inviteTeamMember-1 local CHECK userWithTeam is null \u2192 false  (src/app/actions.ts:47:10)",
+       "inviteTeamMember-1 local _opt4 = 10  (src/app/actions.ts:47:10)",
+       "inviteTeamMember-1 local CHECK !_opt4 \u2192 false  (src/app/actions.ts:47:9)",
+       "inviteTeamMember-1 read SELECT users LEFT JOIN team_members ON users.id = team_members.userId WHERE ((@users.email = \"alice@example.test\") and (@team_members.teamId = 10)) \u2192 null  (src/app/actions.ts:51:34)",
+       "inviteTeamMember-1 local _length6 = 1  (src/app/actions.ts:51:34)",
+       "inviteTeamMember-1 local CHECK _row5 is null \u2192 true  (src/app/actions.ts:51:34)",
+       "inviteTeamMember-1 local _length6 = 0  (src/app/actions.ts:51:34)",
+       "inviteTeamMember-1 local CHECK (_length6 > 0) \u2192 false  (src/app/actions.ts:58:9)",
+       "inviteTeamMember-1 read SELECT invitations WHERE (((@email = \"alice@example.test\") and (@teamId = 10)) and (@status = \"pending\")) \u2192 null  (src/app/actions.ts:63:38)",
+       "inviteTeamMember-1 local _length8 = 1  (src/app/actions.ts:63:38)",
+       "inviteTeamMember-1 local CHECK _row7 is null \u2192 true  (src/app/actions.ts:63:38)",
+       "inviteTeamMember-1 local _length8 = 0  (src/app/actions.ts:63:38)",
+       "inviteTeamMember-1 local CHECK (_length8 > 0) \u2192 false  (src/app/actions.ts:75:9)",
+       "inviteTeamMember-2 read SELECT users LEFT JOIN team_members ON users.id = team_members.userId WHERE (@users.id = 1) \u2192 {teamId=10, user={email=\"email-1\", id=1, name=null, passwordHash=\"passwordHash-1\", role=\"member\"}}  (src/lib/db/queries.ts:27:24)",
+       "inviteTeamMember-2 local h1$_length3 = 1  (src/lib/db/queries.ts:27:24)",
+       "inviteTeamMember-2 local CHECK h1$_row2 is null \u2192 false  (src/lib/db/queries.ts:27:24)",
+       "inviteTeamMember-2 local h1$ret = {teamId=10, user={email=\"email-1\", id=1, name=null, passwordHash=\"passwordHash-1\", role=\"member\"}}  (src/lib/db/queries.ts:37:3)",
+       "inviteTeamMember-2 local userWithTeam = {teamId=10, user={email=\"email-1\", id=1, name=null, passwordHash=\"passwordHash-1\", role=\"member\"}}  (src/app/actions.ts:45:11)",
+       "inviteTeamMember-2 local _opt4 = null  (src/app/actions.ts:47:10)",
+       "inviteTeamMember-2 local CHECK userWithTeam is null \u2192 false  (src/app/actions.ts:47:10)",
+       "inviteTeamMember-2 local _opt4 = 10  (src/app/actions.ts:47:10)",
+       "inviteTeamMember-2 local CHECK !_opt4 \u2192 false  (src/app/actions.ts:47:9)",
+       "inviteTeamMember-2 read SELECT users LEFT JOIN team_members ON users.id = team_members.userId WHERE ((@users.email = \"alice@example.test\") and (@team_members.teamId = 10)) \u2192 null  (src/app/actions.ts:51:34)",
+       "inviteTeamMember-2 local _length6 = 1  (src/app/actions.ts:51:34)",
+       "inviteTeamMember-2 local CHECK _row5 is null \u2192 true  (src/app/actions.ts:51:34)",
+       "inviteTeamMember-2 local _length6 = 0  (src/app/actions.ts:51:34)",
+       "inviteTeamMember-2 local CHECK (_length6 > 0) \u2192 false  (src/app/actions.ts:58:9)",
+       "inviteTeamMember-2 read SELECT invitations WHERE (((@email = \"alice@example.test\") and (@teamId = 10)) and (@status = \"pending\")) \u2192 null  (src/app/actions.ts:63:38)",
+       "inviteTeamMember-2 local _length8 = 1  (src/app/actions.ts:63:38)",
+       "inviteTeamMember-2 local CHECK _row7 is null \u2192 true  (src/app/actions.ts:63:38)",
+       "inviteTeamMember-2 local _length8 = 0  (src/app/actions.ts:63:38)",
+       "inviteTeamMember-2 local CHECK (_length8 > 0) \u2192 false  (src/app/actions.ts:75:9)",
+       "inviteTeamMember-1 write INSERT invitations {email=\"alice@example.test\", invitedBy=1, role=\"role-1\", status=\"pending\", teamId=10} \u2192 1 row  (src/app/actions.ts:80:11)",
+       "inviteTeamMember-1 local h9$ret = null  (src/app/actions.ts:88:11)",
+       "inviteTeamMember-1 local h9$teamId = 10  (src/app/actions.ts:19:3)",
+       "inviteTeamMember-1 local h9$userId = 1  (src/app/actions.ts:20:3)",
+       "inviteTeamMember-1 local h9$type = \"INVITE_TEAM_MEMBER\"  (src/app/actions.ts:21:3)",
+       "inviteTeamMember-1 local h9$ipAddress = null  (src/app/actions.ts:22:3)",
+       "inviteTeamMember-1 local CHECK ((h9$teamId = null) or (h9$teamId = null)) \u2192 false  (src/app/actions.ts:24:7)",
+       "inviteTeamMember-1 local h9$_logic10 = null  (src/app/actions.ts:31:16)",
+       "inviteTeamMember-1 local CHECK h9$_logic10 \u2192 false  (src/app/actions.ts:31:16)",
+       "inviteTeamMember-1 local h9$_logic10 = \"\"  (src/app/actions.ts:31:29)",
+       "inviteTeamMember-1 write INSERT activity_logs {action=\"INVITE_TEAM_MEMBER\", ipAddress=\"\", teamId=10, userId=1} \u2192 1 row  (src/app/actions.ts:33:9)",
+       "inviteTeamMember-1 local return (success)",
+       "inviteTeamMember-2 write INSERT invitations {email=\"alice@example.test\", invitedBy=1, role=\"role-1\", status=\"pending\", teamId=10} \u2192 1 row  (src/app/actions.ts:80:11)",
+       "inviteTeamMember-2 local h9$ret = null  (src/app/actions.ts:88:11)",
+       "inviteTeamMember-2 local h9$teamId = 10  (src/app/actions.ts:19:3)",
+       "inviteTeamMember-2 local h9$userId = 1  (src/app/actions.ts:20:3)",
+       "inviteTeamMember-2 local h9$type = \"INVITE_TEAM_MEMBER\"  (src/app/actions.ts:21:3)",
+       "inviteTeamMember-2 local h9$ipAddress = null  (src/app/actions.ts:22:3)",
+       "inviteTeamMember-2 local CHECK ((h9$teamId = null) or (h9$teamId = null)) \u2192 false  (src/app/actions.ts:24:7)",
+       "inviteTeamMember-2 local h9$_logic10 = null  (src/app/actions.ts:31:16)",
+       "inviteTeamMember-2 local CHECK h9$_logic10 \u2192 false  (src/app/actions.ts:31:16)",
+       "inviteTeamMember-2 local h9$_logic10 = \"\"  (src/app/actions.ts:31:29)",
+       "inviteTeamMember-2 write INSERT activity_logs {action=\"INVITE_TEAM_MEMBER\", ipAddress=\"\", teamId=10, userId=1} \u2192 1 row  (src/app/actions.ts:33:9)",
+       "inviteTeamMember-2 local return (success)"
+      ],
+      "states": 19,
+      "transitions": 18,
+      "validation": {
+       "initialStateValid": true,
+       "minimized": true,
+       "operationsExercised": [
+        "check src/app/actions.ts:63:38",
+        "act src/app/actions.ts:80:11"
+       ],
+       "operationsNotExercised": [],
+       "replayed": true,
+       "violates": true
+      },
+      "verdict": "COUNTEREXAMPLE_FOUND",
+      "violated": "at-most-one-invitations-per-key"
+     },
+     "sourceVerification": false,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 3 synthesized row(s)",
+      "iterations": 5,
+      "notes": [
+       "argument `user` of `inviteTeamMember-1` is taken to be the `users` row with id = 1 (its fields are that table's columns)"
+      ],
+      "rows": {
+       "team_members": 1,
+       "teams": 1,
+       "users": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "email": "alice@example.test",
+         "role": "role-1"
+        },
+        null,
+        {
+         "id": 1
+        }
+       ],
+       "invocation": "awaited",
+       "name": "inviteTeamMember-1",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `validatedActionWithUser` pass (`const user = await getUser();` may reject before the call (src/lib/auth/middleware.ts:31:5); `if (!user)` \u2192 throw (src/lib/auth/middleware.ts:32:5); `if (!result.success)` \u2192 return (src/lib/auth/middleware.ts:37:5))"
+       ],
+       "selector": "src/app/actions.ts#inviteTeamMember/arg[1]"
+      },
+      {
+       "arguments": [
+        {
+         "email": "bob@example.test",
+         "role": "role-1"
+        },
+        null,
+        {
+         "id": 1
+        }
+       ],
+       "invocation": "awaited",
+       "name": "inviteTeamMember-2",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `validatedActionWithUser` pass (`const user = await getUser();` may reject before the call (src/lib/auth/middleware.ts:31:5); `if (!user)` \u2192 throw (src/lib/auth/middleware.ts:32:5); `if (!result.success)` \u2192 return (src/lib/auth/middleware.ts:37:5))"
+       ],
+       "selector": "src/app/actions.ts#inviteTeamMember/arg[1]"
+      }
+     ],
+     "initialState": {
+      "team_members": [
+       {
+        "id": 1,
+        "role": "role-1",
+        "teamId": 10,
+        "userId": 1
+       }
+      ],
+      "teams": [
+       {
+        "id": 10,
+        "name": "name-1"
+       }
+      ],
+      "users": [
+       {
+        "email": "email-1",
+        "id": 1,
+        "name": null,
+        "passwordHash": "passwordHash-1",
+        "role": "member"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "And([Le([Op(Count(RowRef { table: \"invitations\", filter: {\"email\": Str(\"alice@example.test\"), \"status\": Str(\"pending\"), \"teamId\": Int(10)}, column: None })), Int(1)]), Le([Op(Count(RowRef { table: \"invitations\", filter: {\"email\": Str(\"bob@example.test\"), \"status\": Str(\"pending\"), \"teamId\": Int(10)}, column: None })), Int(1)])])",
+       "name": "at-most-one-invitations-per-key",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 42,
+      "transitions": 41,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": false,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 3 synthesized row(s)",
+      "iterations": 5,
+      "notes": [
+       "argument `user` of `inviteTeamMember-1` is taken to be the `users` row with id = 1 (its fields are that table's columns)"
+      ],
+      "rows": {
+       "team_members": 1,
+       "teams": 1,
+       "users": 1
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "MODEL_COUNTEREXAMPLE",
+   "title": "concurrent check-then-insert on `invitations` (email = $data.email, teamId = read#0.teamId, status = \"pending\")",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  },
+  {
+   "actorEntries": [
+    0,
+    0
+   ],
+   "assumptions": [
+    {
+     "kind": "concurrency",
+     "origin": "framework",
+     "text": "two requests can run the Server Action at the same time (double submit, two tabs, client retry)"
+    },
+    {
+     "kind": "precondition",
+     "origin": "source-derived",
+     "text": "`validatedActionWithUser` runs the callback only when its guards pass; the scenario assumes they do: `const user = await getUser();` may reject before the call (src/lib/auth/middleware.ts:31:5); `if (!user)` \u2192 throw (src/lib/auth/middleware.ts:32:5); `if (!result.success)` \u2192 return (src/lib/auth/middleware.ts:37:5)"
+    }
+   ],
+   "class": "status-transition",
+   "conflict": [
+    {
+     "entry": 0,
+     "function": "<anonymous@100:3>",
+     "location": "src/app/actions.ts:104:34",
+     "operation": "SELECT invitations WHERE id = $data.invitationId AND status = \"pending\"",
+     "role": "check"
+    },
+    {
+     "entry": 0,
+     "function": "<anonymous@100:3>",
+     "location": "src/app/actions.ts:120:13",
+     "operation": "UPDATE invitations WHERE id = read#0.id",
+     "role": "transition"
+    },
+    {
+     "entry": 0,
+     "function": "<anonymous@100:3>",
+     "location": "src/app/actions.ts:114:13",
+     "operation": "INSERT team_members",
+     "role": "consequence"
+    }
+   ],
+   "entries": [
+    {
+     "anchor": "src/app/actions.ts@100:3",
+     "guards": [
+      "`const user = await getUser();` may reject before the call (src/lib/auth/middleware.ts:31:5)",
+      "`if (!user)` \u2192 throw (src/lib/auth/middleware.ts:32:5)",
+      "`if (!result.success)` \u2192 return (src/lib/auth/middleware.ts:37:5)"
+     ],
+     "invocation": "wrapper-awaited-when-guards-pass",
+     "kind": "server-action",
+     "name": "acceptInvitation(validatedActionWithUser)",
+     "selector": "src/app/actions.ts#acceptInvitation/arg[1]",
+     "wrapper": "validatedActionWithUser"
+    }
+   ],
+   "environment": {
+    "actors": 2,
+    "maxCrashes": 0,
+    "maxInFlight": 0,
+    "maxRetries": 0,
+    "relation": "same"
+   },
+   "finding": "MODEL_COUNTEREXAMPLE against a HEURISTIC_HYPOTHESIS: a schedule within the bounds violates `one-team_members-per-transition` (control `distinct-key`: NO_COUNTEREXAMPLE_WITHIN_BOUNDS). That the application requires this property has NOT been established; this is not a confirmed defect.",
+   "fingerprint": "88b513b858974631",
+   "group": "5894727b1a9e0405",
+   "id": "CR-SYNTH-88B513",
+   "inconclusiveIf": [
+    "whether a repeated transition is wrong for the application is not established",
+    "the exploration bounds are exceeded (the result is then `not established`)"
+   ],
+   "properties": [
+    {
+     "description": "at most one `team_members` row per (userId = $user.id, teamId = read#0.teamId, role = read#0.role) \u2014 the transition of `invitations` happens once",
+     "evidence": [
+      "guard at src/app/actions.ts:110:11"
+     ],
+     "name": "one-team_members-per-transition",
+     "origin": "HEURISTIC_HYPOTHESIS",
+     "rationale": "the insert runs only after the guard `!!_row2` (src/app/actions.ts:110:11) saw the row in its old state; that suggests one insert per transition, which the source does not establish",
+     "spec": {
+      "filter": {},
+      "key": [
+       [
+        "userId",
+        {
+         "kind": "param",
+         "path": "user.id"
+        }
+       ],
+       [
+        "teamId",
+        {
+         "column": "teamId",
+         "effect": 0,
+         "kind": "read"
+        }
+       ],
+       [
+        "role",
+        {
+         "column": "role",
+         "effect": 0,
+         "kind": "read"
+        }
+       ]
+      ],
+      "table": "team_members",
+      "template": "atMostOne"
+     },
+     "strength": "application-safety"
+    }
+   ],
+   "protections": [],
+   "rank": 2,
+   "ranking": [
+    "property origin: HEURISTIC_HYPOTHESIS",
+    "no unsupported operation on the path",
+    "entries are request handlers or have declared contracts",
+    "2 assumption(s)"
+   ],
+   "resource": {
+    "columns": [
+     "status"
+    ],
+    "kind": "row",
+    "table": "invitations",
+    "text": "invitations(id = $data.invitationId, status = \"pending\")"
+   },
+   "scenarios": [
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "invitationId": 1
+        },
+        null,
+        {
+         "id": 2
+        }
+       ],
+       "invocation": "awaited",
+       "name": "acceptInvitation-1",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `validatedActionWithUser` pass (`const user = await getUser();` may reject before the call (src/lib/auth/middleware.ts:31:5); `if (!user)` \u2192 throw (src/lib/auth/middleware.ts:32:5); `if (!result.success)` \u2192 return (src/lib/auth/middleware.ts:37:5))"
+       ],
+       "selector": "src/app/actions.ts#acceptInvitation/arg[1]"
+      },
+      {
+       "arguments": [
+        {
+         "invitationId": 1
+        },
+        null,
+        {
+         "id": 2
+        }
+       ],
+       "invocation": "awaited",
+       "name": "acceptInvitation-2",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `validatedActionWithUser` pass (`const user = await getUser();` may reject before the call (src/lib/auth/middleware.ts:31:5); `if (!user)` \u2192 throw (src/lib/auth/middleware.ts:32:5); `if (!result.success)` \u2192 return (src/lib/auth/middleware.ts:37:5))"
+       ],
+       "selector": "src/app/actions.ts#acceptInvitation/arg[1]"
+      }
+     ],
+     "initialState": {
+      "invitations": [
+       {
+        "email": "email-1",
+        "id": 1,
+        "invitedBy": 10,
+        "role": "role-1",
+        "status": "pending",
+        "teamId": 10
+       }
+      ],
+      "teams": [
+       {
+        "id": 10,
+        "name": "name-1"
+       }
+      ],
+      "users": [
+       {
+        "email": "email-1",
+        "id": 2,
+        "name": null,
+        "passwordHash": "passwordHash-1",
+        "role": "member"
+       },
+       {
+        "email": "email-2",
+        "id": 10,
+        "name": null,
+        "passwordHash": "passwordHash-2",
+        "role": "member"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "Le([Op(Count(RowRef { table: \"team_members\", filter: {\"role\": Str(\"role-1\"), \"teamId\": Int(10), \"userId\": Int(2)}, column: None })), Int(1)])",
+       "name": "one-team_members-per-transition",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "model-counterexample",
+      "finalTerms": [
+       "count(team_members[role=\"role-1\",teamId=10,userId=2]) = 2"
+      ],
+      "schedule": [
+       "acceptInvitation-1 begin BEGIN ISOLATION LEVEL READ COMMITTED  (src/app/actions.ts:103:12)",
+       "acceptInvitation-1 local _tx1 = null  (src/app/actions.ts:103:12)",
+       "acceptInvitation-1 read SELECT invitations WHERE ((@id = 1) and (@status = \"pending\")) \u2192 {email=\"email-1\", id=1, invitedBy=10, role=\"role-1\", status=\"pending\", teamId=10}  (src/app/actions.ts:104:34)",
+       "acceptInvitation-1 local CHECK !_row2 \u2192 false  (src/app/actions.ts:110:11)",
+       "acceptInvitation-1 write INSERT team_members {role=\"role-1\", teamId=10, userId=2} \u2192 1 row  (src/app/actions.ts:114:13)",
+       "acceptInvitation-1 write UPDATE invitations SET status = \"accepted\" WHERE (@id = 1) \u2192 1 row  (src/app/actions.ts:120:13)",
+       "acceptInvitation-1 local _tx1 = {success=\"Invitation accepted\"}  (src/app/actions.ts:125:7)",
+       "acceptInvitation-2 begin BEGIN ISOLATION LEVEL READ COMMITTED  (src/app/actions.ts:103:12)",
+       "acceptInvitation-2 local _tx1 = null  (src/app/actions.ts:103:12)",
+       "acceptInvitation-2 read SELECT invitations WHERE ((@id = 1) and (@status = \"pending\")) \u2192 {email=\"email-1\", id=1, invitedBy=10, role=\"role-1\", status=\"pending\", teamId=10}  (src/app/actions.ts:104:34)",
+       "acceptInvitation-2 local CHECK !_row2 \u2192 false  (src/app/actions.ts:110:11)",
+       "acceptInvitation-1 commit COMMIT  (src/app/actions.ts:103:12)",
+       "acceptInvitation-1 local return (success)",
+       "acceptInvitation-2 write INSERT team_members {role=\"role-1\", teamId=10, userId=2} \u2192 1 row  (src/app/actions.ts:114:13)",
+       "acceptInvitation-2 write UPDATE invitations SET status = \"accepted\" WHERE (@id = 1) \u2192 1 row  (src/app/actions.ts:120:13)",
+       "acceptInvitation-2 local _tx1 = {success=\"Invitation accepted\"}  (src/app/actions.ts:125:7)",
+       "acceptInvitation-2 commit COMMIT  (src/app/actions.ts:103:12)",
+       "acceptInvitation-2 local return (success)"
+      ],
+      "states": 15,
+      "transitions": 14,
+      "validation": {
+       "initialStateValid": true,
+       "minimized": true,
+       "operationsExercised": [
+        "check src/app/actions.ts:104:34",
+        "transition src/app/actions.ts:120:13",
+        "consequence src/app/actions.ts:114:13"
+       ],
+       "operationsNotExercised": [],
+       "replayed": true,
+       "violates": true
+      },
+      "verdict": "COUNTEREXAMPLE_FOUND",
+      "violated": "one-team_members-per-transition"
+     },
+     "sourceVerification": false,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 4 synthesized row(s)",
+      "iterations": 4,
+      "notes": [
+       "argument `user` of `acceptInvitation-1` is taken to be the `users` row with id = 2 (its fields are that table's columns)"
+      ],
+      "rows": {
+       "invitations": 1,
+       "teams": 1,
+       "users": 2
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the application as analyzed",
+      "kind": "actual",
+      "name": "actual",
+      "relation": "same"
+     }
+    },
+    {
+     "actors": [
+      {
+       "arguments": [
+        {
+         "invitationId": 1
+        },
+        null,
+        {
+         "id": 2
+        }
+       ],
+       "invocation": "awaited",
+       "name": "acceptInvitation-1",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `validatedActionWithUser` pass (`const user = await getUser();` may reject before the call (src/lib/auth/middleware.ts:31:5); `if (!user)` \u2192 throw (src/lib/auth/middleware.ts:32:5); `if (!result.success)` \u2192 return (src/lib/auth/middleware.ts:37:5))"
+       ],
+       "selector": "src/app/actions.ts#acceptInvitation/arg[1]"
+      },
+      {
+       "arguments": [
+        {
+         "invitationId": 1
+        },
+        null,
+        {
+         "id": 102
+        }
+       ],
+       "invocation": "awaited",
+       "name": "acceptInvitation-2",
+       "preconditions": [
+        "SYNTHESIZED by discovery from the wrapper's source: the guards of `validatedActionWithUser` pass (`const user = await getUser();` may reject before the call (src/lib/auth/middleware.ts:31:5); `if (!user)` \u2192 throw (src/lib/auth/middleware.ts:32:5); `if (!result.success)` \u2192 return (src/lib/auth/middleware.ts:37:5))"
+       ],
+       "selector": "src/app/actions.ts#acceptInvitation/arg[1]"
+      }
+     ],
+     "initialState": {
+      "invitations": [
+       {
+        "email": "email-1",
+        "id": 1,
+        "invitedBy": 10,
+        "role": "role-1",
+        "status": "pending",
+        "teamId": 10
+       }
+      ],
+      "teams": [
+       {
+        "id": 10,
+        "name": "name-1"
+       }
+      ],
+      "users": [
+       {
+        "email": "email-1",
+        "id": 2,
+        "name": null,
+        "passwordHash": "passwordHash-1",
+        "role": "member"
+       },
+       {
+        "email": "email-2",
+        "id": 102,
+        "name": null,
+        "passwordHash": "passwordHash-2",
+        "role": "member"
+       },
+       {
+        "email": "email-3",
+        "id": 10,
+        "name": null,
+        "passwordHash": "passwordHash-3",
+        "role": "member"
+       }
+      ]
+     },
+     "invariants": [
+      {
+       "formula": "And([Le([Op(Count(RowRef { table: \"team_members\", filter: {\"role\": Str(\"role-1\"), \"teamId\": Int(10), \"userId\": Int(2)}, column: None })), Int(1)]), Le([Op(Count(RowRef { table: \"team_members\", filter: {\"role\": Str(\"role-1\"), \"teamId\": Int(10), \"userId\": Int(102)}, column: None })), Int(1)])])",
+       "name": "one-team_members-per-transition",
+       "origin": "HEURISTIC_HYPOTHESIS"
+      }
+     ],
+     "model": {
+      "algorithm": "sleep-sets",
+      "complete": true,
+      "evidence": "none",
+      "states": 55,
+      "transitions": 65,
+      "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+     },
+     "sourceVerification": false,
+     "synthesis": {
+      "detail": "every actor alone reaches the candidate's operations from 5 synthesized row(s)",
+      "iterations": 4,
+      "notes": [
+       "argument `user` of `acceptInvitation-1` is taken to be the `users` row with id = 2 (its fields are that table's columns)",
+       "argument `user` of `acceptInvitation-2` is taken to be the `users` row with id = 102 (its fields are that table's columns)"
+      ],
+      "rows": {
+       "invitations": 1,
+       "teams": 1,
+       "users": 3
+      },
+      "status": "satisfied"
+     },
+     "variant": {
+      "description": "the actors use different keys: a control that should not interact",
+      "kind": "control",
+      "name": "distinct-key",
+      "relation": "distinct-key"
+     }
+    }
+   ],
+   "status": "MODEL_COUNTEREXAMPLE",
+   "title": "concurrent transition of `invitations`.status (id = $data.invitationId, status = \"pending\")",
+   "unsupported": [],
+   "unsupportedOnPath": false
+  }
+ ],
+ "entries": [
+  {
+   "externals": 0,
+   "invocation": "wrapper-awaited-when-guards-pass",
+   "kind": "server-action",
+   "reads": 3,
+   "selector": "src/app/actions.ts#inviteTeamMember/arg[1]",
+   "status": "effectful",
+   "writes": 2
+  },
+  {
+   "externals": 0,
+   "invocation": "wrapper-awaited-when-guards-pass",
+   "kind": "server-action",
+   "reads": 1,
+   "selector": "src/app/actions.ts#acceptInvitation/arg[1]",
+   "status": "effectful",
+   "writes": 2
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/lib/auth/middleware.ts#validatedAction",
+   "status": "no-database-effects",
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/lib/auth/middleware.ts#validatedActionWithUser",
+   "status": "no-database-effects",
+   "writes": 0
+  },
+  {
+   "detail": "its import closure mentions no database receiver and no declared external",
+   "externals": 0,
+   "invocation": "",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/lib/auth/session.ts#runWithSession",
+   "status": "not-extracted",
+   "writes": 0
+  },
+  {
+   "detail": "its import closure mentions no database receiver and no declared external",
+   "externals": 0,
+   "invocation": "",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/lib/auth/session.ts#currentSession",
+   "status": "not-extracted",
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/lib/db/pool.ts#usePool",
+   "status": "no-database-effects",
+   "unknown": [
+    "unresolved identifier `configured` (src/lib/db/pool.ts:9:7)",
+    "assignment target is not a local variable (src/lib/db/pool.ts:10:3)"
+   ],
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/lib/db/pool.ts#configuredPool",
+   "status": "no-database-effects",
+   "unknown": [
+    "unresolved identifier `configured` (src/lib/db/pool.ts:14:7)"
+   ],
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/lib/db/queries.ts#getUser",
+   "status": "no-database-effects",
+   "unknown": [
+    "call to `storage.getStore`: method calls are not resolved (src/lib/auth/session.ts:15:10)",
+    "call to `storage.getStore`: method calls are not resolved (src/lib/auth/session.ts:15:10)",
+    "`deletedAt` is not a column of table `users` (property names must equal column names) (src/lib/db/queries.ts:13:22)",
+    "select predicate (src/lib/db/queries.ts:13:9)"
+   ],
+   "writes": 0
+  },
+  {
+   "externals": 0,
+   "invocation": "direct",
+   "kind": "exported-function",
+   "reads": 1,
+   "selector": "src/lib/db/queries.ts#getUserWithTeam",
+   "status": "read-only",
+   "writes": 0
+  },
+  {
+   "detail": "its import closure mentions no database receiver and no declared external",
+   "externals": 0,
+   "invocation": "",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/lib/validation.ts#email",
+   "status": "not-extracted",
+   "writes": 0
+  },
+  {
+   "detail": "its import closure mentions no database receiver and no declared external",
+   "externals": 0,
+   "invocation": "",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/lib/validation.ts#positiveInteger",
+   "status": "not-extracted",
+   "writes": 0
+  },
+  {
+   "detail": "its import closure mentions no database receiver and no declared external",
+   "externals": 0,
+   "invocation": "",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/lib/validation.ts#oneOf",
+   "status": "not-extracted",
+   "writes": 0
+  },
+  {
+   "detail": "its import closure mentions no database receiver and no declared external",
+   "externals": 0,
+   "invocation": "",
+   "kind": "exported-function",
+   "reads": 0,
+   "selector": "src/lib/validation.ts#object",
+   "status": "not-extracted",
+   "writes": 0
+  }
+ ],
+ "evaluation": {
+  "candidateToModel": "2/2",
+  "cases": [
+   {
+    "candidates": [
+     "check-then-act:MODEL_COUNTEREXAMPLE"
+    ],
+    "class": "check-then-act",
+    "classAgrees": true,
+    "entry": "src/app/actions.ts#inviteTeamMember/arg[1]",
+    "label": "positive",
+    "modelPrediction": true,
+    "outcome": "TP",
+    "staticPrediction": true
+   },
+   {
+    "candidates": [
+     "status-transition:MODEL_COUNTEREXAMPLE"
+    ],
+    "class": "check-then-act",
+    "classAgrees": false,
+    "entry": "src/app/actions.ts#acceptInvitation/arg[1]",
+    "label": "positive",
+    "modelPrediction": true,
+    "outcome": "TP",
+    "staticPrediction": true
+   }
+  ],
+  "classAgreement": {
+   "agrees": 1,
+   "differs": 1
+  },
+  "labelsCorrected": 0,
+  "modelPrediction": {
+   "f1": 1.0,
+   "falseNegatives": 0,
+   "falsePositives": 0,
+   "precision": 1.0,
+   "recall": 1.0,
+   "trueNegatives": 0,
+   "truePositives": 2
+  },
+  "staticHazardPrediction": {
+   "f1": 1.0,
+   "falseNegatives": 0,
+   "falsePositives": 0,
+   "precision": 1.0,
+   "recall": 1.0,
+   "trueNegatives": 0,
+   "truePositives": 2
+  },
+  "unsupportedMissed": 0,
+  "unsupportedReported": 0
+ },
+ "executesApplicationCode": false,
+ "index": {
+  "cacheHits": 0,
+  "cacheMisses": 0,
+  "effectfulEntries": 2,
+  "entriesByKind": {
+   "exported-function": 12,
+   "server-action": 2
+  },
+  "entriesExtracted": 8,
+  "entriesWithUnknownOperations": 3,
+  "entriesWithoutDatabaseReach": 6,
+  "entryCandidates": 14,
+  "extractionFailures": 0,
+  "readOnlyEntries": 1,
+  "resources": 12,
+  "tablesModeled": 5,
+  "tablesRefused": [],
+  "transactionHelpers": [],
+  "unknownOperations": 7
+ },
+ "kind": "midwrite.discovery",
+ "mode": "discover+model-check",
+ "notes": [],
+ "project": {
+  "contracts": "team-app.contracts.json",
+  "modules": 9,
+  "name": "team-app",
+  "parseErrors": 0,
+  "schemaFiles": [
+   "src/lib/db/schema.ts"
+  ]
+ },
+ "rejected": [],
+ "schemaVersion": 1,
+ "summary": {
+  "byClass": {
+   "check-then-act": 1,
+   "status-transition": 1
+  },
+  "byPropertyOrigin": {
+   "HEURISTIC_HYPOTHESIS": 2
+  },
+  "byStatus": {
+   "MODEL_COUNTEREXAMPLE": 2
+  },
+  "candidates": 2,
+  "counterexamplesAgainstHypotheses": 2,
+  "deduplicatedFindings": 2,
+  "modelCheckable": 2,
+  "modelCounterexamples": 2,
+  "requiringAssumptions": 2,
+  "unknownOperationBreakdown": {
+   "column not modeled (schema)": 1,
+   "other": 1,
+   "unresolved identifier": 2,
+   "unresolved method call": 2,
+   "unsupported query shape": 1
+  },
+  "unsupportedBreakdown": {},
+  "withDeclaredProperty": 0
+ },
+ "tool": {
+  "name": "midwrite",
+  "version": "0.1.0"
+ }
+}

@@ -47,12 +47,12 @@ pub enum Access {
     Ext(String),
     App(usize, String),
     /// Allocation from a sequence (index into `Model::sequences`): the value
-    /// an insert gets depends on the order of allocations (Phase 7).
+    /// an insert gets depends on the order of allocations.
     Seq(u16),
-    /// A connection pool (Phase 9, by process): acquisitions and releases
+    /// A connection pool (by process): acquisitions and releases
     /// of one pool are mutually dependent (who gets the connection).
     Pool(usize),
-    /// The shared budget of in-flight faults (Phase 9): taking one can
+    /// The shared budget of in-flight faults: taking one can
     /// disable another.
     Budget,
     /// Conflicts with everything.
@@ -108,7 +108,7 @@ impl Access {
     ];
 }
 
-/// Mutation testing of the dependence relation (Phase 10): with the
+/// Mutation testing of the dependence relation: with the
 /// `mutation-testing` feature, the calling thread can delete every access of
 /// some kinds from the footprints it records. An explorer then believes
 /// transitions independent that are not; a differential test that notices is
@@ -162,7 +162,7 @@ fn key_overlap(model: &Model, table: u16, a: &[Option<&Row>], b: &[Option<&Row>]
         let cols = &rule.columns;
         for x in a.iter().flatten() {
             let kx = key_tuple(x, cols);
-            // Phase 16: under NULLS NOT DISTINCT two keys with NULLs in the
+            // Under NULLS NOT DISTINCT two keys with NULLs in the
             // same columns are equal, so their inserts are dependent.
             if !rule.checks(&kx) {
                 continue;

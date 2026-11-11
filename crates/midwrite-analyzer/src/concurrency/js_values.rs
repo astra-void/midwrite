@@ -1,4 +1,4 @@
-//! Phase 14: lowering of the JavaScript value domain (strings, arrays,
+//! Lowering of the JavaScript value domain (strings, arrays,
 //! `null` vs `undefined`, `Map`/`Set`), enabled by
 //! [`ExtractRequest::js_values`](midwrite_model::provider::ExtractRequest)
 //! (scenario feature `js-values`). Without it every function here is
@@ -1313,7 +1313,7 @@ impl<'a> Visit<'a> for Uses<'_> {
 // ---------------------------------------------------------------------------
 
 impl super::TsActorProvider {
-    /// Phase 14: the TypeScript annotations of the parameters of the entry
+    /// The TypeScript annotations of the parameters of the entry
     /// `selector` (relative to `root`), as written, by parameter path in the
     /// extractor's naming (`name`, `input.tags`, `_param0.ids` for a
     /// destructured parameter): a parameter's own annotation, the members of
@@ -1328,7 +1328,7 @@ impl super::TsActorProvider {
         self.param_signature(root, selector).0
     }
 
-    /// Phase 15: [`Self::param_annotations`] and the parameter paths that
+    /// [`Self::param_annotations`] and the parameter paths that
     /// may be omitted (`x?: T`, a member `x?: T`, or a parameter with a
     /// default value): those accept `undefined` whatever their annotation.
     pub fn param_signature(
@@ -1451,7 +1451,7 @@ fn annotate(
                         if let TSType::TSTypeLiteral(lit) = &a.type_annotation {
                             members(&lit.members, out);
                         } else if let Some(text) = literal_union(&a.type_annotation) {
-                            // Phase 15: `type Kind = "a" | "b"` types the path.
+                            // `type Kind = "a" | "b"` types the path.
                             out.out.insert(path.to_owned(), text);
                         }
                         return;
@@ -1459,7 +1459,7 @@ fn annotate(
                     _ => {}
                 }
             }
-            // Phase 15: an alias imported from a project module.
+            // An alias imported from a project module.
             if let Some(text) = imported_literal_union(program, out.file, name, 0) {
                 out.out.insert(path.to_owned(), text);
             }
@@ -1468,7 +1468,7 @@ fn annotate(
     }
 }
 
-/// Phase 15: `"a" | "b"` for a type that is a union of string literals.
+/// `"a" | "b"` for a type that is a union of string literals.
 fn literal_union(t: &oxc_ast::ast::TSType<'_>) -> Option<String> {
     use oxc_ast::ast::{TSLiteral, TSType};
     let one = |t: &TSType<'_>| match t {
@@ -1487,7 +1487,7 @@ fn literal_union(t: &oxc_ast::ast::TSType<'_>) -> Option<String> {
     }
 }
 
-/// Phase 15: a relative import specifier as a project file.
+/// A relative import specifier as a project file.
 fn relative_module(from: &std::path::Path, specifier: &str) -> Option<std::path::PathBuf> {
     if !(specifier.starts_with("./") || specifier.starts_with("../")) {
         return None;
@@ -1510,7 +1510,7 @@ fn relative_module(from: &std::path::Path, specifier: &str) -> Option<std::path:
     .find(|p| p.is_file())
 }
 
-/// Phase 15: the literal union an imported type name stands for, following
+/// The literal union an imported type name stands for, following
 /// relative imports and re-exports (`export *`, `export { X } from`) up to
 /// a small depth.
 fn imported_literal_union(

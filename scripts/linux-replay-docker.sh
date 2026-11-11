@@ -2,7 +2,7 @@
 # Run Midwrite's quality gates and required replay tests on Linux inside a
 # container (see ci/linux-replay.Dockerfile). The repository is mounted
 # read-only and copied into the container; nothing is written back except
-# the log directory given as $1 (default: reports/phase4/linux).
+# the log directory given as $1 (default: reports/linux-replay).
 #
 #   scripts/linux-replay-docker.sh [output-dir] [--default-seccomp]
 #
@@ -12,10 +12,10 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
-out="${1:-$repo/reports/phase4/linux}"
+out="${1:-$repo/reports/linux-replay}"
 mkdir -p "$out"
 out="$(cd "$out" && pwd)"
-image="midwrite-linux-replay:phase4"
+image="midwrite-linux-replay"
 
 security=(--security-opt seccomp=unconfined --security-opt systempaths=unconfined)
 mode="isolated"
@@ -43,8 +43,8 @@ cd work
   echo "max_user_namespaces=$(cat /proc/sys/user/max_user_namespaces)"
 } > /out/environment-$MODE.txt 2>&1
 (cd fixtures/replay/drizzle-node && npm ci --ignore-scripts --no-audit --no-fund && npm run build) > /out/npm-ci-$MODE.txt 2>&1
-# Phase 7: the first-party application used for original-code verification.
-(cd fixtures/phase7/team-app && npm ci --ignore-scripts --no-audit --no-fund && npm run build) >> /out/npm-ci-$MODE.txt 2>&1
+# The first-party application used for original-code verification.
+(cd fixtures/apps/team-app && npm ci --ignore-scripts --no-audit --no-fund && npm run build) >> /out/npm-ci-$MODE.txt 2>&1
 if [[ "$MODE" == "isolated" ]]; then
   cargo fmt --all -- --check > /out/fmt.txt 2>&1; echo "exit $?" >> /out/fmt.txt
   cargo clippy --workspace --all-targets -- -D warnings > /out/clippy.txt 2>&1; echo "exit $?" >> /out/clippy.txt

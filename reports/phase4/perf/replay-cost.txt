@@ -1,6 +1,0 @@
-Runtime replay cost after batching SQL observations into one psql per stage; macOS arm64, release binary, sandbox-exec, 2026-10-25.
-Includes initdb + cluster start + runtime start-up per run; NOT comparable with static analysis. Median of 3 invocations.
-  order-vulnerable (Bun) --repeat 1                7 harness runs incl. control; wall median 2.37 s; per-run duration median 184 ms (min 177, max 191)
-  drizzle-node (Node + Drizzle) --repeat 1        17 harness runs incl. control; wall median 10.25 s; per-run duration median 446 ms (min 425, max 793)
-  drizzle-node a-kill-after-db-commit --repeat 5   6 harness runs incl. control; wall median 3.70 s; per-run duration median 434 ms (min 429, max 463)
-  generated-harness (Node) --repeat 1              6 harness runs incl. control; wall median 3.68 s; per-run duration median 432 ms (min 422, max 451)

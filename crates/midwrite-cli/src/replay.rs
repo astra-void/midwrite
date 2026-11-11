@@ -22,7 +22,7 @@ fn static_traces(harness: &LoadedHarness) -> Result<Option<TraceReport>, String>
     let root = analysis.root_dir(&harness.dir)?;
     let config_path = match &analysis.config {
         Some(config) => Some(root.join(config)),
-        None => discover_config(&root).map(|found| found.path),
+        None => discover_config(&root),
     };
     let (config, label) = match &config_path {
         Some(path) => (

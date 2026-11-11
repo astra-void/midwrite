@@ -1,6 +1,6 @@
 //! Effect summaries over a call graph: inertness and parameter use.
 //!
-//! See `docs/phase5/INTERPROCEDURAL-SUMMARIES.md`. A function is *inert*
+//! See `docs/architecture/value-analysis.md`. A function is *inert*
 //! when, on every path, it performs no database write, transaction,
 //! configured external effect or unknown call, and every call it makes is
 //! a modeled builtin, a call of an inert function, or an invocation of a

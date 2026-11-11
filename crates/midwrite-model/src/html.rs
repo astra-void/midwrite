@@ -325,7 +325,7 @@ pub fn model_check_html(r: &ModelCheckReport) -> String {
             );
         }
         b.push_str("</table>");
-        // Phase 16: why a generated-identity invariant is violated.
+        // Why a generated-identity invariant is violated.
         if !w.final_state.diagnosis.is_empty() {
             b.push_str("<ul>");
             for d in &w.final_state.diagnosis {
@@ -376,7 +376,7 @@ pub fn model_check_html(r: &ModelCheckReport) -> String {
         b.push_str("</div>");
     }
 
-    // Phase 7: extraction facts and the original-code verification.
+    // Extraction facts and the original-code verification.
     for x in &r.extraction {
         let _ = write!(
             b,
@@ -668,7 +668,7 @@ pub fn model_check_html(r: &ModelCheckReport) -> String {
     )
 }
 
-/// Phase 8: the run as lanes — one per actor execution (`Client#1`,
+/// The run as lanes — one per actor execution (`Client#1`,
 /// `Client#2` after a restart), PostgreSQL, and each channel test double —
 /// with the planned crashes (SIGKILL) and restarts where they happened.
 fn recovery_timeline(
@@ -880,7 +880,7 @@ fn recovery_timeline(
             );
         }
         for l in rec.losses.iter().filter(|l| l.transition == t) {
-            // Phase 10: the connection broke; the process lived.
+            // The connection broke; the process lived.
             let lane = lane_of(&format!("{}#{}", l.actor, l.attempt));
             let proxy = lane_of("Protocol proxy (wire)");
             let wire = l

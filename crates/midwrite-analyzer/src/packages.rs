@@ -1,4 +1,4 @@
-//! Phase 13: package contracts.
+//! Package contracts.
 //!
 //! A call into a package is not analyzed (no package code is read or run).
 //! Every package call falls in one of three categories:
@@ -29,7 +29,7 @@ pub enum Modeled {
     /// The result is not representable: the call stays unknown (with the
     /// contract named).
     ResultNotRepresentable,
-    /// Phase 14: the result is a fresh random value: modeled as a generated
+    /// The result is a fresh random value: modeled as a generated
     /// value (equal only to itself; the `generated-values-distinct`
     /// assumption), with no other effect.
     FreshValue,
@@ -58,7 +58,7 @@ pub struct Contract {
 const BCRYPT: &[&str] = &["bcryptjs", "bcrypt"];
 const ZOD: &[&str] = &["zod", "zod/v4", "zod/v3"];
 
-/// Phase 14: whether `source` is the zod package.
+/// Whether `source` is the zod package.
 pub fn is_zod(source: &str) -> bool {
     ZOD.contains(&source)
 }

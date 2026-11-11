@@ -1,4 +1,0 @@
-    Checking commitrift-discover v0.1.0 (/Users/returnf4lse/Desktop/Workspace/rust/crash-proof/crates/commitrift-discover)
-    Checking commitrift-cli v0.1.0 (/Users/returnf4lse/Desktop/Workspace/rust/crash-proof/crates/commitrift-cli)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 18.64s
-exit 0

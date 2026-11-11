@@ -454,6 +454,11 @@ pub(crate) fn analyze(
     for (module_index, length) in lengths.iter().enumerate() {
         per_file.push((module_index, functions.by_ref().take(*length).collect()));
     }
+    let suppressions: HashMap<_, _> = names
+        .iter()
+        .zip(&modules)
+        .map(|(name, module)| (name.as_str(), &module.suppressions))
+        .collect();
     let results = parallel_map(per_file, |(module_index, mut file_functions)| {
         let own = FileId(u32::try_from(module_index).unwrap_or(u32::MAX));
         let sources = compact_sources(&mut file_functions, own, &names);
@@ -493,6 +498,13 @@ pub(crate) fn analyze(
                 );
             }
         }
+        // Match the primary reported file and line, keeping each trace
+        // paired with its diagnostic throughout filtering and sorting.
+        pairs.retain(|(diagnostic, _)| {
+            !suppressions
+                .get(diagnostic.location.file.as_str())
+                .is_some_and(|directives| directives.suppresses(diagnostic))
+        });
         pairs.sort_by(|a, b| a.0.sort_key().cmp(&b.0.sort_key()));
         let (diagnostics, traces): (Vec<_>, Vec<_>) = pairs.into_iter().unzip();
         let analysis = FileAnalysis {
@@ -545,13 +557,10 @@ pub(crate) fn analyze(
 
 /// `items.map(f)` on a few threads, in input order. The output does not
 /// depend on the number of threads or on scheduling. At most 8 threads, or
-/// the number in the `MIDWRITE_THREADS` environment variable (or, when it
-/// is unset, the legacy `COMMITRIFT_THREADS`, then `CRASHPROOF_THREADS`).
+/// the number in the `MIDWRITE_THREADS` environment variable.
 fn parallel_map<T: Send, R: Send>(items: Vec<T>, f: impl Fn(T) -> R + Sync) -> Vec<R> {
     let available = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
     let threads = std::env::var("MIDWRITE_THREADS")
-        .or_else(|_| std::env::var("COMMITRIFT_THREADS"))
-        .or_else(|_| std::env::var("CRASHPROOF_THREADS"))
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
         .filter(|&n| n > 0)

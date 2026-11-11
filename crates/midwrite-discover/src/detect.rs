@@ -1,7 +1,7 @@
 //! Candidate discovery over effect summaries.
 //!
 //! Each detector is a small, deterministic rule over one entry's
-//! [`EffectSummary`] (`docs/phase11/CANDIDATE-DISCOVERY.md`). Pairs of
+//! [`EffectSummary`] (`docs/architecture/scenario-synthesis.md`). Pairs of
 //! different entries are formed through a resource index (table, column,
 //! key columns), never by enumerating all pairs of functions. A detector
 //! records a recognized protection on the candidate instead of dropping it,
@@ -191,7 +191,7 @@ pub fn unique_sets(index: &ProjectIndex, table: &str) -> Vec<(Vec<String>, Optio
     out
 }
 
-/// Phase 16: the global unique sets (property names) of `table` declared
+/// The global unique sets (property names) of `table` declared
 /// `NULLS NOT DISTINCT`.
 pub fn nulls_not_distinct_sets(index: &ProjectIndex, table: &str) -> Vec<Vec<String>> {
     let Some(t) = index.source_table(table) else {
@@ -257,7 +257,7 @@ fn base_assumptions(a: &Analyzed) -> Vec<Assumption> {
     out
 }
 
-/// Phase 16: the operations reachable from the handler of the innermost
+/// The operations reachable from the handler of the innermost
 /// `try` block holding `at` (a retry loop's next iterations).
 fn retry_reach(s: &EffectSummary, at: (usize, usize)) -> BTreeSet<(usize, usize)> {
     use midwrite_model::ir::Op;
@@ -283,7 +283,7 @@ fn retry_reach(s: &EffectSummary, at: (usize, usize)) -> BTreeSet<(usize, usize)
     }
 }
 
-/// Phase 16: the loop, caught-error and request assumptions of the
+/// The loop, caught-error and request assumptions of the
 /// extraction (`loop ...`, `caught-errors: ...`, `request: ...`).
 fn extraction_assumptions(a: &Analyzed) -> Vec<Assumption> {
     a.summary
@@ -429,7 +429,7 @@ impl Detector<'_> {
                         key: k
                             .iter()
                             .map(|c| {
-                                // Phase 15: a key column the check does not
+                                // A key column the check does not
                                 // compare by equality (a conditional `IS
                                 // NULL`/`=` test) takes the argument the
                                 // entry's own INSERT writes to it.
@@ -1182,7 +1182,7 @@ impl Detector<'_> {
         }
     }
 
-    /// Phase 15: a guard tests a column of a row the entry read, and an
+    /// A guard tests a column of a row the entry read, and an
     /// UPDATE of the same row then changes that column relatively
     /// (`remaining = remaining - 1`): the database computes the new value
     /// atomically, but the test was made on the value read. Only with a
@@ -1432,7 +1432,7 @@ impl Detector<'_> {
             });
         }
         for ins in s.db.iter().filter(|e| e.access == Access::Insert) {
-            // Phase 14: a redelivered message repeats its database writes
+            // A redelivered message repeats its database writes
             // too; a property over them must be declared (none is inferred).
             let written: Vec<(String, Val)> = ins
                 .writes
@@ -1828,7 +1828,7 @@ impl Detector<'_> {
 
     fn ambiguous_commit(&mut self, _i: usize, a: &Analyzed) {
         let s = &a.summary;
-        // Phase 14: also a write inside a transaction whose COMMIT is in the
+        // Also a write inside a transaction whose COMMIT is in the
         // `try` block (the acknowledgment of the COMMIT can be lost), as a
         // retry wrapper's callback produces.
         for first in s.db.iter().filter(|e| {
@@ -1836,7 +1836,7 @@ impl Detector<'_> {
                 && e.in_try
                 && (e.conn == Conn::Pool || (e.conn == Conn::Tx && e.tx.is_some()))
         }) {
-            // Phase 16: or a later iteration of a retry loop the handler
+            // Or a later iteration of a retry loop the handler
             // continues to (the same write, reachable from the handler of
             // the `try` that holds the first one).
             let retried = retry_reach(s, first.at);
@@ -2220,7 +2220,7 @@ impl Detector<'_> {
         }
     }
 
-    /// Phase 14: the foreign key of `table.column` in the analyzed schema:
+    /// The foreign key of `table.column` in the analyzed schema:
     /// (referenced table, referenced column property, ON DELETE action).
     fn foreign_key(&self, table: &str, column: &str) -> Option<(String, String, String)> {
         let t = self.index.source_table(table)?;

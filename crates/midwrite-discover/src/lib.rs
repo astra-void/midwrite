@@ -6,7 +6,7 @@
 //! always stated, synthesizes small initial database states with the model
 //! checker's own semantics, and writes scenarios in the existing scenario
 //! format. Nothing here executes application code; model checking is a
-//! separate, budgeted step (`docs/phase11/`).
+//! separate, budgeted step (`docs/architecture/scenario-synthesis.md`).
 
 pub mod candidate;
 pub mod contracts;

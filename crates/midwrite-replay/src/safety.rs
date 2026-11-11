@@ -1,7 +1,7 @@
 //! Safety measures around a harness process: private replay directories,
 //! database target checks and report redaction. OS isolation is in
 //! [`crate::isolation`]. None of this is a sandbox for hostile code (see
-//! `docs/phase4/SECURITY-REVIEW.md`).
+//! `docs/reference/security.md`).
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};

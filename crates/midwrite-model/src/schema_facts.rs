@@ -1,4 +1,4 @@
-//! Schema facts extracted statically from Drizzle definitions (Phase 8).
+//! Schema facts extracted statically from Drizzle definitions.
 //!
 //! The data types live here, in the model crate, so that the scenario loader
 //! can turn them into the model's [`crate::db::TableSchema`] and the source
@@ -34,7 +34,7 @@ pub enum SchemaDefault {
     Application { text: String },
 }
 
-/// How a column's default value comes into existence (Phase 12). The
+/// How a column's default value comes into existence. The
 /// categories are kept apart: a value PostgreSQL computes while executing
 /// the INSERT is not one Drizzle computes before sending it, and neither is
 /// a sequence (non-transactional, ordered) or a constant.
@@ -59,7 +59,7 @@ pub enum GeneratorClass {
     UnknownDefault,
 }
 
-/// Phase 12: the classified default of a column.
+/// The classified default of a column.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Generation {
@@ -113,15 +113,15 @@ pub struct SchemaColumn {
     /// `.references(() => table.column)`: (table binding, column property).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub references: Option<(String, String)>,
-    /// Phase 12: how the default is produced.
+    /// How the default is produced.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub generation: Option<Generation>,
-    /// Phase 14: the `mode` option of a `timestamp`/`date`/`json` column
+    /// The `mode` option of a `timestamp`/`date`/`json` column
     /// when it is written explicitly (`{ mode: "string" }`); absent:
     /// Drizzle's default mode.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode: Option<String>,
-    /// Phase 14: the callback of `.$onUpdate(...)` / `.$onUpdateFn(...)`,
+    /// The callback of `.$onUpdate(...)` / `.$onUpdateFn(...)`,
     /// as written.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub on_update: Option<String>,
@@ -157,7 +157,7 @@ pub struct SchemaForeignKey {
     /// The referenced table binding and column properties.
     pub table: String,
     pub foreign_columns: Vec<String>,
-    /// Phase 13: `onDelete` / `onUpdate` as written (`cascade`,
+    /// `onDelete` / `onUpdate` as written (`cascade`,
     /// `set null`, ...); absent: `no action`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub on_delete: Option<String>,
@@ -216,7 +216,7 @@ pub struct ExtractedSchema {
     /// understood (dynamic table names, spread columns, helpers).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub unsupported: Vec<String>,
-    /// Phase 12: the module's imports, local name → (specifier, imported
+    /// The module's imports, local name → (specifier, imported
     /// name; `default` or `*` for default and namespace imports), so that
     /// references to tables of other modules can be resolved.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -232,7 +232,7 @@ impl ExtractedSchema {
     }
 }
 
-/// Where a fact of a model table comes from (Phase 8). The categories are
+/// Where a fact of a model table comes from. The categories are
 /// never conflated in reports.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -260,7 +260,7 @@ pub struct SchemaFact {
     pub source: String,
 }
 
-/// The facts behind one model table (Phase 8).
+/// The facts behind one model table.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TableFacts {
@@ -268,7 +268,7 @@ pub struct TableFacts {
     /// The Drizzle binding it was read from (`from`), if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub binding: Option<String>,
-    /// Phase 12: the schema module that declares the binding (scenarios
+    /// The schema module that declares the binding (scenarios
     /// with a list of modules). Not serialized: model-check report schemas
     /// do not admit it, and the scenario's `from: "module#binding"` says it.
     #[serde(default, skip_serializing)]

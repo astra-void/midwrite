@@ -1,4 +1,4 @@
-//! Phase 14: JavaScript built-ins of the value layer (strings, arrays,
+//! JavaScript built-ins of the value layer (strings, arrays,
 //! `Map`, `Set`) and array methods with a pure callback. Each function
 //! implements the ECMAScript behavior for the value types the model has and
 //! refuses (an unsupported evaluation) every other receiver.
@@ -217,18 +217,18 @@ fn search_string(v: &Value) -> Result<String, EvalError> {
     to_string(v)
 }
 
-/// Phase 16: the reserved key of a caught error whose origin the model does
+/// The reserved key of a caught error whose origin the model does
 /// not know (a lost connection, a child task, an unmodeled `throw`): its
 /// value is the failure's text, and no property of the error is known.
 pub const UNMODELED_ERROR: &str = "$unmodeled";
-/// Phase 16: the reserved key holding the failure text of a caught error
+/// The reserved key holding the failure text of a caught error
 /// (what a re-throw fails with).
 pub const ERROR_REASON: &str = "$reason";
-/// Phase 16: the reserved key telling that a caught error is an `Error`
+/// The reserved key telling that a caught error is an `Error`
 /// instance (`e instanceof Error`).
 pub const ERROR_INSTANCE: &str = "$isError";
 
-/// Phase 16: whether a row is an error object built for a handler that
+/// Whether a row is an error object built for a handler that
 /// inspects a caught error (it carries one of the reserved keys).
 pub fn is_error_object(row: &Row) -> bool {
     row.contains_key(ERROR_INSTANCE)
@@ -236,7 +236,7 @@ pub fn is_error_object(row: &Row) -> bool {
         || row.contains_key(UNMODELED_ERROR)
 }
 
-/// Phase 16: `recv.key` where `recv` is an error object
+/// `recv.key` where `recv` is an error object
 /// ([`is_error_object`]). It lists exactly the properties the model knows
 /// (an explicit `undefined` included); every other property is unknown
 /// rather than `undefined`.
@@ -308,7 +308,7 @@ fn at(recv: &Value, key: &Value) -> Result<Value, EvalError> {
                 .and_then(|i| s.chars().nth(i))
                 .map_or_else(Value::undefined, |c| Value::Str(c.to_string())))
         }
-        // Phase 16: a caught error object knows only its listed properties.
+        // A caught error object knows only its listed properties.
         (Value::Row(row), _) if is_error_object(row) => caught_prop(recv, key),
         (Value::Row(row), Value::Str(k)) => {
             Ok(row.get(k).cloned().unwrap_or_else(Value::undefined))
@@ -614,7 +614,7 @@ pub fn eval(func: Builtin, args: &[Value], mode: Mode) -> Result<Value, EvalErro
                 other => bad_receiver(func, other),
             }
         }
-        // Phase 16: plain objects (rows).
+        // Plain objects (rows).
         B::HasOwn => {
             arity(func, args, 2, 2)?;
             match (&args[0], &args[1]) {

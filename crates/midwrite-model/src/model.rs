@@ -29,17 +29,17 @@ pub struct Bounds {
     /// one schedule.
     #[serde(default)]
     pub max_retries: u32,
-    /// Phase 9: maximum operations on one schedule whose acknowledgment is
+    /// Maximum operations on one schedule whose acknowledgment is
     /// lost in flight (a COMMIT or an autocommit write that reached the
     /// server, or did not, while the application learns nothing). `0`
     /// (default): no in-flight faults, exactly the Phase 8 transition system.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub max_in_flight: u32,
-    /// Phase 9: where crashes may happen (see [`CrashPolicy`]).
+    /// Where crashes may happen (see [`CrashPolicy`]).
     #[serde(default, skip_serializing_if = "is_any")]
     pub crash_policy: CrashPolicy,
     /// Maximum context switches on one schedule. Reduction is disabled when
-    /// this is set (see `docs/phase6/PARTIAL-ORDER-REDUCTION.md`).
+    /// this is set (see `docs/architecture/partial-order-reduction.md`).
     #[serde(default)]
     pub max_context_switches: Option<u32>,
     /// Maximum number of executed transitions over the whole search.
@@ -89,10 +89,10 @@ impl Default for Bounds {
     }
 }
 
-/// The implicit invariant that no task waits forever (Phase 9).
+/// The implicit invariant that no task waits forever.
 pub const TERMINATION: &str = "termination";
 
-/// Where a process crash may happen (Phase 9).
+/// Where a process crash may happen.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum CrashPolicy {
@@ -114,8 +114,8 @@ pub enum Strategy {
     Dfs,
 }
 
-/// Phase 10: source-set dynamic partial-order reduction and which of its
-/// mechanisms are on (`docs/phase10/SOURCE-DPOR.md`).
+/// Source-set dynamic partial-order reduction and which of its
+/// mechanisms are on (`docs/architecture/partial-order-reduction.md`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum SourceDpor {
@@ -142,16 +142,16 @@ impl SourceDpor {
 pub struct Options {
     /// Sleep-set partial-order reduction (forces depth-first search).
     pub por: bool,
-    /// Phase 9: dynamic partial-order reduction (stateless; refused with an
+    /// Dynamic partial-order reduction (stateless; refused with an
     /// `always` invariant or a context-switch bound, then the sleep-set
     /// search runs and the report says why).
     #[serde(default)]
     pub dpor: bool,
-    /// Phase 10: source-set DPOR (same applicability as `dpor`; takes
+    /// Source-set DPOR (same applicability as `dpor`; takes
     /// precedence over it).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_dpor: Option<SourceDpor>,
-    /// Phase 9: report states in which tasks wait forever (a pool without
+    /// Report states in which tasks wait forever (a pool without
     /// idle connections, a lock the application itself holds) as violations
     /// of the implicit invariant `termination`. Always on with a bounded
     /// pool.
@@ -188,7 +188,7 @@ pub struct Model {
     /// in-process application state and crash together).
     pub process_of: Vec<usize>,
     pub process_names: Vec<String>,
-    /// Phase 9: connection pool capacity per process (`None`: unbounded, the
+    /// Connection pool capacity per process (`None`: unbounded, the
     /// Phase 8 semantics: every operation has a connection).
     pub pools: Vec<Option<u16>>,
     pub channels: Channels,
@@ -198,11 +198,11 @@ pub struct Model {
     pub options: Options,
     /// Modeling assumptions to print with every result.
     pub assumptions: Vec<String>,
-    /// Phase 13: features the scenario opted into.
+    /// Features the scenario opted into.
     pub features: Features,
 }
 
-/// Phase 13: semantics beyond Phase 12 that a scenario opts into
+/// Semantics beyond Phase 12 that a scenario opts into
 /// (`"features": [...]`), so that earlier scenarios keep their meaning and
 /// state spaces.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -213,15 +213,15 @@ pub struct Features {
     /// Reads routed to a read replica see the replica's replayed prefix of
     /// the primary's commits, which advances by separate transitions.
     pub replicas: bool,
-    /// Phase 14: actors are extracted with JavaScript value semantics
+    /// Actors are extracted with JavaScript value semantics
     /// (`undefined`, arrays, strings, `Map`/`Set`:
-    /// `docs/phase14/VALUE-SEMANTICS.md`).
+    /// `docs/concepts/value-semantics.md`).
     pub js_values: bool,
-    /// Phase 14: `timestamp`/`timestamptz`/`date` columns of the source
+    /// `timestamp`/`timestamptz`/`date` columns of the source
     /// schema are modeled (clock readings are opaque values; explicit
     /// values compare by value).
     pub timestamps: bool,
-    /// Phase 14: `json`/`jsonb` columns of the source schema are modeled.
+    /// `json`/`jsonb` columns of the source schema are modeled.
     pub json: bool,
 }
 
@@ -241,7 +241,7 @@ impl Model {
             })
     }
 
-    /// Phase 13: whether row-lock modes can matter: a table has a foreign
+    /// Whether row-lock modes can matter: a table has a foreign
     /// key (whose checks lock `FOR KEY SHARE`) or a statement locks `FOR
     /// SHARE` / `FOR KEY SHARE`. Otherwise every two row locks conflict and
     /// the Phase 6-12 encoding is kept.
@@ -263,14 +263,14 @@ impl Model {
             })
     }
 
-    /// Phase 13: whether return values are recorded (an invariant reads
+    /// Whether return values are recorded (an invariant reads
     /// them). Otherwise [`crate::ir::Op::ReturnValue`] does nothing and
     /// states are those of Phase 12.
     pub fn tracks_results(&self) -> bool {
         self.invariants.iter().any(|i| i.formula.reads_returned())
     }
 
-    /// Phase 13: foreign keys that reference `table`: (referencing table,
+    /// Foreign keys that reference `table`: (referencing table,
     /// index of the key in it).
     pub fn referencing(&self, table: u16) -> Vec<(u16, u16)> {
         let name = &self.schema.table(table).name;
@@ -323,7 +323,7 @@ impl Model {
         out
     }
 
-    /// Phase 12: generated-default columns `(table, column, spec)`, in schema
+    /// Generated-default columns `(table, column, spec)`, in schema
     /// order: the index is the `generator` of a [`crate::value::GenId`].
     pub fn generators(&self) -> Vec<(u16, String, crate::db::GeneratedSpec)> {
         let mut out = Vec::new();

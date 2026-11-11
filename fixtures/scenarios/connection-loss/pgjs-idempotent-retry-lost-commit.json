@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "name": "pgjs-idempotent-retry-lost-commit",
+  "description": "FIRST-PARTY APPLICATION (fixtures/apps/ledger-pgjs (postgres-js 3.4.5)): a durable unique request key (ON CONFLICT DO NOTHING) makes the in-process retry harmless when the COMMIT was durable.",
+  "extraction": {
+    "root": "../../apps/ledger-pgjs",
+    "externals": [],
+    "schema": "src/lib/db/schema.ts"
+  },
+  "channels": {},
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "from": "ledger",
+        "columns": [
+          "id",
+          "requestId",
+          "orderId",
+          "amount"
+        ]
+      }
+    ],
+    "initialState": {
+      "ledger": []
+    }
+  },
+  "actors": [
+    {
+      "name": "Client",
+      "entry": {
+        "selector": "src/app/payments.ts#recordPaymentIdempotentRetryInProcess",
+        "invocation": "awaited"
+      },
+      "arguments": [
+        {
+          "requestId": "req-1",
+          "orderId": 1,
+          "amount": 500
+        }
+      ],
+      "description": "a request handler whose process survives a broken database connection and retries once"
+    }
+  ],
+  "bounds": {
+    "maxSteps": 60,
+    "maxCrashes": 0,
+    "maxRetries": 0,
+    "maxInFlight": 1
+  },
+  "invariants": [
+    {
+      "name": "recorded-at-most-once",
+      "when": "final",
+      "description": "one ledger row per request id",
+      "assert": {
+        "le": [
+          {
+            "count": {
+              "table": "ledger",
+              "where": {}
+            }
+          },
+          1
+        ]
+      }
+    }
+  ],
+  "sourceVerification": {
+    "harness": "../../apps/ledger-pgjs/midwrite-source.json",
+    "actors": {
+      "Client": {
+        "entry": "recordPaymentIdempotentRetryInProcess",
+        "input": {
+          "requestId": "req-1",
+          "orderId": 1,
+          "amount": 500
+        }
+      }
+    },
+    "recoveryProbe": {
+      "require": [
+        "lost-committed:Client"
+      ]
+    }
+  }
+}

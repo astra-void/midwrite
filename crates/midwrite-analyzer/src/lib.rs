@@ -13,7 +13,7 @@
 //! * [`Analyzer::analyze_project`] (used by [`Analyzer::analyze_paths`] and
 //!   the CLI) analyzes a set of files together: calls of functions imported
 //!   from other analyzed files are summarized as well (see
-//!   `docs/phase2/CROSS-MODULE-ANALYSIS.md`).
+//!   `docs/ARCHITECTURE.md`).
 //!
 //! ```
 //! use midwrite_analyzer::Analyzer;
@@ -55,6 +55,7 @@ mod recognize;
 mod resolve;
 pub mod schema;
 mod semantic;
+mod suppression;
 
 pub(crate) use concurrency::expression_kind as concurrency_kind;
 mod values;
@@ -115,6 +116,7 @@ pub struct Analyzer {
 /// One file lowered on its own, before any call is summarized.
 #[derive(Debug)]
 pub(crate) struct LoweredModule {
+    pub suppressions: suppression::Suppressions,
     pub functions: Vec<FunctionIr>,
     /// The calls each function makes of functions the frontend could name.
     pub calls: Vec<Vec<LocalCallSite>>,
@@ -391,6 +393,9 @@ impl Analyzer {
             });
         }
 
+        let suppressions =
+            suppression::Suppressions::parse(source, &parsed.program.comments, &lines)?;
+
         let semantic = SemanticBuilder::new().build(&parsed.program).semantic;
         let table = bindings::SymbolTable::collect(&parsed.program, semantic.scoping());
         let recognizer = recognize::Recognizer {
@@ -492,6 +497,7 @@ impl Analyzer {
             exports.named.entry(name).or_default().push(entry);
         }
         Ok(LoweredModule {
+            suppressions,
             functions,
             calls,
             facts,
@@ -508,6 +514,15 @@ impl Analyzer {
     /// of functions declared in the same file are replaced by the callees'
     /// summaries; calls of imported functions stay unknown effects.
     pub fn lower_source(&self, path: &str, source: &str) -> Result<FileIr, ParseFailure> {
+        self.lower_source_with_suppressions(path, source)
+            .map(|(ir, _)| ir)
+    }
+
+    fn lower_source_with_suppressions(
+        &self,
+        path: &str,
+        source: &str,
+    ) -> Result<(FileIr, suppression::Suppressions), ParseFailure> {
         let module = self.lower_module(path, source)?;
         let views = [module.view(0)];
         let mut imports = NoImports;
@@ -553,16 +568,19 @@ impl Analyzer {
             }
         }
         inline_calls_with(&mut functions, &calls, None, Some(&solved), &self.options);
-        Ok(FileIr {
-            path: path.to_owned(),
-            functions,
-            sources: Vec::new(),
-        })
+        Ok((
+            FileIr {
+                path: path.to_owned(),
+                functions,
+                sources: Vec::new(),
+            },
+            module.suppressions,
+        ))
     }
 
     /// Lower and analyze `source` on its own.
     pub fn analyze_source(&self, path: &str, source: &str) -> Result<FileAnalysis, ParseFailure> {
-        let ir = self.lower_source(path, source)?;
+        let (ir, suppressions) = self.lower_source_with_suppressions(path, source)?;
         let mut diagnostics: Vec<Diagnostic> = ir
             .functions
             .iter()
@@ -575,6 +593,7 @@ impl Analyzer {
             &self.config.recovery_contracts,
             self.options.policy,
         );
+        diagnostics.retain(|diagnostic| !suppressions.suppresses(diagnostic));
         diagnostics.sort_by(|a, b| a.sort_key().cmp(&b.sort_key()));
         Ok(FileAnalysis {
             ir,

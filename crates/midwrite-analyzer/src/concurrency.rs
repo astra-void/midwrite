@@ -1,5 +1,5 @@
 //! Lowering of TypeScript functions to the concurrency IR of
-//! `midwrite-model` (Phase 6, stage G).
+//! `midwrite-model` (stage G).
 //!
 //! This is a *separate, opt-in* frontend: `midwrite check` never calls it.
 //! It lowers one named function (inlining helpers up to a depth bound) into
@@ -10,7 +10,7 @@
 //! (expressions) with a precise detail and source reference. Unknown
 //! behavior is never dropped and never turned into a no-op.
 //!
-//! The supported subset is documented in `docs/phase6/CONCURRENT-IR.md`.
+//! The supported subset is documented in `docs/architecture/source-extraction.md`.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -47,9 +47,9 @@ use crate::identity;
 use crate::resolve::{Resolution, absolute};
 use crate::wrapper;
 
-/// Phase 14: the JavaScript value domain (`ExtractRequest::js_values`).
+/// The JavaScript value domain (`ExtractRequest::js_values`).
 mod js_values;
-/// Phase 16: bounded loops, caught errors, request bodies.
+/// Bounded loops, caught errors, request bodies.
 mod loops;
 
 /// Lowers functions of a TypeScript project to the concurrency IR.
@@ -57,21 +57,20 @@ mod loops;
 pub struct TsActorProvider {
     root: PathBuf,
     receivers: Vec<String>,
-    /// Phase 12: one [`ProjectContext`] per project root, shared by every
+    /// One [`ProjectContext`] per project root, shared by every
     /// extraction made through this provider (and its clones).
     contexts: Arc<Mutex<HashMap<PathBuf, Arc<ProjectContext>>>>,
 }
 
 impl TsActorProvider {
     /// A provider for the project at `root`. Database receiver names are
-    /// read from the project's configuration file (`midwrite.json`, or a
-    /// legacy name) when it exists (plain identifiers only); the default is
-    /// `db`.
+    /// read from the project's configuration file (`midwrite.json`) when it
+    /// exists (plain identifiers only); the default is `db`.
     pub fn new(root: impl Into<PathBuf>) -> Self {
         let root = root.into();
         let mut receivers = vec!["db".to_owned()];
         if let Some(found) = midwrite_core::config::discover_config(&root)
-            && let Ok(config) = Config::load(&found.path)
+            && let Ok(config) = Config::load(&found)
         {
             let names: Vec<String> = config
                 .database_receivers
@@ -137,7 +136,7 @@ impl ActorProvider for TsActorProvider {
             root
         };
         let mut extracted = crate::schema::extract_schema(root, file)?;
-        // Phase 12: `$defaultFn(helper)` with `helper` imported from a
+        // `$defaultFn(helper)` with `helper` imported from a
         // project module: classify the helper's own definition.
         let ctx = self.context(root);
         let here = absolute(&root.join(file));
@@ -397,7 +396,7 @@ fn info_of_arrow<'a>(
     })
 }
 
-/// Phase 14: the function node (arrow function or function expression)
+/// The function node (arrow function or function expression)
 /// whose span is exactly `span`, with the program's lifetime.
 fn closure_at<'a>(program: &'a Program<'a>, span: Span, name: &str) -> Option<FnInfo<'a>> {
     let semantic = oxc_semantic::SemanticBuilder::new()
@@ -534,9 +533,9 @@ fn find_export<'a>(module: &Module<'a>, export_name: &str) -> Result<FnInfo<'a>,
     ))
 }
 
-/// Phase 12: the initializer of a top-level `const name = ...` (exported or
+/// The initializer of a top-level `const name = ...` (exported or
 /// not).
-/// Phase 16: the strings of the `const` array `name` denotes in `m` (a
+/// The strings of the `const` array `name` denotes in `m` (a
 /// module-level `const NAME = ["a", "b"] as const`, here or imported through
 /// the project's resolver; spreads of such arrays included), or `None`.
 fn const_string_array(
@@ -611,7 +610,7 @@ fn const_initializer<'a>(program: &'a Program<'a>, name: &str) -> Option<&'a Exp
     None
 }
 
-/// Phase 13: `const name = other` at the top level (exported or not): a
+/// `const name = other` at the top level (exported or not): a
 /// function alias (`export const canManage = isAdmin`). Only a plain
 /// identifier initializer of a `const`; a call (`wrap(f)`) is not an alias.
 fn alias_target(program: &Program<'_>, name: &str) -> Option<String> {
@@ -621,7 +620,7 @@ fn alias_target(program: &Program<'_>, name: &str) -> Option<String> {
     }
 }
 
-/// Phase 13: the import specifier a value is built from: `z.object({...})
+/// The import specifier a value is built from: `z.object({...})
 /// .strict()` whose chain starts at an imported identifier (named, default
 /// or namespace import). The caller checks that it is a package.
 fn package_chain_root(module: &Module<'_>, init: &Expression<'_>) -> Option<String> {
@@ -642,7 +641,7 @@ fn package_chain_root(module: &Module<'_>, init: &Expression<'_>) -> Option<Stri
     }
 }
 
-/// Phase 13: `const name = cache(<function>)` with `cache` imported from
+/// `const name = cache(<function>)` with `cache` imported from
 /// `react` (a verified built-in higher-order contract, `crate::packages`):
 /// the wrapped function.
 fn react_cache_fn<'a>(module: &Module<'a>, name: &str) -> Option<FnInfo<'a>> {
@@ -667,7 +666,7 @@ fn react_cache_fn<'a>(module: &Module<'a>, name: &str) -> Option<FnInfo<'a>> {
     info_of_expression(name, call.arguments[0].as_expression()?)
 }
 
-/// Phase 12: whether the module's text writes a property of `name`
+/// Whether the module's text writes a property of `name`
 /// (`name.p = ...`, `name[...] = ...`, `delete name.p`, `Object.assign(name,
 /// ...)`). Conservative: any such text disables method resolution on it.
 fn mutates(text: &str, name: &str) -> bool {
@@ -704,7 +703,7 @@ fn mutates(text: &str, name: &str) -> bool {
     false
 }
 
-/// Phase 12: a class declared at the top level of the module.
+/// A class declared at the top level of the module.
 fn find_class<'a>(program: &'a Program<'a>, name: &str) -> Option<&'a oxc_ast::ast::Class<'a>> {
     for statement in &program.body {
         let declaration = match statement {
@@ -726,7 +725,7 @@ fn find_class<'a>(program: &'a Program<'a>, name: &str) -> Option<&'a oxc_ast::a
     None
 }
 
-/// Phase 12: an instance method (or arrow-function field) of a class.
+/// An instance method (or arrow-function field) of a class.
 fn class_method<'a>(program: &'a Program<'a>, class: &str, method: &str) -> Option<FnInfo<'a>> {
     let c = find_class(program, class)?;
     let label = format!("{class}.{method}");
@@ -753,7 +752,7 @@ fn class_method<'a>(program: &'a Program<'a>, class: &str, method: &str) -> Opti
     None
 }
 
-/// Phase 12: a method of a `const` object literal: `m() {}`, `m: async ()
+/// A method of a `const` object literal: `m() {}`, `m: async ()
 /// => {}`, `m: function () {}`, or `m: f` / shorthand `m` of a function
 /// declared in the module.
 fn object_method<'a>(module: &Module<'a>, object: &str, method: &str) -> Option<FnInfo<'a>> {
@@ -788,7 +787,7 @@ fn property_key_name(key: &oxc_ast::ast::PropertyKey<'_>) -> Option<String> {
     }
 }
 
-/// Phase 12: the function a resolved export names: the top-level binding
+/// The function a resolved export names: the top-level binding
 /// `local` of the declaring module (`default` for a default export).
 fn find_resolved<'a>(module: &Module<'a>, local: &str) -> Result<FnInfo<'a>, String> {
     if local == "default" {
@@ -871,7 +870,7 @@ fn module_constant(module: &Module<'_>, name: &str) -> Option<Expr> {
     None
 }
 
-/// Phase 14: `const name = [<literal>, ...]` (optionally `as const`) at the
+/// `const name = [<literal>, ...]` (optionally `as const`) at the
 /// top level: its value, and whether it is readonly by its type. A plain
 /// array qualifies only when it is not exported and the module never uses
 /// it other than by reading it (a mutating method, an assignment or passing
@@ -934,7 +933,7 @@ fn module_list_constant(module: &Module<'_>, name: &str) -> Option<(Expr, bool)>
     Some((Expr::Lit(Value::List(items)), readonly))
 }
 
-/// Phase 14: every use of `name` in `text` reads it: followed by a reading
+/// Every use of `name` in `text` reads it: followed by a reading
 /// member (`.includes(`, `.length`, `[`...) or iterated by `for … of`.
 fn read_only_uses(text: &str, name: &str) -> bool {
     const READS: &[&str] = &[
@@ -1083,47 +1082,47 @@ enum Binding {
         length: String,
     },
     /// A `const` object literal whose properties are expressions evaluated
-    /// at its declaration (Phase 7; `values(obj)`, `obj.key`).
+    /// at its declaration (`values(obj)`, `obj.key`).
     Object(Vec<(String, Expr)>),
     /// A caught exception: its properties (driver messages, SQLSTATE
     /// wrappers) are not modeled; only its truthiness is.
     Opaque,
-    /// Phase 12: an instance of an analyzed class (`new UserRepository(tx)`)
+    /// An instance of an analyzed class (`new UserRepository(tx)`)
     /// whose methods are inlined with this `this`.
     Instance(Box<ThisBinding>),
-    /// Phase 13: a replicated database (`withReplicas`): writes and
+    /// A replicated database (`withReplicas`): writes and
     /// transactions use the primary, reads a replica
     /// (`crate::handles`).
     Replicated(Box<Routing>),
-    /// Phase 13: a name used as a database (a configured receiver) whose
+    /// A name used as a database (a configured receiver) whose
     /// value is not a recognized database, in a project that builds a
     /// replicated one: its operations are not bound.
     UnknownDb(String),
-    /// Phase 14: a zod schema passed to an inlined function (its
+    /// A zod schema passed to an inlined function (its
     /// `parse`/`safeParse` are modeled by `crate::zod`), or why it is not
     /// modeled.
     Zod(Box<Result<crate::zod::Validated, String>>),
-    /// Phase 14: a function value (an arrow function or function
+    /// A function value (an arrow function or function
     /// expression passed to an inlined project function). Calling it
     /// inlines its body where the call happens, with the bindings of its
-    /// definition (`docs/phase14/SOURCE-COVERAGE.md`).
+    /// definition (`docs/architecture/source-extraction.md`).
     Closure(Box<Closure>),
-    /// Phase 16: a Drizzle predicate held in a local (`const p = and(eq(..),
+    /// A Drizzle predicate held in a local (`const p = and(eq(..),
     /// ..)`), lowered where it is declared: its JavaScript operands are
     /// locals assigned there (Drizzle captures their values when `eq()` is
     /// called), its columns stay columns. `.where(p)` and `and(p, ..)` use
-    /// it (`docs/phase16/DRIZZLE-PREDICATES.md`).
+    /// it (`docs/architecture/source-extraction.md`).
     Pred(Box<HeldPred>),
-    /// Phase 16: a caught error a handler inspects: the local holding the
-    /// error object (`docs/phase16/LOOP-SEMANTICS.md`).
+    /// A caught error a handler inspects: the local holding the
+    /// error object (`docs/architecture/loops-and-errors.md`).
     Caught(String),
-    /// Phase 16: a route handler's `Request` parameter: `await
+    /// A route handler's `Request` parameter: `await
     /// request.json()` is the local (the actor's argument) holding the
-    /// parsed body (`docs/phase16/FRAMEWORK-REQUESTS.md`).
+    /// parsed body (`docs/architecture/source-extraction.md`).
     Request(String),
 }
 
-/// Phase 16: a Drizzle predicate held in a local ([`Binding::Pred`]).
+/// A Drizzle predicate held in a local ([`Binding::Pred`]).
 #[derive(Clone, Debug)]
 struct HeldPred {
     /// The predicate, or an `Expr::Unknown` saying why the declaration is
@@ -1137,7 +1136,7 @@ struct HeldPred {
     at: String,
 }
 
-/// Phase 16: the Drizzle operators a predicate is built from (as
+/// The Drizzle operators a predicate is built from (as
 /// [`Lowerer::pred_in`] lowers them).
 const PRED_OPS: [&str; 13] = [
     "eq",
@@ -1155,7 +1154,7 @@ const PRED_OPS: [&str; 13] = [
     "notInArray",
 ];
 
-/// Phase 16: `undefined` or `void x` (what Drizzle's `and`/`or` drop; `null`
+/// `undefined` or `void x` (what Drizzle's `and`/`or` drop; `null`
 /// is not dropped).
 fn undefined_like(e: &Expression<'_>) -> bool {
     let e = e.get_inner_expression();
@@ -1163,7 +1162,7 @@ fn undefined_like(e: &Expression<'_>) -> bool {
         || matches!(e, Expression::UnaryExpression(u) if u.operator == UnaryOperator::Void)
 }
 
-/// Phase 16: whether a `select(...)` projection is `{ name: count() }`.
+/// Whether a `select(...)` projection is `{ name: count() }`.
 fn is_count_projection(argument: &Argument<'_>) -> bool {
     matches!(argument.as_expression().map(Expression::get_inner_expression),
         Some(Expression::ObjectExpression(object))
@@ -1174,7 +1173,7 @@ fn is_count_projection(argument: &Argument<'_>) -> bool {
                             && matches!(c.callee.get_inner_expression(), Expression::Identifier(i) if i.name.as_str() == "count"))))
 }
 
-/// Phase 16: the expression a non-async function returns when its body is
+/// The expression a non-async function returns when its body is
 /// that one `return` (or an arrow's expression body).
 fn returned_expr<'a>(info: &FnInfo<'a>) -> Option<&'a Expression<'a>> {
     if info.is_async {
@@ -1189,7 +1188,7 @@ fn returned_expr<'a>(info: &FnInfo<'a>) -> Option<&'a Expression<'a>> {
     }
 }
 
-/// Phase 16: whether a lowered predicate reads a clock placeholder (bound per
+/// Whether a lowered predicate reads a clock placeholder (bound per
 /// statement execution, not where a held predicate was built).
 fn reads_clock(e: &Expr) -> bool {
     fn value(v: &Value) -> bool {
@@ -1213,7 +1212,7 @@ fn reads_clock(e: &Expr) -> bool {
     }
 }
 
-/// Phase 16: whether the module's text assigns `name` more than once
+/// Whether the module's text assigns `name` more than once
 /// (`name = ...` beyond its declaration, compound assignments, `++`/`--`).
 /// Conservative: a same-named variable anywhere in the module counts.
 fn reassigned(text: &str, name: &str) -> bool {
@@ -1251,7 +1250,7 @@ fn reassigned(text: &str, name: &str) -> bool {
     assignments > 1
 }
 
-/// Phase 14: a closure: where its function node is, and the scopes it
+/// A closure: where its function node is, and the scopes it
 /// closed over. Captured `let`/`const` bindings name the same model locals
 /// as in the defining function, so assignments after the capture are seen
 /// (JavaScript closures capture variables, not values).
@@ -1265,7 +1264,7 @@ struct Closure {
     this: Option<ThisBinding>,
 }
 
-/// Phase 12: whose methods `this.m()` calls inside an inlined method.
+/// Whose methods `this.m()` calls inside an inlined method.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Owner {
     /// A never-mutated `const` object literal of the module.
@@ -1274,7 +1273,7 @@ enum Owner {
     Class(String),
 }
 
-/// Phase 12: what `this` denotes inside an inlined method: the fields the
+/// What `this` denotes inside an inlined method: the fields the
 /// constructor stored (a database or transaction handle, or a value), and
 /// the object or class whose other methods `this.m()` calls.
 #[derive(Clone, Debug)]
@@ -1304,7 +1303,7 @@ struct Frame {
     /// `continue` jumps (`None` for a `switch`), and the `try` depth at
     /// entry (jumping out leaves inner `try` blocks).
     breaks: Vec<JumpTarget>,
-    /// Phase 12: `this` inside an inlined method of a repository object or
+    /// `this` inside an inlined method of a repository object or
     /// class instance.
     this: Option<ThisBinding>,
 }
@@ -1356,7 +1355,7 @@ enum Res {
         row: String,
         length: String,
     },
-    /// Phase 14: an object whose listed properties are locals
+    /// An object whose listed properties are locals
     /// (`schema.safeParse(x)`: `success`, `data`).
     Fields(BTreeMap<String, String>),
 }
@@ -1370,7 +1369,7 @@ struct Lowerer<'r> {
     request: &'r ExtractRequest,
     receivers: &'r [String],
     root: PathBuf,
-    /// Phase 12: the shared project context (files, resolver, sources,
+    /// The shared project context (files, resolver, sources,
     /// module summaries).
     ctx: Arc<ProjectContext>,
     codes: Vec<Vec<Step>>,
@@ -1379,34 +1378,34 @@ struct Lowerer<'r> {
     counter: u32,
     tx_open: u32,
     assumptions: Vec<String>,
-    /// Phase 14: facts of the JavaScript value lowering.
+    /// Facts of the JavaScript value lowering.
     js_facts: js_values::JsFacts,
     /// Column references are qualified (`table.column`): set while lowering
     /// a joined query.
     qualify: bool,
-    /// Phase 12: declared types (as written) of the entry's parameters that
+    /// Declared types (as written) of the entry's parameters that
     /// are not database handles, to name the blocker when one is used as a
     /// Drizzle receiver.
     param_types: HashMap<String, (String, String)>,
-    /// Phase 12: the `this` the next inlined function gets.
+    /// The `this` the next inlined function gets.
     pending_this: Option<ThisBinding>,
-    /// Phase 13: database handle provenance (declared replica factories).
+    /// Database handle provenance (declared replica factories).
     prov: Provenance,
-    /// Phase 13: why a handle known only by a plain drizzle type may be a
+    /// Why a handle known only by a plain drizzle type may be a
     /// replicated database (the project builds one), computed once.
     replicating: Option<Option<String>>,
-    /// Phase 13: function aliases followed across modules (bounded).
+    /// Function aliases followed across modules (bounded).
     alias_hops: u32,
-    /// Phase 13: React `cache`d functions already called by the actor.
+    /// React `cache`d functions already called by the actor.
     cached_calls: HashSet<(PathBuf, String)>,
-    /// Phase 14: the scopes the next inlined function closed over.
+    /// The scopes the next inlined function closed over.
     pending_scopes: Option<Vec<HashMap<String, Binding>>>,
-    /// Phase 16: the declaration being lowered is a `const`.
+    /// The declaration being lowered is a `const`.
     const_decl: bool,
-    /// Phase 16: imported functions already examined as predicate helpers
+    /// Imported functions already examined as predicate helpers
     /// (module, export) → whether their body is `return <predicate>`.
     pred_helpers: HashMap<(PathBuf, String), bool>,
-    /// Phase 16: loop unrolling, caught errors and request state.
+    /// Loop unrolling, caught errors and request state.
     p16: loops::Phase16,
 }
 
@@ -1440,7 +1439,7 @@ impl<'r> Lowerer<'r> {
             .lines
             .position(span.end.saturating_sub(1).max(span.start));
         // Spans made by offset arithmetic (`end - 1`) can fall inside a
-        // multi-byte character: widen to character boundaries (Phase 11; a
+        // multi-byte character: widen to character boundaries (a
         // non-ASCII comment or string used to panic here).
         let source = module.source;
         let mut end = (span.end as usize).min(source.len());
@@ -1548,7 +1547,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Phase 13: whether the project builds a replicated database (then a
+    /// Whether the project builds a replicated database (then a
     /// handle known only by a plain drizzle type, or only by its receiver
     /// name, may be a replicated one).
     fn replicating(&mut self) -> Option<String> {
@@ -1558,7 +1557,7 @@ impl<'r> Lowerer<'r> {
         self.replicating.clone().flatten()
     }
 
-    /// Phase 13: the binding of a handle known by provenance.
+    /// The binding of a handle known by provenance.
     fn bind_fact(&mut self, fact: HandleFact, written: &str) -> Option<Binding> {
         match fact {
             HandleFact::Primary { by_type: false, .. } => Some(Binding::Db),
@@ -1583,7 +1582,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Phase 13: a module-level name of `file` (declared there or imported)
+    /// A module-level name of `file` (declared there or imported)
     /// used as a database: its value provenance; a configured receiver name
     /// (`db`) that cannot be resolved keeps the Phase 7 meaning (the root
     /// database), unless the project builds a replicated database.
@@ -1611,7 +1610,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Phase 13: a database handle written as an expression: a handle
+    /// A database handle written as an expression: a handle
     /// local, `this.field`, `x.$primary` / `x.usePrimaryOnly()` of a
     /// replicated database, a database factory call (`getDb()`, `await
     /// connectDb()`).
@@ -1657,9 +1656,9 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Phase 13: `f(...)` of a project function returning a database: a
+    /// `f(...)` of a project function returning a database: a
     /// zero-argument function with a declared drizzle database return type
-    /// (Phase 12), or one whose result's provenance is known.
+    ///, or one whose result's provenance is known.
     fn factory_handle(&mut self, m: &Module<'_>, name: &str, no_args: bool) -> Option<Binding> {
         if self.lookup(name).is_some() {
             return None;
@@ -1678,7 +1677,7 @@ impl<'r> Lowerer<'r> {
         self.bind_fact(fact, &format!("{name}()"))
     }
 
-    /// Phase 12: whether `name`, called with no arguments in `m`, returns a
+    /// Whether `name`, called with no arguments in `m`, returns a
     /// root Drizzle database (see [`ProjectContext::returns_drizzle_database`]).
     fn db_factory(&self, m: &Module<'_>, name: &str) -> bool {
         let Some(file) = self.ctx.index_of(&m.abs) else {
@@ -1783,7 +1782,7 @@ impl<'r> Lowerer<'r> {
         (child, result)
     }
 
-    // -- selected entries (Phase 7) ----------------------------------------
+    // -- selected entries ----------------------------------------
 
     /// Facts about the selected entry and the wrapper it is passed to, and
     /// how the scenario's declared contract relates to them.
@@ -1965,10 +1964,10 @@ impl<'r> Lowerer<'r> {
             if let BindingPattern::BindingIdentifier(id) = &item.pattern {
                 let name = id.name.as_str().to_owned();
                 self.frame_mut().used.insert(name.clone());
-                // Phase 12: a parameter declared with a Drizzle database type
+                // A parameter declared with a Drizzle database type
                 // (`db: Database` where `Database` is a drizzle-orm
                 // `...Database` type) is the root database handle.
-                // Phase 16: a route handler's `request: Request`.
+                // A route handler's `request: Request`.
                 if let Some(annotation) = &item.type_annotation
                     && let Some(t) = crate::context::reference_name(&annotation.type_annotation)
                     && self.request_param(module, &t)
@@ -1985,7 +1984,7 @@ impl<'r> Lowerer<'r> {
                         .get(span.start as usize..span.end as usize)
                         .unwrap_or_default()
                         .to_owned();
-                    // Phase 13: the type's provenance (computed types,
+                    // The type's provenance (computed types,
                     // imported aliases, `PgWithReplicas`, ...).
                     let fact = match crate::context::reference_name(&annotation.type_annotation) {
                         Some(t) if file.is_some_and(|f| self.ctx.is_database_type(f, &t)) => {
@@ -2169,7 +2168,7 @@ impl<'r> Lowerer<'r> {
                 self.return_value(m, s.argument.as_ref(), s.span);
             }
             Statement::ThrowStatement(s) => {
-                // Phase 16: re-throws and inspected `Error`s keep the error.
+                // Re-throws and inspected `Error`s keep the error.
                 if !self.structured_throw(m, s) {
                     let message = throw_message(&s.argument);
                     self.emit(m, s.span, Op::Throw { message });
@@ -2178,7 +2177,7 @@ impl<'r> Lowerer<'r> {
             Statement::TryStatement(t) => self.try_statement(m, t),
             Statement::SwitchStatement(sw) => self.switch_statement(m, sw),
             Statement::ForOfStatement(f) => self.for_of(m, f),
-            // Phase 16: bounded loops (JavaScript values only).
+            // Bounded loops (JavaScript values only).
             Statement::ForStatement(f) if self.for_statement(m, f) => {}
             Statement::WhileStatement(w) if self.while_statement(m, w) => {}
             Statement::DoWhileStatement(d) if self.do_while_statement(m, d) => {}
@@ -2228,7 +2227,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// `try { B } catch (e) { C } finally { F }` (Phase 7). A failure in
+    /// `try { B } catch (e) { C } finally { F }`. A failure in
     /// `B` (a throw, a rejected await, a database error) resumes at the
     /// handler; `F` runs on the normal path and, re-throwing afterwards, on
     /// the exceptional paths. A crash runs nothing. Not modeled: `try`
@@ -2256,7 +2255,7 @@ impl<'r> Lowerer<'r> {
             return;
         }
         let rethrow = (t.handler.is_none()).then(|| self.tmp("err"));
-        // Phase 16: a handler that uses the caught error (other than to
+        // A handler that uses the caught error (other than to
         // re-throw it) receives the error object.
         let inspected = self.js()
             && t.handler.as_ref().is_some_and(|h| {
@@ -2507,7 +2506,7 @@ impl<'r> Lowerer<'r> {
                 return;
             }
         };
-        // Phase 14: a loop over a list value (JavaScript values only).
+        // A loop over a list value (JavaScript values only).
         let Some(array) = array else {
             if !self.for_of_value(m, f, &name) {
                 self.unknown_op(
@@ -2532,7 +2531,7 @@ impl<'r> Lowerer<'r> {
         self.frame_mut()
             .breaks
             .push((Vec::new(), Some(Vec::new()), tries));
-        // Phase 16: the loop's classification (JavaScript values only).
+        // The loop's classification (JavaScript values only).
         self.for_of_completed(
             m,
             f.span,
@@ -2600,7 +2599,7 @@ impl<'r> Lowerer<'r> {
         let ret = self.frame().rets.last().map(|r| (r.main, r.result.clone()));
         let (main, result) = ret.expect("a return target exists");
         if main {
-            // Phase 13: what the entry returns, when an invariant reads it
+            // What the entry returns, when an invariant reads it
             // (an expression not understood stays `Expr::Unknown`).
             if self.request.return_values && self.cur == 0 {
                 self.emit(m, span, Op::ReturnValue { expr: value });
@@ -2644,7 +2643,7 @@ impl<'r> Lowerer<'r> {
     }
 
     fn expression_statement(&mut self, m: &Module<'_>, expression: &Expression<'_>, span: Span) {
-        // Phase 16: `x++`, `x += k` on locals (JavaScript values only).
+        // `x++`, `x += k` on locals (JavaScript values only).
         if self.update_statement(m, expression, span) {
             return;
         }
@@ -2706,7 +2705,7 @@ impl<'r> Lowerer<'r> {
         match &d.id {
             BindingPattern::BindingIdentifier(id) => {
                 let name = id.name.as_str();
-                // Phase 16: `const p = and(eq(..), ..)` (a Drizzle predicate,
+                // `const p = and(eq(..), ..)` (a Drizzle predicate,
                 // an alias of one, a conditional choosing one, or a call of a
                 // project helper returning one): lowered here, used by
                 // `where(p)`.
@@ -2715,7 +2714,7 @@ impl<'r> Lowerer<'r> {
                     self.declare(name, Binding::Pred(held));
                     return;
                 }
-                // Phase 12: `const db = getDb()` (or `await getDb()`) of a
+                // `const db = getDb()` (or `await getDb()`) of a
                 // database factory binds a root database handle. Phase 13:
                 // also `db.$primary`, `db.usePrimaryOnly()` of a replicated
                 // database and calls of functions whose result is a known
@@ -2730,13 +2729,13 @@ impl<'r> Lowerer<'r> {
                     self.declare(name, handle);
                     return;
                 }
-                // Phase 14: `const m = new Map()` / `new Set()`.
+                // `const m = new Map()` / `new Set()`.
                 if let Expression::NewExpression(new) = inner
                     && self.declare_collection(m, d, name, id.span, new).is_some()
                 {
                     return;
                 }
-                // Phase 12: `const repo = new Repository(tx)` of an analyzed
+                // `const repo = new Repository(tx)` of an analyzed
                 // class.
                 if let Expression::NewExpression(new) = inner {
                     match self.new_instance(m, new) {
@@ -2803,7 +2802,7 @@ impl<'r> Lowerer<'r> {
                 }
             }
             BindingPattern::ArrayPattern(array) => {
-                // Phase 14: `const [a, b] = list` (JavaScript values; the
+                // `const [a, b] = list` (JavaScript values; the
                 // Phase 7 `const [row] = await query` form is kept).
                 let legacy = array.rest.is_none()
                     && array.elements.len() == 1
@@ -2935,7 +2934,7 @@ impl<'r> Lowerer<'r> {
                 }
             }
             BindingPattern::ObjectPattern(object) => match res {
-                // Phase 14: `const { a } = schema.parse(x)` and other
+                // `const { a } = schema.parse(x)` and other
                 // values: each property read once, in order.
                 Res::Value(e) => {
                     let tmp = self.tmp("obj");
@@ -2983,7 +2982,7 @@ impl<'r> Lowerer<'r> {
 
     fn expr(&mut self, m: &Module<'_>, e: &Expression<'_>, cx: Cx) -> Expr {
         let e = e.get_inner_expression();
-        // Phase 16: `++x` in a value, `new Response(...)`.
+        // `++x` in a value, `new Response(...)`.
         if self.js() {
             match e {
                 Expression::UpdateExpression(u) => return self.update_value(m, u, cx),
@@ -2995,7 +2994,7 @@ impl<'r> Lowerer<'r> {
                 _ => {}
             }
         }
-        // Phase 14: JavaScript values (inactive without `js_values`).
+        // JavaScript values (inactive without `js_values`).
         if let Some(value) = self.js_expr(m, e, cx) {
             return value;
         }
@@ -3119,7 +3118,7 @@ impl<'r> Lowerer<'r> {
                     _ => Expr::Unknown("computed member access".to_owned()),
                 }
             }
-            // Phase 13: a template literal without interpolation is a string.
+            // A template literal without interpolation is a string.
             Expression::TemplateLiteral(t) if t.expressions.is_empty() && t.quasis.len() == 1 => {
                 match t.quasis[0].value.cooked.as_ref().and_then(|c| c.as_str()) {
                     Some(text) => Expr::Lit(Value::Str(text.to_owned())),
@@ -3195,7 +3194,7 @@ impl<'r> Lowerer<'r> {
             Some(Binding::Opaque) => Expr::Unknown(format!(
                 "the caught error `{name}` is not modeled (only that it was thrown)"
             )),
-            // Phase 16: an error object is truthy; as a value it is the
+            // An error object is truthy; as a value it is the
             // object (whose unknown properties stay unknown).
             Some(Binding::Caught(_)) if cx.truthy => Expr::lit(true),
             Some(Binding::Caught(local)) => Expr::Local(local),
@@ -3207,7 +3206,7 @@ impl<'r> Lowerer<'r> {
             Some(Binding::Zod(_)) => Expr::Unknown(format!(
                 "the zod schema `{name}` is only modeled through `parse`/`safeParse`"
             )),
-            // Phase 14: a function value is truthy; it is otherwise only
+            // A function value is truthy; it is otherwise only
             // modeled when called.
             Some(Binding::Closure(_)) if cx.truthy => Expr::lit(true),
             Some(Binding::Closure(c)) => Expr::Unknown(format!(
@@ -3218,7 +3217,7 @@ impl<'r> Lowerer<'r> {
             Some(Binding::Object(_)) => Expr::Unknown(format!(
                 "the object `{name}` is only modeled through its properties"
             )),
-            // Phase 16: a Drizzle predicate (an SQL object) is truthy; its
+            // A Drizzle predicate (an SQL object) is truthy; its
             // value is only used by the queries it is passed to.
             Some(Binding::Pred(_)) if cx.truthy => Expr::lit(true),
             Some(Binding::Pred(_)) => Expr::Unknown(format!(
@@ -3228,7 +3227,7 @@ impl<'r> Lowerer<'r> {
                 if let Some(constant) = module_constant(m, name) {
                     return constant;
                 }
-                // Phase 14: a module-level array of literals (JavaScript
+                // A module-level array of literals (JavaScript
                 // value semantics only, so Phase 13 extraction is unchanged).
                 if self.request.js_values
                     && let Some((list, readonly)) = module_list_constant(m, name)
@@ -3277,7 +3276,7 @@ impl<'r> Lowerer<'r> {
                         "`{name}.{property}`: the caught error's properties are not modeled"
                     ));
                 }
-                // Phase 16: a property of an error object (never nullish, so
+                // A property of an error object (never nullish, so
                 // `e?.p` is `e.p`).
                 Some(Binding::Caught(local)) => {
                     if property.starts_with('$') {
@@ -3345,7 +3344,7 @@ impl<'r> Lowerer<'r> {
                     Some(Binding::Local(local)) => Expr::Local(local),
                     _ => return Expr::Unknown("`?.` on a non-local base".to_owned()),
                 },
-                // Phase 16: `e.cause?.code` on a caught error: the base (a
+                // `e.cause?.code` on a caught error: the base (a
                 // property read) is evaluated first, into a local.
                 _ if self.js() && self.caught_root(object) => {
                     let value = self.expr(
@@ -3402,7 +3401,7 @@ impl<'r> Lowerer<'r> {
             self.patch(jump, end);
             return Expr::Local(tmp);
         }
-        // Phase 14: `a?.b.c` short-circuits the whole chain when `a` is
+        // `a?.b.c` short-circuits the whole chain when `a` is
         // nullish; only a single optional link is modeled.
         if self.js() && has_optional_link(object) {
             return Expr::Unknown(
@@ -3509,7 +3508,7 @@ impl<'r> Lowerer<'r> {
 
     fn binary(&mut self, m: &Module<'_>, b: &oxc_ast::ast::BinaryExpression<'_>, cx: Cx) -> Expr {
         use BinaryOperator as B;
-        // Phase 16: `e instanceof Error` of a caught error.
+        // `e instanceof Error` of a caught error.
         if let Some(value) = self.caught_instanceof(m, b) {
             return value;
         }
@@ -3543,7 +3542,7 @@ impl<'r> Lowerer<'r> {
                 }
             }
         }
-        // Phase 14: loose equality and string concatenation.
+        // Loose equality and string concatenation.
         if let Some(value) = self.js_binary(m, b, cx) {
             return value;
         }
@@ -3631,12 +3630,12 @@ impl<'r> Lowerer<'r> {
                 "`await` of something other than a direct call is not supported",
             );
         };
-        // Phase 14: built-in methods on values (inactive without
+        // Built-in methods on values (inactive without
         // `js_values`).
         if let Some(res) = self.value_method(m, call, want, call.span) {
             return res;
         }
-        // Phase 16: `await request.json()`, `Response.json(...)`.
+        // `await request.json()`, `Response.json(...)`.
         if let Some(res) = self.http_call(m, call, awaited) {
             return res;
         }
@@ -3717,14 +3716,14 @@ impl<'r> Lowerer<'r> {
             };
             return self.transaction(m, call.span, &Binding::Db, &step, want, Some(&binding));
         }
-        // Phase 14: `schema.parse(x)` / `schema.safeParse(x)` of a zod
+        // `schema.parse(x)` / `schema.safeParse(x)` of a zod
         // schema the extractor can read.
         if let Expression::StaticMemberExpression(member) = call.callee.get_inner_expression()
             && matches!(member.property.name.as_str(), "parse" | "safeParse")
             && let Some(schema) = self.zod_schema(m, &member.object)
         {
             let safe = member.property.name == "safeParse";
-            // Phase 16: the Phase 14 subset keeps its explicit lowering
+            // The Phase 14 subset keeps its explicit lowering
             // (zod 3 semantics, verified identical in zod 4 by the
             // differential matrix) unless the schema was built with zod 4;
             // everything else is validated with the version's semantics.
@@ -3787,7 +3786,7 @@ impl<'r> Lowerer<'r> {
             } => self.inline_imported(m, &abs, &rel, &export, &label, call, awaited, want),
             Callee::Closure(c) => self.call_closure(m, &c, call, awaited, want),
             Callee::Unresolvable(reason) => {
-                // Phase 13: a package call covered by a verified contract
+                // A package call covered by a verified contract
                 // stays unknown, with the contract named; Phase 14: unless
                 // its result is a fresh random value (a generation event).
                 if let Some((contract, detail)) = self.package_call(m, &call.callee) {
@@ -3824,7 +3823,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Phase 13: the contract detail of a package call (`crate::packages`):
+    /// The contract detail of a package call (`crate::packages`):
     /// an export of a package (`hash` of `bcryptjs`, `bcrypt.hash` of a
     /// default or namespace import) or a method of a module-level value
     /// built by a package (`schema.safeParse` of a zod schema).
@@ -3832,7 +3831,7 @@ impl<'r> Lowerer<'r> {
         self.package_call(m, callee).map(|(_, detail)| detail)
     }
 
-    /// Phase 14: the contract of a package call and its unknown-operation
+    /// The contract of a package call and its unknown-operation
     /// detail.
     fn package_call(
         &mut self,
@@ -4037,7 +4036,7 @@ impl<'r> Lowerer<'r> {
         match callee {
             Expression::Identifier(id) => {
                 let name = id.name.as_str();
-                // Phase 14: a local binding shadows module functions.
+                // A local binding shadows module functions.
                 if let Some(Binding::Closure(c)) =
                     self.frames.last().and_then(|_| self.lookup(name))
                 {
@@ -4046,7 +4045,7 @@ impl<'r> Lowerer<'r> {
                 if let Some(info) = find_function(m, name) {
                     return Callee::Local(info);
                 }
-                // Phase 13: `const name = other` in this module: the alias
+                // `const name = other` in this module: the alias
                 // is resolved as `other` (bounded: aliases of aliases).
                 let mut name = name.to_owned();
                 for _ in 0..8 {
@@ -4098,7 +4097,7 @@ impl<'r> Lowerer<'r> {
                         &label,
                     );
                 }
-                // Phase 12: repository objects and class instances.
+                // Repository objects and class instances.
                 let method = member.property.name.as_str();
                 match member.object.get_inner_expression() {
                     Expression::Identifier(object) => {
@@ -4432,7 +4431,7 @@ impl<'r> Lowerer<'r> {
         result
     }
 
-    /// Phase 13: a call of a React `cache`d function. The first call of an
+    /// A call of a React `cache`d function. The first call of an
     /// actor is taken to run the wrapped function (an assumption: no earlier
     /// call in the same request); a later call returns the memoized result,
     /// which is not modeled.
@@ -4460,7 +4459,7 @@ impl<'r> Lowerer<'r> {
     ) -> Callee<'a> {
         match self.ctx.resolve(&m.abs, source) {
             Resolution::File(index) => {
-                // Phase 12: follow re-exports (`export { x } from`, `export
+                // Follow re-exports (`export { x } from`, `export
                 // *`) to the module that declares the binding.
                 let (index, local) = match self.ctx.resolve_export(index, &export) {
                     Ok(Resolved::Binding { file, local }) => (file, local),
@@ -4524,7 +4523,7 @@ impl<'r> Lowerer<'r> {
         let info = match find_resolved(&module, export) {
             Ok(info) => info,
             Err(why) => {
-                // Phase 13: `export const f = cache(async () => ...)` of
+                // `export const f = cache(async () => ...)` of
                 // React: the wrapped function runs on the first call.
                 if let Some(info) = react_cache_fn(&module, export) {
                     return match self.first_cached_call(&module, export) {
@@ -4532,7 +4531,7 @@ impl<'r> Lowerer<'r> {
                         Err(why) => self.unknown_op(caller, call.span, why),
                     };
                 }
-                // Phase 13: `export const a = b`: an alias of a function of
+                // `export const a = b`: an alias of a function of
                 // this module or of one it imports.
                 if self.alias_hops < 8
                     && let Some(mut target) = alias_target(module.program, export)
@@ -4594,7 +4593,7 @@ impl<'r> Lowerer<'r> {
 
     /// Inline `info` (declared in `callee_module`) at `call` (written in
     /// `caller`).
-    /// Phase 14: the zod schema `e` denotes (a parameter bound to one, a
+    /// The zod schema `e` denotes (a parameter bound to one, a
     /// module-level or imported `const` built from zod, or a builder chain
     /// written in place); `None` when `e` is not a zod schema at all.
     fn zod_schema(
@@ -4604,9 +4603,9 @@ impl<'r> Lowerer<'r> {
     ) -> Option<Result<crate::zod::Validated, String>> {
         struct InModule<'m, 'a> {
             module: &'m Module<'a>,
-            /// Phase 16: the project root (where the version lookup stops).
+            /// The project root (where the version lookup stops).
             root: &'m Path,
-            /// Phase 16: imported `const` arrays (`z.enum(KINDS)`).
+            /// Imported `const` arrays (`z.enum(KINDS)`).
             ctx: &'m ProjectContext,
         }
         impl<'a> crate::zod::Names<'a> for InModule<'_, 'a> {
@@ -4684,7 +4683,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Phase 14: `schema.parse(input)` (`safe`: `safeParse`): the
+    /// `schema.parse(input)` (`safe`: `safeParse`): the
     /// validation as explicit steps (type tests, the string checks and
     /// rewrites in declaration order, the object's keys), then the parsed
     /// value. `parse` throws when a check fails; `safeParse` yields
@@ -4847,7 +4846,7 @@ impl<'r> Lowerer<'r> {
                             );
                             cur = Expr::Local(next);
                         }
-                        // Phase 16: lowered by `zod_parse_checked` only.
+                        // Lowered by `zod_parse_checked` only.
                         StrCheck::Uuid | StrCheck::Email | StrCheck::Regex { .. } => require(
                             self,
                             Expr::Unknown(
@@ -4899,7 +4898,7 @@ impl<'r> Lowerer<'r> {
                 value
             }
             Schema::Object(fields) => {
-                // Phase 16: the exact object test of the version (`z.object({})`
+                // The exact object test of the version (`z.object({})`
                 // accepts plain objects only; zod 4 also takes a Map or Set,
                 // which the model refuses). Phase 14 tested `typeof` and
                 // assumed the input was not an array; the differential
@@ -4934,7 +4933,7 @@ impl<'r> Lowerer<'r> {
                 }
                 Expr::Object(out)
             }
-            // Phase 16: lowered by `zod_parse_checked` only.
+            // Lowered by `zod_parse_checked` only.
             _ => {
                 require(
                     self,
@@ -4945,7 +4944,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Phase 16: the static facts the output of `schema` needs (what a
+    /// The static facts the output of `schema` needs (what a
     /// wrapper yields for `undefined`/`null`, what an object yields for an
     /// absent key), or why they are not modeled (zod 3 and zod 4 differ and
     /// the version is unknown, ...). Checked before anything is emitted.
@@ -4990,7 +4989,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Phase 16: `schema.parse(input)` (`safe`: `safeParse`) of a schema
+    /// `schema.parse(input)` (`safe`: `safeParse`) of a schema
     /// outside the Phase 14 subset or built with zod 4. The validation is
     /// one `ZodCheck` of the whole schema with the version's semantics
     /// (`midwrite_model::zodfn`); the parsed value is then built from the
@@ -5104,7 +5103,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Phase 16: the parsed value of `x`, which `schema` accepts (the
+    /// The parsed value of `x`, which `schema` accepts (the
     /// `ZodCheck` before it passed). Facts were checked by
     /// [`Self::zod_static_facts`].
     fn zod_output(
@@ -5288,7 +5287,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Phase 14: an arrow function or function expression as a value: a
+    /// An arrow function or function expression as a value: a
     /// closure over the current scopes.
     fn closure_value(&mut self, m: &Module<'_>, e: &Expression<'_>) -> Option<Binding> {
         let span = match e.get_inner_expression() {
@@ -5307,7 +5306,7 @@ impl<'r> Lowerer<'r> {
         })))
     }
 
-    /// Phase 14: a call of a closure: its body is inlined here, in the
+    /// A call of a closure: its body is inlined here, in the
     /// scopes of its definition (a callback runs when, and as often as, the
     /// code that received it calls it; nothing is assumed about callbacks
     /// that are never called).
@@ -5354,9 +5353,9 @@ impl<'r> Lowerer<'r> {
         awaited: bool,
         want: Want,
     ) -> Res {
-        // Phase 12: `this` of an inlined method (set by `inline_method`).
+        // `this` of an inlined method (set by `inline_method`).
         let receiver = self.pending_this.take();
-        // Phase 14: the scopes a closure closed over (set by `call_closure`).
+        // The scopes a closure closed over (set by `call_closure`).
         let captured = self.pending_scopes.take();
         let key = (callee_module.abs.clone(), info.name.clone());
         if self.frames.iter().any(|f| f.key == key) {
@@ -5440,7 +5439,7 @@ impl<'r> Lowerer<'r> {
                     } else if let Expression::Identifier(id) = expression.get_inner_expression()
                         && let Some(caught @ Binding::Caught(_)) = self.lookup(id.name.as_str())
                     {
-                        // Phase 16: a caught error passed to a helper stays
+                        // A caught error passed to a helper stays
                         // an error object there.
                         args.push(ArgVal::Handle(caught));
                     } else if let Some(schema) = self.zod_schema(caller, expression) {
@@ -5462,7 +5461,7 @@ impl<'r> Lowerer<'r> {
         let mut used = HashSet::new();
         used.insert(result.clone());
         // The return slot belongs to the call site: its source is the call
-        // in the caller's module (Phase 12; before, the caller's span was
+        // in the caller's module (before, the caller's span was
         // resolved in the callee's file, which named an unrelated line).
         let undefined = self.undef();
         self.emit(
@@ -5577,7 +5576,7 @@ impl<'r> Lowerer<'r> {
         awaited: bool,
         want: Want,
     ) -> Res {
-        // Phase 13: a replicated database routes each operation to the
+        // A replicated database routes each operation to the
         // primary or to a replica.
         if let Binding::UnknownDb(why) = &handle {
             return self.unknown_op(
@@ -5709,7 +5708,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Phase 13: where an operation through a replicated database runs.
+    /// Where an operation through a replicated database runs.
     fn route(&self, routing: &Routing, steps: &[ChainStep<'_, '_>]) -> Route {
         let first = &steps[0];
         if let Some(p) = first.path.first()
@@ -5930,7 +5929,7 @@ impl<'r> Lowerer<'r> {
 
     // -- Phase 16: predicates held in locals --------------------------------
 
-    /// Phase 16: whether `e` is a Drizzle predicate a local can hold: an
+    /// Whether `e` is a Drizzle predicate a local can hold: an
     /// operator call (`eq`, `and`, ... imported from `drizzle-orm`), a local
     /// already holding one, a conditional choosing between two (or between
     /// one and `undefined`), or a call of a project function whose body is
@@ -5976,7 +5975,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Phase 16: whether `name` (a function of the module or imported from
+    /// Whether `name` (a function of the module or imported from
     /// an analyzed one) is a non-async function whose body is `return
     /// <predicate>`.
     fn helper_returns_predicate(&mut self, m: &Module<'_>, name: &str, depth: u32) -> bool {
@@ -6018,7 +6017,7 @@ impl<'r> Lowerer<'r> {
         shaped
     }
 
-    /// Phase 16: the predicate held by the declaration `d` of `name`,
+    /// The predicate held by the declaration `d` of `name`,
     /// lowered where it is declared.
     fn held_predicate(
         &mut self,
@@ -6073,7 +6072,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Phase 16: the JavaScript operands of a held predicate, assigned to
+    /// The JavaScript operands of a held predicate, assigned to
     /// locals now (Drizzle builds the SQL object when `eq()` is called).
     fn capture(
         &mut self,
@@ -6108,7 +6107,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Phase 16: `c ? pred : undefined` (or `c ? undefined : pred`): the
+    /// `c ? pred : undefined` (or `c ? undefined : pred`): the
     /// predicate's operands are evaluated only when the test chooses it;
     /// `defined` records which way the test went.
     fn optional_held(
@@ -6197,7 +6196,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Phase 16: a held predicate used where `pred_in` lowers one (`ident`
+    /// A held predicate used where `pred_in` lowers one (`ident`
     /// as there: what an `undefined` operand stands for).
     fn use_held(
         &mut self,
@@ -6230,7 +6229,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Phase 16: a call of a project function whose body is `return
+    /// A call of a project function whose body is `return
     /// <predicate>`: its arguments are evaluated at the call, its returned
     /// predicate lowered with its parameters bound to them.
     fn predicate_helper(
@@ -6387,7 +6386,7 @@ impl<'r> Lowerer<'r> {
         Some(Ok(HeldPred { at, ..held }))
     }
 
-    /// Phase 14: a Drizzle predicate. `ident` is what an operand that is
+    /// A Drizzle predicate. `ident` is what an operand that is
     /// `undefined` at run time stands for where it occurs: Drizzle's `and()`
     /// and `or()` drop `undefined` operands (`true` resp. `false` in
     /// three-valued logic when another operand remains), `where(undefined)`
@@ -6414,7 +6413,7 @@ impl<'r> Lowerer<'r> {
                 None => Err("an `undefined` predicate here is not modeled".to_owned()),
             };
         }
-        // Phase 16: a predicate held in a local (`const p = eq(..)`).
+        // A predicate held in a local (`const p = eq(..)`).
         if let Expression::Identifier(id) = e {
             let name = id.name.as_str();
             return match self.lookup(name) {
@@ -6424,7 +6423,7 @@ impl<'r> Lowerer<'r> {
                 )),
             };
         }
-        // Phase 14: `test ? predA : predB` (for example `parentId === null ?
+        // `test ? predA : predB` (for example `parentId === null ?
         // isNull(t.parentId) : eq(t.parentId, parentId)`): the test is a
         // JavaScript condition evaluated before the statement is built.
         if let Expression::ConditionalExpression(c) = e {
@@ -6520,7 +6519,7 @@ impl<'r> Lowerer<'r> {
             if args.len() != 2 {
                 return Err(format!("`{name}` expects two arguments"));
             }
-            // Phase 14: a JSON value (Drizzle binds it as JSON text) is not
+            // A JSON value (Drizzle binds it as JSON text) is not
             // compared by the model.
             if args.iter().any(|a| {
                 matches!(
@@ -6583,7 +6582,7 @@ impl<'r> Lowerer<'r> {
                     false,
                 ))
             }
-            // Phase 14: `inArray(column, values)` / `notInArray(...)`
+            // `inArray(column, values)` / `notInArray(...)`
             // (`sqlfn`): an array literal or a local array.
             "inArray" | "notInArray" if args.len() == 2 => {
                 let tested = self.statement_value(m, args[0], cx);
@@ -6622,7 +6621,7 @@ impl<'r> Lowerer<'r> {
                     false,
                 ))
             }
-            // Phase 16: a project function whose body is `return
+            // A project function whose body is `return
             // <predicate>` (evaluated where it is called).
             other
                 if self.lookup(other).is_none()
@@ -6644,7 +6643,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Phase 14: the operands of a predicate that do not read the row
+    /// The operands of a predicate that do not read the row
     /// (JavaScript values), replaced by fresh locals (`out` gets the
     /// assignments to emit); literals stay.
     fn hoist_operands(&mut self, e: Expr, out: &mut Vec<(String, Expr)>) -> Expr {
@@ -6679,7 +6678,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Phase 14: a value written in a statement's arguments (an operand of
+    /// A value written in a statement's arguments (an operand of
     /// a predicate, a value of `values`/`set`): a clock read there is one
     /// reading per execution of the statement ([`Self::clock_value`]).
     fn statement_value(&mut self, m: &Module<'_>, e: &Expression<'_>, cx: Cx) -> Expr {
@@ -6689,7 +6688,7 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Phase 14: `new Date()` (an application clock reading) or
+    /// `new Date()` (an application clock reading) or
     /// ``sql`now()` `` / ``sql`current_timestamp` `` (the transaction's
     /// start time) written where a statement reads it: a placeholder the
     /// engine replaces when the statement starts (one application reading
@@ -6860,7 +6859,7 @@ impl<'r> Lowerer<'r> {
         want: Want,
     ) -> Res {
         const DISCARDED: &str = "a select result is only supported as `const [row] = await db.select()...`, `const rows = await db.select()...limit(1)` (or a count)";
-        // Phase 16: with JavaScript values, an awaited locking select whose
+        // With JavaScript values, an awaited locking select whose
         // result is not used still locks its rows (the multi-row mode).
         if want == Want::Discard && !self.js() {
             return self.unknown_op(m, span, DISCARDED);
@@ -6940,8 +6939,8 @@ impl<'r> Lowerer<'r> {
                         .first()
                         .and_then(Argument::as_expression)
                         .and_then(literal);
-                    // Phase 13: the four PostgreSQL row-lock strengths
-                    // (`docs/phase13/ROW-LOCK-COMPATIBILITY.md`); SKIP LOCKED
+                    // The four PostgreSQL row-lock strengths
+                    // (`docs/architecture/postgres-model.md`); SKIP LOCKED
                     // and NOWAIT only with `update`.
                     let strength = match &mode {
                         Some(Expr::Lit(Value::Str(s))) => match s.as_str() {
@@ -6961,7 +6960,7 @@ impl<'r> Lowerer<'r> {
                         );
                     };
                     if conn == Conn::Replica {
-                        // Phase 13: PostgreSQL rejects row locks on a hot
+                        // PostgreSQL rejects row locks on a hot
                         // standby; the statement would fail, not lock.
                         return self.unknown_op(
                             m,
@@ -7010,7 +7009,7 @@ impl<'r> Lowerer<'r> {
             return self.unknown_op(m, span, "select without `from`");
         };
         let joined = !joins.is_empty();
-        // Phase 16: the multi-row mode (JavaScript values: the result is an
+        // The multi-row mode (JavaScript values: the result is an
         // array of rows): a lock without `.limit(1)` (every matching row is
         // locked, one at a time in primary-key order), a result bound to a
         // variable without `.limit(1)`, or an awaited select whose result is
@@ -7233,7 +7232,7 @@ impl<'r> Lowerer<'r> {
             );
         } else if many {
             self.assume(
-                "a multi-row select without orderBy is modeled in primary-key order (rows returned and locked one row at a time in that order); PostgreSQL uses its plan's order: key order for an index scan, physical order for a bitmap or sequential scan (docs/phase16/MULTI-ROW-LOCKS.md), so lock-order outcomes (waits, deadlocks) of such a statement are approximate",
+                "a multi-row select without orderBy is modeled in primary-key order (rows returned and locked one row at a time in that order); PostgreSQL uses its plan's order: key order for an index scan, physical order for a bitmap or sequential scan (docs/architecture/postgres-model.md), so lock-order outcomes (waits, deadlocks) of such a statement are approximate",
             );
         } else {
             self.assume(if ordered {
@@ -7259,7 +7258,7 @@ impl<'r> Lowerer<'r> {
             }),
         };
         match self.emit_db(m, span, conn, kind, &[&pred]) {
-            // Phase 16: the array of rows; `const [row] = ...` reads its
+            // The array of rows; `const [row] = ...` reads its
             // first element (`undefined` when it is empty).
             Some(()) if many => match want {
                 Want::Discard => Res::Unit,
@@ -7345,7 +7344,6 @@ impl<'r> Lowerer<'r> {
                     returning_step = (!step.args.is_empty()).then_some(step);
                 }
                 (Mutation::Insert, "onConflictDoNothing") => on_conflict = OnConflict::DoNothing,
-                // Phase 13.
                 (Mutation::Insert, "onConflictDoUpdate") if upsert_step.is_none() => {
                     upsert_step = Some(step)
                 }
@@ -7371,7 +7369,7 @@ impl<'r> Lowerer<'r> {
         // row count.
         let returned_row =
             (kind == Mutation::Insert && want != Want::Discard).then(|| self.tmp("inserted"));
-        // Phase 12: `returning({ alias: table.column, ... })` of a
+        // `returning({ alias: table.column, ... })` of a
         // single-row insert: the statement returns the inserted row
         // (generated values included) and a local projection builds the
         // aliased row, so a generated key keeps its identity.
@@ -7462,7 +7460,7 @@ impl<'r> Lowerer<'r> {
                     .first()
                     .and_then(Argument::as_expression)
                     .map(Expression::get_inner_expression);
-                // Phase 14: `values([{ ... }, { ... }])`, an array literal of
+                // `values([{ ... }, { ... }])`, an array literal of
                 // object literals (or `const` objects): one statement.
                 let row_args: Vec<&Expression<'_>> = match argument {
                     Some(Expression::ArrayExpression(a)) => {
@@ -7525,7 +7523,7 @@ impl<'r> Lowerer<'r> {
                         "`returning({ alias: column })` with a different alias on a multi-row insert is not modeled",
                     );
                 }
-                // Phase 13: `onConflictDoUpdate({ target, set, setWhere })`.
+                // `onConflictDoUpdate({ target, set, setWhere })`.
                 let upsert = match upsert_step {
                     None => None,
                     Some(step) => match self.upsert_config(m, table, step) {
@@ -7564,7 +7562,7 @@ impl<'r> Lowerer<'r> {
                 if self.emit_db(m, span, conn, stmt, &refs).is_none() {
                     return Res::Value(Expr::Unknown("insert".to_owned()));
                 }
-                // Phase 14: a multi-row `returning()` is the array of rows
+                // A multi-row `returning()` is the array of rows
                 // (`StmtResult::Rows`, the projected columns when the aliases
                 // are the column names); `const [first] = ...` reads its
                 // first element.
@@ -7625,7 +7623,7 @@ impl<'r> Lowerer<'r> {
     }
 
     /// One row of `values(...)`: an object literal, or a `const` object
-    /// declared before (Phase 13); Phase 14: a clock read in a value is a
+    /// declared before; Phase 14: a clock read in a value is a
     /// statement placeholder.
     fn insert_row(
         &mut self,
@@ -7674,7 +7672,7 @@ impl<'r> Lowerer<'r> {
         Ok(out)
     }
 
-    /// Phase 12: the fields of `returning({ alias: table.column, ... })`:
+    /// The fields of `returning({ alias: table.column, ... })`:
     /// (alias, column). Only plain column references of the inserted table.
     fn returning_projection(
         &self,
@@ -7711,7 +7709,7 @@ impl<'r> Lowerer<'r> {
         Ok(out)
     }
 
-    /// Phase 13: the config of `onConflictDoUpdate({ target, set, setWhere
+    /// The config of `onConflictDoUpdate({ target, set, setWhere
     /// })` (`where` is Drizzle's deprecated name of `setWhere`). A partial
     /// index arbiter (`targetWhere`) is not modeled.
     fn upsert_config(
@@ -7801,7 +7799,7 @@ impl<'r> Lowerer<'r> {
             col_ok: true,
             ..TOP
         };
-        // Phase 14: `new Date()`, ``sql`now()` ``.
+        // `new Date()`, ``sql`now()` ``.
         if let Some(clock) = self.clock_value(e) {
             return clock;
         }
@@ -7838,7 +7836,7 @@ impl<'r> Lowerer<'r> {
     }
 }
 
-/// Phase 13: where an operation through a replicated database runs.
+/// Where an operation through a replicated database runs.
 enum Route {
     /// The primary, after skipping this many leading steps (`usePrimaryOnly()`)
     /// and, if set, the first path segment (`$primary`).
@@ -7855,7 +7853,7 @@ enum Mutation {
 }
 
 enum Callee<'a> {
-    /// Phase 12: a method of a repository object or class instance.
+    /// A method of a repository object or class instance.
     Method {
         abs: PathBuf,
         rel: String,
@@ -7864,7 +7862,7 @@ enum Callee<'a> {
         label: String,
     },
     Local(FnInfo<'a>),
-    /// Phase 13: a function wrapped by React `cache` in the caller's module.
+    /// A function wrapped by React `cache` in the caller's module.
     Cached(FnInfo<'a>),
     Imported {
         abs: PathBuf,
@@ -7872,7 +7870,7 @@ enum Callee<'a> {
         export: String,
         label: String,
     },
-    /// Phase 14: a closure bound to a local name.
+    /// A closure bound to a local name.
     Closure(Box<Closure>),
     Unresolvable(String),
 }
@@ -7905,7 +7903,7 @@ fn has_jump(statement: &Statement<'_>) -> bool {
     }
 }
 
-/// Phase 14: whether a member chain contains an optional link (`a?.b`).
+/// Whether a member chain contains an optional link (`a?.b`).
 fn has_optional_link(e: &Expression<'_>) -> bool {
     match e.get_inner_expression() {
         Expression::StaticMemberExpression(m) => m.optional || has_optional_link(&m.object),
@@ -7968,7 +7966,7 @@ fn flatten<'a, 'b>(e: &'b Expression<'a>) -> Option<(String, Vec<ChainStep<'a, '
     if chain.optional {
         return None;
     }
-    // Phase 12: `this.field.method(...)` inside an inlined method; the root
+    // `this.field.method(...)` inside an inlined method; the root
     // is written `this` and the field is the first path segment.
     let root = match chain.root {
         Some(Root::Identifier(root)) => root,
@@ -7986,7 +7984,7 @@ fn flatten<'a, 'b>(e: &'b Expression<'a>) -> Option<(String, Vec<ChainStep<'a, '
         }
         _ => return None,
     };
-    // Phase 12: a zero-argument call of a plain function (`getDb()`) may be
+    // A zero-argument call of a plain function (`getDb()`) may be
     // a database factory; the root is then written `getDb()`.
     let root_name = match chain.root_call() {
         None => root.name.as_str().to_owned(),
@@ -8042,7 +8040,7 @@ fn sql_tokens(text: &str) -> Result<Vec<SqlTok>, String> {
             out.push(SqlTok::Op(c));
             i += 1;
         } else if chars[i..].starts_with(&['e', 'x', 'c', 'l', 'u', 'd', 'e', 'd', '.']) {
-            // Phase 13: `excluded.column` in an upsert's `set` (the row
+            // `excluded.column` in an upsert's `set` (the row
             // proposed for insertion).
             let start = i + 9;
             let mut j = start;

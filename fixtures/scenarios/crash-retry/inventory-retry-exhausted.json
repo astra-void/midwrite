@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "name": "inventory-retry-exhausted",
+  "description": "FIRST-PARTY APPLICATION: reservations without retry (attempts: 1): the 40001 is final and the request fails; the failed transaction's changes never commit.",
+  "extraction": {
+    "root": "../../apps/shop-app",
+    "externals": [
+      {
+        "callee": "notifyWarehouse",
+        "channel": "warehouse"
+      }
+    ],
+    "transactionRetries": [
+      {
+        "callee": "withTransactionRetry",
+        "callbackArgument": 0,
+        "optionsArgument": 1
+      }
+    ],
+    "schema": "src/lib/db/schema.ts"
+  },
+  "channels": {
+    "warehouse": {
+      "dedup": "none"
+    }
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "from": "products",
+        "columns": [
+          "id",
+          "sku",
+          "stock"
+        ]
+      },
+      {
+        "from": "reservations",
+        "columns": [
+          "id",
+          "productId",
+          "quantity"
+        ]
+      }
+    ],
+    "initialState": {
+      "products": [
+        {
+          "id": 1,
+          "sku": "SKU-1",
+          "stock": 10
+        }
+      ],
+      "reservations": []
+    }
+  },
+  "actors": [
+    {
+      "name": "R1",
+      "entry": {
+        "selector": "src/app/inventory.ts#reserveStockOnce",
+        "invocation": "awaited"
+      },
+      "arguments": [
+        {
+          "productId": 1,
+          "quantity": 2
+        }
+      ],
+      "description": "a reservation request"
+    },
+    {
+      "name": "R2",
+      "entry": {
+        "selector": "src/app/inventory.ts#reserveStockOnce",
+        "invocation": "awaited"
+      },
+      "arguments": [
+        {
+          "productId": 1,
+          "quantity": 2
+        }
+      ],
+      "description": "a reservation request"
+    }
+  ],
+  "bounds": {
+    "maxSteps": 60,
+    "maxRetries": 0
+  },
+  "invariants": [
+    {
+      "name": "stock-accounted",
+      "when": "final",
+      "description": "remaining stock plus reserved quantity equals the initial stock",
+      "assert": {
+        "eq": [
+          {
+            "add": [
+              {
+                "row": {
+                  "table": "products",
+                  "where": {
+                    "id": 1
+                  },
+                  "column": "stock"
+                }
+              },
+              {
+                "sum": {
+                  "table": "reservations",
+                  "column": "quantity"
+                }
+              }
+            ]
+          },
+          10
+        ]
+      }
+    }
+  ],
+  "sourceVerification": {
+    "harness": "../../apps/shop-app/midwrite-source.json",
+    "actors": {
+      "R1": {
+        "entry": "reserveStockOnce",
+        "input": {
+          "productId": 1,
+          "quantity": 2
+        }
+      },
+      "R2": {
+        "entry": "reserveStockOnce",
+        "input": {
+          "productId": 1,
+          "quantity": 2
+        }
+      }
+    },
+    "recoveryProbe": {
+      "require": [
+        "error:40001"
+      ]
+    }
+  }
+}

@@ -1,3 +1,0 @@
-    Finished `release` profile [optimized] target(s) in 0.20s
-exit 0
-a726178a966065c6decae03904769096eacb7a45b443d79159476099e122f06a  target/release/commitrift

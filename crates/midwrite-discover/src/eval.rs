@@ -1,7 +1,7 @@
 //! Scoring a discovery report against labeled entries
-//! (`fixtures/phase11/labels.json`).
+//! (`fixtures/eval/p11/labels.json`).
 //!
-//! The measurement problems are kept apart (`docs/phase11/PRECISION-RECALL.md`):
+//! The measurement problems are kept apart (`docs/research/evaluation-methodology.md`):
 //!
 //! * **static hazard prediction**: an entry has a candidate of its own (its
 //!   actors are only this entry) that is not blocked and has no recognized

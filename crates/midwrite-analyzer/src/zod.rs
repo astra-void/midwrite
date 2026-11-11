@@ -1,4 +1,4 @@
-//! Phase 14: the zod schemas whose `parse`/`safeParse` the extractor
+//! The zod schemas whose `parse`/`safeParse` the extractor
 //! models, read statically from their builder chains (`z.object({ name:
 //! z.string().trim().min(1) })`).
 //!
@@ -11,13 +11,13 @@
 //! or check is refused with its name: a validation that is not modeled is
 //! never treated as the identity.
 //!
-//! Phase 16: the zod major version is read statically per import
+//! The zod major version is read statically per import
 //! ([`resolve_version`]: the installed `node_modules/zod/package.json`, else
 //! the nearest `package.json` that declares zod, catalogs included; nothing
 //! is executed), and the subset grows to strict/loose objects, arrays,
 //! `optional`/`nullable`/`nullish`/`default`, the `uuid`/`email` formats and
 //! `.regex(/literal/)`, each with the semantics of the version it was built
-//! with (`midwrite_model::zodfn`, `docs/phase16/ZOD-VALIDATION.md`).
+//! with (`midwrite_model::zodfn`, `docs/reference/zod.md`).
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -27,7 +27,7 @@ use oxc_ast::ast::{Argument, Expression, ObjectPropertyKind};
 
 pub(crate) use midwrite_model::zodfn::{ArrCheck, NumCheck, Schema, StrCheck, Version};
 
-/// Phase 16: a schema and the zod API it was built with (`Err`: the
+/// A schema and the zod API it was built with (`Err`: the
 /// version could not be determined, and why).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Validated {
@@ -37,15 +37,15 @@ pub(crate) struct Validated {
 
 /// How the interpreter resolves names it meets in a chain.
 pub(crate) trait Names<'a> {
-    /// Phase 16: the module specifier `name` is zod's namespace imported
+    /// The module specifier `name` is zod's namespace imported
     /// from (`import { z } from "zod"`, `import * as z from "zod/v4"`,
     /// `import z from "zod"`), or `None`.
     fn zod_import(&self, name: &str) -> Option<String>;
-    /// Phase 16: the zod API a specifier gives in this module's package.
+    /// The zod API a specifier gives in this module's package.
     fn version(&self, specifier: &str) -> Result<Version, String>;
     /// The initializer of a module-level `const` (another schema).
     fn constant(&self, name: &str) -> Option<&'a Expression<'a>>;
-    /// Phase 16: the strings of a `const` array of string literals (`const
+    /// The strings of a `const` array of string literals (`const
     /// KINDS = ["a", "b"] as const`, in this module or imported; spreads of
     /// such arrays included), for `z.enum(KINDS)`.
     fn string_array(&self, name: &str) -> Option<Vec<String>>;
@@ -188,7 +188,7 @@ impl<'a> Interp<'_, 'a> {
         depth: u32,
     ) -> Result<Schema, String> {
         match method {
-            // Phase 16: an error-message parameter changes no outcome.
+            // An error-message parameter changes no outcome.
             "string" | "number" | "boolean" => {
                 message_only(&format!("z.{method}"), args, 0)?;
                 Ok(match method {
@@ -202,7 +202,7 @@ impl<'a> Interp<'_, 'a> {
                 _ => Err("`z.literal` of a value that is not a literal".to_owned()),
             },
             "enum" => {
-                // Phase 16: a message (second argument) does not change what
+                // A message (second argument) does not change what
                 // is accepted; the members may be a `const` array.
                 message_only("z.enum", args, 1)?;
                 let items = match args
@@ -257,7 +257,6 @@ impl<'a> Interp<'_, 'a> {
                 Ok(Schema::Enum(out))
             }
             "object" => Ok(Schema::Object(self.shape("object", args, depth)?)),
-            // Phase 16.
             "strictObject" => Ok(Schema::StrictObject(self.shape(
                 "strictObject",
                 args,
@@ -319,7 +318,7 @@ impl<'a> Interp<'_, 'a> {
         let names = self.names;
         let int = |i: usize| -> Result<i64, String> {
             let arg = args.get(i).and_then(Argument::as_expression);
-            // Phase 16: a module-level `const` initialized with an integer
+            // A module-level `const` initialized with an integer
             // literal stands for it.
             let value = match arg.map(|e| e.get_inner_expression()) {
                 Some(Expression::Identifier(id)) => {
@@ -343,7 +342,7 @@ impl<'a> Interp<'_, 'a> {
             }
         };
         let message_only = |n: usize| message_only(&format!(".{method}"), args, n);
-        // Phase 16: wrappers apply to every schema.
+        // Wrappers apply to every schema.
         match method {
             "optional" if args.is_empty() => return Ok(Schema::Optional(Box::new(base))),
             "nullable" if args.is_empty() => return Ok(Schema::Nullable(Box::new(base))),
@@ -403,7 +402,7 @@ impl<'a> Interp<'_, 'a> {
                         message_only(1)?;
                         StrCheck::Includes(text(0)?)
                     }
-                    // Phase 16: formats (each version's pattern) and
+                    // Formats (each version's pattern) and
                     // regular-expression literals.
                     "uuid" => {
                         message_only(0)?;
@@ -445,7 +444,7 @@ impl<'a> Interp<'_, 'a> {
             Schema::Num(mut checks) => {
                 let check = match method {
                     // Model numbers are integers: `finite` holds for every
-                    // model value; `int` too in zod 3 (Phase 14). Phase 16:
+                    // model value; `int` too in zod 3. Phase 16:
                     // zod 4's `int` is a safe-integer check, kept in the
                     // schema (the model refuses numbers outside the safe
                     // range, where the versions differ).
@@ -563,7 +562,7 @@ impl<'a> Interp<'_, 'a> {
     }
 }
 
-/// Phase 16: `z.array(item)`. An array whose elements are their own output
+/// `z.array(item)`. An array whose elements are their own output
 /// is its own output; otherwise (objects, transforms, defaults) its parsed
 /// value is computed whole (`ZodData`).
 fn array_of(item: Schema) -> Result<Schema, String> {
@@ -578,7 +577,7 @@ fn message_only(what: &str, args: &[Argument<'_>], n: usize) -> Result<(), Strin
     }
     match args.get(n).and_then(Argument::as_expression).map(|e| e.get_inner_expression()) {
         None | Some(Expression::StringLiteral(_)) => Ok(()),
-        // Phase 16: a template-literal message whose interpolations are
+        // A template-literal message whose interpolations are
         // names or literals (evaluated once, when the schema is built).
         Some(Expression::TemplateLiteral(t))
             if t.expressions.iter().all(|e| {
@@ -629,7 +628,7 @@ fn literal(e: &Expression<'_>) -> Option<midwrite_model::value::Value> {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 16: the zod version of a module
+// The zod version of a module
 // ---------------------------------------------------------------------------
 
 /// The zod API that `specifier` (`zod`, `zod/v3`, `zod/v4`) gives code in
@@ -904,7 +903,7 @@ mod tests {
         assert!(schema("z.uuid()").is_err());
         assert!(schema_in("z.looseObject({})", Ok(Version::Either)).is_err());
         assert!(schema_in("z.looseObject({})", Ok(Version::V4)).is_ok());
-        // `.int()`: dropped for zod 3 (Phase 14), kept otherwise.
+        // `.int()`: dropped for zod 3, kept otherwise.
         assert_eq!(schema("z.number().int()"), Ok(Schema::Num(Vec::new())));
         assert_eq!(
             schema_in("z.number().int()", Ok(Version::V4)),

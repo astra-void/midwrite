@@ -12,7 +12,7 @@
 //! Its [`Simulation`] runs the analysis' own transaction model over the
 //! steps (what survives a process crash at the boundary); that is labeled
 //! [`VerificationLevel::Simulated`] and is not evidence that the
-//! application behaves that way. See `docs/phase3/TRACE-FORMAT.md`.
+//! application behaves that way. See `docs/reference/trace-format.md`.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -217,7 +217,7 @@ pub enum BoundaryKind {
 }
 
 /// A named runtime checkpoint at which a harness can inject the failure.
-/// Names follow the replay protocol (`docs/phase3/REPLAY-PROTOCOL.md`);
+/// Names follow the replay protocol (`docs/architecture/replay-protocol.md`);
 /// the harness, not the analysis, decides where its checkpoints are.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -449,7 +449,7 @@ pub fn simulate_crash(steps: &[TraceStep], after_step: usize) -> (Vec<StepState>
 #[serde(rename_all = "camelCase")]
 pub struct TraceReport {
     pub schema_version: u32,
-    /// Always `commitrift.traces`.
+    /// Always `midwrite.traces`.
     pub kind: String,
     pub tool: ToolStamp,
     pub config: Option<String>,
@@ -458,7 +458,7 @@ pub struct TraceReport {
     pub skipped: Vec<SkippedFinding>,
 }
 
-pub const TRACE_REPORT_KIND: &str = "commitrift.traces";
+pub const TRACE_REPORT_KIND: &str = "midwrite.traces";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

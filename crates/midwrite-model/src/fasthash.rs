@@ -1,6 +1,6 @@
 //! A fast, deterministic, non-cryptographic hasher for the explorer's
 //! visited-state set: keys are canonical state encodings the explorer
-//! produced, and iteration order never reaches output (Phase 8; profiling
+//! produced, and iteration order never reaches output (profiling
 //! showed SipHash in state interning). The same hasher as
 //! `midwrite_core::fasthash` (this crate does not depend on the analysis
 //! core). Same mixing step as rustc's `FxHasher`.

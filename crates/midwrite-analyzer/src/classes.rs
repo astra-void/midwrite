@@ -1,6 +1,6 @@
 //! Classes declared in a module, and bounded method dispatch.
 //!
-//! See `docs/phase5/CLASS-RESOLUTION.md`. A class is identified by the start
+//! See `docs/architecture/value-analysis.md`. A class is identified by the start
 //! offset of its declaration in its module. Method lookup follows JavaScript
 //! semantics for the supported subset:
 //!

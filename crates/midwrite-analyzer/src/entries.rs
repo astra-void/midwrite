@@ -1,4 +1,4 @@
-//! Project-wide index of candidate entry functions (Phase 11).
+//! Project-wide index of candidate entry functions.
 //!
 //! For every module of a project this lists, without executing anything:
 //!

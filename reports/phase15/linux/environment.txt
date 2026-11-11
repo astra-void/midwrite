@@ -1,7 +1,0 @@
-Linux 4f47c7c7cc3f 7.0.12-linuxkit #1 SMP PREEMPT Fri Aug 14 16:27:59 UTC 2026 aarch64 GNU/Linux
-PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"
-NAME="Debian GNU/Linux"
-rustc 1.99.1 (58cf8f9c3 2026-10-13)
-v22.23.4
-bubblewrap 0.8.0
-postgres (PostgreSQL) 15.19 (Debian 15.19-0+deb12u1)

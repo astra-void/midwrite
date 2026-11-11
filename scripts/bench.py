@@ -2,7 +2,7 @@
 """Time a midwrite binary on every project of one or more corpus manifests.
 
     scripts/bench.py --bin target/release/midwrite --runs 5 \
-        --out reports/phase2/bench.tsv corpora/manifest.json [-- extra check args]
+        --out reports/bench.tsv corpora/manifest.json [-- extra check args]
 
 Each project is scanned with `midwrite check . --config <cfg> --format json
 --fail-on never` from the project root, `--runs` times (after one untimed

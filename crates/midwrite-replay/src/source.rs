@@ -23,7 +23,7 @@
 //! declared retry or redelivery). External effects go to a channel test
 //! double hosted by the coordinator, which outlives killed workers.
 //!
-//! Safety (same model as replay, `docs/phase4/SECURITY-REVIEW.md`): explicit
+//! Safety (same model as replay, `docs/reference/security.md`): explicit
 //! authorization, a private run directory, a private cluster reachable only
 //! through a Unix socket inside it, OS isolation of every worker (no
 //! network), an environment built from scratch, time limits, process-group
@@ -47,8 +47,6 @@ use crate::proxy::{self, FaultProxy};
 use crate::safety::{self, ReplayRoot};
 
 pub const SOURCE_MANIFEST_KIND: &str = "midwrite.source-harness";
-/// The manifest `kind` before the rename to Midwrite; accepted on input.
-pub const LEGACY_SOURCE_MANIFEST_KIND: &str = "commitrift.source-harness";
 const DATABASE: &str = "source_run";
 const SIGKILL: i32 = 9;
 
@@ -89,7 +87,7 @@ pub struct SourceManifest {
     #[serde(default = "default_timeout")]
     pub timeout_ms: u64,
     pub entries: BTreeMap<String, EntrySpec>,
-    /// Phase 8: per-worker resource limits (defaults when absent).
+    /// Per-worker resource limits (defaults when absent).
     #[serde(default)]
     pub limits: WorkerLimits,
 }
@@ -162,9 +160,7 @@ pub fn load_manifest(path: &Path) -> Result<LoadedSource, String> {
         .map_err(|e| format!("cannot read `{}`: {e}", path.display()))?;
     let manifest: SourceManifest =
         serde_json::from_str(&text).map_err(|e| format!("`{}`: {e}", path.display()))?;
-    if manifest.schema_version != 1
-        || (manifest.kind != SOURCE_MANIFEST_KIND && manifest.kind != LEGACY_SOURCE_MANIFEST_KIND)
-    {
+    if manifest.schema_version != 1 || manifest.kind != SOURCE_MANIFEST_KIND {
         return Err(format!(
             "`{}` is not a source-harness manifest (kind `{SOURCE_MANIFEST_KIND}`, schemaVersion 1)",
             path.display()
@@ -248,10 +244,10 @@ pub enum SqlKind {
     Commit,
     Rollback,
     Other,
-    /// Phase 8: an external effect through the coordinator's channel test
+    /// An external effect through the coordinator's channel test
     /// double (`sourceEffect` in `source.js`); `table` names the channel.
     Effect,
-    /// Phase 13: the response of a request handler, held by the worker
+    /// The response of a request handler, held by the worker
     /// after the entry returned and before the coordinator (the client)
     /// receives it (`MIDWRITE_SOURCE_RESPONSE=hold`).
     Respond,
@@ -408,12 +404,12 @@ pub struct Expected {
     /// Index of the model transition (for the report).
     pub transition: usize,
     pub label: String,
-    /// Phase 8: the idempotency key an effect must carry (`null`: none).
+    /// The idempotency key an effect must carry (`null`: none).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub key: Option<Value>,
 }
 
-/// Phase 8: where a planned crash happens. The model crashes a process
+/// Where a planned crash happens. The model crashes a process
 /// *between* transitions; at runtime that boundary is a checkpoint the
 /// coordinator can observe exactly, never a guess from source-line order.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -434,14 +430,14 @@ pub struct CrashStep {
     /// (inside a transaction that the crash rolls back).
     #[serde(default)]
     pub may_have_run: bool,
-    /// Phase 9: the task waits for a connection of the process's bounded
+    /// The task waits for a connection of the process's bounded
     /// pool and has sent nothing.
     #[serde(default)]
     pub pool_wait: bool,
     pub label: String,
 }
 
-/// Phase 8: a new execution of an actor, started by a declared recovery
+/// A new execution of an actor, started by a declared recovery
 /// mechanism (client retry, queue redelivery, worker restart).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -454,7 +450,7 @@ pub struct RestartStep {
     pub mechanism: String,
 }
 
-/// Phase 9: what the server sees of an operation whose acknowledgment is
+/// What the server sees of an operation whose acknowledgment is
 /// lost. The proxy realizes each fate on the wire.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -472,7 +468,7 @@ pub enum Fate {
     HeldForLaterDelivery,
 }
 
-/// Phase 9: kill a worker with an operation in flight. The operation is
+/// Kill a worker with an operation in flight. The operation is
 /// released (so it really goes onto the wire), the proxy applies the fate,
 /// the coordinator verifies that it happened, kills the worker's process
 /// group and observes PostgreSQL.
@@ -488,7 +484,7 @@ pub struct InFlightStep {
     pub label: String,
 }
 
-/// Phase 10: the connection of an operation breaks while the worker lives.
+/// The connection of an operation breaks while the worker lives.
 /// The operation is released and the proxy applies the fate on the wire (as
 /// for [`InFlightStep`]); then the proxy closes the *client's* connection
 /// and nothing else: the worker process is not touched. The driver reports
@@ -503,7 +499,7 @@ pub struct ConnectionLossStep {
     pub label: String,
 }
 
-/// Phase 10: what was observed when a connection broke under a live worker.
+/// What was observed when a connection broke under a live worker.
 /// Facts come from the proxy's frame-level view, PostgreSQL itself or the
 /// operating system; the driver's error is quoted as the worker reported it,
 /// never replaced by a code of the model's own.
@@ -557,7 +553,7 @@ pub struct ConnectionLossEvidence {
     pub later_backend_pids: Vec<i64>,
 }
 
-/// Phase 9: the server completes an operation it held for a dead client.
+/// The server completes an operation it held for a dead client.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerCompleteStep {
@@ -567,7 +563,7 @@ pub struct ServerCompleteStep {
     pub attempt: u32,
 }
 
-/// Phase 9: after the plan nothing can proceed: every task is waiting for a
+/// After the plan nothing can proceed: every task is waiting for a
 /// connection of the process's pool, or for a lock the application itself
 /// holds. The coordinator observes quiescence (nothing announced or
 /// completed for a while) and the pool's or PostgreSQL's own counters.
@@ -579,7 +575,7 @@ pub struct StuckStep {
     pub kind: String,
 }
 
-/// Phase 9: what was observed at a stuck state.
+/// What was observed at a stuck state.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StuckEvidence {
@@ -611,14 +607,14 @@ pub enum PlanStep {
     Crash(CrashStep),
     /// Start a fresh worker process for the actor.
     Restart(RestartStep),
-    /// Phase 9: kill the worker with its COMMIT or autocommit write in
+    /// Kill the worker with its COMMIT or autocommit write in
     /// flight.
     InFlight(InFlightStep),
-    /// Phase 9: the server completes a held operation.
+    /// The server completes a held operation.
     ServerComplete(ServerCompleteStep),
-    /// Phase 10: the connection of an operation breaks; the worker lives.
+    /// The connection of an operation breaks; the worker lives.
     ConnectionLoss(ConnectionLossStep),
-    /// Phase 9: nothing can proceed any more (observed, then the process is
+    /// Nothing can proceed any more (observed, then the process is
     /// killed to end the run).
     Stuck(StuckStep),
 }
@@ -647,14 +643,14 @@ pub struct ActorLaunch {
     /// entry function). Statements none of whose application frames lie in
     /// it are outside the model.
     pub scope: Option<Region>,
-    /// Phase 9: actors with the same process name run as concurrent tasks of
+    /// Actors with the same process name run as concurrent tasks of
     /// ONE worker process (shared memory, shared connection pool, one
     /// failure domain). `None`: a process of its own.
     pub process: Option<String>,
-    /// Phase 9: the capacity of the process's connection pool in the model
+    /// The capacity of the process's connection pool in the model
     /// (the harness's pool must have the same `max`).
     pub pool: Option<u16>,
-    /// Phase 13: the actor's response is a separate step: the worker holds
+    /// The actor's response is a separate step: the worker holds
     /// it after the entry returns until the coordinator releases it.
     pub response: bool,
 }
@@ -684,7 +680,7 @@ pub struct Observed {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub reconstructed: bool,
     /// `planned` (matched plan step `plan`), `outside-model`,
-    /// `unexpected`, `beyond-plan`, `after-divergence`, or (Phase 8)
+    /// `unexpected`, `beyond-plan`, `after-divergence`, or
     /// `never-sent` (announced, then its process was killed).
     pub role: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -732,7 +728,7 @@ pub struct ActorResult {
     pub error: Option<String>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub stderr: String,
-    /// Phase 8: which execution of the actor (1 for the first).
+    /// Which execution of the actor (1 for the first).
     #[serde(default = "first_attempt")]
     pub attempt: u32,
     /// Operating-system process id of the worker.
@@ -740,7 +736,7 @@ pub struct ActorResult {
     pub pid: u32,
 }
 
-/// Phase 8: one effect the channel test double received.
+/// One effect the channel test double received.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EffectRecord {
@@ -759,7 +755,7 @@ pub struct EffectRecord {
     pub frames: Vec<Frame>,
 }
 
-/// Phase 9: what the proxy and PostgreSQL showed for an operation killed in
+/// What the proxy and PostgreSQL showed for an operation killed in
 /// flight. `observed` facts come from the proxy's frame-level view or from
 /// PostgreSQL itself; nothing here is inferred from timing.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -796,7 +792,7 @@ pub struct InFlightEvidence {
     pub proxy_events: Vec<String>,
 }
 
-/// Phase 9: a held operation delivered to the server.
+/// A held operation delivered to the server.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CompletionEvidence {
@@ -813,11 +809,11 @@ pub struct CompletionEvidence {
     pub tables: BTreeMap<String, Vec<Value>>,
 }
 
-/// Phase 8: evidence that a planned crash happened as planned.
+/// Evidence that a planned crash happened as planned.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CrashEvidence {
-    /// Phase 9: the operation that was in flight when the worker was killed.
+    /// The operation that was in flight when the worker was killed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub in_flight: Option<InFlightEvidence>,
     pub actor: usize,
@@ -847,7 +843,7 @@ pub struct CrashEvidence {
     pub tables: BTreeMap<String, Vec<Value>>,
 }
 
-/// Phase 8: a new execution of an actor.
+/// A new execution of an actor.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RestartEvidence {
@@ -873,7 +869,7 @@ pub struct SourceRun {
     pub statements: Vec<Observed>,
     /// The last execution of each actor.
     pub actors: Vec<ActorResult>,
-    /// Phase 8: every execution of every actor, in start order.
+    /// Every execution of every actor, in start order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attempts: Vec<ActorResult>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -882,36 +878,36 @@ pub struct SourceRun {
     pub crashes: Vec<CrashEvidence>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub restarts: Vec<RestartEvidence>,
-    /// Phase 9: held operations the server completed.
+    /// Held operations the server completed.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub completions: Vec<CompletionEvidence>,
-    /// Phase 10: connections that broke under a live worker.
+    /// Connections that broke under a live worker.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub connection_losses: Vec<ConnectionLossEvidence>,
-    /// Phase 9: the stuck state observed at the end of the plan.
+    /// The stuck state observed at the end of the plan.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stuck: Option<StuckEvidence>,
-    /// Phase 9: the proxy's redacted wire log (only with in-flight steps).
+    /// The proxy's redacted wire log (only with in-flight steps).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub proxy_log: Vec<proxy::ProxyEvent>,
-    /// Phase 9: events the proxy could not keep.
+    /// Events the proxy could not keep.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub proxy_log_truncated: bool,
     /// Server settings the run changed from PostgreSQL's defaults.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub server_settings: Vec<String>,
-    /// Phase 8: processes of the run found after the workers ended (they
+    /// Processes of the run found after the workers ended (they
     /// had left their process group) and killed.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub survivors_killed: Vec<i32>,
-    /// Phase 8: the resource limits the workers ran under.
+    /// The resource limits the workers ran under.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub limits: String,
-    /// Phase 8: statements a driver issued on its own connections (catalog
+    /// Statements a driver issued on its own connections (catalog
     /// reads after connecting), not held by the coordinator.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub driver_internal: Vec<String>,
-    /// Phase 8: the run database's catalog after the migrations (JSON from
+    /// The run database's catalog after the migrations (JSON from
     /// [`crate::catalog::read`]), when requested.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub catalog: Option<Value>,
@@ -937,10 +933,10 @@ pub struct RunRequest<'a> {
     /// How long a released statement may run before it is checked for a
     /// lock wait.
     pub settle: Duration,
-    /// Phase 8: channel → declared deduplication (`none` or `byKey`) the
+    /// Channel → declared deduplication (`none` or `byKey`) the
     /// coordinator's test double applies.
     pub channels: &'a BTreeMap<String, String>,
-    /// Phase 8: read the catalog of the run database after the
+    /// Read the catalog of the run database after the
     /// application's migrations (for the schema comparison).
     pub read_catalog: bool,
 }
@@ -950,7 +946,7 @@ pub struct RunRequest<'a> {
 // ---------------------------------------------------------------------------
 
 /// One worker process: one execution (attempt) of one actor, or of the
-/// tasks of one process (Phase 9).
+/// tasks of one process.
 struct Worker {
     /// The actors whose tasks run in this process.
     actors: Vec<usize>,
@@ -981,7 +977,7 @@ struct TaskState {
 }
 
 /// A planned crash or in-flight kill whose checkpoint was observed and whose
-/// fault is in place, waiting for the process to be killed (Phase 9).
+/// fault is in place, waiting for the process to be killed.
 enum Prepared {
     Crash {
         k: usize,
@@ -1212,9 +1208,9 @@ struct Coordinator<'r> {
     workers: Vec<Worker>,
     /// Per actor: its current execution's worker, held statements, ...
     tasks: Vec<TaskState>,
-    /// Phase 9: the pool the harness reported per worker slot.
+    /// The pool the harness reported per worker slot.
     pool_max: BTreeMap<usize, Option<i64>>,
-    /// Phase 9: the last pool counters a worker reported (answer to a probe).
+    /// The last pool counters a worker reported (answer to a probe).
     pool_probe: Option<(usize, Value)>,
     rx: Receiver<Message>,
     statements: Vec<Observed>,
@@ -1224,9 +1220,9 @@ struct Coordinator<'r> {
     completions: Vec<CompletionEvidence>,
     connection_losses: Vec<ConnectionLossEvidence>,
     stuck: Option<StuckEvidence>,
-    /// Phase 9: the fault proxy (only when the plan has in-flight steps).
+    /// The fault proxy (only when the plan has in-flight steps).
     proxy: Option<FaultProxy>,
-    /// Phase 9: (actor, attempt) → proxy connection holding its operation.
+    /// (actor, attempt) → proxy connection holding its operation.
     held_ops: BTreeMap<(usize, u32), u64>,
     /// The backend that holds each held operation (Phase 10: with a live
     /// worker the actor has other sessions, so the held one is waited for by
@@ -2060,7 +2056,7 @@ impl Coordinator<'_> {
         }
     }
 
-    /// Phase 10: wait (up to 10 s) until one backend has ended.
+    /// Wait (up to 10 s) until one backend has ended.
     fn wait_backend_gone(&self, pid: i64) -> bool {
         let limit = (Instant::now() + Duration::from_secs(10)).min(self.deadline);
         loop {
@@ -2088,7 +2084,7 @@ impl Coordinator<'_> {
         }
     }
 
-    /// Phase 9: kill a worker with an operation in flight. The operation is
+    /// Kill a worker with an operation in flight. The operation is
     /// released for real; the proxy applies the fate on the wire and the
     /// coordinator waits for the proxy to report that it did (never a delay
     /// standing in for proof), reads PostgreSQL's view, then kills the worker
@@ -2387,7 +2383,7 @@ impl Coordinator<'_> {
         }
     }
 
-    /// Phase 10: break the connection of an operation while its worker lives.
+    /// Break the connection of an operation while its worker lives.
     ///
     /// The operation is released and the proxy applies the fate on the wire;
     /// the coordinator waits for the proxy's own event, reads PostgreSQL's
@@ -2567,7 +2563,7 @@ impl Coordinator<'_> {
         });
     }
 
-    /// Phase 10: complete the loss evidence at the end of a run with what the
+    /// Complete the loss evidence at the end of a run with what the
     /// worker did afterwards: statements on the broken client and the
     /// connections it used instead.
     fn finish_connection_losses(&mut self) {
@@ -2618,7 +2614,7 @@ impl Coordinator<'_> {
         }
     }
 
-    /// Phase 9: deliver the operation the proxy held for a dead client; the
+    /// Deliver the operation the proxy held for a dead client; the
     /// server completes it now.
     fn server_complete_step(&mut self, k: usize, s: &ServerCompleteStep) {
         let a = s.actor;
@@ -2672,7 +2668,7 @@ impl Coordinator<'_> {
         });
     }
 
-    /// The harness's pools have the capacity the model declares (Phase 9).
+    /// The harness's pools have the capacity the model declares.
     fn check_pools(&mut self) {
         let until = (Instant::now() + Duration::from_secs(10)).min(self.deadline);
         while self.workers.iter().any(|w| !w.hello) && Instant::now() < until {
@@ -2695,7 +2691,7 @@ impl Coordinator<'_> {
         }
     }
 
-    /// Phase 9: observe that nothing can proceed.
+    /// Observe that nothing can proceed.
     fn stuck_step(&mut self, k: usize, s: &StuckStep) {
         let quiet = Duration::from_millis(800).max(self.req.settle * 4);
         let started = Instant::now();
@@ -3117,7 +3113,7 @@ pub fn run(req: &RunRequest<'_>) -> SourceRun {
         return blocked(format!("seeding the initial state failed: {e}"));
     }
 
-    // Phase 9: workers reach the database through the fault proxy when the
+    // Workers reach the database through the fault proxy when the
     // plan has an in-flight step; the proxy is the only thing that talks to
     // the cluster on their behalf.
     let mut worker_socket = cluster.socket_path();

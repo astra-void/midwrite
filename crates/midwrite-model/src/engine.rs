@@ -1,7 +1,7 @@
 //! The transition system: initial state, enabled transitions and their
 //! effects.
 //!
-//! Granularity (see `docs/phase6/SEMANTICS.md`): one *visible* operation of
+//! Granularity (see `docs/concepts/model-semantics.md`): one *visible* operation of
 //! one task is one transition. Local operations (`Let`, branches, task
 //! spawning, joins) are folded into the transition that precedes them, since
 //! they commute with everything another task can do. A database statement is
@@ -43,10 +43,10 @@ pub enum EventKind {
     Abort,
     Spawn,
     Deadlock,
-    /// Phase 9: a submitted operation's acknowledgment was lost (physical
+    /// A submitted operation's acknowledgment was lost (physical
     /// outcome stated in the text; the application learns nothing).
     AckLost,
-    /// Phase 9: the server completes an operation it received from a client
+    /// The server completes an operation it received from a client
     /// that is gone.
     ServerCompletion,
 }
@@ -119,18 +119,18 @@ pub enum Action {
     Crash {
         actor: u16,
     },
-    /// Phase 13: a request handler's response reaches the client.
+    /// A request handler's response reaches the client.
     Respond {
         actor: u16,
     },
-    /// Phase 9: the actor's COMMIT reached the server, which holds it
+    /// The actor's COMMIT reached the server, which holds it
     /// (the connection is detached from the actor; the server completes the
     /// COMMIT later, as [`Action::OrphanCommit`]).
     Orphan {
         actor: u16,
         seq: u32,
     },
-    /// Phase 9: the server completes a COMMIT it received from a client that
+    /// The server completes a COMMIT it received from a client that
     /// is gone.
     OrphanCommit {
         actor: u16,
@@ -214,7 +214,7 @@ pub fn initial_state(model: &Model) -> State {
     initial_state_recorded(model, &mut Recorder::off())
 }
 
-/// Phase 15: [`initial_state`], recording the events of the local
+/// [`initial_state`], recording the events of the local
 /// operations each actor runs before its first visible step (the state is
 /// the same).
 pub fn initial_state_recorded(model: &Model, rec: &mut Recorder) -> State {
@@ -436,7 +436,7 @@ pub fn enabled(model: &Model, s: &State) -> Vec<Transition> {
                     | Op::Join
                     | Op::Spawn { .. }
             );
-            // Phase 14: a thread rests on a local step only when its
+            // A thread rests on a local step only when its
             // evaluation is not determined (`settle_thread`): a step that
             // reports it as unsupported.
             let unsupported_local = matches!(step.op, Op::Let { .. } | Op::JumpIf { .. });
@@ -458,7 +458,7 @@ pub fn enabled(model: &Model, s: &State) -> Vec<Transition> {
     }
     let in_flight_mode = model.bounds.max_in_flight > 0 && s.in_flight < model.bounds.max_in_flight;
     if in_flight_mode {
-        // Lost acknowledgments with the process alive (Phase 9).
+        // Lost acknowledgments with the process alive.
         for (a, actor) in s.actors.iter().enumerate() {
             for th in 0..actor.threads.len() {
                 if let Some(op) = candidate(model, s, a, th) {
@@ -1028,7 +1028,7 @@ fn step_thread(
             }
         }
         Op::Respond => {
-            // Phase 13: the response leaves the process; the client learns
+            // The response leaves the process; the client learns
             // the outcome. A crash before this step (after the last
             // statement committed) leaves the client without an answer.
             rec.add(
@@ -1053,7 +1053,7 @@ fn step_thread(
                 src: step.src.clone(),
             });
         }
-        // Phase 14: a local step the thread rests on (see `settle_thread`).
+        // A local step the thread rests on (see `settle_thread`).
         Op::Let { expr: e, .. } | Op::JumpIf { cond: e, .. } => {
             let detail = match e.eval(&s.actors[a].locals, None, Mode::Js) {
                 Err(crate::value::EvalError::Unknown(d)) => d,
@@ -1100,7 +1100,7 @@ fn close_stmt(model: &Model, locals: &Locals, stmt: &Stmt) -> Result<ClosedStmt,
     };
     let close = |e: &Expr| e.close(locals, Mode::Sql).map_err(|e| e.to_string());
     Ok(match &stmt.kind {
-        // Phase 16: the multi-row mode (the loader refuses it with joins).
+        // The multi-row mode (the loader refuses it with joins).
         StmtKind::Select {
             table: t,
             pred,
@@ -1212,7 +1212,7 @@ fn close_stmt(model: &Model, locals: &Locals, stmt: &Stmt) -> Result<ClosedStmt,
                     upsert,
                 }
             } else {
-                // Phase 14: a multi-row INSERT (JavaScript evaluates every
+                // A multi-row INSERT (JavaScript evaluates every
                 // row's object literal before Drizzle builds the statement).
                 let mut rows = vec![row];
                 for more in more_rows {
@@ -1343,7 +1343,7 @@ pub fn describe(model: &Model, c: &ClosedStmt) -> String {
     }
 }
 
-/// Phase 14: replace the clock placeholders of a closed statement (`new
+/// Replace the clock placeholders of a closed statement (`new
 /// Date()` written in its arguments, ``sql`now()` ``) by the readings of this
 /// execution, and add the `$onUpdate` columns Drizzle sets when an `UPDATE`
 /// (or an upsert's `DO UPDATE SET`) does not assign them. `now()` is the
@@ -1573,7 +1573,7 @@ fn db_step(
             id
         }
         Conn::Replica => {
-            // Phase 13: a read on the replica, outside any primary
+            // A read on the replica, outside any primary
             // transaction, on the replica's replayed prefix.
             foot.push(Access::Snapshot);
             let text = if rec.on {
@@ -1599,7 +1599,7 @@ fn db_step(
             return Ok(());
         }
     };
-    // Phase 14: the clock readings of this execution.
+    // The clock readings of this execution.
     bind_clocks(model, s, txn, &mut closed);
     let snapshot = open_snapshot(s, txn, foot);
     let mut p = Pending {
@@ -1682,7 +1682,7 @@ fn run_pending(
         String::new()
     };
     let step = run_stmt(model, s, p, foot);
-    // Phase 14: an evaluation the model does not represent ends the path as
+    // An evaluation the model does not represent ends the path as
     // unsupported; it is never turned into a database error.
     if let StmtStep::Failed(e) = &step
         && e.is_unsupported()
@@ -1795,8 +1795,8 @@ fn deliver(
         ),
         StmtResult::Count(n) => (Value::Int(*n), EventKind::Read),
         StmtResult::Affected(n) => (Value::Int(*n), EventKind::Write),
-        // Phase 14: a multi-row `INSERT ... RETURNING`: a JavaScript array.
-        // Phase 16: also a multi-row `SELECT` (a read).
+        // A multi-row `INSERT ... RETURNING`: a JavaScript array.
+        // Also a multi-row `SELECT` (a read).
         StmtResult::Rows(rows) => (
             Value::List(rows.iter().cloned().map(Value::Row).collect()),
             if is_write {
@@ -1914,7 +1914,7 @@ fn db_failure(
         settle_actor(model, s, a, foot, rec);
         return;
     }
-    // Phase 16: a handler that inspects the error sees the statement's (or
+    // A handler that inspects the error sees the statement's (or
     // the COMMIT's) SQLSTATE.
     let commit = matches!(op_at(model, s, a, th).op, Op::Commit);
     fail_thread_from(
@@ -2172,7 +2172,7 @@ fn settle_thread(
                     std::sync::Arc::make_mut(&mut s.actors[a].locals).insert(local.clone(), v);
                     s.actors[a].threads[th].pc += 1;
                 }
-                // Phase 14: behavior the model does not determine is not an
+                // Behavior the model does not determine is not an
                 // exception the application could catch: the thread stays
                 // on the step, which `step_thread` reports as unsupported.
                 Err(crate::value::EvalError::Unknown(_)) => return,
@@ -2242,7 +2242,7 @@ fn settle_thread(
                 t.pc += 1;
             }
             Op::Rethrow { local } => {
-                // Phase 16: an error object (a caught error re-thrown, or a
+                // An error object (a caught error re-thrown, or a
                 // `throw new Error(...)` lowered as one) fails with its own
                 // text and keeps its origin for the next handler.
                 let value = s.actors[a].locals.get(local).cloned();
@@ -2279,7 +2279,7 @@ fn settle_thread(
                 return;
             }
             Op::ReturnValue { expr } => {
-                // Phase 13: recorded only when an invariant reads it; an
+                // Recorded only when an invariant reads it; an
                 // expression that cannot be evaluated makes the value
                 // unknown, never the task fail.
                 if model.tracks_results() && th == 0 {
@@ -2440,7 +2440,7 @@ fn fail_thread(
     fail_thread_from(model, s, a, th, reason, Failure::Unknown, foot, rec);
 }
 
-/// Phase 16: where a task's failure comes from, for a handler that inspects
+/// Where a task's failure comes from, for a handler that inspects
 /// the caught error (`Op::Try::inspect`).
 enum Failure {
     /// An origin whose error object is not modeled (a lost connection, a
@@ -2453,11 +2453,11 @@ enum Failure {
     Error(Value),
 }
 
-/// Phase 16: the marker of an error object built for `throw new
+/// The marker of an error object built for `throw new
 /// Error(...)` (the re-throw reports it as a throw).
 pub const THROWN_ERROR: &str = "$thrown";
 
-/// Phase 16: the error object a handler that inspects it receives.
+/// The error object a handler that inspects it receives.
 fn caught_value(shape: &crate::ir::CaughtErrors, reason: &str, origin: Failure) -> Value {
     use crate::ir::ErrorShape;
     use crate::jsfn::{ERROR_INSTANCE, ERROR_REASON, UNMODELED_ERROR};
@@ -2534,7 +2534,7 @@ fn fail_thread_from(
     foot: &mut Footprint,
     rec: &mut Recorder,
 ) {
-    // An active `try` handler catches the failure (Phase 7).
+    // An active `try` handler catches the failure.
     if let Some((handler, error, opened_in_txn)) = s.actors[a].threads[th].handlers.pop() {
         if !opened_in_txn
             && th == 0
@@ -2624,7 +2624,7 @@ fn fail_thread_from(
 }
 
 // ---------------------------------------------------------------------
-// In-flight operations (Phase 9)
+// In-flight operations
 // ---------------------------------------------------------------------
 
 /// The operation `th` of actor `a` could have in flight at its next step: an
@@ -2736,7 +2736,7 @@ fn in_flight_effect(
                 return Err("not a statement".into());
             };
             let closed = close_stmt(model, &s.actors[a].locals, stmt)?;
-            // Phase 14: multi-row inserts and statements that read a clock
+            // Multi-row inserts and statements that read a clock
             // are not modeled in flight.
             if matches!(closed, ClosedStmt::InsertMany { .. }) {
                 return Err("a multi-row INSERT in flight is not modeled".into());

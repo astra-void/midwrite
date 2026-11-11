@@ -1,4 +1,4 @@
-//! Phase 13: foreign-key workloads (a `users` parent, a `workspaces` child
+//! Foreign-key workloads (a `users` parent, a `workspaces` child
 //! referencing it) shared by the semantic and PostgreSQL tests.
 
 use midwrite_model::model::Model;
@@ -178,7 +178,7 @@ pub fn fk_workloads() -> Vec<(&'static str, &'static str, &'static str)> {
     ]
 }
 
-/// Phase 13: `INSERT ... ON CONFLICT (target) DO UPDATE` workloads.
+/// `INSERT ... ON CONFLICT (target) DO UPDATE` workloads.
 pub fn upsert_pair(iso: &str, a: &str, b: &str, existing: bool) -> Model {
     model_from_json(json!({
         "schemaVersion": 1,

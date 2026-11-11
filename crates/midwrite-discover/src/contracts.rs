@@ -26,19 +26,10 @@ use midwrite_model::value::Value;
 
 pub const CONTRACTS_FILE: &str = "midwrite-contracts.json";
 pub const CONTRACTS_KIND: &str = "midwrite.contracts";
-/// The contracts file name before the rename to Midwrite; read only when
-/// [`CONTRACTS_FILE`] does not exist.
-pub const LEGACY_CONTRACTS_FILE: &str = "commitrift-contracts.json";
-/// The contracts `kind` before the rename; accepted on input.
-pub const LEGACY_CONTRACTS_KIND: &str = "commitrift.contracts";
-
-/// The contracts file of the project at `root`: `midwrite-contracts.json`,
-/// else the legacy `commitrift-contracts.json`.
+/// The contracts file of the project at `root` (`midwrite-contracts.json`),
+/// if it exists.
 pub fn find_contracts_file(root: &std::path::Path) -> Option<std::path::PathBuf> {
-    [CONTRACTS_FILE, LEGACY_CONTRACTS_FILE]
-        .into_iter()
-        .map(|name| root.join(name))
-        .find(|path| path.is_file())
+    Some(root.join(CONTRACTS_FILE)).filter(|path| path.is_file())
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -59,7 +50,7 @@ pub struct Contracts {
     pub transaction_helpers: Vec<HelperContract>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub harness: Option<HarnessContract>,
-    /// Phase 13: project functions declared to build a replicated database
+    /// Project functions declared to build a replicated database
     /// with drizzle-orm `withReplicas` routing (`module#export`). Their
     /// bodies are not interpreted; each declaration is reported as an
     /// assumption.
@@ -158,9 +149,9 @@ pub enum Template {
     NonNegative { table: String, column: String },
     /// At most `max` performed effects on `channel`.
     MaxExternal { channel: String, max: i64 },
-    /// A literal invariant formula (`docs/phase6/INVARIANTS.md`).
+    /// A literal invariant formula (`docs/concepts/invariants.md`).
     Formula { assert: Formula },
-    /// Phase 14: at most one successful call (of `function`, every actor
+    /// At most one successful call (of `function`, every actor
     /// when absent) was told `returned` ("at most one caller is told it
     /// claimed the task", "a handle is reserved for one caller", "no
     /// duplicate success after a retry").
@@ -169,13 +160,13 @@ pub enum Template {
         function: Option<String>,
         returned: Value,
     },
-    /// Phase 14: exactly one successful call (of `function`) at the end:
+    /// Exactly one successful call (of `function`) at the end:
     /// one acknowledged logical operation.
     ExactlyOneSuccess {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         function: Option<String>,
     },
-    /// Phase 14: every successful call (of `function`) was told `returned`,
+    /// Every successful call (of `function`) was told `returned`,
     /// or its own argument number `argument` (read-your-writes: the value
     /// the caller wrote).
     EverySuccessReturns {
@@ -189,7 +180,7 @@ pub enum Template {
 }
 
 impl Template {
-    /// Phase 14: the formula of a return-value template.
+    /// The formula of a return-value template.
     pub fn returned_formula(&self) -> Option<Formula> {
         use midwrite_model::invariant::{ActorsRef, OutcomeKind, Term, TermOp};
         let ok = |function: &Option<String>, returned: Option<&Value>| {
@@ -262,10 +253,10 @@ impl Contracts {
                 contracts.schema_version
             ));
         }
-        if contracts.kind != CONTRACTS_KIND && contracts.kind != LEGACY_CONTRACTS_KIND {
+        if contracts.kind != CONTRACTS_KIND {
             return Err(format!("`kind` must be `{CONTRACTS_KIND}`"));
         }
-        // Phase 14: `everySuccessReturns` names either a value or an
+        // `everySuccessReturns` names either a value or an
         // argument, not both and not neither.
         for inv in &contracts.invariants {
             if let Template::EverySuccessReturns {

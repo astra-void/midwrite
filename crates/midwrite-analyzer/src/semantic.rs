@@ -1,4 +1,4 @@
-//! Shared semantic facts of TypeScript source (Phase 8, Milestone 1).
+//! Shared semantic facts of TypeScript source (Milestone 1).
 //!
 //! Midwrite reads TypeScript in three places: the static analyzer's
 //! lowering to Effect IR (`lower.rs`, `recognize.rs`), the concurrency
@@ -22,7 +22,7 @@
 //! * [`property_key`]: the static name of an object property key;
 //! * [`member_path`]: the dotted text of an identifier/static-member chain.
 //!
-//! Migration status and the differential evidence: `docs/phase8/SEMANTIC-FACTS.md`.
+//! Migration status and the differential evidence: `docs/architecture/source-extraction.md`.
 
 use oxc_ast::ast::{
     Argument, CallExpression, ChainElement, Expression, IdentifierReference, PropertyKey,

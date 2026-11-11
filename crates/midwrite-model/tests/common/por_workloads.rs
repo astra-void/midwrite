@@ -55,12 +55,12 @@ pub fn targeted_workloads() -> Vec<(&'static str, Model)> {
         .collect()
 }
 
-/// The Phase 9 model scenarios (`fixtures/phase9/model-scenarios`) and
+/// The Phase 9 model scenarios (`fixtures/model/in-flight`) and
 /// three tasks of one process, pooled and unpooled, with crashes and an
 /// in-flight COMMIT.
 pub fn phase9_workloads() -> Vec<(String, Model)> {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../fixtures/phase9/model-scenarios");
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/model/in-flight");
     let mut scenarios: Vec<(String, Value)> = std::fs::read_dir(&dir)
         .unwrap()
         .map(|e| e.unwrap().path())

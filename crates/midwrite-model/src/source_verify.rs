@@ -1,5 +1,5 @@
 //! End-to-end differential verification against the original application
-//! (Phase 7, feature `postgres`).
+//! (feature `postgres`).
 //!
 //! Given a model counterexample of a scenario whose actors were extracted
 //! from TypeScript, this module
@@ -15,7 +15,7 @@
 //!    outcomes, and evaluates the declared invariant **on the observed
 //!    rows**.
 //!
-//! Three comparisons are kept separate (`docs/phase7/DIFFERENTIAL-VERIFICATION.md`):
+//! Three comparisons are kept separate (`docs/architecture/runtime-verification.md`):
 //! model vs PostgreSQL replay of model SQL (`oracle`), Drizzle-generated SQL
 //! vs model statements (here, per statement), and original application
 //! execution vs model (here, outcomes and state). Only a run in which all
@@ -85,11 +85,11 @@ struct Prediction {
     expect: Expect,
     src: Option<SourceRef>,
     label: String,
-    /// Phase 8: an external effect (payload, deduplicated by the channel).
+    /// An external effect (payload, deduplicated by the channel).
     effect: Option<(Row, bool)>,
 }
 
-/// Phase 8: what the model predicts at a planned crash.
+/// What the model predicts at a planned crash.
 #[derive(Clone, Debug)]
 struct CrashPrediction {
     transition: usize,
@@ -99,11 +99,11 @@ struct CrashPrediction {
     boundary: String,
     /// Committed rows right after the crash.
     tables: BTreeMap<String, Vec<Row>>,
-    /// Phase 9: the fate of the operation in flight, and its description.
+    /// The fate of the operation in flight, and its description.
     in_flight: Option<(Fate, String)>,
 }
 
-/// Phase 9: what the model predicts when the server completes a held
+/// What the model predicts when the server completes a held
 /// operation.
 #[derive(Clone, Debug)]
 struct CompletionPrediction {
@@ -113,7 +113,7 @@ struct CompletionPrediction {
     tables: BTreeMap<String, Vec<Row>>,
 }
 
-/// Phase 8: a new execution of an actor.
+/// A new execution of an actor.
 #[derive(Clone, Debug)]
 struct RestartPrediction {
     transition: usize,
@@ -122,7 +122,7 @@ struct RestartPrediction {
     mechanism: String,
 }
 
-/// Phase 10: what the model predicts when a connection breaks under a live
+/// What the model predicts when a connection breaks under a live
 /// worker.
 #[derive(Clone, Debug)]
 struct LossPrediction {
@@ -267,7 +267,7 @@ fn checkpoint(
             (kind, Some(table), None, label)
         }
         Op::Begin { .. } => (SqlKind::Begin, None, None, "BEGIN".to_owned()),
-        // Phase 13: the worker holds the response after the entry returned.
+        // The worker holds the response after the entry returned.
         Op::Respond => (SqlKind::Respond, None, None, "RESPONSE".to_owned()),
         Op::Commit => (SqlKind::Commit, None, None, "COMMIT".to_owned()),
         Op::Rollback => (SqlKind::Rollback, None, None, "ROLLBACK".to_owned()),
@@ -348,7 +348,7 @@ fn plan(model: &Model, schedule: &[Transition]) -> Result<Plan, String> {
             TKind::Deadlock => return Err("the counterexample picks a deadlock victim: victim steering is not done against original code".to_owned()),
             TKind::Replicate => return Err("the counterexample depends on read-replica lag: replication is not steered against original code".to_owned()),
             TKind::LostCommitted | TKind::LostNotCommitted => {
-                // A broken connection with the process alive (Phase 10): the
+                // A broken connection with the process alive: the
                 // proxy closes the client's connection; the worker is not
                 // touched and its application code goes on.
                 let a = t.actor as usize;
@@ -817,7 +817,7 @@ fn plan(model: &Model, schedule: &[Transition]) -> Result<Plan, String> {
                     );
                 }
                 Action::Respond { actor } => {
-                    // Phase 13: release the held response to the client.
+                    // Release the held response to the client.
                     push(
                         SqlKind::Respond,
                         None,
@@ -960,7 +960,7 @@ fn json_to_value(v: &Json) -> Value {
             .as_i64()
             .map_or_else(|| Value::Str(n.to_string()), Value::Int),
         Json::String(s) => Value::Str(s.clone()),
-        // Phase 14: a JSON array (a `json`/`jsonb` value, a multi-row
+        // A JSON array (a `json`/`jsonb` value, a multi-row
         // result).
         Json::Array(items) => Value::List(items.iter().map(json_to_value).collect()),
         Json::Object(o) => Value::Row(
@@ -1001,7 +1001,7 @@ fn expected_cells(model: &Model, stmt: &ClosedStmt, row: &Row) -> Vec<(String, V
             }
         }
     };
-    // Phase 16: each row of a multi-row select carries the cells of a
+    // Each row of a multi-row select carries the cells of a
     // single-row select of the same table and projection.
     let as_select;
     let stmt = match stmt {
@@ -1063,7 +1063,7 @@ fn expected_cells(model: &Model, stmt: &ClosedStmt, row: &Row) -> Vec<(String, V
                 }
             }
         }
-        // Phase 12: `RETURNING col, ...` asserts the listed columns only.
+        // `RETURNING col, ...` asserts the listed columns only.
         ClosedStmt::Insert {
             table,
             returning_columns: Some(cols),
@@ -1098,7 +1098,7 @@ fn render_rows(rows: &[Json]) -> String {
     }
 }
 
-/// Phase 12: the correspondence between the model's generated values
+/// The correspondence between the model's generated values
 /// ([`Value::Gen`]) and the concrete values one runtime run produced. A
 /// generated value matches the first concrete text it is compared with and
 /// only that text afterwards; two generated values never match one text
@@ -1116,7 +1116,7 @@ impl GenMatch {
             (Value::Gen(g), Json::String(text)) => {
                 match (self.forward.get(g), self.backward.get(text)) {
                     (Some(t), _) => t == text,
-                    // Phase 14: two clock readings the model keeps apart may
+                    // Two clock readings the model keeps apart may
                     // read the same instant at run time (millisecond
                     // resolution): a clock reading maps to one text, a text
                     // may stand for several readings.
@@ -1144,7 +1144,7 @@ impl GenMatch {
     }
 }
 
-/// Phase 14: a checkpoint's transition, the model's committed rows there,
+/// A checkpoint's transition, the model's committed rows there,
 /// and the rows the run observed there (if it reached it).
 type Checkpoint<'a> = (
     usize,
@@ -1185,7 +1185,7 @@ fn row_has_generated(row: &Row) -> bool {
     })
 }
 
-/// Phase 12: whether the runtime's final rows are the model's, generated
+/// Whether the runtime's final rows are the model's, generated
 /// values matched through `generated` (extended on success only).
 fn tables_match(
     generated: &mut GenMatch,
@@ -1412,7 +1412,7 @@ fn compare_statement(
                         diff(format!("count: model {n}, PostgreSQL {got:?}"));
                     }
                 }
-                // Phase 14: a multi-row `INSERT ... RETURNING`: the rows in
+                // A multi-row `INSERT ... RETURNING`: the rows in
                 // order, each with the cells Drizzle requested.
                 StmtResult::Rows(rows) => {
                     if o.rows.len() != rows.len() {
@@ -1561,10 +1561,10 @@ pub struct VerifyRequest<'a> {
     pub entries: &'a [(String, EntryInfo)],
     pub allow_execution: bool,
     pub repeat: u32,
-    /// Phase 8: the schedule is a recovery probe of a model WITHOUT a
+    /// The schedule is a recovery probe of a model WITHOUT a
     /// counterexample: the invariant is expected to hold.
     pub probe: bool,
-    /// Phase 8: the schema facts extracted from source, compared with the
+    /// The schema facts extracted from source, compared with the
     /// run database's catalog.
     pub extracted_schema: Option<&'a crate::schema_facts::ExtractedSchema>,
 }
@@ -1816,7 +1816,7 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
             .map(|(i, _)| i)
             .collect();
         let mut statements = Vec::new();
-        // Phase 12: generated values of this run, matched to what the
+        // Generated values of this run, matched to what the
         // application observed (one bijection per run).
         let mut generated = GenMatch::default();
         for (k, p) in plan.predictions.iter().enumerate() {
@@ -1856,11 +1856,11 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
         }
         // Final rows.
         let runtime_tables = rows_of(&run.tables);
-        // Phase 13: a generated value the statements never showed (a
+        // A generated value the statements never showed (a
         // database default without RETURNING) is matched where it is first
         // observed: at a crash checkpoint, before the final rows, in which
         // rows that differ only by such a value are interchangeable.
-        // Phase 14: the same at every checkpoint (crash, server completion,
+        // The same at every checkpoint (crash, server completion,
         // connection loss), in transition order: rows a lost connection's
         // COMMIT left are seen there first.
         let mut checkpoints: Vec<Checkpoint<'_>> = Vec::new();
@@ -1897,7 +1897,7 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
             }
         }
         let tables_agree = if model_tables.values().flatten().any(row_has_generated) {
-            // Phase 12: generated values match this run's concrete values
+            // Generated values match this run's concrete values
             // consistently with the statements (one bijection per run);
             // rows are matched as multisets (their order differs).
             tables_match(&mut generated, &model_tables, &run.tables)
@@ -1928,7 +1928,7 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
                 || (m == "crashed" && r == "killed")
                 || (m == "running" && r == "killed" && stuck_kind.is_some())
         });
-        // Phase 8: crashes, restarts, effects, attempts.
+        // Crashes, restarts, effects, attempts.
         let crash_checks: Vec<CrashCheck> = plan
             .crashes
             .iter()
@@ -2038,7 +2038,7 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
                         physical_outcome: physical.to_owned(),
                     });
                 }
-                // Phase 12: generated values match this run's values.
+                // Generated values match this run's values.
                 let differ =
                     tables_differ(&mut generated, &check.model_tables, &check.runtime_tables);
                 if differ {
@@ -2105,7 +2105,7 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
                     check.server_answer.clone_from(&e.server_answer);
                     check.session_ended = e.session_ended;
                     check.runtime_tables = rows_of(&e.tables);
-                    // Phase 14: generated values matched as after a crash.
+                    // Generated values matched as after a crash.
                     if tables_differ(&mut generated, &check.model_tables, &check.runtime_tables) {
                         check.differences.push(
                             "the committed rows after the server completed the operation differ from the model's".to_owned(),
@@ -2232,7 +2232,7 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
                         "the application kept using the broken connection's backend".to_owned(),
                     );
                 }
-                // Phase 14: generated values matched as after a crash (a
+                // Generated values matched as after a crash (a
                 // loss in a table with a generated key always "differed").
                 if tables_differ(&mut generated, &check.model_tables, &check.runtime_tables) {
                     check.differences.push(
@@ -2346,14 +2346,14 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
             && outcomes_agree
             && formula.reads_only_database_externals_and_outcomes()
         {
-            // Phase 11: without crashes or retries every actor ran once and
+            // Without crashes or retries every actor ran once and
             // its observed outcome equals the model's (checked above), so
             // the outcome terms read the observed outcomes.
             let mut observed = state_with(model, &runtime_tables, runtime_externals);
             for (i, a) in observed.actors.iter_mut().enumerate() {
                 a.outcome = req.final_state.actors[i].outcome.clone();
                 a.completions = req.final_state.actors[i].completions;
-                // Phase 13: what the original code returned.
+                // What the original code returned.
                 if model.tracks_results() {
                     a.returned = run
                         .actors
@@ -2540,7 +2540,7 @@ fn verify_schedule(req: &VerifyRequest<'_>) -> SourceVerification {
         if in_flight && out.evidence == "ORIGINAL_CODE_CRASH_REPRODUCED" {
             out.evidence = "ORIGINAL_CODE_IN_FLIGHT_FAILURE_REPRODUCED".to_owned();
         }
-        // Phase 10: a connection that broke while the worker lived is a
+        // A connection that broke while the worker lived is a
         // different failure from a process that died; it gets its own label.
         if !plan.losses.is_empty()
             && matches!(

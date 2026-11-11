@@ -1,4 +1,4 @@
-//! Phase 15: initial worlds and feedback-guided input search.
+//! Initial worlds and feedback-guided input search.
 //!
 //! A *world* is one choice of initial rows and actor arguments for a
 //! scenario variant. The base world is the Phase 11–14 synthesis. Further
@@ -21,7 +21,7 @@
 //! Worlds are deduplicated by a fingerprint of everything the model checker
 //! is given. The search stops at the first validated counterexample (unless
 //! asked to explore every world) or at the world budget; everything not
-//! explored is reported (`docs/phase15/FEEDBACK-GUIDED-SEARCH.md`).
+//! explored is reported (`docs/architecture/world-search.md`).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -56,7 +56,7 @@ pub struct ArgOverride {
     pub actors: Vec<usize>,
     pub path: String,
     pub value: Value,
-    /// Phase 16: the key is removed from its object instead (`value` is
+    /// The key is removed from its object instead (`value` is
     /// then unused).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub absent: bool,
@@ -183,7 +183,7 @@ pub fn domain_worlds(
                     .and_then(|args| get_path(args, &a.summary.params, p))
             };
             let base = at(&path);
-            // Phase 16: a key of a zod-validated object may be absent from
+            // A key of a zod-validated object may be absent from
             // the base arguments (an optional key): it can be set when its
             // object exists.
             let parent_exists = match path.rsplit_once('.') {
@@ -311,7 +311,7 @@ pub fn actor_worlds(
             }
         }
     }
-    // Phase 16: arguments that take part in a read's predicate without
+    // Arguments that take part in a read's predicate without
     // being a recognized key: written to a column the predicate constrains
     // in a conjunct that is not a plain `column = value` (a null-aware
     // equality chosen by a conditional, `IS NULL`, a range), or compared
@@ -351,7 +351,7 @@ pub fn actor_worlds(
         {
             continue;
         }
-        // Phase 16: a zod enum is a literal domain too.
+        // A zod enum is a literal domain too.
         let literals = annotations
             .get(path)
             .and_then(|t| crate::domains::literal_members(t))
@@ -380,7 +380,7 @@ pub fn actor_worlds(
             },
         };
         let Some(other) = other else { continue };
-        // Phase 16: a value the path's zod schema rejects is not a valid
+        // A value the path's zod schema rejects is not a valid
         // input.
         if crate::domains::zod_accepts(a, path, &other) == Some(false) {
             continue;
@@ -609,7 +609,7 @@ pub fn relationship_worlds(
     out
 }
 
-/// Phase 15: stored-value boundary worlds. A guard that compares a column
+/// Stored-value boundary worlds. A guard that compares a column
 /// of a row the actor read with an integer (`quota.remaining <= 0`) has
 /// three relevant stored values: one below, at and one above the operand.
 /// Each becomes a world (the synthesized rows of that table get it), except

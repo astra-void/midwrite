@@ -1,4 +1,4 @@
-//! Physical outcomes versus application knowledge (Phase 9).
+//! Physical outcomes versus application knowledge.
 //!
 //! An operation that was *submitted* but whose answer never reached the
 //! application has an outcome the application does not know. The model keeps
@@ -14,7 +14,7 @@
 //! a bounded verification quantifies over every modeled alternative. The
 //! record kept in the state (`Ambiguity`) is part of the canonical encoding:
 //! two states with the same rows but a different history of unresolved
-//! outcomes are never merged (see `docs/phase9/EPISTEMIC-SEMANTICS.md`).
+//! outcomes are never merged (see `docs/concepts/model-semantics.md`).
 
 use serde::{Deserialize, Serialize};
 

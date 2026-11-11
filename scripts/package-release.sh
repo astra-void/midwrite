@@ -23,9 +23,9 @@ cp README.md LICENSE-MIT LICENSE-APACHE "$stage/"
 cp -R runtime/node "$stage/runtime/node"
 rm -rf "$stage/runtime/node/test"
 mkdir -p "$stage/schemas"
-cp docs/phase3/schemas/trace-report.v1.schema.json docs/phase3/schemas/verification-report.v1.schema.json \
-   docs/phase4/schemas/verification-report.v2.schema.json docs/phase4/schemas/regression-report.v1.schema.json \
-   docs/phase5/schemas/trace-report.v2.schema.json \
+cp docs/reference/schemas/trace-report.v1.schema.json docs/reference/schemas/verification-report.v1.schema.json \
+   docs/reference/schemas/verification-report.v2.schema.json docs/reference/schemas/regression-report.v1.schema.json \
+   docs/reference/schemas/trace-report.v2.schema.json \
    "$stage/schemas/"
 
 # Reproducible archive metadata: fixed owner, sorted entries, mtime of the

@@ -2,14 +2,14 @@
 //!
 //! Isolation reduces the chance that an *authorized, cooperative* harness
 //! touches anything but its disposable database and replay directory. It is
-//! not a sandbox for hostile code (see `docs/phase4/LINUX-ISOLATION.md` and
-//! `docs/phase4/SECURITY-REVIEW.md`).
+//! not a sandbox for hostile code (see `docs/architecture/replay-protocol.md` and
+//! `docs/reference/security.md`).
 //!
 //! Backends:
 //!
 //! * **macOS**: `sandbox-exec` with a profile that denies IP traffic, Unix
 //!   socket connections outside the replay root, and file writes outside
-//!   the replay root (Phase 3).
+//!   the replay root.
 //! * **Linux**: bubblewrap (`bwrap`) with new user, network, PID, IPC, UTS
 //!   and cgroup namespaces and a minimal filesystem view: read-only system
 //!   directories, the harness project and the runtime's installation; the

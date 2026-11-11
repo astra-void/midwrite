@@ -15,7 +15,8 @@ pub enum DiscoveryError {
     },
 }
 
-/// A file that could not be parsed. It is reported, never analyzed.
+/// A file that could not be parsed or has an invalid suppression directive.
+/// It is reported, never analyzed.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 #[error("{message}")]
 pub struct ParseFailure {

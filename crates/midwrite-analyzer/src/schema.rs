@@ -1,5 +1,5 @@
 //! Static extraction of PostgreSQL schema facts from Drizzle definitions
-//! (Phase 8, Milestone 3).
+//! (Milestone 3).
 //!
 //! Reads `pgTable(...)`, `pgEnum(...)` and `pgSchema(...).table(...)`
 //! declarations of a module **without executing it**: only literal names,
@@ -95,7 +95,7 @@ struct Extractor<'s, 'r, 'a> {
     out: ExtractedSchema,
     /// `const auth = pgSchema("auth")` bindings → schema name.
     schemas: BTreeMap<String, String>,
-    /// Phase 12: recognizes default generators against the module's imports.
+    /// Recognizes default generators against the module's imports.
     recognizer: &'r Recognizer<'r, 'a>,
 }
 
@@ -447,7 +447,7 @@ impl Extractor<'_, '_, '_> {
             enum_values,
             references: None,
             generation: None,
-            // Phase 14: an explicit `mode` of a time or JSON column.
+            // An explicit `mode` of a time or JSON column.
             mode: matches!(builder, "timestamp" | "date" | "json" | "jsonb")
                 .then(|| options("mode").and_then(string_value))
                 .flatten(),
@@ -457,7 +457,7 @@ impl Extractor<'_, '_, '_> {
         if matches!(builder, "serial" | "bigserial" | "smallserial") {
             column.not_null = true;
         }
-        // Phase 12: how the default is produced. Drizzle uses a `$defaultFn`
+        // How the default is produced. Drizzle uses a `$defaultFn`
         // callback whenever the INSERT omits the column, whatever database
         // default the column also has, so an application default wins.
         let mut database_side: Option<Generation> =
@@ -643,7 +643,7 @@ impl Extractor<'_, '_, '_> {
                                 }
                                 _ => None,
                             });
-                    // Phase 13: `{ onDelete: "cascade", onUpdate: ... }`.
+                    // `{ onDelete: "cascade", onUpdate: ... }`.
                     let action = |key: &str| {
                         args.get(1)
                             .and_then(Argument::as_expression)
@@ -687,7 +687,7 @@ impl Extractor<'_, '_, '_> {
                     }
                 }
                 "$onUpdate" | "$onUpdateFn" => {
-                    // Phase 14: the callback, as written; the scenario
+                    // The callback, as written; the scenario
                     // loader models `() => new Date()` on a time column.
                     let text = args
                         .first()
@@ -828,7 +828,7 @@ impl Extractor<'_, '_, '_> {
                                 .map(|e| source_text(source, e).to_owned());
                         }
                         "nullsNotDistinct" if root == "unique" => nulls_not_distinct = true,
-                        // Phase 16: Drizzle 0.45's index builders have no
+                        // Drizzle 0.45's index builders have no
                         // `nullsNotDistinct()` (a TypeError when the schema
                         // module loads); only `unique().on(...)` has it.
                         "nullsNotDistinct" => {
@@ -950,7 +950,7 @@ impl Extractor<'_, '_, '_> {
                             .split_once('.')
                             .map(|(t, _)| t.to_owned())
                             .unwrap_or_default();
-                        // Phase 13: `.onDelete("...")` / `.onUpdate("...")`
+                        // `.onDelete("...")` / `.onUpdate("...")`
                         // chained on the builder, read from its text.
                         let action = |method: &str| {
                             let at = text.find(&format!(".{method}("))?;

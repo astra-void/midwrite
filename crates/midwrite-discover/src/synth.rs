@@ -141,7 +141,7 @@ pub struct ActorPlan {
     pub arguments: Vec<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry: Option<String>,
-    /// Phase 13: the entry's response is a separate step (a crash can
+    /// The entry's response is a separate step (a crash can
     /// follow its last statement): actors whose caller retries after a
     /// crash.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
@@ -176,7 +176,7 @@ pub struct Plan {
     pub name: String,
     pub description: String,
     pub schema_file: String,
-    /// Phase 12: every schema module the tables come from.
+    /// Every schema module the tables come from.
     pub schema_files: Vec<String>,
     /// Table bindings to read with `from` (`module#binding` when the
     /// project has several schema modules).
@@ -194,10 +194,10 @@ pub struct Plan {
     pub max_memory_bytes: Option<u64>,
     pub invariants: Vec<Invariant>,
     pub source_verification: Option<Json>,
-    /// Phase 13: an actor reads through a read replica (the scenario gets
+    /// An actor reads through a read replica (the scenario gets
     /// the `replicas` feature).
     pub replica_reads: bool,
-    /// Phase 14: an actor's extracted code uses JavaScript value forms (the
+    /// An actor's extracted code uses JavaScript value forms (the
     /// scenario gets the `js-values` feature, so that the loader extracts
     /// it as discovery did; without such forms both extractions are the
     /// Phase 13 one).
@@ -313,7 +313,7 @@ impl Plan {
         if let Some(b) = self.max_memory_bytes {
             bounds["maxMemoryBytes"] = json!(b);
         }
-        // Phase 12: a project with several schema modules gets the list
+        // A project with several schema modules gets the list
         // (tables are then bound by declaration); otherwise the single
         // module, as in Phase 11.
         let schema = if index.schema_files.len() > 1 {
@@ -328,7 +328,7 @@ impl Plan {
         if !retries.is_empty() {
             extraction["transactionRetries"] = json!(retries);
         }
-        // Phase 13: the declared replicated-database factories, so that the
+        // The declared replicated-database factories, so that the
         // loader extracts exactly what discovery extracted.
         if !index.bindings.replica_factories.is_empty() {
             extraction["replicaFactories"] = json!(index.bindings.replica_factories);
@@ -353,7 +353,7 @@ impl Plan {
         if let Some(sv) = &self.source_verification {
             doc["sourceVerification"] = sv.clone();
         }
-        // Phase 13: the source schema's foreign keys (and their row locks)
+        // The source schema's foreign keys (and their row locks)
         // are enforced when the scenario's tables carry any.
         let has_foreign_keys = self.tables.iter().any(|r| {
             index
@@ -363,7 +363,7 @@ impl Plan {
                     !t.foreign_keys.is_empty() || t.columns.iter().any(|c| c.references.is_some())
                 })
         });
-        // Phase 14: time and JSON columns are modeled when the scenario
+        // Time and JSON columns are modeled when the scenario
         // opts in (the discovery index reads them so).
         let builders = |names: &[&str]| {
             self.tables.iter().any(|r| {
@@ -412,7 +412,7 @@ impl Plan {
     }
 }
 
-/// Phase 14: the effects of one extraction in a comparable form: every
+/// The effects of one extraction in a comparable form: every
 /// database statement (source, connection, kind, table, lock), transaction
 /// boundary, external call and unknown operation, per code vector, in code
 /// order. Local computation, jumps and the steps only the loader adds (the
@@ -456,7 +456,7 @@ fn effect_trace(codes: &[Vec<midwrite_model::ir::Step>]) -> Vec<Vec<String>> {
         .collect()
 }
 
-/// Phase 14: compare discovery's extraction of an entry with the scenario
+/// Compare discovery's extraction of an entry with the scenario
 /// loader's (the round trip source → discovery → scenario → loader).
 fn round_trip(
     discovered: &[Vec<midwrite_model::ir::Step>],
@@ -504,15 +504,15 @@ pub(crate) enum Ty {
     Int,
     Text,
     Bool,
-    /// Phase 12: a `uuid` column: the runtime database accepts only UUIDs.
+    /// A `uuid` column: the runtime database accepts only UUIDs.
     Uuid,
-    /// Phase 14: an array (of at most [`MAX_LIST`] strings, or integers).
+    /// An array (of at most [`MAX_LIST`] strings, or integers).
     List {
         ints: bool,
     },
 }
 
-/// Phase 14: the most elements a synthesized array has.
+/// The most elements a synthesized array has.
 pub const MAX_LIST: usize = 3;
 
 /// Parameter paths the code reads, each with a type and whether it is a key.
@@ -598,7 +598,7 @@ pub(crate) fn param_paths(a: &Analyzed, index: &ProjectIndex) -> BTreeMap<String
     leaves
 }
 
-/// Phase 14: whether extracted code uses a JavaScript value form (an array,
+/// Whether extracted code uses a JavaScript value form (an array,
 /// a built-in call, a callback, `undefined`, a list/map/set literal), which
 /// only an extraction with `js_values` produces.
 fn uses_js_values(codes: &[Vec<midwrite_model::ir::Step>]) -> bool {
@@ -636,7 +636,7 @@ pub(crate) fn exprs_of(op: &Op) -> Vec<&Expr> {
             StmtKind::Update { pred, set, .. } => std::iter::once(pred)
                 .chain(set.iter().map(|(_, e)| e))
                 .collect(),
-            // Phase 14: every row of a multi-row INSERT.
+            // Every row of a multi-row INSERT.
             StmtKind::Insert {
                 values, more_rows, ..
             } => values
@@ -652,7 +652,7 @@ pub(crate) fn exprs_of(op: &Op) -> Vec<&Expr> {
 pub(crate) fn path_of(e: &Expr, params: &[String]) -> Option<String> {
     match e {
         Expr::Local(l) if params.contains(l) => Some(l.clone()),
-        // Phase 14: `At(base, "f")` is the property read of JavaScript values.
+        // `At(base, "f")` is the property read of JavaScript values.
         _ => {
             let (base, f) = e.as_property()?;
             path_of(base, params).map(|p| format!("{p}.{f}"))
@@ -676,7 +676,7 @@ fn collect_paths(e: &Expr, params: &[String], out: &mut BTreeSet<String>) {
                 collect_paths(v, params, out);
             }
         }
-        // Phase 14: arguments of JavaScript built-ins and array callbacks
+        // Arguments of JavaScript built-ins and array callbacks
         // (SQL built-ins are left to their own typing).
         Expr::Call { func, .. } if func.is_sql() => {}
         Expr::Array(items) | Expr::Call { args: items, .. } => {
@@ -736,7 +736,7 @@ fn numeric_paths(e: &Expr, params: &[String], f: &mut dyn FnMut(&str)) {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 14: string and array arguments
+// String and array arguments
 // ---------------------------------------------------------------------------
 
 /// How the extracted code uses one parameter path as a JavaScript value.
@@ -757,7 +757,7 @@ struct Usage {
     object_elements: bool,
 }
 
-/// Phase 14: the usage of every parameter path the code applies a
+/// The usage of every parameter path the code applies a
 /// JavaScript built-in to. A local defined once from a path (the snapshot
 /// of a `for...of` or of a destructuring) stands for that path.
 fn value_usage(codes: &[Vec<Op>], params: &[String]) -> BTreeMap<String, Usage> {
@@ -931,7 +931,7 @@ fn annotated_ty(written: &str) -> Option<Ty> {
     }
 }
 
-/// Phase 14: the type of a path used as a JavaScript value, or why it is
+/// The type of a path used as a JavaScript value, or why it is
 /// not synthesized. `Ok(None)`: no decision (the Phase 12 typing stands).
 fn usage_ty(path: &str, u: &Usage, annotation: Option<&str>) -> Result<Option<Ty>, String> {
     let declared = annotation.and_then(annotated_ty);
@@ -1040,7 +1040,7 @@ fn set_path(root: &mut [Value], params: &[String], path: &str, value: Value) {
     }
 }
 
-/// Phase 16: remove the key at `path` (a property below a parameter) from
+/// Remove the key at `path` (a property below a parameter) from
 /// its object.
 fn remove_path(root: &mut [Value], params: &[String], path: &str) {
     let Some((parent, key)) = path.rsplit_once('.') else {
@@ -1066,7 +1066,7 @@ fn remove_path(root: &mut [Value], params: &[String], path: &str) {
     }
 }
 
-/// Phase 16: make the arguments of `a` valid for the zod schemas that
+/// Make the arguments of `a` valid for the zod schemas that
 /// validate them (`midwrite_model::zodfn::conform`: valid values are
 /// kept, required keys added, keys a strict object rejects removed), then
 /// restore the values `midwrite-contracts.json` declares. A schema no
@@ -1135,7 +1135,7 @@ pub(crate) fn varied_paths(c: &Candidate, a: &Analyzed, relation: Relation) -> V
         }
         Relation::DistinctRow | Relation::Swapped => {
             for op in c.conflict.iter().filter(|o| !o.is_external) {
-                // Phase 16: with swapped keys a row lock taken by a read
+                // With swapped keys a row lock taken by a read
                 // (`SELECT ... FOR UPDATE`) is part of the conflict too.
                 if let Some(e) = a.summary.db.get(op.effect)
                     && (e.access.writes()
@@ -1151,7 +1151,7 @@ pub(crate) fn varied_paths(c: &Candidate, a: &Analyzed, relation: Relation) -> V
         }
     }
     let mut out: Vec<String> = Vec::new();
-    // Phase 12: a key read from a row (`owner.id` of the user found by
+    // A key read from a row (`owner.id` of the user found by
     // email) varies with the parameters that select that row; without
     // following them, a "distinct key" control kept the same key and
     // silently repeated the actual scenario.
@@ -1198,7 +1198,7 @@ fn arguments(
     let params = &a.summary.params;
     let mut args = vec![Value::Null; params.len()];
     let mut paths = param_paths(a, index);
-    // Phase 14: strings and arrays, typed by the built-ins applied to them
+    // Strings and arrays, typed by the built-ins applied to them
     // and the parameters' TypeScript annotations.
     let ops: Vec<Vec<Op>> = a
         .summary
@@ -1209,13 +1209,13 @@ fn arguments(
     let usage = value_usage(&ops, params);
     let annotations = midwrite_analyzer::TsActorProvider::new(&index.root)
         .param_annotations(&index.root, &a.fact.selector);
-    // Phase 15: a string-literal union (`kind: RouteKind`) admits only its
+    // A string-literal union (`kind: RouteKind`) admits only its
     // members.
     let mut literals: BTreeMap<String, Vec<String>> = annotations
         .iter()
         .filter_map(|(p, t)| crate::domains::literal_members(t).map(|m| (p.clone(), m)))
         .collect();
-    // Phase 16: so does a zod enum (base values take its first member,
+    // So does a zod enum (base values take its first member,
     // "different value" choices another one).
     for (p, members) in crate::domains::zod_enum_members(a) {
         literals.entry(p).or_insert(members);
@@ -1259,7 +1259,7 @@ fn arguments(
             set_path(&mut args, params, path, value.clone());
         }
     }
-    // Phase 16: arguments a zod schema validates satisfy it.
+    // Arguments a zod schema validates satisfy it.
     conform_to_zod(a, &mut args);
     if k > 0 {
         match relation {
@@ -1267,7 +1267,7 @@ fn arguments(
             Relation::DistinctKey | Relation::DistinctRow | Relation::DistinctRequestKey => {
                 for path in &varied {
                     let new = match get_path(&args, params, path) {
-                        // Phase 15: another member of a literal union, if any.
+                        // Another member of a literal union, if any.
                         Some(Value::Str(s)) if literals.contains_key(path) => {
                             match literals[path].iter().find(|m| **m != s) {
                                 Some(m) => Value::Str(m.clone()),
@@ -1275,7 +1275,7 @@ fn arguments(
                             }
                         }
                         Some(Value::Int(n)) => Value::Int(n + 100),
-                        // Phase 12: another valid UUID.
+                        // Another valid UUID.
                         Some(Value::Str(s)) if s.len() == 36 && s.matches('-').count() == 4 => {
                             Value::Str(format!("{}b{}", &s[..24], &s[25..]))
                         }
@@ -1299,14 +1299,14 @@ fn arguments(
                 }
             }
         }
-        // Phase 16: a varied value the schema rejects is replaced by a
+        // A varied value the schema rejects is replaced by a
         // valid one.
         conform_to_zod(a, &mut args);
     }
     Ok(args)
 }
 
-/// Phase 15: the synthesized arguments of every actor of a variant (the
+/// The synthesized arguments of every actor of a variant (the
 /// base world's), or why one cannot be synthesized.
 pub fn base_arguments(
     c: &Candidate,
@@ -1329,7 +1329,7 @@ pub fn base_arguments(
 pub struct Executed {
     pub src: SourceRef,
     pub actions: Vec<Action>,
-    /// Phase 15: the branches evaluated in this transition (local
+    /// The branches evaluated in this transition (local
     /// operations are folded into it): (location, source condition's value).
     pub branches: Vec<(String, bool)>,
 }
@@ -1345,7 +1345,7 @@ pub enum Solo {
     },
 }
 
-/// Phase 15: where a solo run ended (for a developer): the last executed
+/// Where a solo run ended (for a developer): the last executed
 /// operation and the failure the actor ended with, if any.
 fn stopped_at(executed: &[Executed], state: &State) -> String {
     let last = executed
@@ -1362,7 +1362,7 @@ fn stopped_at(executed: &[Executed], state: &State) -> String {
     }
 }
 
-/// Phase 15: branch outcomes among recorded events (`CHECK` events: the
+/// Branch outcomes among recorded events (`CHECK` events: the
 /// branch's source condition and its value).
 fn branch_events(events: &[midwrite_model::engine::Event]) -> Vec<(String, bool)> {
     events
@@ -1392,7 +1392,7 @@ pub fn run_alone(model: &Model, state: State, actor: usize) -> Solo {
         match apply(model, &s, t, &mut rec) {
             Ok(applied) => {
                 s = applied.state;
-                // Phase 15: branch outcomes, from the recorder's `CHECK`
+                // Branch outcomes, from the recorder's `CHECK`
                 // events (a branch's source condition and its value).
                 executed.push(Executed {
                     src,
@@ -1462,7 +1462,7 @@ impl Rows<'_> {
     /// Add a row with the given values, completing keys, not-null columns,
     /// defaults and foreign-key parents. Returns false if impossible.
     fn add(&mut self, table: &str, given: Row, depth: u32) -> Result<(), String> {
-        // Phase 12: a value generated during the run (the key an actor's own
+        // A value generated during the run (the key an actor's own
         // insert produced) cannot be required of the initial state: the row
         // it belongs to is created by the execution itself.
         if given.values().any(|v| matches!(v, Value::Gen(_))) {
@@ -1494,7 +1494,7 @@ impl Rows<'_> {
             } else if col.primary_key || source.primary_key.contains(&col.sql_name) {
                 match model_ty(&col.builder) {
                     Ty::Int => Value::Int(self.next_int(table, &col.property)),
-                    // Phase 12: a `uuid` column needs a valid UUID in the
+                    // A `uuid` column needs a valid UUID in the
                     // runtime database.
                     _ if col.builder == "uuid" => uuid_literal(table, n),
                     _ => Value::Str(format!("{table}-{n}")),
@@ -1534,7 +1534,7 @@ impl Rows<'_> {
             }
         }
         for (pbinding, pcol, v) in parents {
-            // Phase 12: a generated parent key is created by the execution.
+            // A generated parent key is created by the execution.
             if matches!(v, Value::Gen(_)) {
                 continue;
             }
@@ -1612,7 +1612,7 @@ impl Rows<'_> {
                     continue;
                 };
                 for r in rows {
-                    // Phase 12: a generated key references a row the
+                    // A generated key references a row the
                     // execution itself inserted.
                     let Some(v) = r
                         .get(&col.property)
@@ -1657,7 +1657,7 @@ fn fill(builder: &str, property: &str, n: usize) -> Value {
     if builder == "uuid" {
         return uuid_literal(property, n);
     }
-    // Phase 14: time and JSON columns (modeled under the `timestamps` and
+    // Time and JSON columns (modeled under the `timestamps` and
     // `json` features) need values of their type: an explicit canonical
     // time (the text a Drizzle `Date` serializes to) and an empty object.
     match builder {
@@ -1778,7 +1778,7 @@ pub struct ScenarioBudget {
 pub struct Built {
     pub plan: Plan,
     pub synthesis: SynthesisReport,
-    /// Phase 15: what the actors' solo runs on the final rows observed.
+    /// What the actors' solo runs on the final rows observed.
     pub observations: crate::worlds::Observations,
 }
 
@@ -1806,7 +1806,7 @@ fn table_closure(
             }
         }
     }
-    // Phase 12: the closure may span several schema modules; every one is
+    // The closure may span several schema modules; every one is
     // listed in the scenario.
     let mut files = BTreeSet::new();
     let mut refs = Vec::new();
@@ -1823,7 +1823,7 @@ fn table_closure(
     Ok((parents_first(index, refs), files.into_iter().collect()))
 }
 
-/// Phase 12: synthesized rows may reach a table the scenario does not list
+/// Synthesized rows may reach a table the scenario does not list
 /// yet (a parent found while satisfying a read); extend the tables by the
 /// closure of every table with rows, so the scenario loads.
 fn cover_rows(index: &ProjectIndex, plan: &mut Plan) {
@@ -1905,7 +1905,7 @@ pub fn build(
     )
 }
 
-/// Phase 15: [`build`] for one initial world: its argument overrides are
+/// [`build`] for one initial world: its argument overrides are
 /// applied before rows are synthesized (rows then follow the arguments),
 /// its cell overrides after every actor's first solo run (the rows the
 /// actors need), and every actor must still reach the candidate's
@@ -2003,7 +2003,7 @@ pub fn build_world(
             c.conflict
                 .iter()
                 .filter(|o| c.actor_entries.get(k).is_some_and(|e| *e == o.entry))
-                // Phase 12: the write a handler repeats after an unknown
+                // The write a handler repeats after an unknown
                 // outcome runs only under the fault the scenario explores;
                 // a fault-free run alone cannot reach it.
                 .filter(|o| o.role != "retried-write")
@@ -2093,7 +2093,7 @@ pub fn build_world(
         source_verification: None,
         js_values: c.actor_entries.iter().any(|&ai| {
             uses_js_values(&analyzed[ai].summary.codes)
-                // Phase 16: unrolled loops, inspected caught errors and
+                // Unrolled loops, inspected caught errors and
                 // request bodies exist only with JavaScript values.
                 || analyzed[ai].summary.assumptions.iter().any(|a| {
                     a.starts_with("loop ")
@@ -2116,7 +2116,7 @@ pub fn build_world(
     };
     preseed_argument_rows(c, &plan, analyzed, &mut rows);
     preseed_written_rows(c, &plan, analyzed, &mut rows);
-    // Phase 16: arguments validated by a zod schema were chosen to satisfy
+    // Arguments validated by a zod schema were chosen to satisfy
     // it: stated, never presented as observed.
     for (k, actor) in plan.actors.iter().enumerate() {
         let Some(a) = c.actor_entries.get(k).map(|&ai| analyzed[ai]) else {
@@ -2142,7 +2142,7 @@ pub fn build_world(
     // final rows.
     let order: Vec<usize> = (0..plan.actors.len()).chain(0..plan.actors.len()).collect();
     for (round, k) in order.into_iter().enumerate() {
-        // Phase 15: the world's changes to the rows the actors need.
+        // The world's changes to the rows the actors need.
         if round == plan.actors.len()
             && !world.cells.is_empty()
             && let Err(e) = crate::worlds::apply_cells(&mut rows.rows, &world.cells)
@@ -2178,7 +2178,7 @@ pub fn build_world(
                     });
                 }
             };
-            // Phase 14: the loader must extract what discovery extracted
+            // The loader must extract what discovery extracted
             // (connections, statements, transactions, sources); a scenario
             // whose re-extraction differs would check another program.
             if let Err(e) = round_trip(
@@ -2196,7 +2196,7 @@ pub fn build_world(
                     notes: rows.notes.clone(),
                 });
             }
-            // Phase 15: the local operations before the first visible step
+            // The local operations before the first visible step
             // (branches included) run while the initial state settles.
             let mut settle = Recorder::on();
             let start = midwrite_model::engine::initial_state_recorded(&model, &mut settle);
@@ -2275,7 +2275,7 @@ pub fn build_world(
                             let Some(v) = r.get(&col.property).filter(|v| !v.is_null()) else {
                                 continue;
                             };
-                            // Phase 12: a parent the execution inserts
+                            // A parent the execution inserts
                             // itself (its key generated, or taken from the
                             // request) is not initial data.
                             let inserted_parent = inserted
@@ -2328,7 +2328,7 @@ pub fn build_world(
             // to stay empty.
             let seeded = seed_from(&model, &executed, &solo.actors[0].keep_empty, &mut rows)
                 .or_else(|why| {
-                    // Phase 15: every read found a row; a guard over a read
+                    // Every read found a row; a guard over a read
                     // row may have stopped the actor.
                     satisfy_guard(
                         &model,
@@ -2346,7 +2346,7 @@ pub fn build_world(
                         }
                     })
                 });
-            // Phase 15: a guard over an argument (`actor.kind === "staff"`).
+            // A guard over an argument (`actor.kind === "staff"`).
             let seeded = match seeded {
                 Ok(()) => Ok(()),
                 Err(why) => {
@@ -2464,7 +2464,7 @@ fn inserted_rows(model: &Model, executed: &[Executed]) -> BTreeMap<String, Vec<R
                         .or_default()
                         .push(values.clone());
                 }
-                // Phase 14: every row of a multi-row INSERT.
+                // Every row of a multi-row INSERT.
                 Action::Stmt {
                     stmt: ClosedStmt::InsertMany { table, rows, .. },
                     ..
@@ -2491,7 +2491,7 @@ fn changed_nothing(a: &Action) -> bool {
             ..
         }
     ) || matches!(
-        // Phase 16: a multi-row lock that locked no row.
+        // A multi-row lock that locked no row.
         a,
         Action::Stmt {
             stmt: ClosedStmt::SelectMany { lock, .. },
@@ -2816,7 +2816,7 @@ fn seed_from(
                     }
                     (*table, pred, r.is_none())
                 }
-                // Phase 16: a multi-row select that returned nothing.
+                // A multi-row select that returned nothing.
                 (ClosedStmt::SelectMany { table, pred, .. }, Expect::Done(StmtResult::Rows(r))) => {
                     (*table, pred, r.is_empty())
                 }
@@ -2849,7 +2849,7 @@ fn seed_from(
     Err("no read on the executed path came back empty".to_owned())
 }
 
-/// Phase 15: a guard the run evaluated that compares an argument path with
+/// A guard the run evaluated that compares an argument path with
 /// a literal its synthesized value differs from (`actor.kind === "staff"`
 /// with `kind = "kind-1"`): the path, the literal, and the guard's location.
 /// Paths in `fixed` (declared, or chosen by the world) are left alone; each
@@ -2993,7 +2993,7 @@ fn argument_guard(
     None
 }
 
-/// Phase 15: when an actor stops at a guard that compares a property of a
+/// When an actor stops at a guard that compares a property of a
 /// row it read with a literal (`membership.role !== "admin"`), set that
 /// column of the stored row to the value that lets the guard pass, once per
 /// (table, column, value). The requirement is recorded as a synthesized
@@ -3458,7 +3458,7 @@ pub fn invariants(
                                 column: Some(column.clone()),
                             }))
                         };
-                        // Phase 14: an outcome an invariant term cannot state
+                        // An outcome an invariant term cannot state
                         // (a boolean, a row) is not turned into `null` (which
                         // made every such outcome a violation). Phase 16: a
                         // generated identifier is stated by the actor and
@@ -3539,7 +3539,7 @@ pub fn invariants(
             _ => "",
         }
         .to_owned();
-        // Phase 16: how a serial outcome was stated (only when it applies,
+        // How a serial outcome was stated (only when it applies,
         // so that earlier descriptions are unchanged).
         if renamed_generated {
             extra.push_str("; a generated value is stated as generated by the same actor and generator as in the serial execution (any of that actor's generation events of that generator: a retried attempt generates a new value), never by its text");
@@ -3569,7 +3569,7 @@ fn value_term(v: &Value) -> Option<Term> {
     }
 }
 
-/// Phase 16: why a serial outcome cannot be stated.
+/// Why a serial outcome cannot be stated.
 enum Refusal {
     /// A value no invariant term states (a boolean, a row, a clock
     /// reading): its rendering.
@@ -3583,12 +3583,12 @@ enum Refusal {
 struct SerialOutcomes {
     /// The values by the number of completed requests.
     values: BTreeMap<i64, BTreeSet<Value>>,
-    /// Phase 16: for each generated identifier among the values, the
+    /// For each generated identifier among the values, the
     /// actor's name and the generator that state it, or why they do not.
     renaming: BTreeMap<GenId, Result<(String, GeneratorSel), String>>,
-    /// Phase 16: a generated identifier was stated by actor and generator.
+    /// A generated identifier was stated by actor and generator.
     renamed: bool,
-    /// Phase 16: the serial executions explored replica progress.
+    /// The serial executions explored replica progress.
     replicas: bool,
 }
 
@@ -3617,7 +3617,7 @@ fn is_clock_value(g: &GenId) -> bool {
     midwrite_model::db::is_clock(g) || g.actor == midwrite_model::db::CLOCK_PLACEHOLDER
 }
 
-/// Phase 16: the generation sites of `generator` in actor `actor`'s code:
+/// The generation sites of `generator` in actor `actor`'s code:
 /// package calls ([`Op::Generate`]) for the call generator, INSERT rows
 /// into the column's table for a column generator. `None` when a backward
 /// jump could run a site more than once in one attempt.
@@ -3648,7 +3648,7 @@ fn generation_sites(model: &Model, actor: usize, generator: u16) -> Option<usize
     Some(sites)
 }
 
-/// Phase 16: whether the generated identifier `g` of a serial execution can
+/// Whether the generated identifier `g` of a serial execution can
 /// be stated as "generated by actor A from generator G" faithfully: it is
 /// an identifier (not a clock reading), and actor A's code has exactly one
 /// generation site of G and no backward jump, so that every attempt of A
@@ -3688,7 +3688,7 @@ fn renaming(model: &Model, g: &GenId) -> Result<(String, GeneratorSel), String> 
 /// The values `table.column` of the row `filter` has after every serial
 /// execution of a subset of the plan's actors (each actor alone, to
 /// completion, in every order), by the number of actors that completed.
-/// Phase 16: with the `replicas` feature, the replica may replay any prefix
+/// With the `replicas` feature, the replica may replay any prefix
 /// of the primary's commits at every step of a serial execution (the
 /// model's unbounded lag), so that a stale read and a fresh read are both
 /// serial outcomes; without it, exactly the Phase 14 computation.
@@ -3746,7 +3746,7 @@ fn serial_values(
     })
 }
 
-/// Phase 16: the most states one serial order's replica-progress
+/// The most states one serial order's replica-progress
 /// exploration may visit.
 const MAX_SERIAL_STATES: usize = 20_000;
 

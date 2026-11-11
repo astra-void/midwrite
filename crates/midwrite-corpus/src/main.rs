@@ -501,7 +501,7 @@ fn traces(manifests: &[PathBuf], unknowns_out: Option<&Path>) -> Result<bool, St
     Ok(all_valid)
 }
 
-/// The classifications a reviewer may give (docs/phase4/REAL-WORLD-EVALUATION.md).
+/// The classifications a reviewer may give (docs/development/corpus-evaluation.md).
 const REVIEW_CLASSES: &[&str] = &[
     "confirmed-bug",
     "intended-risk",
@@ -641,7 +641,7 @@ fn review_packet(
             }));
         }
         let form = serde_json::json!({
-            "kind": "commitrift.review",
+            "kind": "midwrite.review",
             "schemaVersion": 1,
             "project": project.name,
             "revision": project.revision,
@@ -668,8 +668,8 @@ fn review_check(path: &Path, labels: Option<&Path>) -> Result<(), String> {
         &std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?,
     )
     .map_err(|e| e.to_string())?;
-    if form["kind"] != "commitrift.review" {
-        return Err("not a review form (`kind` must be `commitrift.review`)".to_owned());
+    if form["kind"] != "midwrite.review" {
+        return Err("not a review form (`kind` must be `midwrite.review`)".to_owned());
     }
     let reviews = form["reviews"].as_array().ok_or("no `reviews`")?;
     let mut problems = Vec::new();
@@ -813,7 +813,7 @@ struct Stats {
     /// Phase 5 counters; absent in earlier reports.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     values: Option<ValueCounters>,
-    /// Findings by value-relation status (Phase 5).
+    /// Findings by value-relation status.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     value_relations: BTreeMap<String, usize>,
 }
@@ -858,10 +858,10 @@ struct Timings {
     analysis_ms: f64,
     summary_expansions: usize,
     summary_reuses: usize,
-    /// Of `resolve_ms`: the effect-summary fixpoint (Phase 5).
+    /// Of `resolve_ms`: the effect-summary fixpoint.
     #[serde(default)]
     solve_ms: f64,
-    /// Phase 8: of `summary_reuses`, those found through the depth-canonical
+    /// Of `summary_reuses`, those found through the depth-canonical
     /// memo key.
     #[serde(default)]
     summary_canonical_reuses: usize,
@@ -927,7 +927,7 @@ struct Finding {
     /// Files other than `file` that hold related operations.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     other_files: Vec<String>,
-    /// Value-relation status of the two operations (Phase 5).
+    /// Value-relation status of the two operations.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     value_relation: Option<String>,
 }

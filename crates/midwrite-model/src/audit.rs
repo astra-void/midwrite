@@ -1,4 +1,4 @@
-//! Machine-checked audit of the dependence relation (Phase 10).
+//! Machine-checked audit of the dependence relation.
 //!
 //! Every reduction trusts the footprints of [`crate::footprint`]: transitions
 //! whose footprints do not conflict are treated as independent. This module
@@ -24,7 +24,7 @@
 //!
 //! * **enabling pairs conflict**: `t` and `x` are footprint-dependent. The
 //!   explorers also treat an enabling pair as dependent whatever the
-//!   footprints say (`docs/phase10/ENABLING-RELATIONS.md`), so a violation
+//!   footprints say (`docs/architecture/partial-order-reduction.md`), so a violation
 //!   here is a footprint that does not show a dependency the search had to
 //!   supply itself; the Phase 9 pool hand-over defect was one.
 //!

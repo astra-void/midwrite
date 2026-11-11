@@ -69,6 +69,47 @@ fn safe_directory_passes() {
 }
 
 #[test]
+fn inline_suppressions_apply_to_every_output_and_exit_status() {
+    for format in ["text", "json", "sarif"] {
+        let output = run(&["check", "safe/inline_suppression.ts", "--format", format]);
+        assert_eq!(output.status.code(), Some(0), "{}", stdout(&output));
+        match format {
+            "json" => {
+                assert_eq!(json(&output)["diagnostics"], serde_json::json!([]));
+                assert_eq!(json(&output)["summary"]["diagnostics"]["warning"], 0);
+            }
+            "sarif" => assert_eq!(json(&output)["runs"][0]["results"], serde_json::json!([])),
+            _ => assert!(stdout(&output).contains("0 warning(s)")),
+        }
+    }
+    let output = run(&["trace", "safe/inline_suppression.ts", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(json(&output)["traces"], serde_json::json!([]));
+}
+
+#[test]
+fn a_suppression_without_a_reason_fails_even_with_fail_on_never() {
+    let output = run(&[
+        "check",
+        "unsupported/suppression_without_reason.ts",
+        "--format",
+        "json",
+        "--fail-on",
+        "never",
+    ]);
+    assert_eq!(output.status.code(), Some(3));
+    let report = json(&output);
+    assert_eq!(report["summary"]["filesFailed"], 1);
+    assert!(
+        report["failures"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("non-empty reason")
+    );
+    assert_eq!(report["failures"][0]["line"], 4);
+}
+
+#[test]
 fn json_output_follows_the_documented_schema() {
     let output = run(&[
         "check",
@@ -279,7 +320,7 @@ fn explain_prints_code_documentation() {
     assert!(text.starts_with("MW1001: database commit followed by an independent external effect"));
     assert!(text.contains("Transactional outbox"));
 
-    let lowercase = run(&["explain", "cp9001"]);
+    let lowercase = run(&["explain", "mw9001"]);
     assert_eq!(lowercase.status.code(), Some(0));
 
     let list = stdout(&run(&["explain"]));
@@ -305,6 +346,8 @@ fn sarif_output_is_valid_sarif_2_1_0() {
     assert_eq!(sarif["version"], "2.1.0");
     let run = &sarif["runs"][0];
     assert_eq!(run["tool"]["driver"]["name"], "midwrite");
+    assert_eq!(run["tool"]["driver"]["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(run["columnKind"], "unicodeCodePoints");
     assert_eq!(run["tool"]["driver"]["rules"].as_array().unwrap().len(), 6);
     let results = run["results"].as_array().unwrap();
     assert_eq!(results.len(), 2);
@@ -315,10 +358,207 @@ fn sarif_output_is_valid_sarif_2_1_0() {
         11
     );
     assert!(
-        results[0]["partialFingerprints"]["crashproof/v1"]
+        results[0]["partialFingerprints"]["midwrite/v1"]
             .as_str()
             .is_some_and(|f| f.len() >= 16)
     );
+    let report = json(&self::run(&[
+        "check",
+        "vulnerable/charge_then_write.ts",
+        "--format",
+        "json",
+    ]));
+    for (result, diagnostic) in results
+        .iter()
+        .zip(report["diagnostics"].as_array().unwrap())
+    {
+        assert_eq!(result["ruleId"], diagnostic["code"]);
+        assert_eq!(
+            result["partialFingerprints"]["midwrite/v1"],
+            diagnostic["fingerprint"]
+        );
+        assert!(
+            run["tool"]["driver"]["rules"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|rule| rule["id"] == result["ruleId"] && rule["help"]["text"].is_string())
+        );
+    }
+    assert_eq!(
+        output.stdout,
+        self::run(&[
+            "check",
+            "vulnerable/charge_then_write.ts",
+            "--format",
+            "sarif"
+        ])
+        .stdout
+    );
+}
+
+#[test]
+fn sarif_encodes_source_paths_and_declares_unicode_columns() {
+    let source = PUBLISH_AFTER_WRITE.replace("await queue", "/* 😀 */ await queue");
+    let dir = scratch("sarif paths", &[("src/pay #?%한글.ts", &source)]);
+    let output = run_in(&dir, &["check", ".", "--format", "sarif"]);
+    assert_eq!(output.status.code(), Some(1), "{}", stderr(&output));
+    let sarif = json(&output);
+    let run = &sarif["runs"][0];
+    assert_eq!(run["columnKind"], "unicodeCodePoints");
+    let location = &run["results"][0]["locations"][0]["physicalLocation"];
+    assert_eq!(
+        location["artifactLocation"]["uri"],
+        "src/pay%20%23%3F%25%ED%95%9C%EA%B8%80.ts"
+    );
+    let report = json(&run_in(&dir, &["check", ".", "--format", "json"]));
+    assert_eq!(
+        location["region"]["startColumn"],
+        report["diagnostics"][0]["location"]["column"]
+    );
+    for related in run["results"][0]["relatedLocations"].as_array().unwrap() {
+        assert_eq!(
+            related["physicalLocation"]["artifactLocation"],
+            location["artifactLocation"]
+        );
+    }
+
+    let absolute_path = dir.join("src/pay #?%한글.ts");
+    let absolute = json(&run_in(
+        &dir,
+        &[
+            "check",
+            absolute_path.to_str().unwrap(),
+            "--format",
+            "sarif",
+        ],
+    ));
+    let absolute_run = &absolute["runs"][0];
+    let uri =
+        absolute_run["results"][0]["locations"][0]["physicalLocation"]["artifactLocation"]["uri"]
+            .as_str()
+            .unwrap();
+    assert!(uri.starts_with("file:///"), "{uri}");
+    assert!(
+        uri.ends_with("/src/pay%20%23%3F%25%ED%95%9C%EA%B8%80.ts"),
+        "{uri}"
+    );
+    let directory_uri = absolute_run["invocations"][0]["workingDirectory"]["uri"]
+        .as_str()
+        .unwrap();
+    assert!(directory_uri.starts_with("file:///"), "{directory_uri}");
+    assert!(
+        directory_uri.ends_with("/sarif%20paths/"),
+        "{directory_uri}"
+    );
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn sarif_preserves_fingerprints_and_baseline_states_when_lines_move() {
+    let dir = scratch("sarif-baseline", &[("pay.ts", PUBLISH_AFTER_WRITE)]);
+    let initial = run_in(
+        &dir,
+        &[
+            "check",
+            ".",
+            "--format",
+            "sarif",
+            "--write-baseline",
+            "baseline.json",
+        ],
+    );
+    assert_eq!(initial.status.code(), Some(0));
+    let fingerprint = json(&initial)["runs"][0]["results"][0]["partialFingerprints"].clone();
+    std::fs::write(dir.join("pay.ts"), format!("\n\n{PUBLISH_AFTER_WRITE}")).unwrap();
+    let checked = run_in(
+        &dir,
+        &[
+            "check",
+            ".",
+            "--format",
+            "sarif",
+            "--baseline",
+            "baseline.json",
+        ],
+    );
+    assert_eq!(checked.status.code(), Some(0));
+    let result = &json(&checked)["runs"][0]["results"][0];
+    assert_eq!(result["partialFingerprints"], fingerprint);
+    assert_eq!(result["baselineState"], "unchanged");
+    assert_eq!(
+        result["locations"][0]["physicalLocation"]["region"]["startLine"],
+        5
+    );
+
+    std::fs::write(dir.join("new.ts"), PUBLISH_AFTER_WRITE).unwrap();
+    let checked = run_in(
+        &dir,
+        &[
+            "check",
+            ".",
+            "--format",
+            "sarif",
+            "--baseline",
+            "baseline.json",
+        ],
+    );
+    assert_eq!(checked.status.code(), Some(1));
+    let report = json(&checked);
+    let results = report["runs"][0]["results"].as_array().unwrap();
+    assert_eq!(
+        results
+            .iter()
+            .filter(|r| r["baselineState"] == "new")
+            .count(),
+        1
+    );
+    assert_eq!(
+        results
+            .iter()
+            .filter(|r| r["baselineState"] == "unchanged")
+            .count(),
+        1
+    );
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn sarif_distinguishes_empty_successful_and_incomplete_scans() {
+    let clean = run(&["check", "safe", "--format", "sarif"]);
+    assert_eq!(clean.status.code(), Some(0));
+    let clean = json(&clean);
+    assert_eq!(clean["runs"][0]["results"], serde_json::json!([]));
+    assert_eq!(
+        clean["runs"][0]["invocations"][0]["executionSuccessful"],
+        true
+    );
+
+    let incomplete = run(&["check", "unsupported/syntax_error.ts", "--format", "sarif"]);
+    assert_eq!(incomplete.status.code(), Some(3));
+    let incomplete = json(&incomplete);
+    assert_eq!(incomplete["runs"][0]["results"], serde_json::json!([]));
+    let invocation = &incomplete["runs"][0]["invocations"][0];
+    assert_eq!(invocation["executionSuccessful"], false);
+    assert_eq!(
+        invocation["toolExecutionNotifications"][0]["level"],
+        "error"
+    );
+    assert!(
+        invocation["toolExecutionNotifications"][0]["message"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("unsupported/syntax_error.ts")
+    );
+
+    let info = run(&[
+        "check",
+        "unsupported/unknown_effect.ts",
+        "--format",
+        "sarif",
+    ]);
+    assert_eq!(info.status.code(), Some(0));
+    assert_eq!(json(&info)["runs"][0]["results"][0]["level"], "note");
 }
 
 #[test]
@@ -615,69 +855,11 @@ fn cross_module_findings_link_to_other_files() {
 }
 
 #[test]
-fn legacy_crashproof_executable_behaves_like_midwrite() {
-    let args = [
-        "check",
-        "vulnerable/db_commit_then_publish.ts",
-        "--format",
-        "json",
-    ];
-    let legacy = Command::new(env!("CARGO_BIN_EXE_crashproof"))
-        .args(args)
-        .current_dir(fixtures())
-        .output()
-        .unwrap();
-    let current = run(&args);
-    assert_eq!(legacy.status.code(), current.status.code());
-    assert_eq!(legacy.stdout, current.stdout, "same report");
-    assert!(stderr(&legacy).contains("has been renamed to `midwrite`"));
-    assert!(!stderr(&current).contains("renamed"));
-}
-
-#[test]
-fn legacy_configuration_is_a_fallback_and_never_merged() {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("legacy-config");
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(
-        dir.join("a.ts"),
-        "export async function f(id: string) {\n  await store.update(orders).set({ status: \"paid\" });\n  await bus.send(\"x\", { id });\n}\n",
-    )
-    .unwrap();
-    let legacy = r#"{ "databaseReceivers": ["store"], "externalEffects": [{ "receiver": "bus", "method": "send", "category": "message-publish" }] }"#;
-    std::fs::write(dir.join("crashproof.json"), legacy).unwrap();
-
-    // Only the legacy file: it is read, with a note.
-    let output = run_in(&dir, &["check", ".", "--format", "json"]);
-    let report = json(&output);
-    assert_eq!(report["config"], "crashproof.json");
-    assert_eq!(report["diagnostics"][0]["code"], "MW1001");
-    assert!(
-        stderr(&output).contains("legacy configuration"),
-        "{}",
-        stderr(&output)
-    );
-
-    // Both files: only midwrite.json is read; nothing from the legacy file
-    // (its receivers) leaks in.
-    std::fs::write(dir.join("midwrite.json"), "{}").unwrap();
-    let output = run_in(&dir, &["check", ".", "--format", "json"]);
-    let report = json(&output);
-    assert_eq!(report["config"], "midwrite.json");
-    assert_eq!(report["diagnostics"].as_array().unwrap().len(), 0);
-    assert!(
-        stderr(&output).contains("ignoring crashproof.json"),
-        "{}",
-        stderr(&output)
-    );
-}
-
-#[test]
-fn legacy_thread_variable_is_honored() {
+fn thread_variable_does_not_change_results() {
     let output = Command::new(env!("CARGO_BIN_EXE_midwrite"))
         .args(["check", ".", "--format", "json", "--fail-on", "never"])
         .current_dir(fixtures())
-        .env("CRASHPROOF_THREADS", "1")
+        .env("MIDWRITE_THREADS", "1")
         .output()
         .unwrap();
     let parallel = run(&["check", ".", "--format", "json", "--fail-on", "never"]);
@@ -700,7 +882,7 @@ fn trace_command_prints_static_candidates() {
     assert!(text.contains("not reproduced failures"), "{text}");
 
     let report = json(&run(&["trace", "vulnerable", "--format", "json"]));
-    assert_eq!(report["kind"], "commitrift.traces");
+    assert_eq!(report["kind"], "midwrite.traces");
     assert_eq!(report["schemaVersion"], 2);
     let check = json(&run(&[
         "check",

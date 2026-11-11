@@ -1,4 +1,4 @@
-//! Differential tests (Phase 5, Milestone 10.3): for small programs under
+//! Differential tests (Milestone 10.3): for small programs under
 //! `fixtures/differential/`, compare the operations on the statically
 //! reported path with the operations a controlled execution performs.
 //!

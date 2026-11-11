@@ -1122,7 +1122,7 @@ impl<'a> Lowerer<'_> {
         };
         // A modeled builtin is not an unknown call, except where Phase 4
         // recorded it (awaited and concurrent positions keep their
-        // behavior; see docs/phase5/ASYNC-SEMANTICS.md).
+        // behavior; see docs/architecture/value-analysis.md).
         let records = consumer.records_unknown() && !(builtin && consumer == Consumer::Argument);
         if records || summarize {
             let label = self.recognizer.call_label(call);

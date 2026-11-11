@@ -23,7 +23,7 @@ pub enum StmtResult {
     Row(Option<Row>),
     Count(i64),
     Affected(i64),
-    /// Phase 14: the rows a multi-row `INSERT ... RETURNING` returned, in
+    /// The rows a multi-row `INSERT ... RETURNING` returned, in
     /// the order the statement processed them.
     Rows(Vec<Row>),
 }
@@ -56,7 +56,7 @@ fn add_edge(s: &mut State, from: TxnId, to: TxnId) {
 /// predicate when nothing was returned or the key is composite). A
 /// serializable implementation must treat conflicts on exactly this set;
 /// PostgreSQL's predicate locks may cover more (relation or page granularity)
-/// but, as observed with `FOR UPDATE SKIP LOCKED` (docs/phase6/POSTGRES-VALIDATION.md),
+/// but, as observed with `FOR UPDATE SKIP LOCKED` (docs/architecture/postgres-model.md),
 /// do not cover rows a `LIMIT 1` scan never reached.
 fn select_read_predicate(schema: &TableSchema, pred: &Expr, returned: Option<&Row>) -> Expr {
     match (returned, schema.primary_key.as_slice()) {
@@ -76,7 +76,7 @@ fn select_read_predicate(schema: &TableSchema, pred: &Expr, returned: Option<&Ro
     }
 }
 
-/// Phase 16: the semantic read set of a multi-row `SELECT ... ORDER BY pk
+/// The semantic read set of a multi-row `SELECT ... ORDER BY pk
 /// [LIMIT n]` that returned `returned`: the whole predicate, unless the
 /// limit stopped the scan (then the rows up to the last returned one, as for
 /// `LIMIT 1`); `LIMIT 0` reads nothing.
@@ -247,7 +247,7 @@ fn unique_check(
     for rule in schema.key_rules() {
         let (name, cols) = (rule.name.clone(), &rule.columns);
         let key = key_tuple(new, cols);
-        // Phase 16: NULLS DISTINCT skips a key with a NULL; NULLS NOT
+        // NULLS DISTINCT skips a key with a NULL; NULLS NOT
         // DISTINCT checks it, NULL equal to NULL (`Value::Null == Null`).
         if !rule.checks(&key) {
             continue;
@@ -459,7 +459,7 @@ pub fn project(
 /// before any constraint is checked (as PostgreSQL evaluates defaults before
 /// inserting), so a failing or conflicting insert still consumes its value.
 ///
-/// Phase 12: a generated default produces a new value for this execution of
+/// A generated default produces a new value for this execution of
 /// the statement, identified by the inserting actor's generation counter. A
 /// database default (`gen_random_uuid()`) is computed by PostgreSQL while it
 /// executes the INSERT; an application default (`$defaultFn`) by Drizzle
@@ -483,7 +483,7 @@ fn apply_defaults(
         if values.contains_key(&c.name) {
             continue;
         }
-        // Phase 14: Drizzle computes `$defaultFn` (and, for a column without
+        // Drizzle computes `$defaultFn` (and, for a column without
         // a default, `$onUpdate`) while it builds the statement; PostgreSQL
         // evaluates a row's defaults when it forms that row.
         let default = c.default.as_ref().or(c.on_update.as_ref());
@@ -550,7 +550,7 @@ fn apply_defaults(
     }
 }
 
-/// Which column defaults [`apply_defaults`] assigns (Phase 14).
+/// Which column defaults [`apply_defaults`] assigns.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Defaults {
     /// Every default (a single-row `INSERT`, as in Phase 7-13).
@@ -569,7 +569,7 @@ enum Defaults {
 /// completes a dangerous structure (observed on 17.11: the second writer of a
 /// write-skew pair fails at its `UPDATE`, not at `COMMIT`).
 pub fn run_stmt(model: &Model, s: &mut State, p: &mut Pending, foot: &mut Footprint) -> StmtStep {
-    // Phase 13: a statement whose rows are done runs its foreign-key checks
+    // A statement whose rows are done runs its foreign-key checks
     // (PostgreSQL's AFTER triggers, at the end of the statement) before it
     // completes; a check that waits resumes here.
     let step = match p.deferred.clone() {
@@ -596,7 +596,7 @@ pub fn run_stmt(model: &Model, s: &mut State, p: &mut Pending, foot: &mut Footpr
 
 fn run_stmt_inner(model: &Model, s: &mut State, p: &mut Pending, foot: &mut Footprint) -> StmtStep {
     let iso = s.txns[&p.txn].iso;
-    // Phase 14: a predicate comparing a JSON column is not modeled.
+    // A predicate comparing a JSON column is not modeled.
     if !p.started {
         let pred = match &p.stmt {
             ClosedStmt::Select { pred, joins, .. } if joins.is_empty() => Some(pred),
@@ -653,7 +653,7 @@ fn run_stmt_inner(model: &Model, s: &mut State, p: &mut Pending, foot: &mut Foot
             match step {
                 StmtStep::Done(StmtResult::Affected(n)) if returning => {
                     let row = if n > 0 { p.found.take() } else { None };
-                    // Phase 12: `RETURNING col, ...` returns those columns.
+                    // `RETURNING col, ...` returns those columns.
                     let row = match (&returning_columns, row) {
                         (Some(cols), Some(r)) => Some(
                             cols.iter()
@@ -756,7 +756,7 @@ fn run_stmt_inner(model: &Model, s: &mut State, p: &mut Pending, foot: &mut Foot
                 other => other,
             }
         }
-        // Phase 16: a multi-row SELECT. Without a lock it returns the
+        // A multi-row SELECT. Without a lock it returns the
         // matching rows of its snapshot; with one it locks them one at a
         // time in scan order (`run_rows`): a lock it cannot take makes it
         // wait while holding the locks it already took.
@@ -876,7 +876,7 @@ fn run_rows(
     };
     let referencing = model.referencing(table);
     while let Some(&row) = p.todo.first() {
-        // Phase 13: the row-lock mode. Without shared modes in the model
+        // The row-lock mode. Without shared modes in the model
         // every two locks conflict, so the mode changes nothing.
         let mode = match select_lock {
             Some(l) => l.row_lock().unwrap_or(RowLock::Update),
@@ -924,7 +924,7 @@ fn run_rows(
                 .expect("a visible row has a committed version");
             if Some(latest_idx) != vis_idx {
                 foot.push(Access::RowRead(row));
-                // Phase 13: `FOR KEY SHARE` is not disturbed by an update
+                // `FOR KEY SHARE` is not disturbed by an update
                 // that left the key alone.
                 let tolerated = mode == RowLock::KeyShare
                     && latest.values.as_ref().is_some_and(|new| {
@@ -971,7 +971,7 @@ fn run_rows(
         if select_lock.is_some() {
             s.store.grant(row, p.txn, mode);
             foot.push(Access::LockChange(row));
-            // Phase 16: a multi-row SELECT keeps the row (and its lock) and
+            // A multi-row SELECT keeps the row (and its lock) and
             // goes on with the next candidate until its limit is reached.
             if let ClosedStmt::SelectMany { out, limit, .. } = &mut p.stmt {
                 out.push(target);
@@ -989,7 +989,7 @@ fn run_rows(
             write_version(s, p.txn, row, None);
             s.store.grant(row, p.txn, mode);
             foot.push(Access::LockChange(row));
-            // Phase 13: referencing rows must not remain (NO ACTION).
+            // Referencing rows must not remain (NO ACTION).
             for &(ct, fi) in &referencing {
                 let fk = &model.schema.table(ct).foreign_keys[fi as usize];
                 let key = key_tuple(&target, &fk.referenced_columns);
@@ -1049,7 +1049,7 @@ fn run_rows(
         write_version(s, p.txn, row, Some(new.clone()));
         s.store.grant(row, p.txn, mode);
         foot.push(Access::LockChange(row));
-        // Phase 13: the foreign-key checks the update fires.
+        // The foreign-key checks the update fires.
         enqueue_update_fk(model, p, table, &target, &new, replaced_creator.is_none());
         foot.push(Access::RowWrite {
             row,
@@ -1078,7 +1078,7 @@ fn run_rows(
     }
 }
 
-/// Phase 14: what one row of an `INSERT` reports to its statement: the
+/// What one row of an `INSERT` reports to its statement: the
 /// rows the statement wrote before (an `ON CONFLICT DO UPDATE` reaching one
 /// of them again is SQLSTATE 21000), and the row this one wrote.
 #[derive(Default)]
@@ -1104,11 +1104,11 @@ fn run_insert(
     for c in &schema.columns {
         values.entry(c.name.clone()).or_insert(Value::Null);
     }
-    // Phase 14: a value of a typed column the model does not represent.
+    // A value of a typed column the model does not represent.
     if let Some(why) = crate::db::typed_row_problem(schema, &values) {
         return StmtStep::Failed(DbError::unsupported(why));
     }
-    // Phase 13: `ON CONFLICT (target) DO UPDATE` checks its arbiter first.
+    // `ON CONFLICT (target) DO UPDATE` checks its arbiter first.
     if let Some(u) = upsert {
         foot.push(Access::RowWrite {
             row: RowId {
@@ -1127,7 +1127,7 @@ fn run_insert(
                 return StmtStep::Blocked(c);
             }
             Arbiter::Row(r) => {
-                // Phase 14: a row this statement inserted or updated
+                // A row this statement inserted or updated
                 // (PostgreSQL: the tuple is invisible to the command, or
                 // updated by it).
                 if progress.touched.contains(&r) {
@@ -1223,7 +1223,7 @@ fn run_insert(
         new: Some(values.clone()),
     });
     ser_write(s, p.txn, row, None, None, Some(&values), foot);
-    // Phase 13: the referenced rows must exist (`MATCH SIMPLE`: a NULL in
+    // The referenced rows must exist (`MATCH SIMPLE`: a NULL in
     // the key skips the check).
     for (fi, fk) in schema.foreign_keys.iter().enumerate() {
         let key = key_tuple(&values, &fk.columns);
@@ -1240,7 +1240,7 @@ fn run_insert(
     StmtStep::Done(StmtResult::Affected(1))
 }
 
-/// Phase 14: a multi-row `INSERT`, as PostgreSQL's `ModifyTable` runs it:
+/// A multi-row `INSERT`, as PostgreSQL's `ModifyTable` runs it:
 /// the rows one after the other, each formed (its database defaults
 /// evaluated) when the previous one is done, inserted with the single-row
 /// semantics (unique checks and waits, `ON CONFLICT`); the statement's
@@ -1395,7 +1395,7 @@ fn arbiter(
     Arbiter::None
 }
 
-/// Phase 13: the `DO UPDATE` arm on the conflicting row `r`, as PostgreSQL's
+/// The `DO UPDATE` arm on the conflicting row `r`, as PostgreSQL's
 /// `ExecOnConflictUpdate`: under REPEATABLE READ / SERIALIZABLE a row the
 /// snapshot does not see as it is now is a serialization failure; the row is
 /// locked (`FOR UPDATE` when a key column changes, else `FOR NO KEY
@@ -1522,7 +1522,7 @@ fn upsert_row(
     StmtStep::Done(StmtResult::Affected(1))
 }
 
-/// Phase 13: the foreign-key checks an update of `old` to `new` in `table`
+/// The foreign-key checks an update of `old` to `new` in `table`
 /// fires: its own foreign keys whose key changed (or whose old version this
 /// transaction wrote, as `RI_FKey_fk_upd_check_required` decides), and the
 /// referencing rows of a changed referenced key.
@@ -1566,7 +1566,7 @@ fn key_columns_changed(schema: &TableSchema, old: &Row, new: &Row) -> bool {
         .any(|c| old.get(c) != new.get(c))
 }
 
-/// The lock an `UPDATE` takes on `row` (Phase 13): computed from the
+/// The lock an `UPDATE` takes on `row`: computed from the
 /// version it would change (the newest under READ COMMITTED, as after
 /// EvalPlanQual; the snapshot's otherwise).
 fn update_lock_mode(
@@ -1641,7 +1641,7 @@ fn newest_image(s: &State, row: RowId, own: TxnId) -> Option<Row> {
 }
 
 /// PostgreSQL's RI triggers for `NO ACTION`/`RESTRICT` foreign keys
-/// (`docs/phase13/POSTGRESQL-FK-LOCKS.md`):
+/// (`docs/architecture/postgres-model.md`):
 ///
 /// * referencing side (`RI_FKey_check`): `SELECT 1 FROM parent WHERE key =
 ///   $1 FOR KEY SHARE`, on a new snapshot under READ COMMITTED and on the
@@ -1837,7 +1837,7 @@ fn run_fk(model: &Model, s: &mut State, p: &mut Pending, foot: &mut Footprint) -
     FkStep::Ok
 }
 
-/// Phase 13: a read on the read replica: the versions committed at or
+/// A read on the read replica: the versions committed at or
 /// before the replica's replayed prefix, without locks (a replica is read
 /// only; the loader refuses locking reads there).
 pub fn replica_read(
@@ -1877,7 +1877,7 @@ pub fn replica_read(
         ClosedStmt::Count { table, pred } => Ok(StmtResult::Count(
             scan(model, s, *table, pred, snap)?.len() as i64,
         )),
-        // Phase 16: a multi-row read (the loader refuses locks on a
+        // A multi-row read (the loader refuses locks on a
         // replica).
         ClosedStmt::SelectMany {
             table,

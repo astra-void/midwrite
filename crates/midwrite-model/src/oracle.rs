@@ -14,7 +14,7 @@
 //! only when the server's own wait state says so (`pg_stat_activity`,
 //! `pg_blocking_pids`). The only timing dependence is PostgreSQL's deadlock
 //! detector, which the oracle steers by delaying a statement relative to the
-//! deadlock timeout (documented in `docs/phase6/POSTGRES-VALIDATION.md`).
+//! deadlock timeout (documented in `docs/architecture/postgres-model.md`).
 
 use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Write};
@@ -49,7 +49,7 @@ fn quote_ident(name: &str) -> String {
 }
 
 /// `table.column` (a joined query's qualified column) or a plain column.
-/// Phase 13: columns of the existing row qualified with the table name (in
+/// Columns of the existing row qualified with the table name (in
 /// `ON CONFLICT ... DO UPDATE`, an unqualified column is ambiguous with
 /// `excluded`).
 fn qualify(e: &Expr, table: &str) -> Expr {
@@ -62,7 +62,7 @@ fn qualify(e: &Expr, table: &str) -> Expr {
             Box::new(qualify(a, table)),
             Box::new(qualify(b, table)),
         ),
-        // Phase 14: SQL built-ins (`inArray`).
+        // SQL built-ins (`inArray`).
         Expr::Call { func, args } => Expr::Call {
             func: *func,
             args: args.iter().map(|a| qualify(a, table)).collect(),
@@ -131,7 +131,7 @@ fn quote_literal(text: &str) -> String {
     format!("'{}'", text.replace('\'', "''"))
 }
 
-/// Phase 12: the text a generated value stands for in the oracle's database.
+/// The text a generated value stands for in the oracle's database.
 /// The model decides every generated value when the INSERT starts, so the
 /// oracle sends it explicitly (a UUID that encodes the generation event)
 /// and reads it back as the same event: the oracle checks constraints,
@@ -160,7 +160,7 @@ fn gen_of_text(s: &str) -> Option<crate::value::GenId> {
 }
 
 // ---------------------------------------------------------------------
-// Phase 14: clock readings and explicit time values
+// Clock readings and explicit time values
 // ---------------------------------------------------------------------
 
 /// Days since 1970-01-01 of a civil date (proleptic Gregorian).
@@ -281,7 +281,7 @@ fn canonical_time(text: &str) -> Option<String> {
     ))
 }
 
-/// Phase 14: a model row read back from PostgreSQL, with the values of time
+/// A model row read back from PostgreSQL, with the values of time
 /// columns in the model's form (other columns are left as read).
 fn fix_row(model: &Model, table: u16, row: &mut Row) {
     for c in &model.schema.table(table).columns {
@@ -316,7 +316,7 @@ fn json_text(v: &Value) -> Result<serde_json::Value, String> {
     })
 }
 
-/// Phase 14: a value written to column `col` of `table`: JSON columns take
+/// A value written to column `col` of `table`: JSON columns take
 /// a JSON literal; other columns `value_sql`.
 fn column_value_sql(model: &Model, table: u16, col: &str, v: &Value) -> Result<String, String> {
     let ty = model
@@ -348,7 +348,7 @@ fn value_sql(v: &Value) -> Result<String, String> {
         Value::Bool(b) => if *b { "TRUE" } else { "FALSE" }.into(),
         Value::Int(n) => n.to_string(),
         Value::Str(s) => quote_literal(s),
-        // Phase 14: a clock reading is a timestamp.
+        // A clock reading is a timestamp.
         Value::Gen(g) if crate::db::is_clock(g) => quote_literal(&clock_text(*g)),
         Value::Gen(g) => quote_literal(&gen_text(*g)),
         Value::Row(_) => return Err("a row value cannot be used in SQL".into()),
@@ -414,7 +414,7 @@ fn pk_order(model: &Model, table: u16) -> String {
     cols.join(", ")
 }
 
-/// Phase 16: how the oracle writes a multi-row `SELECT`.
+/// How the oracle writes a multi-row `SELECT`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SelectForm {
     /// With `ORDER BY` the primary key: the model's scan order, stated.
@@ -423,7 +423,7 @@ pub enum SelectForm {
     /// As Drizzle sends it (`select ... where ... [limit n] for update`, no
     /// `ORDER BY`): the order, and so the lock order, is the plan's. Used
     /// to verify that the plans of the supported predicates return key
-    /// order (`docs/phase16/MULTI-ROW-LOCKS.md`).
+    /// order (`docs/architecture/postgres-model.md`).
     Drizzle,
 }
 
@@ -433,7 +433,7 @@ pub fn stmt_sql(model: &Model, stmt: &ClosedStmt) -> Result<String, String> {
     stmt_sql_form(model, stmt, SelectForm::Ordered)
 }
 
-/// Phase 16: [`stmt_sql`] with the given form of multi-row selects (other
+/// [`stmt_sql`] with the given form of multi-row selects (other
 /// statements are written as by [`stmt_sql`]).
 pub fn stmt_sql_form(model: &Model, stmt: &ClosedStmt, form: SelectForm) -> Result<String, String> {
     let name = |t: u16| quote_ident(&model.schema.table(t).name);
@@ -490,10 +490,10 @@ pub fn stmt_sql_form(model: &Model, stmt: &ClosedStmt, form: SelectForm) -> Resu
             pk_order(model, *table),
             lock.sql()
         ),
-        // Phase 16: a multi-row select, one JSON row per result row. The
+        // A multi-row select, one JSON row per result row. The
         // oracle states the model's scan order (`ORDER BY` the primary key):
         // PostgreSQL then locks in that order (LockRows above an ordered
-        // scan or a sort; `docs/phase16/MULTI-ROW-LOCKS.md`).
+        // scan or a sort; `docs/architecture/postgres-model.md`).
         ClosedStmt::SelectMany {
             table,
             pred,
@@ -583,7 +583,7 @@ pub fn stmt_sql_form(model: &Model, stmt: &ClosedStmt, form: SelectForm) -> Resu
                 format!("WITH r AS ({insert}{conflict} RETURNING 1) SELECT count(*) FROM r;")
             }
         }
-        // Phase 14: one statement with every row; a column a row does not
+        // One statement with every row; a column a row does not
         // (yet) carry is `DEFAULT` (the lockstep run sends the rows as the
         // model completed them: a row the statement never formed is never
         // formed by PostgreSQL either).
@@ -665,7 +665,6 @@ fn conflict_sql(
 ) -> Result<String, String> {
     let tname = &model.schema.table(table).name;
     Ok(match upsert {
-        // Phase 13.
         Some(u) => format!(
             " ON CONFLICT ({}) DO UPDATE SET {}{}",
             u.target
@@ -767,7 +766,6 @@ fn column_types(model: &Model) -> Vec<Vec<&'static str>> {
                 Some("bool") => {
                     types.insert(c.name.clone(), "boolean");
                 }
-                // Phase 14.
                 Some("timestamp") => {
                     types.insert(c.name.clone(), "timestamp");
                 }
@@ -854,7 +852,7 @@ pub fn ddl(model: &Model) -> Result<String, String> {
                     format!(" GENERATED BY DEFAULT AS IDENTITY (START WITH {start})")
                 }
                 // The model supplies generated values explicitly (`gen_text`),
-                // Phase 14: and clock readings (`clock_text`).
+                // And clock readings (`clock_text`).
                 Some(ColumnDefault::Generated(_) | ColumnDefault::Now | ColumnDefault::Clock) => {
                     String::new()
                 }
@@ -885,7 +883,7 @@ pub fn ddl(model: &Model) -> Result<String, String> {
                     .join(", ")
             ));
         }
-        // Phase 16: PostgreSQL 15+ syntax; an older server refuses it, and
+        // PostgreSQL 15+ syntax; an older server refuses it, and
         // the comparison does not start.
         for u in &t.nulls_not_distinct {
             parts.push(format!(
@@ -905,7 +903,7 @@ pub fn ddl(model: &Model) -> Result<String, String> {
             parts.join(", ")
         ));
     }
-    // Phase 13: foreign keys, once every table exists.
+    // Foreign keys, once every table exists.
     for t in &model.schema.tables {
         for fk in &t.foreign_keys {
             let cols = |c: &[String]| {
@@ -934,7 +932,7 @@ pub fn ddl(model: &Model) -> Result<String, String> {
     Ok(out)
 }
 
-/// Tables in an order that inserts referenced rows first (Phase 13).
+/// Tables in an order that inserts referenced rows first.
 fn seed_order(model: &Model) -> Vec<usize> {
     let n = model.schema.tables.len();
     let mut out: Vec<usize> = Vec::new();
@@ -1073,7 +1071,7 @@ impl Session {
         init.push_str(&format!(
             "SET deadlock_timeout = '{DEADLOCK_TIMEOUT_MS}ms';\n"
         ));
-        // Phase 14: time values are read back in UTC.
+        // Time values are read back in UTC.
         init.push_str("SET TimeZone = 'UTC';\n");
         if let Some(iso) = default_iso {
             init.push_str(&format!("SET default_transaction_isolation = '{iso}';\n"));
@@ -1185,7 +1183,7 @@ fn json_to_value(v: &serde_json::Value) -> Value {
                 .map(|(k, v)| (k.clone(), json_to_value(v)))
                 .collect(),
         ),
-        // Phase 14: a JSON array (a `json`/`jsonb` value).
+        // A JSON array (a `json`/`jsonb` value).
         serde_json::Value::Array(items) => Value::List(items.iter().map(json_to_value).collect()),
     }
 }
@@ -1204,7 +1202,6 @@ fn parse_result(model: &Model, stmt: &ClosedStmt, lines: &[String]) -> Result<St
         }
     };
     match stmt {
-        // Phase 14.
         ClosedStmt::InsertMany {
             returning: true, ..
         } => Ok(StmtResult::Rows(
@@ -1229,7 +1226,7 @@ fn parse_result(model: &Model, stmt: &ClosedStmt, lines: &[String]) -> Result<St
             }
             more => Err(format!("{} rows for LIMIT 1", more.len())),
         },
-        // Phase 16: every returned row, in order.
+        // Every returned row, in order.
         ClosedStmt::SelectMany {
             projection: None, ..
         } => Ok(StmtResult::Rows(
@@ -1278,7 +1275,7 @@ pub struct PgEnv {
     cluster: Cluster,
     bins: Binaries,
     counter: u32,
-    /// Phase 16: how multi-row selects are sent ([`SelectForm`]).
+    /// How multi-row selects are sent ([`SelectForm`]).
     select_form: SelectForm,
 }
 
@@ -1312,7 +1309,7 @@ impl PgEnv {
         self.cluster.version()
     }
 
-    /// Phase 16: send multi-row selects in `form` from now on.
+    /// Send multi-row selects in `form` from now on.
     pub fn set_select_form(&mut self, form: SelectForm) {
         self.select_form = form;
     }
@@ -1346,7 +1343,7 @@ impl PgEnv {
         read_tables(&mut s, model)
     }
 
-    /// Phase 14: restore the model's initial rows (what every lockstep run
+    /// Restore the model's initial rows (what every lockstep run
     /// starts from).
     pub fn reset(&self, db: &Database) -> Result<(), String> {
         let mut s = self.open(&db.name, None, None)?;
@@ -1357,7 +1354,7 @@ impl PgEnv {
         }
     }
 
-    /// Phase 14: run one SQL text (tests comparing SQL forms): the data
+    /// Run one SQL text (tests comparing SQL forms): the data
     /// lines (fields separated by U+001F), or the SQLSTATE of an error.
     pub fn query(&self, db: &Database, sql: &str) -> Result<Vec<String>, String> {
         let mut s = self.open(&db.name, None, None)?;
@@ -1416,7 +1413,7 @@ pub struct OracleRun {
 enum Key {
     Tx(u16),
     Pool(u16, u16),
-    /// Phase 9: a connection whose COMMIT the server holds for a client
+    /// A connection whose COMMIT the server holds for a client
     /// that is gone (actor, operation).
     Orphan(u16, u32),
 }
@@ -1896,7 +1893,7 @@ pub fn run_schedule(
         }
         per_transition.push(rec.actions);
     }
-    // Phase 14: a multi-row INSERT is sent once, with its rows as the model
+    // A multi-row INSERT is sent once, with its rows as the model
     // completed them (a row the model formed only after a lock wait gets its
     // database defaults then; PostgreSQL forms it then too, and the oracle
     // sends the values the model chose, as it does for single-row inserts).

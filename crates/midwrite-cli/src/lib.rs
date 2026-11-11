@@ -1,5 +1,4 @@
-//! The `midwrite` command-line interface (shared by the `midwrite`
-//! executable and the legacy `crashproof` executable).
+//! The `midwrite` command-line interface.
 
 mod baseline;
 mod discover;
@@ -24,16 +23,6 @@ use midwrite_core::config::{Config, discover_config};
 use midwrite_core::diagnostic::{DiagnosticCode, Policy, Severity};
 
 use baseline::Baseline;
-
-/// Which executable name the CLI was started as.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Invocation {
-    Midwrite,
-    /// The pre-rename `commitrift` executable.
-    LegacyCommitrift,
-    /// The `crashproof` executable (the name before `commitrift`).
-    LegacyCrashproof,
-}
 
 /// Exit status when no diagnostic reaches the threshold and every file was analyzed.
 const EXIT_OK: u8 = 0;
@@ -219,8 +208,7 @@ struct TraceArgs {
     /// Output format.
     #[arg(long, value_enum, default_value_t = IrFormat::Text)]
     format: IrFormat,
-    /// Configuration file. Defaults to ./midwrite.json (or the legacy
-    /// ./crashproof.json) if it exists.
+    /// Configuration file. Defaults to ./midwrite.json if it exists.
     #[arg(long)]
     config: Option<PathBuf>,
     /// Only the trace of this finding (diagnostic fingerprint) or trace id.
@@ -340,17 +328,7 @@ impl FailOn {
 }
 
 /// Parse the command line and run the selected command.
-pub fn run(invocation: Invocation) -> ExitCode {
-    let legacy_name = match invocation {
-        Invocation::Midwrite => None,
-        Invocation::LegacyCommitrift => Some("commitrift"),
-        Invocation::LegacyCrashproof => Some("crashproof"),
-    };
-    if let Some(name) = legacy_name {
-        eprintln!(
-            "note: `{name}` has been renamed to `midwrite`; this compatibility executable will be removed in a future release"
-        );
-    }
+pub fn run() -> ExitCode {
     let cli = Cli::parse();
     if let Err(message) = midwrite_core::analysis::path_mode_from_env() {
         eprintln!("error: {message}");
@@ -379,27 +357,11 @@ pub fn run(invocation: Invocation) -> ExitCode {
     }
 }
 
-/// Load `--config`, else `./midwrite.json`, else the legacy
-/// `./commitrift.json` or `./crashproof.json`, else defaults. Only one file
-/// is read (never merged); a note names any other one that exists.
+/// Load `--config`, else `./midwrite.json`, else defaults.
 fn load_config(explicit: Option<&Path>) -> Result<(Config, Option<String>), String> {
     let path = match explicit {
         Some(path) => Some(path.to_path_buf()),
-        None => discover_config(Path::new("")).map(|found| {
-            if let Some(ignored) = &found.ignored {
-                eprintln!(
-                    "note: using {} and ignoring {} (the files are not merged; delete or rename the legacy file to silence this note)",
-                    display_path(&found.path),
-                    display_path(ignored)
-                );
-            } else if found.legacy {
-                eprintln!(
-                    "note: reading the legacy configuration {}; rename it to midwrite.json",
-                    display_path(&found.path)
-                );
-            }
-            found.path
-        }),
+        None => discover_config(Path::new("")),
     };
     match path {
         Some(path) => {
@@ -450,8 +412,7 @@ fn check(args: &CheckArgs) -> Result<u8, String> {
 }
 
 fn explain(code: Option<&str>) -> Result<u8, String> {
-    let canonical = code.map(midwrite_core::diagnostic::canonical_code);
-    let text = match canonical.as_deref() {
+    let text = match code.map(str::trim) {
         Some(model_code) if midwrite_model::report::explain(model_code).is_some() => {
             format!(
                 "{}\n",

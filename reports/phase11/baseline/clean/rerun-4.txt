@@ -1,7 +1,0 @@
-test declared_programs_are_not_eligible_for_source_verification ... ok
-test application_code_never_runs_without_the_explicit_authorization ... ok
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.83s
-test crash_verification_never_runs_without_the_explicit_authorization ... ok
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 17 filtered out; finished in 0.04s
-test executing_the_application_still_needs_the_explicit_flag ... ok
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 19 filtered out; finished in 0.03s

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "midwrite.contracts",
-  "description": "Phase 13 discovery contracts for midday 51587319 (pass with `midwrite discover --contracts`). Only the replica factory is declared; nothing else about midday is assumed.",
+  "description": "Discovery contracts for midday 51587319 (pass with `midwrite discover --contracts`). Only the replica factory is declared; nothing else about midday is assumed.",
   "replicaFactories": [
     {
       "factory": "packages/db/src/replicas.ts#withReplicas",

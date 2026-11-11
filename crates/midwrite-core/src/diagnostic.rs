@@ -171,10 +171,9 @@ impl DiagnosticCode {
         self.info().code
     }
 
-    /// The code under the `CP` prefix it had before the rename to Midwrite
-    /// (`MW1001` was `CP1001`). Fingerprints are computed from it, so that
-    /// baselines written before the rename keep matching.
-    pub fn legacy_str(self) -> &'static str {
+    /// The fixed text fingerprints are computed from. It never changes, so
+    /// that baselines keep matching across releases.
+    pub fn fingerprint_code(self) -> &'static str {
         match self {
             Self::DbCommitThenExternal => "CP1001",
             Self::ExternalThenDbCommit => "CP1002",
@@ -227,28 +226,12 @@ pub struct UnknownCode(pub String);
 impl FromStr for DiagnosticCode {
     type Err = UnknownCode;
 
-    /// Accepts the current `MW` codes and their pre-rename `CP` aliases.
     fn from_str(text: &str) -> Result<Self, Self::Err> {
         let text_trimmed = text.trim();
         Self::ALL
             .into_iter()
-            .find(|code| {
-                code.as_str().eq_ignore_ascii_case(text_trimmed)
-                    || code.legacy_str().eq_ignore_ascii_case(text_trimmed)
-            })
+            .find(|code| code.as_str().eq_ignore_ascii_case(text_trimmed))
             .ok_or_else(|| UnknownCode(text.to_owned()))
-    }
-}
-
-/// `code` with a pre-rename `CP` prefix replaced by `MW` (`CP7001` ->
-/// `MW7001`); any other text is returned unchanged.
-pub fn canonical_code(code: &str) -> String {
-    let code = code.trim();
-    match code.get(..2) {
-        Some(prefix) if prefix.eq_ignore_ascii_case("CP") && code.len() > 2 => {
-            format!("MW{}", &code[2..])
-        }
-        _ => code.to_owned(),
     }
 }
 
@@ -613,8 +596,9 @@ pub struct Diagnostic {
     /// relies on (the other input of `confidence`).
     pub evidence_strength: EvidenceStrength,
     /// Stable identity of the finding, independent of line numbers: a hash
-    /// of the code, the file, the function and the operations' labels. Used
-    /// by baselines.
+    /// of the code, the file, the normalized function name and the operations'
+    /// labels. Generated anonymous-function positions are excluded. Used by
+    /// baselines, SARIF and replay traces.
     pub fingerprint: String,
     /// Set when the run compares against a baseline file.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -650,14 +634,13 @@ pub fn stable_hash(parts: &[&str]) -> u64 {
 impl Diagnostic {
     /// The fingerprint of this diagnostic in `file` (normally its own file):
     /// code, file, function, and the role and label of each related effect,
-    /// without any line or column.
+    /// without any line or column, including positions embedded in generated
+    /// anonymous-function names. Named functions retain their existing IDs.
     pub fn compute_fingerprint(&self, file: Option<&str>) -> String {
-        // The pre-rename code keeps fingerprints identical across the
-        // CommitRift -> Midwrite rename (baselines keep matching).
         let mut parts: Vec<String> = vec![
-            self.code.legacy_str().to_owned(),
+            self.code.fingerprint_code().to_owned(),
             file.unwrap_or("").to_owned(),
-            self.function.clone(),
+            fingerprint_function(&self.function),
         ];
         for effect in &self.effects {
             parts.push(format!("{:?}={}", effect.role, effect.label));
@@ -670,6 +653,32 @@ impl Diagnostic {
         let parts: Vec<&str> = parts.iter().map(String::as_str).collect();
         format!("{:016x}", stable_hash(&parts))
     }
+}
+
+/// Anonymous functions have display names such as
+/// `handler::<anonymous@12:5>`. Keep the enclosing name but exclude the
+/// generated position from identity. Only this exact generated syntax is
+/// normalized: numbers in user-supplied names remain meaningful.
+fn fingerprint_function(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    let mut rest = name;
+    while let Some(start) = rest.find("<anonymous@") {
+        out.push_str(&rest[..start]);
+        rest = &rest[start + "<anonymous@".len()..];
+        let position = rest.find('>').and_then(|end| {
+            let (line, column) = rest[..end].split_once(':')?;
+            let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+            (digits(line) && digits(column)).then_some(end)
+        });
+        if let Some(end) = position {
+            out.push_str("<anonymous>");
+            rest = &rest[end + 1..];
+        } else {
+            out.push_str("<anonymous@");
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 /// `text` with `12:5`-style positions removed, so that moving code does not
@@ -722,23 +731,37 @@ mod tests {
     use super::*;
 
     #[test]
+    fn fingerprint_function_excludes_only_generated_positions() {
+        assert_eq!(fingerprint_function("checkout"), "checkout");
+        assert_eq!(
+            fingerprint_function("checkout::<anonymous@12:5>::<anonymous@99:3>"),
+            "checkout::<anonymous>::<anonymous>"
+        );
+        for name in [
+            "Service.v2",
+            "12:5",
+            "<anonymous@x:5>",
+            "<anonymous@12:>",
+            "<anonymous@12:5",
+        ] {
+            assert_eq!(fingerprint_function(name), name);
+        }
+    }
+
+    #[test]
     fn codes_round_trip_through_strings() {
         for code in DiagnosticCode::ALL {
             assert_eq!(code.as_str().parse::<DiagnosticCode>(), Ok(code));
             assert!(code.info().explanation.starts_with(code.as_str()));
         }
         assert_eq!(
-            "cp1001".parse::<DiagnosticCode>(),
+            "mw1001".parse::<DiagnosticCode>(),
             Ok(DiagnosticCode::DbCommitThenExternal)
         );
         assert!("MW0000".parse::<DiagnosticCode>().is_err());
-        assert!("CP0000".parse::<DiagnosticCode>().is_err());
         for code in DiagnosticCode::ALL {
-            assert_eq!(code.as_str()[2..], code.legacy_str()[2..]);
-            assert_eq!(code.legacy_str().parse::<DiagnosticCode>(), Ok(code));
+            assert_eq!(code.as_str()[2..], code.fingerprint_code()[2..]);
         }
-        assert_eq!(canonical_code("CP7001"), "MW7001");
-        assert_eq!(canonical_code("MW7001"), "MW7001");
     }
 
     #[test]

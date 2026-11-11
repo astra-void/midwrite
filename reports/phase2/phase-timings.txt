@@ -1,9 +1,0 @@
-Median of 5 in-process runs of crashproof-corpus --timings (milliseconds).
-threads=8 saas-starter         total=3.7 lower=1.9 resolve=0.3 summaries=0.3 analysis=0.5 expansions=34 reuses=37 files/s=11221 functions/s=42695
-threads=8 midday               total=144.2 lower=68.2 resolve=29.1 summaries=15.9 analysis=16.4 expansions=749 reuses=1181 files/s=14019 functions/s=102801
-threads=8 school-ledger        total=96.5 lower=19.0 resolve=6.3 summaries=21.0 analysis=39.7 expansions=1001 reuses=4918 files/s=4789 functions/s=66242
-threads=8 unnamed-ai-project   total=4.8 lower=2.9 resolve=0.3 summaries=0.3 analysis=0.3 expansions=15 reuses=23 files/s=21757 functions/s=135565
-threads=1 saas-starter         total=5.0 lower=3.4 resolve=0.2 summaries=0.3 analysis=0.4 expansions=34 reuses=37 files/s=8213 functions/s=31248
-threads=1 midday               total=342.5 lower=246.1 resolve=27.9 summaries=14.7 analysis=40.5 expansions=749 reuses=1181 files/s=5903 functions/s=43288
-threads=1 school-ledger        total=218.5 lower=81.8 resolve=5.9 summaries=19.4 analysis=100.6 expansions=1001 reuses=4918 files/s=2115 functions/s=29255
-threads=1 unnamed-ai-project   total=9.7 lower=7.9 resolve=0.2 summaries=0.2 analysis=0.4 expansions=15 reuses=23 files/s=10748 functions/s=66968

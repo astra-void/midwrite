@@ -1,4 +1,4 @@
-//! `midwrite discover`: automatic scenario synthesis (Phase 11).
+//! `midwrite discover`: automatic scenario synthesis.
 
 use std::io::Write as _;
 use std::path::PathBuf;
@@ -85,7 +85,7 @@ pub struct DiscoverArgs {
     #[arg(long = "entry", value_name = "TEXT")]
     pub entries: Vec<String>,
     /// Score the report against labeled entries (a labels file such as
-    /// fixtures/phase11/labels.json); the scores are added to the report.
+    /// fixtures/eval/p11/labels.json); the scores are added to the report.
     #[arg(long, value_name = "FILE")]
     pub labels: Option<PathBuf>,
     /// Cache extractions in this file (keyed by everything they read).

@@ -33,7 +33,7 @@ pub struct MemoProvider {
 }
 
 impl MemoProvider {
-    /// Phase 12: the shared analysis context of the project.
+    /// The shared analysis context of the project.
     pub fn context(
         &self,
         root: &Path,
@@ -93,7 +93,7 @@ impl ActorProvider for MemoProvider {
         if let Some(hit) = self.schemas.borrow().get(&key) {
             return hit.clone();
         }
-        // Phase 12: through the provider, which resolves default callbacks
+        // Through the provider, which resolves default callbacks
         // imported from other project modules.
         let result = self.inner.extract_schema(root, file);
         self.schemas.borrow_mut().insert(key, result.clone());
@@ -108,14 +108,14 @@ pub struct Bindings {
     pub tables: Vec<TableBinding>,
     pub externals: Vec<ExternalBinding>,
     pub transaction_retries: Vec<TransactionRetryBinding>,
-    /// Phase 13: extract reads through a replicated database as replica
+    /// Extract reads through a replicated database as replica
     /// reads (`Conn::Replica`); set when the project builds a replicated
     /// database (`ProjectIndex::replicated`).
     pub replicas: bool,
-    /// Phase 13: declared replica factories (`midwrite-contracts.json`
+    /// Declared replica factories (`midwrite-contracts.json`
     /// `replicaFactories`).
     pub replica_factories: Vec<ReplicaFactoryBinding>,
-    /// Phase 14: extract with JavaScript value semantics (`undefined`,
+    /// Extract with JavaScript value semantics (`undefined`,
     /// arrays, strings, `Map`/`Set`); discovery always does.
     pub js_values: bool,
 }

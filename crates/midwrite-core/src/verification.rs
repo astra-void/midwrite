@@ -4,7 +4,7 @@
 //! (how certain the *static analysis* is about a path) and are never derived
 //! from it. A finding starts as [`VerificationLevel::StaticCandidate`]; only
 //! runtime replay of an explicitly authorized harness can produce the
-//! `RUNTIME_*` levels. See `docs/phase3/ARCHITECTURE.md`.
+//! `RUNTIME_*` levels. See `docs/architecture/replay-protocol.md`.
 
 use std::fmt;
 
@@ -95,7 +95,7 @@ impl fmt::Display for FailureMode {
 /// `cases[].recoveryObservation`, `runs[].injectedFaultSurfaced`); version 1
 /// reports still load.
 pub const VERIFICATION_SCHEMA_VERSION: u32 = 2;
-pub const VERIFICATION_REPORT_KIND: &str = "commitrift.verification";
+pub const VERIFICATION_REPORT_KIND: &str = "midwrite.verification";
 
 /// The result of `midwrite replay`: what was executed, under which
 /// conditions, and what was observed. Durations are the only values that
@@ -104,7 +104,7 @@ pub const VERIFICATION_REPORT_KIND: &str = "commitrift.verification";
 #[serde(rename_all = "camelCase")]
 pub struct VerificationReport {
     pub schema_version: u32,
-    /// Always `commitrift.verification`.
+    /// Always `midwrite.verification`.
     pub kind: String,
     pub tool: crate::trace::ToolStamp,
     pub harness: HarnessInfo,
@@ -455,7 +455,7 @@ impl CaseResult {
     }
 }
 
-pub const REGRESSION_REPORT_KIND: &str = "commitrift.regression";
+pub const REGRESSION_REPORT_KIND: &str = "midwrite.regression";
 pub const REGRESSION_SCHEMA_VERSION: u32 = 1;
 
 /// How a case's runtime result compares with a baseline verification report.
@@ -542,7 +542,7 @@ pub struct RegressionSummary {
 #[serde(rename_all = "camelCase")]
 pub struct RegressionReport {
     pub schema_version: u32,
-    /// Always `commitrift.regression`.
+    /// Always `midwrite.regression`.
     pub kind: String,
     pub tool: crate::trace::ToolStamp,
     pub harness: String,

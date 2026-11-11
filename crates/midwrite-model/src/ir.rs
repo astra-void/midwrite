@@ -11,7 +11,7 @@
 //! Local operations ([`Op::Let`], [`Op::JumpIf`], [`Op::Jump`]) are not
 //! scheduling points: they commute with every other actor's operations and
 //! are folded into the preceding visible transition (see
-//! `docs/phase6/SEMANTICS.md`).
+//! `docs/concepts/model-semantics.md`).
 
 use std::collections::BTreeMap;
 
@@ -61,10 +61,10 @@ pub enum Conn {
     /// A pooled connection in autocommit mode (the root `db` handle): the
     /// statement is its own single-statement transaction.
     Pool,
-    /// Phase 13: a read routed to a read replica (a `withReplicas`
+    /// A read routed to a read replica (a `withReplicas`
     /// database's `select`/`query`). Only reads; the statement sees the
     /// replica's replayed prefix of the primary's commits, which may lag
-    /// (`docs/phase13/REPLICA-CONSISTENCY.md`).
+    /// (`docs/architecture/postgres-model.md`).
     Replica,
 }
 
@@ -77,11 +77,11 @@ pub enum LockMode {
     SkipLocked,
     /// `FOR UPDATE NOWAIT`
     NoWait,
-    /// Phase 13: `FOR NO KEY UPDATE`.
+    /// `FOR NO KEY UPDATE`.
     ForNoKeyUpdate,
-    /// Phase 13: `FOR SHARE`.
+    /// `FOR SHARE`.
     ForShare,
-    /// Phase 13: `FOR KEY SHARE`.
+    /// `FOR KEY SHARE`.
     ForKeyShare,
 }
 
@@ -113,7 +113,7 @@ impl LockMode {
 
     /// Whether the lock excludes other lockers of its strength: `FOR UPDATE`
     /// (with any option) and `FOR NO KEY UPDATE` serialize two such
-    /// readers; `FOR SHARE` / `FOR KEY SHARE` do not (Phase 13).
+    /// readers; `FOR SHARE` / `FOR KEY SHARE` do not.
     pub fn is_exclusive(self) -> bool {
         matches!(
             self,
@@ -121,7 +121,7 @@ impl LockMode {
         )
     }
 
-    /// Whether the mode needs lock modes beyond "exclusive" (Phase 13).
+    /// Whether the mode needs lock modes beyond "exclusive".
     pub fn is_shared(self) -> bool {
         matches!(self, Self::ForShare | Self::ForKeyShare)
     }
@@ -136,7 +136,7 @@ pub enum OnConflict {
     DoNothing,
 }
 
-/// `INNER JOIN` / `LEFT JOIN` (Phase 7): only equality of two columns.
+/// `INNER JOIN` / `LEFT JOIN`: only equality of two columns.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum JoinKind {
@@ -156,7 +156,7 @@ pub struct Join {
     pub right: String,
 }
 
-/// One field of a projected result row (Phase 7).
+/// One field of a projected result row.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ProjItem {
@@ -167,7 +167,7 @@ pub enum ProjItem {
     Column(String),
 }
 
-/// Phase 13: the `DO UPDATE` arm of `INSERT ... ON CONFLICT (target)`.
+/// The `DO UPDATE` arm of `INSERT ... ON CONFLICT (target)`.
 /// `set` and `filter` are evaluated on the existing (conflicting) row;
 /// `Col("excluded.c")` is column `c` of the row proposed for insertion.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -180,7 +180,7 @@ pub struct Upsert {
     pub filter: Option<Expr>,
 }
 
-/// Phase 16: the multi-row mode of a [`StmtKind::Select`]: `SELECT * FROM
+/// The multi-row mode of a [`StmtKind::Select`]: `SELECT * FROM
 /// table WHERE pred [ORDER BY <primary key>] [LIMIT n] [FOR ...]`, whose
 /// result is the list of returned rows (a JavaScript array of row objects).
 ///
@@ -188,7 +188,7 @@ pub struct Upsert {
 /// PostgreSQL's order when the statement says `ORDER BY` the key
 /// (`order_by`; LockRows runs above the sort). Without it PostgreSQL's order
 /// is its plan's: key order for an index scan, physical order for a bitmap
-/// or sequential scan (measured in `docs/phase16/MULTI-ROW-LOCKS.md`), which
+/// or sequential scan (measured in `docs/architecture/postgres-model.md`), which
 /// the model does not represent. The number of rows is bounded by the rows
 /// of the model's finite world.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -216,15 +216,15 @@ pub enum StmtKind {
         pred: Expr,
         lock: LockMode,
         into: String,
-        /// Joined tables (Phase 7). With joins, columns in `pred` are
+        /// Joined tables. With joins, columns in `pred` are
         /// qualified (`table.column`) and the result row is keyed by table
         /// name unless `projection` says otherwise.
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         joins: Vec<Join>,
-        /// Projected result fields (Phase 7); `None` reads the full row.
+        /// Projected result fields; `None` reads the full row.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         projection: Option<Vec<(String, ProjItem)>>,
-        /// Phase 16: the multi-row mode (`docs/phase16/MULTI-ROW-LOCKS.md`).
+        /// The multi-row mode (`docs/architecture/postgres-model.md`).
         /// Absent: the Phase 6-15 `LIMIT 1` statement above. Present: every
         /// matching row (at most `limit`), in primary-key order, is
         /// assigned to `into` as a list of rows; with a lock the rows are
@@ -252,21 +252,21 @@ pub enum StmtKind {
         values: Vec<(String, Expr)>,
         on_conflict: OnConflict,
         affected: Option<String>,
-        /// `RETURNING *` (Phase 7): the inserted row, including generated
+        /// `RETURNING *`: the inserted row, including generated
         /// and default values, or `null` when nothing was inserted.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         returning: Option<String>,
-        /// Phase 12: `RETURNING col, ...` (a projection, as Drizzle sends
+        /// `RETURNING col, ...` (a projection, as Drizzle sends
         /// `returning({ alias: table.col })`): the columns of the returned
         /// row. Absent: every column.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         returning_columns: Option<Vec<String>>,
-        /// Phase 13: `ON CONFLICT (target) DO UPDATE SET ... [WHERE ...]`
+        /// `ON CONFLICT (target) DO UPDATE SET ... [WHERE ...]`
         /// (`on_conflict` is then `Error`: a conflict on another unique key
         /// is still SQLSTATE 23505).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         upsert: Option<Upsert>,
-        /// Phase 14: the rows after the first of a multi-row `INSERT ...
+        /// The rows after the first of a multi-row `INSERT ...
         /// VALUES (...), (...)` (Drizzle `values([{...}, {...}])`; `values`
         /// is the first row). One atomic statement: rows are inserted in
         /// order, each with its own defaults; any error aborts the whole
@@ -294,13 +294,13 @@ impl StmtKind {
         }
     }
 
-    /// Phase 14: whether the statement is a multi-row `INSERT`.
+    /// Whether the statement is a multi-row `INSERT`.
     pub fn is_multi_row(&self) -> bool {
         matches!(self, Self::Insert { more_rows, .. } if !more_rows.is_empty())
     }
 }
 
-/// Phase 14: the most rows one multi-row `INSERT` may propose (the
+/// The most rows one multi-row `INSERT` may propose (the
 /// extractor refuses longer literal lists; the loader refuses more).
 pub const MAX_INSERT_ROWS: usize = 8;
 
@@ -312,7 +312,7 @@ pub struct Stmt {
     pub kind: StmtKind,
 }
 
-/// Phase 14: the generator index of values generated by package calls
+/// The generator index of values generated by package calls
 /// ([`Op::Generate`]); column generators are numbered from 0.
 pub const CALL_GENERATOR: u16 = 0x800;
 
@@ -354,7 +354,7 @@ pub enum Op {
     },
     /// Normal completion.
     Return,
-    /// Phase 13: the value the main task returns (local, not a scheduling
+    /// The value the main task returns (local, not a scheduling
     /// point; emitted right before the main task's [`Op::Return`]). An
     /// expression that cannot be evaluated records an *unknown* result
     /// instead of failing the task: return values never change what the
@@ -363,7 +363,7 @@ pub enum Op {
     ReturnValue {
         expr: Expr,
     },
-    /// Phase 13: the request's response is delivered to the client (a
+    /// The request's response is delivered to the client (a
     /// scheduling point, before the main task's [`Op::Return`]). Inserted by
     /// the scenario loader for actors declared as request handlers
     /// (`"response": true`): a crash between the last database operation
@@ -396,7 +396,7 @@ pub enum Op {
     },
     /// Wait for every non-detached child spawned by this thread.
     Join,
-    /// Enter a `try` block (Phase 7; local, not a scheduling point): a
+    /// Enter a `try` block (local, not a scheduling point): a
     /// failure of this thread before the matching [`Op::EndTry`] resumes at
     /// `handler` instead of failing the thread. The failure's reason is
     /// bound to `error` when given (an opaque value: the extractor never lets
@@ -407,7 +407,7 @@ pub enum Op {
         handler: usize,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         error: Option<String>,
-        /// Phase 16: the handler inspects the caught error (`e.code`,
+        /// The handler inspects the caught error (`e.code`,
         /// `e.cause?.code`, `e instanceof Error`): `error` receives the error
         /// object as the application sees it when the failure's origin is
         /// modeled (a database statement or COMMIT, as the driver and ORM
@@ -424,7 +424,7 @@ pub enum Op {
     Rethrow {
         local: String,
     },
-    /// Phase 14: a fresh random value from a package call with a verified
+    /// A fresh random value from a package call with a verified
     /// contract (`nanoid()`, `crypto.randomUUID()`), assigned to `local`: a
     /// generation event of the actor ([`crate::value::Value::Gen`] with
     /// generator [`CALL_GENERATOR`]; the actor's counter is shared with
@@ -437,7 +437,7 @@ pub enum Op {
     /// Behavior the extractor did not understand.
     Unknown {
         detail: String,
-        /// Phase 12: locals the unsupported operation would have assigned
+        /// Locals the unsupported operation would have assigned
         /// (`const [row] = await <unsupported query>`). They count as
         /// assigned for the loader's checks, but no value is produced:
         /// reaching this operation makes the path unsupported, so nothing
@@ -447,10 +447,10 @@ pub enum Op {
     },
 }
 
-/// Phase 16: how a database error reaches application code, by where it
+/// How a database error reaches application code, by where it
 /// was raised. `None` means the shape is not verified for the project's
 /// ORM and driver versions: reading a property of such an error is an
-/// unsupported evaluation, never a guess (`docs/phase16/LOOP-SEMANTICS.md`).
+/// unsupported evaluation, never a guess (`docs/architecture/loops-and-errors.md`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CaughtErrors {
@@ -463,7 +463,7 @@ pub struct CaughtErrors {
     pub commit: Option<ErrorShape>,
 }
 
-/// Phase 16: the object a database error is, as the application catches it.
+/// The object a database error is, as the application catches it.
 /// Only `code` (the SQLSTATE) is modeled; other properties (message text,
 /// query text, severity, ...) read as unknown.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -496,7 +496,7 @@ pub struct SourceRef {
     pub line: u32,
     #[serde(default)]
     pub column: u32,
-    /// Last line of the operation's source span (Phase 7; 0 = unknown).
+    /// Last line of the operation's source span (0 = unknown).
     /// Runtime statements are attributed to an operation when their
     /// application frame lies in `line..=end_line`.
     /// In memory only: reports keep the v1 `sourceRef` shape.

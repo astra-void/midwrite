@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Print findings of a corpus report with source context, for manual review.
 
-    scripts/show-finding.py reports/phase2/corpus-phase2.json midday MW1001 [--start N] [--count N]
+    scripts/show-finding.py CORPUS_REPORT.json midday MW1001 [--start N] [--count N]
 
 Shows each finding's message, its primary location with surrounding lines,
 and (from a fresh `midwrite check --format json` of the project) the

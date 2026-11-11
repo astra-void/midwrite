@@ -1,6 +1,0 @@
-   Compiling commitrift-model v0.1.0 (/Users/returnf4lse/Desktop/Workspace/rust/crash-proof/crates/commitrift-model)
-   Compiling commitrift-analyzer v0.1.0 (/Users/returnf4lse/Desktop/Workspace/rust/crash-proof/crates/commitrift-analyzer)
-   Compiling commitrift-cli v0.1.0 (/Users/returnf4lse/Desktop/Workspace/rust/crash-proof/crates/commitrift-cli)
-   Compiling commitrift-corpus v0.1.0 (/Users/returnf4lse/Desktop/Workspace/rust/crash-proof/crates/commitrift-corpus)
-    Finished `release` profile [optimized] target(s) in 17.83s
-exit 0

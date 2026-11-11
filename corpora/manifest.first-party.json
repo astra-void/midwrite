@@ -1,0 +1,13 @@
+{
+  "$comment": "First-party applications written for Midwrite's crash/recovery verification. Not external evidence: their findings are about patterns the fixtures were written to contain.",
+  "projects": [
+    {
+      "name": "shop-app",
+      "category": "first-party-fixture",
+      "origin": "first-party",
+      "revision": "working tree",
+      "path": "../fixtures/apps/shop-app",
+      "config": "../fixtures/apps/shop-app/midwrite.json"
+    }
+  ]
+}

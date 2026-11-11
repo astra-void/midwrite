@@ -1,7 +1,7 @@
 //! Midwrite Phase 6: a bounded explicit-state model checker for
 //! concurrency, PostgreSQL transaction isolation, crashes and retries.
 //!
-//! See `docs/phase6/` for the semantics, what is modeled and what is not.
+//! See `docs/concepts/model-semantics.md` for the semantics, what is modeled and what is not.
 
 pub mod audit;
 pub mod db;

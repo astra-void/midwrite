@@ -297,7 +297,7 @@ pub struct Effect {
     pub id: EffectId,
     pub kind: EffectKind,
     /// Short source-derived label such as `db.update(orders)`. Shared: an
-    /// inlined operation is copied into every caller (Phase 8).
+    /// inlined operation is copied into every caller.
     pub label: std::sync::Arc<str>,
     pub location: Location,
     pub execution: Execution,
@@ -354,7 +354,7 @@ impl SummaryOrigin {
 pub struct CallSite {
     pub call: CallId,
     /// Name of the called function. Shared (`Arc`): every operation inlined
-    /// through a call carries the whole chain of its call sites (Phase 8).
+    /// through a call carries the whole chain of its call sites.
     pub callee: std::sync::Arc<str>,
     /// The call as written, such as `notify(id)`.
     pub label: std::sync::Arc<str>,
@@ -743,7 +743,7 @@ pub struct CallScope {
     pub resolution: Option<Box<CallResolution>>,
     /// The callee was proven inert (no database write, transaction,
     /// external effect or unknown call on any path; see
-    /// `docs/phase5/INTERPROCEDURAL-SUMMARIES.md`): the body is empty and
+    /// `docs/architecture/value-analysis.md`): the body is empty and
     /// the call is resolved, not unknown.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub inert: bool,

@@ -27,18 +27,18 @@ except ImportError:  # pragma: no cover
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SCHEMAS = {
-    ("commitrift.traces", 1): ROOT / "docs/phase3/schemas/trace-report.v1.schema.json",
-    ("commitrift.traces", 2): ROOT / "docs/phase5/schemas/trace-report.v2.schema.json",
-    ("commitrift.verification", 1): ROOT / "docs/phase3/schemas/verification-report.v1.schema.json",
-    ("commitrift.verification", 2): ROOT / "docs/phase4/schemas/verification-report.v2.schema.json",
-    ("commitrift.regression", 1): ROOT / "docs/phase4/schemas/regression-report.v1.schema.json",
-    ("commitrift.model-check", 1): ROOT / "docs/phase6/schemas/model-check-report.v1.schema.json",
-    ("commitrift.model-check", 2): ROOT / "docs/phase7/schemas/model-check-report.v2.schema.json",
-    ("commitrift.model-check", 3): ROOT / "docs/phase8/schemas/model-check-report.v3.schema.json",
-    ("commitrift.model-check", 4): ROOT / "docs/phase9/schemas/model-check-report.v4.schema.json",
-    ("commitrift.model-check", 5): ROOT / "docs/phase10/schemas/model-check-report.v5.schema.json",
-    ("commitrift.discovery", 1): ROOT / "docs/phase16/schemas/discovery-report.v1.schema.json",
-    ("commitrift.counterexample", 1): ROOT / "docs/phase16/schemas/counterexample.v1.schema.json",
+    ("midwrite.traces", 1): ROOT / "docs/reference/schemas/trace-report.v1.schema.json",
+    ("midwrite.traces", 2): ROOT / "docs/reference/schemas/trace-report.v2.schema.json",
+    ("midwrite.verification", 1): ROOT / "docs/reference/schemas/verification-report.v1.schema.json",
+    ("midwrite.verification", 2): ROOT / "docs/reference/schemas/verification-report.v2.schema.json",
+    ("midwrite.regression", 1): ROOT / "docs/reference/schemas/regression-report.v1.schema.json",
+    ("midwrite.model-check", 1): ROOT / "docs/reference/schemas/model-check-report.v1.schema.json",
+    ("midwrite.model-check", 2): ROOT / "docs/reference/schemas/model-check-report.v2.schema.json",
+    ("midwrite.model-check", 3): ROOT / "docs/reference/schemas/model-check-report.v3.schema.json",
+    ("midwrite.model-check", 4): ROOT / "docs/reference/schemas/model-check-report.v4.schema.json",
+    ("midwrite.model-check", 5): ROOT / "docs/reference/schemas/model-check-report.v5.schema.json",
+    ("midwrite.discovery", 1): ROOT / "docs/reference/schemas/discovery-report.v1.schema.json",
+    ("midwrite.counterexample", 1): ROOT / "docs/reference/schemas/counterexample.v1.schema.json",
 }
 
 
@@ -67,7 +67,7 @@ def corrupt(report):
 SUPPORTED = {"$schema", "$id", "title", "description", "definitions", "$ref", "type", "properties",
              "required", "additionalProperties", "items", "minItems", "maxItems", "enum", "const",
              "minimum", "pattern",
-             # Phase 16 (discovery schema): combinators and a few bounds.
+             # Used by the discovery schema: combinators and a few bounds.
              "anyOf", "oneOf", "not", "propertyNames", "minProperties", "maxProperties",
              "minLength", "maximum", "multipleOf"}
 
@@ -97,7 +97,7 @@ def builtin_errors(schema, instance, root, path=()):
         ref = schema["$ref"]
         name = ref.removeprefix("#/definitions/")
         if name == ref or name not in root.get("definitions", {}):
-            # A reference into another schema (`commitrift.traces.v1#/...`).
+            # A reference into another schema (`midwrite.traces.v1#/...`).
             raise SystemExit(f"builtin validator: unsupported $ref {ref!r}; install jsonschema")
         yield from builtin_errors(root["definitions"][name], instance, root, path)
         return

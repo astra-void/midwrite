@@ -65,7 +65,7 @@ fn default_timeout() -> u64 {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RuntimeKind {
-    /// Node.js running compiled JavaScript (see docs/phase4/NODE-DRIZZLE.md).
+    /// Node.js running compiled JavaScript (see docs/architecture/replay-protocol.md).
     Node,
     /// Bun running TypeScript directly.
     Bun,
@@ -426,15 +426,7 @@ pub fn forbidden_env_name(name: &str) -> Option<&'static str> {
         return Some("names must match [A-Z][A-Z0-9_]*");
     }
     const PREFIXES: &[&str] = &[
-        "PG",
-        "DATABASE",
-        "DB_",
-        "MIDWRITE",
-        "CRASHPROOF",
-        "LD_",
-        "DYLD_",
-        "NODE_",
-        "BUN_",
+        "PG", "DATABASE", "DB_", "MIDWRITE", "LD_", "DYLD_", "NODE_", "BUN_",
     ];
     if PREFIXES.iter().any(|p| upper.starts_with(p)) || upper == "PATH" || upper == "HOME" {
         return Some("database, loader and replay settings are provided by the supervisor");

@@ -1,4 +1,4 @@
-//! How a higher-order wrapper uses a callback (Phase 7).
+//! How a higher-order wrapper uses a callback.
 //!
 //! `validatedActionWithUser(schema, async (data, _, user) => ...)` passes a
 //! callback to a wrapper. Passing a callback does not mean it runs: the

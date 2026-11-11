@@ -1,5 +1,5 @@
 //! Reading the schema of a disposable database from PostgreSQL's catalog
-//! (Phase 8): tables, columns (type, NOT NULL, default, identity),
+//!: tables, columns (type, NOT NULL, default, identity),
 //! constraints (primary key, unique, foreign key, check) and indexes
 //! (unique or not, columns, partial-index predicate, NULLS NOT DISTINCT).
 //!

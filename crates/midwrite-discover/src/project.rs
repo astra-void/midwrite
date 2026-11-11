@@ -53,7 +53,7 @@ pub struct ProjectIndex {
     /// Tables the loader refused, with the reason.
     pub refused_tables: Vec<(String, String)>,
     pub bindings: Bindings,
-    /// Phase 12: foreign-key targets as written in a schema module (module,
+    /// Foreign-key targets as written in a schema module (module,
     /// name) → the declaration they resolve to (module, binding).
     pub references: BTreeMap<(String, String), (String, String)>,
     pub helpers: Vec<HelperNote>,
@@ -61,7 +61,7 @@ pub struct ProjectIndex {
     pub contracts: Contracts,
     /// Notes about the index (schema modules not understood, ...).
     pub notes: Vec<String>,
-    /// Phase 13: why the project is taken to build a replicated database
+    /// Why the project is taken to build a replicated database
     /// (`withReplicas` imported, or a declared replica factory); then
     /// replica reads are extracted as `Conn::Replica`.
     pub replicated: Option<String>,
@@ -78,7 +78,7 @@ impl ProjectIndex {
         self.tables.iter().find(|t| t.name == name)
     }
 
-    /// Phase 12: how a scenario names a modeled table in `from`: the binding,
+    /// How a scenario names a modeled table in `from`: the binding,
     /// or `module#binding` when the project has several schema modules.
     pub fn from_ref(&self, t: &ModeledTable) -> String {
         if self.schema_files.len() > 1 {
@@ -99,7 +99,7 @@ impl ProjectIndex {
         }
     }
 
-    /// Phase 12: the modeled table a foreign key of `module` written as
+    /// The modeled table a foreign key of `module` written as
     /// `name` references: by resolved declaration when known, else the
     /// binding of that name in the same module, else the only binding of
     /// that name.
@@ -150,7 +150,7 @@ impl ProjectIndex {
 fn receivers(root: &Path) -> Vec<String> {
     let mut out = vec!["db".to_owned()];
     if let Some(found) = midwrite_core::config::discover_config(root)
-        && let Ok(config) = midwrite_core::config::Config::load(&found.path)
+        && let Ok(config) = midwrite_core::config::Config::load(&found)
     {
         let names: Vec<String> = config
             .database_receivers
@@ -203,7 +203,7 @@ pub fn index(
         schema.insert(file.clone(), extracted);
     }
     tables.sort_by(|a, b| a.name.cmp(&b.name).then(a.schema_file.cmp(&b.schema_file)));
-    // Phase 12: one SQL name, one model table. A second declaration of the
+    // One SQL name, one model table. A second declaration of the
     // same name (another module, or another PostgreSQL schema) is refused
     // rather than merged.
     let mut kept: Vec<ModeledTable> = Vec::new();
@@ -221,7 +221,7 @@ pub fn index(
         kept.push(t);
     }
     let tables = kept;
-    // Phase 12: resolve every foreign-key target by declaration.
+    // Resolve every foreign-key target by declaration.
     let mut references = BTreeMap::new();
     for (file, extracted) in &schema {
         for t in &extracted.tables {
@@ -240,7 +240,7 @@ pub fn index(
         }
     }
 
-    // Phase 12: with several schema modules, tables are bound by their
+    // With several schema modules, tables are bound by their
     // declaration (module, binding), as the scenarios built for them will
     // be (their `extraction.schema` is then a list).
     let identity = schema_files.len() > 1;
@@ -312,7 +312,7 @@ pub fn index(
     }
     retries.sort_by(|a, b| a.callee.cmp(&b.callee));
     retries.dedup_by(|a, b| a.callee == b.callee);
-    // Phase 13: a project that builds a replicated database has its reads
+    // A project that builds a replicated database has its reads
     // through it extracted as replica reads; declared factories that do not
     // resolve are reported.
     let provenance = midwrite_analyzer::handles::Provenance::new(
@@ -370,7 +370,7 @@ fn probe_tables(
         let doc = json!({
             "schemaVersion": 1,
             "name": "midwrite-discover-probe",
-            // Phase 14: time and JSON columns are modeled (scenarios with
+            // Time and JSON columns are modeled (scenarios with
             // such tables opt in to the same features).
             "features": ["timestamps", "json"],
             "extraction": { "root": ".", "schema": file },

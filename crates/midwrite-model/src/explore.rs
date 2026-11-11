@@ -9,7 +9,7 @@
 //!   sets prune transitions whose effect is reproduced by an already
 //!   explored commuted ordering. Combined with canonical-state caching they
 //!   visit every reachable state of the unreduced search (within the same
-//!   bounds), which is what `docs/phase6/PARTIAL-ORDER-REDUCTION.md`
+//!   bounds), which is what `docs/architecture/partial-order-reduction.md`
 //!   documents and the differential tests check.
 //!
 //! Exploration order is deterministic: transitions are tried in
@@ -50,7 +50,7 @@ impl Verdict {
     }
 }
 
-/// Where the memory of the visited-state structures goes (Phase 9).
+/// Where the memory of the visited-state structures goes.
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StorageProfile {
@@ -89,7 +89,7 @@ pub struct Metrics {
     /// DPOR only: deepest stack of frames held at once (the search keeps no
     /// visited-state table).
     pub dpor_max_frames: u64,
-    /// Source-set DPOR only (Phase 10): summaries checked against the trace
+    /// Source-set DPOR only: summaries checked against the trace
     /// on a state-cache hit, distinct summaries and event descriptors held,
     /// and the memory of both.
     #[serde(skip_serializing_if = "is_zero")]
@@ -138,7 +138,7 @@ pub struct Counterexample {
     pub schedule: Vec<Transition>,
 }
 
-/// Why nothing can proceed in a stuck state (Phase 9).
+/// Why nothing can proceed in a stuck state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum StuckKind {
@@ -313,7 +313,7 @@ struct Ctx<'a> {
     truncation: Truncation,
     unsupported: Vec<Unsupported>,
     stuck: Vec<StuckState>,
-    /// Visited states: compact keys of interned fragments (Phase 9).
+    /// Visited states: compact keys of interned fragments.
     table: crate::keytable::KeyTable,
     interner: crate::state::Interner,
     key_buf: Vec<u32>,
@@ -889,7 +889,7 @@ pub fn audit_independence(model: &Model, max_states: usize) -> Vec<IndependenceV
 }
 
 // ---------------------------------------------------------------------------
-// Dynamic partial-order reduction (Phase 9)
+// Dynamic partial-order reduction
 // ---------------------------------------------------------------------------
 
 /// Why DPOR cannot be used for `model`, if it cannot: the search explores one

@@ -1,6 +1,0 @@
-    Checking commitrift-model v0.1.0 (/Users/returnf4lse/Desktop/Workspace/rust/crash-proof/crates/commitrift-model)
-    Checking commitrift-analyzer v0.1.0 (/Users/returnf4lse/Desktop/Workspace/rust/crash-proof/crates/commitrift-analyzer)
-    Checking commitrift-cli v0.1.0 (/Users/returnf4lse/Desktop/Workspace/rust/crash-proof/crates/commitrift-cli)
-    Checking commitrift-corpus v0.1.0 (/Users/returnf4lse/Desktop/Workspace/rust/crash-proof/crates/commitrift-corpus)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 8.09s
-exit 0

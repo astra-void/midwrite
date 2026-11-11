@@ -18,9 +18,9 @@ use crate::model::{Bounds, Model, Strategy};
 use crate::value::{Row, Value};
 use crate::witness::{Witness, build_witness};
 
-pub const REPORT_KIND: &str = "commitrift.model-check";
+pub const REPORT_KIND: &str = "midwrite.model-check";
 pub const REPORT_SCHEMA_VERSION: u32 = 1;
-/// Version of the model semantics (docs/phase6/SEMANTICS.md). Bumped when a
+/// Version of the model semantics (docs/concepts/model-semantics.md). Bumped when a
 /// change can alter a verdict.
 pub const MODEL_VERSION: &str = "1.0.0";
 
@@ -90,11 +90,11 @@ pub struct BoundsInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub partial_order_reduction_disabled_because: Option<String>,
     pub strategy: String,
-    /// Phase 9: `dpor` when dynamic partial-order reduction ran (the sleep
+    /// `dpor` when dynamic partial-order reduction ran (the sleep
     /// sets did not); absent otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reduction: Option<String>,
-    /// Phase 10: the mechanisms of `source-dpor` (`stateful-sleep`,
+    /// The mechanisms of `source-dpor` (`stateful-sleep`,
     /// `stateful`, `stateless-sleep`); absent otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_dpor_mode: Option<String>,
@@ -132,7 +132,7 @@ pub struct ExplorationInfo {
     pub metrics: MetricsInfo,
     pub unsupported: Vec<UnsupportedInfo>,
     pub stuck_states: usize,
-    /// Phase 9: what the stuck states are (absent when there are none).
+    /// What the stuck states are (absent when there are none).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stuck: Vec<String>,
     /// Phase 9 (`--profile-storage`): where the memory of the visited-state
@@ -144,7 +144,7 @@ pub struct ExplorationInfo {
     pub reduction_metrics: Option<ReductionMetrics>,
 }
 
-/// Phase 10: counters of the source-set DPOR search.
+/// Counters of the source-set DPOR search.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReductionMetrics {
@@ -190,34 +190,34 @@ pub enum EvidenceLevel {
     PostgresDidNotReproduce,
     /// Runtime validation was requested but could not be carried out.
     RuntimeInconclusive,
-    /// Phase 7: the actors' ORIGINAL application code ran under the
+    /// The actors' ORIGINAL application code ran under the
     /// counterexample's schedule against PostgreSQL, every statement and
     /// outcome matched the model, and the invariant is violated on the rows
     /// the run left (`sourceVerification`).
     OriginalCodeReproduced,
-    /// Phase 8: as `OriginalCodeReproduced`, for a counterexample that
+    /// As `OriginalCodeReproduced`, for a counterexample that
     /// crashes a process and/or retries an operation: the worker was really
     /// killed (SIGKILL) at the planned checkpoint, PostgreSQL ended its
     /// sessions, and the retry ran as a new process.
     OriginalCodeCrashReproduced,
-    /// Phase 8: there is NO counterexample within the bounds; the model's
+    /// There is NO counterexample within the bounds; the model's
     /// recovery schedule (`sourceVerification.recoveryProbe`) ran against the
     /// original code with a real crash and retry, matched the model, and
     /// the invariant HOLDS on the observed state. Bounded evidence about
     /// one schedule, not a proof.
     OriginalCodeRecoveryReproduced,
-    /// Phase 8: no counterexample within the bounds; a model schedule
+    /// No counterexample within the bounds; a model schedule
     /// WITHOUT crash or retry (`recoveryProbe`, for example two concurrent
     /// consumers) ran against the original code, matched the model, and the
     /// invariant holds on the observed state. Bounded evidence, not a proof.
     OriginalCodeInvariantHeld,
-    /// Phase 9: as `OriginalCodeCrashReproduced`, for a counterexample in
+    /// As `OriginalCodeCrashReproduced`, for a counterexample in
     /// which an operation (a COMMIT or an autocommit write) was IN FLIGHT
     /// when the worker was killed: the proxy established on the wire what the
     /// server received, PostgreSQL's own state confirmed the outcome, and the
     /// application never received an answer.
     OriginalCodeInFlightFailureReproduced,
-    /// Phase 10: a connection broke under a live worker (not a kill).
+    /// A connection broke under a live worker (not a kill).
     OriginalCodeConnectionLossReproduced,
 }
 
@@ -328,7 +328,7 @@ pub struct CheckOptions {
     pub tool_version: String,
     /// What the scenario loader learned (extraction reports, Phase 7).
     pub load: crate::scenario::LoadReport,
-    /// Run the counterexample against the original code (Phase 7).
+    /// Run the counterexample against the original code.
     pub source: Option<SourceOptions>,
     /// Report where the memory of the visited-state structures goes.
     pub profile_storage: bool,
@@ -479,7 +479,7 @@ fn verify_source(
     })
 }
 
-/// Phase 8: no counterexample; run the model's recovery schedule against
+/// No counterexample; run the model's recovery schedule against
 /// the original code instead (`sourceVerification.recoveryProbe`).
 #[cfg(feature = "postgres")]
 fn verify_probe(
@@ -953,7 +953,7 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
         ),
     };
 
-    // Phase 7: the original code under the counterexample's schedule.
+    // The original code under the counterexample's schedule.
     let source_verification = opts.source.as_ref().map(|so| match &witness {
         Some(w) => verify_source(model, w, &opts.load, so),
         None if result.verdict == Verdict::NoCounterexampleWithinBounds

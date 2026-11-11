@@ -443,7 +443,7 @@ function resultShape(result) {
 /**
  * Whether a node-postgres client has lost its connection: the driver marks
  * such a client itself (`_queryable`, `_connectionError`, `_ending`; verified
- * on pg 8.23.1, see docs/phase10/LIVE-CONNECTION-FAILURES.md) and rejects every
+ * on pg 8.23.1, see docs/architecture/fault-injection.md) and rejects every
  * further query without sending it. A statement on such a client never
  * reaches the wire, so the coordinator is told and does not hold it. When the
  * driver does not have these fields (another version) nothing is detected and
@@ -586,7 +586,7 @@ function coordinateClient(client) {
 }
 
 // ---------------------------------------------------------------------------
-// postgres-js (Phase 8)
+// postgres-js
 // ---------------------------------------------------------------------------
 
 /**
@@ -723,7 +723,7 @@ export async function runSourceActor(entries, cleanup) {
   channel = await Channel.open(process.env.MIDWRITE_SOURCE_SOCKET);
   const actor = process.env.MIDWRITE_SOURCE_ACTOR ?? "";
   const entry = process.env.MIDWRITE_SOURCE_ENTRY ?? "";
-  // Several tasks of the model sharing this process (Phase 9).
+  // Several tasks of the model sharing this process.
   const tasks = process.env.MIDWRITE_SOURCE_TASKS ? JSON.parse(process.env.MIDWRITE_SOURCE_TASKS) : null;
   await channel.send({
     type: "hello",
@@ -776,7 +776,7 @@ export async function runSourceActor(entries, cleanup) {
     error = describe(caught);
     if (caught instanceof Error && caught.cause) error += ` (caused by ${describe(caught.cause)})`;
   }
-  // Phase 13: a request handler's response is a separate step. The entry
+  // A request handler's response is a separate step. The entry
   // has returned (its work may be committed); the response is announced and
   // held until the coordinator, which plays the client, receives it. A crash
   // planned here kills the process after the work and before the response.

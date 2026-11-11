@@ -1,4 +1,4 @@
-//! Source-level function identity and selectors (Phase 7).
+//! Source-level function identity and selectors.
 //!
 //! A function is identified by its module and its *anchor*: the line and
 //! column where the function node starts. That is the anchor the static

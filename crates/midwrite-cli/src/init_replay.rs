@@ -6,7 +6,7 @@
 //! the analyzed project). What it cannot know — how to start the scenario,
 //! how to observe the state, what the application's contract is — is left
 //! as `MIDWRITE-TODO` placeholders that `midwrite replay` refuses to
-//! run. See `docs/phase4/HARNESS-GENERATION.md`.
+//! run. See `docs/architecture/replay-protocol.md`.
 
 use std::fmt::Write as _;
 use std::path::{Component, Path, PathBuf};
@@ -446,7 +446,7 @@ pub(crate) fn init_replay(args: &InitReplayArgs) -> Result<u8, String> {
     let config = match &args.config {
         Some(config) => Some(config.clone()),
         None => discover_config(&project)
-            .and_then(|found| found.path.strip_prefix(&project).ok().map(display_path)),
+            .and_then(|found| found.strip_prefix(&project).ok().map(display_path)),
     };
 
     // Re-run the static analysis exactly as the generated manifest will
@@ -1038,7 +1038,7 @@ midwrite replay . --allow-execution --format json --output verification.json
 midwrite report verification.json -o verification.html
 ```
 
-Requirements: PostgreSQL server binaries, {runtime_req}, and OS isolation (macOS sandbox-exec, or Linux bubblewrap with unprivileged user namespaces). See Midwrite's `docs/phase4/HARNESS-GENERATION.md`.
+Requirements: PostgreSQL server binaries, {runtime_req}, and OS isolation (macOS sandbox-exec, or Linux bubblewrap with unprivileged user namespaces). See Midwrite's `docs/architecture/replay-protocol.md`.
 
 ## Files
 

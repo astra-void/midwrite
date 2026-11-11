@@ -1,6 +1,6 @@
 //! The value layer: bounded abstract domains for interprocedural analysis.
 //!
-//! See `docs/phase5/ANALYSIS-DESIGN.md`.
+//! See `docs/architecture/value-analysis.md`.
 //!
 //! * [`value`]: abstract values (bounded atom sets with `Top`), provenance.
 //! * [`heap`]: abstract objects per allocation site, strong and weak

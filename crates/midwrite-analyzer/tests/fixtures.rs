@@ -96,13 +96,9 @@ fn every_fixture_matches_its_expectations() {
     let analyzer = fixture_analyzer();
     // Multi-file projects are checked as projects by `tests/projects.rs`,
     // replay harnesses by `tests/traces.rs`, model-checking projects by the
-    // CLI's `model_check.rs`, the Phase 7 application by `tests/phase7.rs`,
-    // the Phase 8 applications by `tests/phase8.rs`, the Phase 9 application
-    // by the CLI's `phase9.rs`, the Phase 10 applications by its `phase10.rs`,
-    // the Phase 11 application by the discovery tests (`midwrite-discover`),
-    // the Phase 12 applications by `tests/phase12.rs` and the CLI's
-    // `phase12.rs`, the Phase 13 applications by `tests/phase13.rs`, the
-    // Phase 14 applications by their Phase 14 tests and the evaluation.
+    // CLI's `model_check.rs`; the applications under `apps/`, the runtime
+    // scenarios, the model inputs and the evaluation sets have their own
+    // topic tests and the evaluation scripts.
     let files: Vec<PathBuf> = discover(&[fixtures_dir()])
         .expect("fixtures exist")
         .into_iter()
@@ -110,16 +106,10 @@ fn every_fixture_matches_its_expectations() {
             !file.starts_with(fixtures_dir().join("projects"))
                 && !file.starts_with(fixtures_dir().join("replay"))
                 && !file.starts_with(fixtures_dir().join("concurrency"))
-                && !file.starts_with(fixtures_dir().join("phase7"))
-                && !file.starts_with(fixtures_dir().join("phase8"))
-                && !file.starts_with(fixtures_dir().join("phase9"))
-                && !file.starts_with(fixtures_dir().join("phase10"))
-                && !file.starts_with(fixtures_dir().join("phase11"))
-                && !file.starts_with(fixtures_dir().join("phase12"))
-                && !file.starts_with(fixtures_dir().join("phase13"))
-                && !file.starts_with(fixtures_dir().join("phase14"))
-                && !file.starts_with(fixtures_dir().join("phase15"))
-                && !file.starts_with(fixtures_dir().join("phase16"))
+                && !file.starts_with(fixtures_dir().join("apps"))
+                && !file.starts_with(fixtures_dir().join("scenarios"))
+                && !file.starts_with(fixtures_dir().join("model"))
+                && !file.starts_with(fixtures_dir().join("eval"))
         })
         .collect();
     assert!(
@@ -251,17 +241,15 @@ fn scanning_many_files_is_deterministic() {
     assert_eq!(first, run());
 
     let report = analyzer.analyze_paths(&[fixtures_dir()], None).unwrap();
-    assert_eq!(report.summary.files_failed, 1, "only syntax_error.ts fails");
-    assert_eq!(
-        report.failures[0].kind,
-        midwrite_core::report::FailureKind::Parse
-    );
-    assert!(
-        report.failures[0]
-            .file
-            .ends_with("unsupported/syntax_error.ts")
-    );
-    assert_eq!(report.failures[0].line, Some(4));
+    assert_eq!(report.summary.files_failed, 2);
+    for (failure, name) in report.failures.iter().zip([
+        "unsupported/suppression_without_reason.ts",
+        "unsupported/syntax_error.ts",
+    ]) {
+        assert_eq!(failure.kind, midwrite_core::report::FailureKind::Parse);
+        assert!(failure.file.ends_with(name));
+        assert_eq!(failure.line, Some(4));
+    }
     let files: Vec<&str> = report
         .diagnostics
         .iter()

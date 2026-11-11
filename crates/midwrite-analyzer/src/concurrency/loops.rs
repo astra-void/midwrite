@@ -1,5 +1,5 @@
-//! Phase 16: bounded loops, caught errors and request bodies
-//! (`docs/phase16/LOOP-SEMANTICS.md`, `docs/phase16/FRAMEWORK-REQUESTS.md`).
+//! Bounded loops, caught errors and request bodies
+//! (`docs/architecture/loops-and-errors.md`, `docs/architecture/source-extraction.md`).
 //! Active only with JavaScript value semantics
 //! ([`ExtractRequest::js_values`](midwrite_model::provider::ExtractRequest));
 //! without them the Phase 7–15 lowering (loops refused, caught errors
@@ -72,15 +72,15 @@ use super::{
     integer, literal, module_constant, static_key,
 };
 
-/// Phase 16: the most iterations one loop is unrolled to.
+/// The most iterations one loop is unrolled to.
 pub(super) const MAX_UNROLL: usize = 8;
-/// Phase 16: the most iterations nested unrolled loops may multiply to.
+/// The most iterations nested unrolled loops may multiply to.
 pub(super) const MAX_UNROLL_PRODUCT: usize = 64;
-/// Phase 16: the prefix of every loop classification assumption.
+/// The prefix of every loop classification assumption.
 pub const LOOP_PREFIX: &str = "loop ";
-/// Phase 16: the prefix of the caught-error shape assumption.
+/// The prefix of the caught-error shape assumption.
 pub const CAUGHT_PREFIX: &str = "caught-errors: ";
-/// Phase 16: the prefix of the request-body assumptions.
+/// The prefix of the request-body assumptions.
 pub const REQUEST_PREFIX: &str = "request: ";
 
 /// Phase 16 lowering state.
@@ -282,7 +282,7 @@ impl Lowerer<'_> {
         self.unknown_op(m, span, why.to_owned());
     }
 
-    /// Phase 16: the classification of a `for...of` (Phase 7/14 lowering).
+    /// The classification of a `for...of` (Phase 7/14 lowering).
     pub(super) fn for_of_completed(&mut self, m: &Module<'_>, span: Span, what: &str) {
         if !self.js() {
             return;
@@ -805,7 +805,7 @@ impl Lowerer<'_> {
 
     /// How database errors reach a `catch` in this project: from the
     /// `package.json` nearest to the module that declares `drizzle-orm`.
-    /// Verified (source read, `docs/phase16/LOOP-SEMANTICS.md`): drizzle-orm
+    /// Verified (source read, `docs/architecture/loops-and-errors.md`): drizzle-orm
     /// 0.45.4 wraps every query error of its pg-core sessions in
     /// `DrizzleQueryError` (`cause` = the driver's error, whose `code` is the
     /// SQLSTATE for node-postgres 8 and postgres-js 3.4.5); its
@@ -1267,7 +1267,7 @@ fn has_continue(body: &Statement<'_>) -> bool {
     f.found
 }
 
-/// Phase 16: whether a `catch` body uses its parameter other than as the
+/// Whether a `catch` body uses its parameter other than as the
 /// argument of `throw` (then the handler inspects the error).
 pub(super) fn catch_inspects(body: &[Statement<'_>], name: &str) -> bool {
     struct Uses<'n> {

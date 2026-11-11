@@ -1,4 +1,4 @@
-//! Phase 13: database handle provenance.
+//! Database handle provenance.
 //!
 //! Which database a handle denotes decides where its statements run. A
 //! drizzle-orm `withReplicas(primary, [replica, ...])` database sends reads
@@ -6,7 +6,7 @@
 //! `$with`, the `query` getter) to a replica and everything else that it
 //! defines (`insert`, `update`, `delete`, `execute`, `transaction`,
 //! `refreshMaterializedView`) to the primary (drizzle-orm 0.45.4,
-//! `pg-core/db.js`; `docs/phase13/REPLICA-AWARE-ANALYSIS.md`). Binding such a
+//! `pg-core/db.js`; `docs/architecture/source-extraction.md`). Binding such a
 //! handle as the primary would invent read-your-writes behavior.
 //!
 //! This module answers, without executing anything and without type
@@ -1036,7 +1036,7 @@ impl Provenance {
 }
 
 impl ProjectContext {
-    /// Phase 13: the first module (if any) that imports a binding named
+    /// The first module (if any) that imports a binding named
     /// `withReplicas` (from drizzle-orm, from another package or from a
     /// project module). Such a project is taken to build a replicated
     /// database: a handle known only by its name or by a plain drizzle type

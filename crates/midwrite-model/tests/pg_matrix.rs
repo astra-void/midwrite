@@ -325,7 +325,7 @@ fn ssi_granularity_differences_only_go_one_way() {
     );
 }
 
-/// Phase 13: foreign keys and row-lock modes. Every schedule of every
+/// Foreign keys and row-lock modes. Every schedule of every
 /// workload pair, at every isolation level, against PostgreSQL in lockstep:
 /// which statement waits (the foreign-key check's `FOR KEY SHARE`), and what
 /// it returns (23503, 40001) after the other transaction ends.
@@ -340,7 +340,7 @@ fn foreign_key_lock_workloads() {
     run_matrix(configs, 100_000);
 }
 
-/// Phase 13: `INSERT ... ON CONFLICT (target) DO UPDATE [WHERE ...]`, with
+/// `INSERT ... ON CONFLICT (target) DO UPDATE [WHERE ...]`, with
 /// and without an existing conflicting row, against PostgreSQL in lockstep.
 #[test]
 fn upsert_workloads() {
@@ -365,10 +365,10 @@ fn upsert_workloads() {
 // Phase 14 Track D
 // ---------------------------------------------------------------------
 
-#[path = "phase14/workloads.rs"]
+#[path = "support/drizzle_workloads.rs"]
 mod phase14_workloads;
 
-/// Phase 14: the lockstep matrix with the one difference the model states
+/// The lockstep matrix with the one difference the model states
 /// for SERIALIZABLE (`ssi_granularity_differences_only_go_one_way`):
 /// PostgreSQL's relation-level predicate locks (an unindexed scan) may
 /// abort with 40001 where the model's logical dependency graph has no

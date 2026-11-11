@@ -18,7 +18,7 @@
 //! and whether the callee performs it on every path through the callee
 //! ([`SummaryOrigin`]); operations on only some paths lower confidence.
 //!
-//! **Inert callees** (Phase 5). With solved effect summaries
+//! **Inert callees**. With solved effect summaries
 //! ([`crate::absint::summary`]), a call of a callee that is *inert* under the
 //! arguments of this call (no write, transaction, external effect or
 //! unknown call on any path, transitively, including the callbacks it runs)
@@ -170,7 +170,7 @@ pub struct InlineStats {
     pub expansions: usize,
     /// Callee expansions reused from the memo table.
     pub reused: usize,
-    /// Phase 8: reuses found through the depth-canonical key (an expansion
+    /// Reuses found through the depth-canonical key (an expansion
     /// that never reached the depth bound is the same at every depth from
     /// the one it needs), which the exact `(callee, depth, callbacks)` key
     /// misses. Included in `reused`.
@@ -367,7 +367,7 @@ impl Context {
 /// (callee, remaining depth, callback context).
 type MemoKey = (usize, usize, Vec<(u32, usize)>);
 
-/// (callee, callback context): the depth-canonical key (Phase 8).
+/// (callee, callback context): the depth-canonical key.
 type CanonicalKey = (usize, Vec<(u32, usize)>);
 
 /// A memo request of a call site: (callee, callback context used).
@@ -383,7 +383,7 @@ struct Inliner<'a> {
     /// Expansions that do not depend on the call chain, by (callee, depth,
     /// callback context).
     memo: HashMap<MemoKey, Rc<Summary>>,
-    /// Phase 8: expansions that made no depth-bound decision, by (callee,
+    /// Expansions that made no depth-bound decision, by (callee,
     /// callback context). Each is the expansion at every remaining depth
     /// from its `needed` depth on.
     canonical: HashMap<CanonicalKey, Rc<Summary>>,
@@ -407,7 +407,7 @@ struct Summary {
     /// reuse accounts exactly as the exact-key memo did.
     direct: usize,
     requests: Vec<Request>,
-    /// Phase 8: per expansion, not per instantiation: the position of each
+    /// Per expansion, not per instantiation: the position of each
     /// effect id in visit order (instantiated ids are `base + position`),
     /// and the number of call scopes in the body.
     positions: HashMap<u32, u32>,
@@ -424,10 +424,10 @@ struct Ids {
     /// A call was left unsummarized because it is recursive: the expansion
     /// depends on the chain of calls being expanded.
     recursive: bool,
-    /// Phase 8: the smallest remaining depth at which the same expansion
+    /// The smallest remaining depth at which the same expansion
     /// results (every call site's decision is the same).
     needed: usize,
-    /// Phase 8: a decision was made because the remaining depth was 0 (a
+    /// A decision was made because the remaining depth was 0 (a
     /// cut call, or an inert callee resolved without expanding it): the
     /// expansion is only known for this exact depth.
     exact: bool,

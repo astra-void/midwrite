@@ -1,5 +1,5 @@
 //! Regression fixtures for the defects that differential testing found in the
-//! reductions, and the machinery that produced them (Phase 10).
+//! reductions, and the machinery that produced them.
 //!
 //! Each fixture is a minimized scenario with the seed it came from. Two things
 //! are checked, and both matter:

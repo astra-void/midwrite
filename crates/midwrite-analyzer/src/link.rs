@@ -1,7 +1,7 @@
 //! Linking call targets to the function table, and method dispatch over
 //! the classes of all analyzed modules.
 //!
-//! See `docs/phase5/CLASS-RESOLUTION.md`. Calls are linked only through
+//! See `docs/architecture/value-analysis.md`. Calls are linked only through
 //! syntax the analysis can follow (a declaration, an import that resolves to
 //! an export, a receiver whose class is known); names alone never link two
 //! functions.

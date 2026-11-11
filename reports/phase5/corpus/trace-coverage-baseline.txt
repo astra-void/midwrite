@@ -1,9 +1,0 @@
-saas-starter         findings 21 traces 15 (complete 14, approximated 1, incomplete 0), without trace 6; model validation failures 0
-midday               findings 269 traces 180 (complete 126, approximated 7, incomplete 47), without trace 89; model validation failures 0
-                       incomplete by cause: {"unknown call in the failure window": 47}
-                       most frequent unknown calls in windows: [("", 10), ("supabase.storage.from", 8), ("withTimeout", 8), ("getTeamCalibration", 7), ("removeProcessingReaction", 5), ("this.updateProgress", 5), ("render", 4), ("config.afterConnect", 2)]
-school-ledger        findings 317 traces 123 (complete 30, approximated 0, incomplete 93), without trace 194; model validation failures 0
-                       incomplete by cause: {"unknown call in the failure window": 93}
-                       75 distinct unknown calls in windows (private project: labels not printed)
-unnamed-ai-project   findings 17 traces 8 (complete 8, approximated 0, incomplete 0), without trace 9; model validation failures 0
-total traces: 326; all valid against the analysis model: true

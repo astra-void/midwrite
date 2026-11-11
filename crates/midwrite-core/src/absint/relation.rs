@@ -1,6 +1,6 @@
 //! Relationships between two groups of effects, from value provenance.
 //!
-//! See `docs/phase5/EFFECT-RELATIONSHIPS.md`. A relationship is evidence for
+//! See `docs/architecture/value-analysis.md`. A relationship is evidence for
 //! review, never a reason to suppress or demote a finding: two effects that
 //! share a value may still be unrelated in the business sense, and two
 //! effects without a shared value may still belong to one invariant.

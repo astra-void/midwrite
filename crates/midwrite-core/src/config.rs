@@ -15,37 +15,9 @@ use crate::ir::{ExternalCategory, Recovery};
 /// File name looked up when no configuration path is given explicitly.
 pub const CONFIG_FILE_NAME: &str = "midwrite.json";
 
-/// Configuration file names used before the project was renamed (CommitRift,
-/// then CrashProof), newest first. Read only when [`CONFIG_FILE_NAME`] does
-/// not exist.
-pub const LEGACY_CONFIG_FILE_NAMES: [&str; 2] = ["commitrift.json", "crashproof.json"];
-
-/// The configuration file found in a directory (see [`discover_config`]).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DiscoveredConfig {
-    pub path: std::path::PathBuf,
-    /// The file is one of the [`LEGACY_CONFIG_FILE_NAMES`].
-    pub legacy: bool,
-    /// A legacy file that exists next to the file used and is **not** read.
-    /// The files are never merged.
-    pub ignored: Option<std::path::PathBuf>,
-}
-
-/// Find the configuration file of `dir`: `midwrite.json` if it exists,
-/// otherwise the first existing legacy name (`commitrift.json`, then
-/// `crashproof.json`). Only one file is ever used; another candidate that
-/// also exists is reported in `ignored`.
-pub fn discover_config(dir: &Path) -> Option<DiscoveredConfig> {
-    let mut found = std::iter::once(CONFIG_FILE_NAME)
-        .chain(LEGACY_CONFIG_FILE_NAMES)
-        .map(|name| (name != CONFIG_FILE_NAME, dir.join(name)))
-        .filter(|(_, path)| path.is_file());
-    let (legacy, path) = found.next()?;
-    Some(DiscoveredConfig {
-        path,
-        legacy,
-        ignored: found.next().map(|(_, path)| path),
-    })
+/// The configuration file of `dir` (`midwrite.json`), if it exists.
+pub fn discover_config(dir: &Path) -> Option<std::path::PathBuf> {
+    Some(dir.join(CONFIG_FILE_NAME)).filter(|path| path.is_file())
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -714,32 +686,14 @@ mod tests {
     }
 
     #[test]
-    fn discovery_prefers_the_new_name_and_never_merges() {
+    fn discovery_finds_midwrite_json() {
         let dir = std::env::temp_dir().join(format!("midwrite-config-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let [commitrift, crashproof] = LEGACY_CONFIG_FILE_NAMES;
-        for name in [CONFIG_FILE_NAME, commitrift, crashproof] {
-            let _ = std::fs::remove_file(dir.join(name));
-        }
+        let _ = std::fs::remove_file(dir.join(CONFIG_FILE_NAME));
         assert_eq!(discover_config(&dir), None);
 
-        std::fs::write(dir.join(crashproof), "{}").unwrap();
-        let found = discover_config(&dir).unwrap();
-        assert!(found.legacy);
-        assert_eq!(found.path, dir.join(crashproof));
-        assert_eq!(found.ignored, None);
-
-        std::fs::write(dir.join(commitrift), "{}").unwrap();
-        let found = discover_config(&dir).unwrap();
-        assert!(found.legacy);
-        assert_eq!(found.path, dir.join(commitrift));
-        assert_eq!(found.ignored, Some(dir.join(crashproof)));
-
         std::fs::write(dir.join(CONFIG_FILE_NAME), "{}").unwrap();
-        let found = discover_config(&dir).unwrap();
-        assert!(!found.legacy);
-        assert_eq!(found.path, dir.join(CONFIG_FILE_NAME));
-        assert_eq!(found.ignored, Some(dir.join(commitrift)));
+        assert_eq!(discover_config(&dir), Some(dir.join(CONFIG_FILE_NAME)));
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

@@ -1,4 +1,4 @@
-//! Phase 11: discovery on the first-party commerce application and on small
+//! Discovery on the first-party commerce application and on small
 //! projects written for one property each. Static and model checking only:
 //! nothing here executes application code.
 
@@ -15,7 +15,7 @@ fn repo() -> PathBuf {
 }
 
 fn commerce() -> PathBuf {
-    repo().join("fixtures/phase11/commerce-app")
+    repo().join("fixtures/apps/commerce-app")
 }
 
 fn options(model_check: bool) -> Options {
@@ -112,7 +112,7 @@ fn copy_dir(from: &Path, to: &Path) {
 fn labeled_entries_are_classified_as_labeled() {
     let r = commerce_report();
     let labels: midwrite_discover::eval::Labels = serde_json::from_str(
-        &std::fs::read_to_string(repo().join("fixtures/phase11/labels.json")).unwrap(),
+        &std::fs::read_to_string(repo().join("fixtures/eval/p11/labels.json")).unwrap(),
     )
     .unwrap();
     let e = midwrite_discover::eval::evaluate(r, &labels);
@@ -126,7 +126,7 @@ fn labeled_entries_are_classified_as_labeled() {
         assert_eq!(by[c.entry.as_str()], "TP", "{}", c.entry);
     }
     // Every labeled negative but one has none; the exception is recorded
-    // in docs/phase11/PRECISION-RECALL.md: two `charges` rows for one
+    // in docs/research/evaluation-methodology.md: two `charges` rows for one
     // deduplicated charge, against a heuristic property the label did not
     // consider.
     for c in labels.cases.iter().filter(|c| c.label == "negative") {
@@ -731,7 +731,7 @@ export async function tag(tenant: string, name: string) {
             .iter()
             .all(|p| p.origin == Origin::HeuristicHypothesis)
     );
-    // Phase 14: the index is still not a protection, but the model does not
+    // The index is still not a protection, but the model does not
     // enforce it, and here it would reject the duplicate (the inserted rows
     // have `deleted` null): the schedule the model finds is not a finding.
     // (Phase 11-13 reported it as MODEL_COUNTEREXAMPLE, a false alarm.)
@@ -821,8 +821,7 @@ fn the_extraction_cache_is_invalidated_by_what_extraction_reads() {
 
 #[test]
 fn a_change_to_one_schema_module_invalidates_only_the_entries_that_reach_it() {
-    let app =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/phase12/workspace-app");
+    let app = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/apps/workspace-app");
     let tree = TempTree::copy(&app, "cache-p12");
     let cache = tree.0.join("cache.json");
     let mut o = options(false);

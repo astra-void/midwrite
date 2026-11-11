@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "name": "live-blind-retry-lost-commit",
+  "description": "FIRST-PARTY APPLICATION (fixtures/apps/ledger-live): the COMMIT reaches PostgreSQL, the connection breaks before the answer, the process lives, catches the error and records the payment again.",
+  "extraction": {
+    "root": "../../apps/ledger-live",
+    "externals": [],
+    "schema": "src/lib/db/schema.ts"
+  },
+  "channels": {},
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "from": "payments",
+        "columns": [
+          "id",
+          "requestId",
+          "orderId",
+          "amount"
+        ]
+      }
+    ],
+    "initialState": {
+      "payments": []
+    }
+  },
+  "actors": [
+    {
+      "name": "Client",
+      "entry": {
+        "selector": "src/app/payments.ts#recordPaymentRetryInProcess",
+        "invocation": "awaited"
+      },
+      "arguments": [
+        {
+          "requestId": "req-1",
+          "orderId": 1,
+          "amount": 500
+        }
+      ],
+      "description": "a request handler whose process survives a broken database connection and retries once"
+    }
+  ],
+  "bounds": {
+    "maxSteps": 60,
+    "maxCrashes": 0,
+    "maxRetries": 0,
+    "maxInFlight": 1
+  },
+  "invariants": [
+    {
+      "name": "recorded-at-most-once",
+      "when": "final",
+      "description": "one logical payment (one request id) is recorded at most once",
+      "assert": {
+        "le": [
+          {
+            "count": {
+              "table": "payments",
+              "where": {}
+            }
+          },
+          1
+        ]
+      }
+    }
+  ],
+  "sourceVerification": {
+    "harness": "../../apps/ledger-live/midwrite-source.json",
+    "actors": {
+      "Client": {
+        "entry": "recordPaymentRetryInProcess",
+        "input": {
+          "requestId": "req-1",
+          "orderId": 1,
+          "amount": 500
+        }
+      }
+    }
+  }
+}

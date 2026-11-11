@@ -1,9 +1,0 @@
-rustc 1.99.1 (58cf8f9c3 2026-10-13)
-clippy 0.1.99 (58cf8f9c35 2026-10-13)
-fmt exit 0
-    Checking commitrift-corpus v0.1.0 (/tmp/w/crates/commitrift-corpus)
-    Checking commitrift-cli v0.1.0 (/tmp/w/crates/commitrift-cli)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 47.29s
-clippy exit 0
-
-[exited with code 0]

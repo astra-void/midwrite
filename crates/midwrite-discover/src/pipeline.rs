@@ -55,10 +55,10 @@ pub struct Options {
     /// A cache file for extractions (keyed by everything they read).
     pub cache: Option<PathBuf>,
     pub tool_version: String,
-    /// Phase 15: initial worlds tried per actual variant (the base world
+    /// Initial worlds tried per actual variant (the base world
     /// included); 1 turns world search off (the Phase 14 behavior).
     pub max_worlds: usize,
-    /// Phase 15: keep exploring worlds after a validated counterexample.
+    /// Keep exploring worlds after a validated counterexample.
     pub all_worlds: bool,
 }
 
@@ -86,7 +86,7 @@ impl Default for Options {
     }
 }
 
-/// Phase 15: the default world budget per actual variant.
+/// The default world budget per actual variant.
 pub const DEFAULT_MAX_WORLDS: usize = 8;
 
 fn ms(start: Instant) -> u64 {
@@ -125,7 +125,7 @@ fn file_digest(root: &Path, rel: &str) -> String {
 /// Everything an extraction of `selector` can read: the files of its import
 /// closure, project configuration that changes resolution or receivers,
 /// the table and external bindings, transaction helpers, the contract.
-/// Per-run memo of what cache keys read (Phase 12): each file is digested
+/// Per-run memo of what cache keys read: each file is digested
 /// once, each module's import closure computed once — before, every entry
 /// re-read and re-hashed its whole closure, which on large projects cost
 /// more than the extraction the cache saves.
@@ -159,7 +159,7 @@ fn cache_key(
             format!("{f}={digest}")
         })
         .collect();
-    // Phase 12: tables bound by declaration can only be reached through the
+    // Tables bound by declaration can only be reached through the
     // entry's imports, so the key covers those (a change to another schema
     // module does not invalidate this entry). Name-bound tables (one schema
     // module) keep the Phase 11 key: every binding.
@@ -169,7 +169,7 @@ fn cache_key(
         .iter()
         .filter(|t| t.source.as_ref().is_none_or(|(f, _)| reachable.contains(f)))
         .collect();
-    // Phase 13: whether the project builds a replicated database depends on
+    // Whether the project builds a replicated database depends on
     // every module (not only the closure), so the flag itself is keyed.
     let bindings = format!("{tables:?}")
         + &format!("{:?}", index.bindings.externals)
@@ -222,7 +222,6 @@ fn walk_configs(root: &Path) -> Vec<String> {
                 }
             } else if matches!(name, "tsconfig.json" | "package.json")
                 || name == midwrite_core::config::CONFIG_FILE_NAME
-                || midwrite_core::config::LEGACY_CONFIG_FILE_NAMES.contains(&name)
             {
                 out.push(
                     p.strip_prefix(root)
@@ -493,7 +492,7 @@ pub fn discover(root: &Path, opts: &Options) -> Result<DiscoveryReport, String> 
     // -- candidates -----------------------------------------------------------
     let t = Instant::now();
     let (mut candidates, rejected, truncated) = detect(&index, &analyzed, opts.max_partners);
-    // Phase 13: foreign keys and their row locks are modeled (scenarios
+    // Foreign keys and their row locks are modeled (scenarios
     // with foreign keys get the `foreign-keys` feature), so the Phase 12
     // `foreign-key-locks` model-limitation assumption is no longer stated.
     for c in &mut candidates {
@@ -550,7 +549,7 @@ pub fn discover(root: &Path, opts: &Options) -> Result<DiscoveryReport, String> 
     for (n, &ci) in order.iter().enumerate() {
         let c = &candidates[ci];
         let mut scenarios = Vec::new();
-        // Phase 15: the world search of this candidate.
+        // The world search of this candidate.
         let world_search = opts.max_worlds > 1;
         let mut seen: BTreeMap<String, String> = BTreeMap::new();
         let mut outcomes: Vec<WorldOutcome> = Vec::new();
@@ -740,7 +739,7 @@ pub fn discover(root: &Path, opts: &Options) -> Result<DiscoveryReport, String> 
             }
         }
         let next_step = crate::report::next_step(c, &status, opts.model_check);
-        // Phase 15: the deciding counterexample's reproduction artifact.
+        // The deciding counterexample's reproduction artifact.
         if status == "MODEL_COUNTEREXAMPLE"
             && let Some(dir) = &emit_dir
             && let Some(s) = deciding_scenario(&scenarios)
@@ -1036,7 +1035,7 @@ fn scenario_description(c: &Candidate, v: &synth::Variant) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 15: worlds
+// Worlds
 // ---------------------------------------------------------------------------
 
 /// What one world's run needs.
@@ -1196,7 +1195,7 @@ fn run_world(
             duplicate_of: None,
         });
     }
-    // Phase 15: equivalent worlds (everything the model checker is given
+    // Equivalent worlds (everything the model checker is given
     // is identical) are explored once.
     let fp = crate::worlds::fingerprint(&built.plan, index);
     if let Some(w) = result.world.as_mut() {
@@ -1329,7 +1328,7 @@ fn unflipped(observed: &Observations, entries: &[&Analyzed]) -> BTreeSet<String>
     out
 }
 
-/// Phase 15: the coverage section of a candidate.
+/// The coverage section of a candidate.
 #[allow(clippy::too_many_arguments)]
 fn coverage_of(
     c: &Candidate,
@@ -1531,7 +1530,7 @@ fn coverage_of(
     }
 }
 
-/// Phase 15: a stable reproduction artifact for a validated counterexample
+/// A stable reproduction artifact for a validated counterexample
 /// (written next to its emitted scenario once the candidate's status is
 /// known). Every value in it was synthesized.
 fn reproduction(
@@ -1568,7 +1567,7 @@ fn reproduction(
         .map_or(Origin::HeuristicHypothesis, |p| p.origin);
     let file = result.file.clone().unwrap_or_default();
     let doc = serde_json::json!({
-        "kind": "commitrift.counterexample",
+        "kind": "midwrite.counterexample",
         "schemaVersion": 1,
         "candidate": c.id,
         "class": c.class.as_str(),
@@ -1696,7 +1695,7 @@ fn model_check(
             .terms
             .iter()
             .map(|t| format!("{} = {}", t.term, t.value.render()))
-            // Phase 16: why a formula over generated identities failed
+            // Why a formula over generated identities failed
             // (identity mismatch vs absent or stale value); empty for every
             // earlier invariant.
             .chain(
@@ -1753,7 +1752,7 @@ fn deciding_scenario(scenarios: &[ScenarioResult]) -> Option<&ScenarioResult> {
                     .is_some_and(|m| m.verdict == "COUNTEREXAMPLE_FOUND")
         })
         .or_else(|| {
-            // Phase 15: the base world, unless only another world could be
+            // The base world, unless only another world could be
             // built and checked.
             scenarios
                 .iter()
@@ -1772,7 +1771,7 @@ fn deciding_scenario(scenarios: &[ScenarioResult]) -> Option<&ScenarioResult> {
         })
 }
 
-/// Phase 15: a unique rule of the candidate's table that the model does not
+/// A unique rule of the candidate's table that the model does not
 /// enforce although PostgreSQL does: `NULLS NOT DISTINCT` over a nullable
 /// column. Phase 16: the model enforces such a rule when it models every
 /// column of it (the scenario loader then lists it with NULL equal to NULL);
@@ -1877,7 +1876,7 @@ fn status_of(
     };
     match m.verdict.as_str() {
         "COUNTEREXAMPLE_FOUND" => {
-            // Phase 14: a partial unique index the model does not enforce
+            // A partial unique index the model does not enforce
             // may make the violating schedule impossible: the counterexample
             // is not a finding until such indexes are modeled.
             if let Some(index) = c
@@ -1892,7 +1891,7 @@ fn status_of(
                     ),
                 );
             }
-            // Phase 15: the same for a NULLS NOT DISTINCT unique rule over
+            // The same for a NULLS NOT DISTINCT unique rule over
             // a nullable column (Phase 16: only one the model does not
             // enforce, see `unenforced_unique`).
             if let Some(rule) = unenforced {
@@ -1958,7 +1957,7 @@ fn status_of(
 /// The category of an extractor's `unknown` detail.
 fn unknown_category(detail: &str) -> &'static str {
     const RULES: &[(&str, &str)] = &[
-        // Phase 13: replica routing.
+        // Replica routing.
         (
             "read through a read replica (replica modeling not enabled)",
             "read replica (modeling not enabled)",

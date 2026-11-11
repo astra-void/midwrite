@@ -1,7 +1,7 @@
 //! A fast, deterministic, non-cryptographic hasher for internal maps whose
 //! keys never come from untrusted input in a way that could matter (IR
 //! addresses, small id tuples, event keys) and whose iteration order never
-//! reaches output (Phase 8; profiling showed SipHash in path merging).
+//! reaches output (profiling showed SipHash in path merging).
 //! Same mixing step as rustc's `FxHasher`.
 
 use std::hash::{BuildHasherDefault, Hasher};

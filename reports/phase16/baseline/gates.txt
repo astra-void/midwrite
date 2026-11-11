@@ -1,6 +1,0 @@
-fmt exit 0
-clippy exit 0
-test exit 0
-release exit 0
-passed 751 failed 0 ignored 3 targets 71
-done

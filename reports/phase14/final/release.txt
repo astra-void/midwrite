@@ -1,3 +1,0 @@
-    Finished `release` profile [optimized] target(s) in 0.25s
-exit 0
-1f035c611112ea52faf9b7fca91eac9b6309b6f3df9339c21c0e2b23127a65dd  /private/tmp/claude-501/-Users-returnf4lse-Desktop-Workspace-rust-crash-proof/25219952-a7b3-4685-bdea-a099b93b0188/scratchpad/p14/target/release/commitrift

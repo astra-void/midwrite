@@ -5,7 +5,7 @@
 // `@midwrite/replay`), which runs unchanged on Bun and Node.js. This file
 // keeps the Phase 3 import path working for Bun harnesses.
 //
-// See docs/phase3/REPLAY-PROTOCOL.md and docs/phase4/NODE-DRIZZLE.md.
+// See docs/architecture/replay-protocol.md and docs/architecture/replay-protocol.md.
 
 export {
   PROTOCOL_VERSION,

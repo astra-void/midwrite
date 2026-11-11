@@ -1,1 +1,0 @@
-{"probe":"sqlDefault","error":null,"calls":{"noteId":0,"stamp":0},"sent":[{"sql":"insert into \"people\" (\"id\", \"email\") values (default, $1)","params":["s@example.test"]}],"tables":{"people":[{"id":"5c37ac9e-5a63-437a-89ff-d09ef18844c6","email":"s@example.test"}],"profiles":[],"notes":[],"counters":[],"tickets":[]}}

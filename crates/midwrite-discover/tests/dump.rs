@@ -7,7 +7,7 @@ fn dump_ir() {
     let root = PathBuf::from(std::env::var("DUMP_ROOT").unwrap_or_else(|_| {
         concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../fixtures/phase11/commerce-app"
+            "/../../fixtures/apps/commerce-app"
         )
         .to_owned()
     }));

@@ -1,5 +1,5 @@
 //! `midwrite schema`: the PostgreSQL schema facts Midwrite reads from a
-//! project's Drizzle definitions (Phase 8). Static by default; with
+//! project's Drizzle definitions. Static by default; with
 //! `--migrations ... --allow-execution` the migrations are applied to a
 //! disposable PostgreSQL and the extracted facts are compared with its
 //! catalog (schema drift). The application's code is never executed.
@@ -44,7 +44,7 @@ pub fn schema(args: &SchemaArgs) -> Result<u8, String> {
     match args.format {
         SchemaFormat::Json => {
             let doc = serde_json::json!({
-                "kind": "commitrift.schema",
+                "kind": "midwrite.schema",
                 "schemaVersion": 1,
                 "file": args.file,
                 "schema": extracted,

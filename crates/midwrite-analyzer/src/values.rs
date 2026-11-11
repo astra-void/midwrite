@@ -1,6 +1,6 @@
 //! Abstract values while lowering a function body.
 //!
-//! See `docs/phase5/ABSTRACT-DOMAIN.md` and `HEAP-AND-ALIASES.md`. The
+//! See `docs/architecture/value-analysis.md` and `HEAP-AND-ALIASES.md`. The
 //! [`Lowerer`](crate::lower::Lowerer) carries a [`ValueState`] (environment
 //! and heap) through the statements it lowers, in source order. These are
 //! its transfer functions: evaluating an expression to an abstract value,

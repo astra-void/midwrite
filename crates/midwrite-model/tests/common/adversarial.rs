@@ -1,5 +1,5 @@
 //! A coverage-driven generator of scenarios for testing reductions
-//! (Phase 10), and what it needs around it: dynamic feature observation, a
+//!, and what it needs around it: dynamic feature observation, a
 //! minimizer and metamorphic transformations.
 //!
 //! Why it exists. The Phase 9 random generator drew two or three actors on

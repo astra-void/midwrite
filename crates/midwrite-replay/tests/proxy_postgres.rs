@@ -1,4 +1,4 @@
-//! Phase 9: the fault proxy against a real, disposable PostgreSQL.
+//! The fault proxy against a real, disposable PostgreSQL.
 //!
 //! The client is `psql` (simple query protocol) so that the test controls
 //! exactly what is on the wire. Each test builds its own cluster in a private
@@ -341,7 +341,7 @@ fn an_autocommit_statement_can_be_held_and_delivered_later() {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 10: the connection is broken while the client process is alive.
+// The connection is broken while the client process is alive.
 // ---------------------------------------------------------------------------
 
 /// The client ended on its own (it was not killed): with the exit status and

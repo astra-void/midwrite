@@ -1,4 +1,4 @@
-//! The visited-state table of the explicit-state search (Phase 9).
+//! The visited-state table of the explicit-state search.
 //!
 //! A state is identified by its *key*: the sequence of interned fragment
 //! integers of its canonical encoding (see [`crate::state::Interner`]). Keys

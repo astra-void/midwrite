@@ -1,5 +1,5 @@
 //! A test-only, protocol-aware PostgreSQL proxy for in-flight fault
-//! injection (Phase 9).
+//! injection.
 //!
 //! The proxy sits between an authorized worker and the **disposable**
 //! PostgreSQL cluster of one run (both reached over Unix sockets inside the
@@ -93,7 +93,7 @@ pub enum EventKind {
     ResponseWithheld,
     Delivered,
     Discarded,
-    /// Phase 10: the proxy closed the client's connection while the client
+    /// The proxy closed the client's connection while the client
     /// process was alive (a broken connection, not a killed process).
     ClientSevered,
     ClientClosed,
@@ -145,7 +145,7 @@ struct ConnState {
     upstream: Option<UnixStream>,
     client_gone: bool,
     /// A handle on the client's socket, so the proxy can close it while the
-    /// client process lives (Phase 10, [`FaultProxy::sever_client`]).
+    /// client process lives ([`FaultProxy::sever_client`]).
     client: Option<UnixStream>,
 }
 
@@ -380,7 +380,7 @@ impl FaultProxy {
             .event(conn, EventKind::Discarded, "held COMMIT discarded");
     }
 
-    /// Phase 10: close the client's side of `conn` now, with the client
+    /// Close the client's side of `conn` now, with the client
     /// process alive. The driver sees its socket end (node-postgres: the
     /// connection ends unexpectedly), exactly as for a network failure; the
     /// proxy does not write anything to the client first. What happens to the

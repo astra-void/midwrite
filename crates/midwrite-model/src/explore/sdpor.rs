@@ -1,11 +1,11 @@
-//! Phase 10: source-set dynamic partial-order reduction with sleep sets and a
+//! Source-set dynamic partial-order reduction with sleep sets and a
 //! state cache whose entries carry a summary of the events below them.
 //!
 //! The classic search of Phase 9 ([`super::explore_dpor`]) is stateless and
 //! has no sleep sets. Profiled on the four-actor team-app workload it ran
 //! 984 511 maximal executions that contain 148 distinct Mazurkiewicz traces:
 //! every trace was explored about 6 600 times, and 99.96 % of its transitions
-//! ran below a state it had already visited (`docs/phase10/BASELINE.md`). Two
+//! ran below a state it had already visited (`docs/HISTORY.md`). Two
 //! independent mechanisms remove that work, and this module offers both, one
 //! at a time or together ([`SdporConfig`]):
 //!
@@ -40,7 +40,7 @@
 //!   enabled until now) to `u`, computed from the enabled sets the search
 //!   holds anyway. A missing footprint access can no longer hide an enabling
 //!   dependency.
-//! * The five refinements of `docs/phase9/DYNAMIC-POR.md` (program order per
+//! * The five refinements of `docs/architecture/partial-order-reduction.md` (program order per
 //!   task, disabled alternatives, a blocked step is dependent with everything,
 //!   alternatives of one choice explored together, pool claims).
 //!

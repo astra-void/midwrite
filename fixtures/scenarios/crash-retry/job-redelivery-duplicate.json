@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "name": "job-redelivery-duplicate",
+  "description": "FIRST-PARTY APPLICATION: a queue consumer sends the receipt, then crashes before acknowledging; the queue redelivers the job (declared at-least-once). Without idempotency the receipt is sent twice.",
+  "extraction": {
+    "root": "../../apps/shop-app",
+    "externals": [
+      {
+        "callee": "publishEvent",
+        "channel": "order-events",
+        "keyArgument": 1
+      },
+      {
+        "callee": "sendReceiptEmail",
+        "channel": "receipt-email"
+      }
+    ],
+    "schema": "src/lib/db/schema.ts"
+  },
+  "channels": {
+    "order-events": {
+      "dedup": "none"
+    },
+    "receipt-email": {
+      "dedup": "none"
+    }
+  },
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "from": "jobs",
+        "columns": [
+          "id",
+          "kind",
+          "orderId",
+          "status"
+        ]
+      },
+      {
+        "from": "jobEffects",
+        "columns": [
+          "id",
+          "jobId",
+          "effect"
+        ]
+      }
+    ],
+    "initialState": {
+      "jobs": [
+        {
+          "id": 7,
+          "kind": "receipt",
+          "orderId": 1,
+          "status": "queued"
+        }
+      ],
+      "job_effects": []
+    }
+  },
+  "actors": [
+    {
+      "name": "Worker",
+      "entry": {
+        "selector": "src/app/jobs.ts#sendReceipt",
+        "invocation": "awaited"
+      },
+      "arguments": [
+        {
+          "jobId": 7
+        }
+      ],
+      "retry": {
+        "trigger": "atLeastOnce"
+      },
+      "description": "a queue consumer; the queue redelivers an unacknowledged job (declared at-least-once)"
+    }
+  ],
+  "bounds": {
+    "maxSteps": 30,
+    "maxCrashes": 1,
+    "maxRetries": 1
+  },
+  "invariants": [
+    {
+      "name": "receipt-sent-at-most-once",
+      "when": "final",
+      "description": "a job's receipt e-mail is sent at most once",
+      "assert": {
+        "le": [
+          {
+            "externals": {
+              "channel": "receipt-email"
+            }
+          },
+          1
+        ]
+      }
+    }
+  ],
+  "sourceVerification": {
+    "harness": "../../apps/shop-app/midwrite-source.json",
+    "actors": {
+      "Worker": {
+        "entry": "sendReceipt",
+        "input": {
+          "jobId": 7
+        }
+      }
+    }
+  }
+}

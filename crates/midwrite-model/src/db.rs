@@ -49,7 +49,7 @@ pub struct ColumnSchema {
     /// abstract model is untyped; when omitted the oracle infers it.
     #[serde(default, rename = "type", skip_serializing_if = "Option::is_none")]
     pub sql_type: Option<String>,
-    /// The value an `INSERT` that omits the column stores (Phase 7). Without
+    /// The value an `INSERT` that omits the column stores. Without
     /// a declared default an omitted column is `NULL`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default: Option<ColumnDefault>,
@@ -59,7 +59,7 @@ pub struct ColumnSchema {
     /// database; the model and its oracle use `name`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sql_name: Option<String>,
-    /// Phase 14: the value Drizzle computes for the column when an `UPDATE`
+    /// The value Drizzle computes for the column when an `UPDATE`
     /// (or an upsert's `DO UPDATE SET`) does not assign it, and for an
     /// `INSERT` that omits a column without a default (`$onUpdate`). Only
     /// [`ColumnDefault::Clock`] (`$onUpdate(() => new Date())`) is modeled.
@@ -67,7 +67,7 @@ pub struct ColumnSchema {
     pub on_update: Option<ColumnDefault>,
 }
 
-/// A column default (Phase 7).
+/// A column default.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub enum ColumnDefault {
@@ -81,44 +81,44 @@ pub enum ColumnDefault {
     /// default: one more than the largest initial value, else 1); they say
     /// nothing about identifiers in another database.
     Sequence(SequenceSpec),
-    /// Phase 12: a generated identifier (`uuid().defaultRandom()`,
+    /// A generated identifier (`uuid().defaultRandom()`,
     /// `$defaultFn(() => crypto.randomUUID())`): every execution of an
     /// insert that omits the column produces a new value, a
     /// [`crate::value::Value::Gen`] whose identity is the generation event.
     /// Unlike a sequence, generation reads and writes no shared state, so
     /// inserts of different actors stay independent.
     Generated(GeneratedSpec),
-    /// Phase 14: PostgreSQL's `now()` (`defaultNow()`, ``default(sql`now()`)``):
+    /// PostgreSQL's `now()` (`defaultNow()`, ``default(sql`now()`)``):
     /// the start time of the inserting transaction, the same value for every
     /// statement of that transaction ([`now_value`]).
     Now,
-    /// Phase 14: an application clock reading (`$defaultFn(() => new
+    /// An application clock reading (`$defaultFn(() => new
     /// Date())`, `$onUpdate(() => new Date())`): Drizzle reads the clock
     /// when it builds the statement, once per row and execution.
     Clock,
 }
 
-/// Phase 14: the reserved generator of [`crate::value::GenId`]s that are
+/// The reserved generator of [`crate::value::GenId`]s that are
 /// PostgreSQL transaction timestamps (`now()`): `actor` is the transaction's
 /// actor and `n` the transaction's number within the actor, so every
 /// statement of one transaction reads the same value and two transactions
 /// read different ones.
 pub const CLOCK_DB: u16 = 0xFFF0;
-/// Phase 14: the reserved generator of application clock readings (`new
+/// The reserved generator of application clock readings (`new
 /// Date()`): `n` is the actor's generation counter, as for Phase 12
 /// generated values.
 pub const CLOCK_APP: u16 = 0xFFF1;
-/// Phase 14: the actor of a clock *placeholder*: a literal the extractor
+/// The actor of a clock *placeholder*: a literal the extractor
 /// writes where a statement reads the clock (`set({ at: new Date() })`,
 /// ``sql`now()` ``); the engine replaces it when the statement starts.
 pub const CLOCK_PLACEHOLDER: u16 = u16::MAX;
 
-/// Phase 14: whether a generated value is a clock reading.
+/// Whether a generated value is a clock reading.
 pub fn is_clock(g: &crate::value::GenId) -> bool {
     matches!(g.generator, CLOCK_DB | CLOCK_APP)
 }
 
-/// Phase 14: the value of `now()` in transaction `txn`.
+/// The value of `now()` in transaction `txn`.
 pub fn now_value(txn: TxnId) -> Value {
     Value::Gen(crate::value::GenId {
         generator: CLOCK_DB,
@@ -127,7 +127,7 @@ pub fn now_value(txn: TxnId) -> Value {
     })
 }
 
-/// Phase 14: the placeholder of `now()` (``sql`now()` ``) in a statement.
+/// The placeholder of `now()` (``sql`now()` ``) in a statement.
 pub fn now_placeholder() -> Value {
     Value::Gen(crate::value::GenId {
         generator: CLOCK_DB,
@@ -136,7 +136,7 @@ pub fn now_placeholder() -> Value {
     })
 }
 
-/// Phase 14: the placeholder of the `k`-th application clock reading (`new
+/// The placeholder of the `k`-th application clock reading (`new
 /// Date()`) written in a statement's arguments.
 pub fn clock_placeholder(k: u32) -> Value {
     Value::Gen(crate::value::GenId {
@@ -146,7 +146,7 @@ pub fn clock_placeholder(k: u32) -> Value {
     })
 }
 
-/// Phase 14: the column types whose values the model checks on every write
+/// The column types whose values the model checks on every write
 /// (they are modeled only with the scenario features `timestamps` / `json`).
 pub fn is_time_type(sql_type: Option<&str>) -> bool {
     matches!(sql_type, Some("timestamp" | "timestamptz" | "date"))
@@ -157,14 +157,14 @@ pub fn is_json_type(sql_type: Option<&str>) -> bool {
 }
 
 /// The deepest JSON value (objects and arrays nested in each other) the
-/// model stores in a `json`/`jsonb` column (Phase 14).
+/// model stores in a `json`/`jsonb` column.
 pub const MAX_JSON_DEPTH: usize = 4;
 
 /// Whether `text` is the canonical form of an explicit time value of a
 /// column of `sql_type`: `YYYY-MM-DDTHH:MM:SS.sssZ` (JavaScript's
 /// `toISOString()`, what a `Date` read through Drizzle serializes to) for
 /// `timestamp`/`timestamptz`, `YYYY-MM-DD` for `date`. Canonical values of
-/// one type compare as their instants do (Phase 14).
+/// one type compare as their instants do.
 pub fn is_canonical_time(sql_type: &str, text: &str) -> bool {
     let b = text.as_bytes();
     let digits = |r: std::ops::Range<usize>| r.into_iter().all(|i| b[i].is_ascii_digit());
@@ -200,7 +200,7 @@ pub fn is_canonical_time(sql_type: &str, text: &str) -> bool {
         && (b[17] - b'0') * 10 + (b[18] - b'0') < 60
 }
 
-/// Phase 14: why a value cannot be written to a typed column (`None`: it
+/// Why a value cannot be written to a typed column (`None`: it
 /// can). Time columns hold `NULL`, a clock reading or a canonical explicit
 /// value; JSON columns hold `NULL` or a JSON value of bounded depth (objects,
 /// arrays, integers, strings, booleans, JSON `null` inside). Other columns
@@ -261,7 +261,7 @@ pub fn typed_value_problem(column: &ColumnSchema, v: &Value) -> Option<String> {
     None
 }
 
-/// Phase 14: a comparison (`=`, `<`, ...) of a JSON column in a predicate:
+/// A comparison (`=`, `<`, ...) of a JSON column in a predicate:
 /// not modeled (`json` has no equality in PostgreSQL; `jsonb` compares
 /// structurally, which the value layer does not implement).
 pub fn json_comparison(schema: &TableSchema, pred: &Expr) -> Option<String> {
@@ -297,7 +297,7 @@ pub fn json_comparison(schema: &TableSchema, pred: &Expr) -> Option<String> {
     }
 }
 
-/// Phase 14: the first problem of a row image for the typed columns of
+/// The first problem of a row image for the typed columns of
 /// `schema`.
 pub fn typed_row_problem(schema: &TableSchema, row: &Row) -> Option<String> {
     schema
@@ -306,7 +306,7 @@ pub fn typed_row_problem(schema: &TableSchema, row: &Row) -> Option<String> {
         .find_map(|c| typed_value_problem(c, row.get(&c.name).unwrap_or(&Value::Null)))
 }
 
-/// Who computes a generated default (Phase 12).
+/// Who computes a generated default.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum GeneratedSide {
@@ -343,7 +343,7 @@ pub struct TableSchema {
     pub primary_key: Vec<String>,
     #[serde(default)]
     pub unique: Vec<Vec<String>>,
-    /// Phase 16: unique sets declared `NULLS NOT DISTINCT` (PostgreSQL 15+)
+    /// Unique sets declared `NULLS NOT DISTINCT` (PostgreSQL 15+)
     /// over a nullable column, listed next to (not in) `unique`: for these
     /// rules a NULL key value equals another NULL, so two rows whose keys
     /// agree with NULLs in the same columns conflict (SQLSTATE 23505, an
@@ -354,15 +354,15 @@ pub struct TableSchema {
     /// Simple CHECK constraints: SQL-mode expressions over `Col`.
     #[serde(default)]
     pub checks: Vec<Expr>,
-    /// Phase 13: foreign keys this table declares (it is the referencing
+    /// Foreign keys this table declares (it is the referencing
     /// table). Enforced as PostgreSQL does: the referencing side locks the
     /// referenced row `FOR KEY SHARE`; deleting or re-keying a referenced
-    /// row fails while referencing rows remain (`docs/phase13/POSTGRESQL-FK-LOCKS.md`).
+    /// row fails while referencing rows remain (`docs/architecture/postgres-model.md`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub foreign_keys: Vec<ForeignKeySchema>,
 }
 
-/// A referential action (Phase 13). Only `NO ACTION` and `RESTRICT` are
+/// A referential action. Only `NO ACTION` and `RESTRICT` are
 /// executed by the model; a scenario whose statements would run another
 /// action is refused by the loader.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -401,7 +401,7 @@ impl RefAction {
     }
 }
 
-/// A foreign key (Phase 13), `MATCH SIMPLE`: a referencing row with a NULL
+/// A foreign key, `MATCH SIMPLE`: a referencing row with a NULL
 /// in any key column is not checked.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -433,7 +433,7 @@ impl ForeignKeySchema {
     }
 }
 
-/// A PostgreSQL row-level lock mode (Phase 13), weakest first.
+/// A PostgreSQL row-level lock mode, weakest first.
 ///
 /// | requested \ held | KEY SHARE | SHARE | NO KEY UPDATE | UPDATE |
 /// | --- | --- | --- | --- | --- |
@@ -486,7 +486,7 @@ impl TableSchema {
             .collect()
     }
 
-    /// Phase 16: the unique rules with their NULL semantics, in
+    /// The unique rules with their NULL semantics, in
     /// [`TableSchema::key_sets`] order. Names follow PostgreSQL's defaults
     /// (`<table>_pkey`, `<table>_<columns>_key`, a repeated name gets the
     /// next free numeric suffix as `ChooseConstraintName` gives it).
@@ -521,7 +521,7 @@ impl TableSchema {
         out
     }
 
-    /// Phase 16: whether NULLs are equal for an `ON CONFLICT (target)`
+    /// Whether NULLs are equal for an `ON CONFLICT (target)`
     /// arbiter. PostgreSQL infers as arbiters every unique index whose key
     /// columns are exactly the target's (in any order); a row conflicts when
     /// it conflicts on one of them, so a `NULLS NOT DISTINCT` arbiter makes
@@ -537,7 +537,7 @@ impl TableSchema {
     }
 }
 
-/// Phase 16: one unique rule of a table (the primary key, a `UNIQUE` set or
+/// One unique rule of a table (the primary key, a `UNIQUE` set or
 /// a `UNIQUE NULLS NOT DISTINCT` set).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KeyRule {
@@ -743,7 +743,7 @@ impl DbError {
         self.sqlstate == "40001" || self.sqlstate == "40P01"
     }
 
-    /// Phase 14: an evaluation the model does not represent (the order of
+    /// An evaluation the model does not represent (the order of
     /// generated or clock values, a SQL operator on an unsupported value):
     /// not a database error, the engine reports the path as unsupported.
     pub fn unsupported(message: impl Into<String>) -> Self {
@@ -755,12 +755,12 @@ impl DbError {
     }
 }
 
-/// Phase 14: the marker of [`DbError::unsupported`] (never a PostgreSQL
+/// The marker of [`DbError::unsupported`] (never a PostgreSQL
 /// SQLSTATE: the engine turns it into an unsupported operation before any
 /// result is recorded).
 pub const UNSUPPORTED_EVALUATION: &str = "CR000";
 
-/// Phase 14: the database error of an evaluation error inside a statement:
+/// The database error of an evaluation error inside a statement:
 /// an unsupported evaluation stays unsupported; other errors keep their
 /// Phase 6-13 SQLSTATE (`fallback`).
 pub fn eval_db_error(e: &crate::value::EvalError, fallback: &str, context: &str) -> DbError {

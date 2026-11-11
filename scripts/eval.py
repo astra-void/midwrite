@@ -12,7 +12,7 @@ The sets are declared in corpora/eval/sets.json:
             (`sets.json` `history`) and a new held-out project replaces it.
 
 Usage:
-  scripts/eval.py fetch [--project NAME ...]
+  scripts/eval.py fetch [--set dev|held-out|all] [--project NAME ...]
   scripts/eval.py run [--set dev|held-out|all] [--project NAME ...]
                       [--bin PATH] [-o OUT.json] [--gate]
   scripts/eval.py freeze --project NAME [--reason TEXT]
@@ -391,6 +391,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
     f = sub.add_parser("fetch")
+    f.add_argument("--set", choices=["dev", "held-out", "all"], default="all")
     f.add_argument("--project", action="append")
     r = sub.add_parser("run")
     r.add_argument("--set", choices=["dev", "held-out", "all"], default="all")
@@ -404,7 +405,7 @@ def main():
     args = parser.parse_args()
     sets = load_sets()
     if args.command == "fetch":
-        for p in selected(sets, args.project, "all"):
+        for p in selected(sets, args.project, args.set):
             fetch(p)
         return 0
     if args.command == "freeze":

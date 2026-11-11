@@ -1,4 +1,4 @@
-//! The independence audit (Phase 10) on the whole corpus, and its power: with
+//! The independence audit on the whole corpus, and its power: with
 //! a kind of access deleted from the footprints the audit must notice, on at
 //! least one workload, the dependencies the reductions rely on.
 

@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "name": "live-idempotent-retry-commit-not-durable",
+  "description": "FIRST-PARTY APPLICATION (fixtures/apps/ledger-live): the same idempotent recovery when the COMMIT never reached PostgreSQL: the retry records the row once.",
+  "extraction": {
+    "root": "../../apps/ledger-live",
+    "externals": [],
+    "schema": "src/lib/db/schema.ts"
+  },
+  "channels": {},
+  "database": {
+    "isolation": "read-committed",
+    "tables": [
+      {
+        "from": "ledger",
+        "columns": [
+          "id",
+          "requestId",
+          "orderId",
+          "amount"
+        ]
+      }
+    ],
+    "initialState": {
+      "ledger": []
+    }
+  },
+  "actors": [
+    {
+      "name": "Client",
+      "entry": {
+        "selector": "src/app/payments.ts#recordPaymentIdempotentRetryInProcess",
+        "invocation": "awaited"
+      },
+      "arguments": [
+        {
+          "requestId": "req-1",
+          "orderId": 1,
+          "amount": 500
+        }
+      ],
+      "description": "a request handler whose process survives a broken database connection and retries once"
+    }
+  ],
+  "bounds": {
+    "maxSteps": 60,
+    "maxCrashes": 0,
+    "maxRetries": 0,
+    "maxInFlight": 1
+  },
+  "invariants": [
+    {
+      "name": "recorded-at-most-once",
+      "when": "final",
+      "description": "one ledger row per request id",
+      "assert": {
+        "le": [
+          {
+            "count": {
+              "table": "ledger",
+              "where": {}
+            }
+          },
+          1
+        ]
+      }
+    }
+  ],
+  "sourceVerification": {
+    "harness": "../../apps/ledger-live/midwrite-source.json",
+    "actors": {
+      "Client": {
+        "entry": "recordPaymentIdempotentRetryInProcess",
+        "input": {
+          "requestId": "req-1",
+          "orderId": 1,
+          "amount": 500
+        }
+      }
+    },
+    "recoveryProbe": {
+      "require": [
+        "lost-not-committed:Client"
+      ]
+    }
+  }
+}

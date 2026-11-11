@@ -15,17 +15,6 @@ path = "src/lib.rs"
 name = "midwrite"
 path = "src/main.rs"
 
-# Compatibility executables for automation written before the renames
-# (CrashProof, then CommitRift). Same behavior as `midwrite`, with a
-# deprecation note on standard error.
-[[bin]]
-name = "commitrift"
-path = "src/bin/commitrift.rs"
-
-[[bin]]
-name = "crashproof"
-path = "src/bin/crashproof.rs"
-
 [features]
 default = ["replay"]
 # Runtime replay (`midwrite replay`). Without it the binary contains only

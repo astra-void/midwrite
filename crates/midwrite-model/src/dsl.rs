@@ -32,11 +32,11 @@
 //! (`Conn::Tx`); others run in autocommit mode (`Conn::Pool`). Prefix a
 //! statement with `pool` or `tx` to override.
 //!
-//! Phase 16: `let t = generate "nanoid(21)"` is a fresh value from a package
+//! `let t = generate "nanoid(21)"` is a fresh value from a package
 //! call ([`Op::Generate`]: a generation event of the actor; the string names
 //! the call for reports).
 //!
-//! Phase 16: `let rows = select all t where ... [order by @id] [limit n]
+//! `let rows = select all t where ... [order by @id] [limit n]
 //! [for update]` binds the list of every matching row (the multi-row mode,
 //! locked one row at a time in key order); `inArray(@col, [a, b])` is
 //! Drizzle's `inArray`.
@@ -318,7 +318,7 @@ impl<'a> Cursor<'a> {
         Ok(e)
     }
 
-    /// Phase 14: `recv.name(args)` of a built-in method, or an array
+    /// `recv.name(args)` of a built-in method, or an array
     /// callback `recv.filter(x => body)`.
     fn method(&mut self, recv: Expr, name: &str) -> Result<Expr, ParseError> {
         self.expect_sym("(")?;
@@ -390,7 +390,7 @@ impl<'a> Cursor<'a> {
                 "false" => Ok(Expr::lit(false)),
                 "null" => Ok(Expr::Lit(Value::Null)),
                 "undefined" => Ok(Expr::undefined()),
-                // Phase 14: built-in functions.
+                // Built-in functions.
                 name if matches!(self.peek(), Some(Tok::Sym("(")))
                     && matches!(
                         name,
@@ -411,7 +411,7 @@ impl<'a> Cursor<'a> {
                         "length" => Builtin::Length,
                         "size" => Builtin::Size,
                         "newMap" => Builtin::NewMap,
-                        // Phase 16: Drizzle's `inArray(column, list)` (SQL).
+                        // Drizzle's `inArray(column, list)` (SQL).
                         "inArray" => Builtin::InList,
                         _ => Builtin::NewSet,
                     };
@@ -587,7 +587,7 @@ fn parse_stmt(
     } else if c.eat_kw("tx") {
         conn = Conn::Tx;
     } else if c.eat_kw("replica") {
-        // Phase 13: a read routed to the read replica.
+        // A read routed to the read replica.
         conn = Conn::Replica;
     }
     let head = c.ident("a statement")?;
@@ -629,13 +629,13 @@ fn parse_stmt(
         "let" => {
             let name = c.ident("a variable name")?;
             c.expect_sym("=")?;
-            // Phase 13: `let x = replica select ...` / `replica count ...`.
+            // `let x = replica select ...` / `replica count ...`.
             if c.is_kw("replica") {
                 c.eat_kw("replica");
                 conn = Conn::Replica;
             }
             if c.eat_kw("select") {
-                // Phase 16: `select all t where ... [limit n] [for ...]`, the
+                // `select all t where ... [limit n] [for ...]`, the
                 // multi-row mode (a list of rows).
                 let all = c.eat_kw("all");
                 let table = c.ident("a table")?;
@@ -732,7 +732,7 @@ fn parse_stmt(
                 && matches!(c.toks.get(c.pos + 1), Some(Tok::Str(_)))
                 && c.toks.len() == c.pos + 2
             {
-                // Phase 16: `let t = generate "nanoid(21)"`: a fresh value
+                // `let t = generate "nanoid(21)"`: a fresh value
                 // from a package call (a generation event of the actor).
                 c.eat_kw("generate");
                 let Some(Tok::Str(source)) = c.next() else {
@@ -788,7 +788,7 @@ fn parse_stmt(
             let mut upsert = None;
             if c.eat_kw("on") {
                 c.expect_kw("conflict")?;
-                // Phase 13: `on conflict (@a, @b) do update set @c = e,
+                // `on conflict (@a, @b) do update set @c = e,
                 // ... [where e]`; `excluded.c` is the proposed row's column.
                 let mut target = Vec::new();
                 if c.eat_sym("(") {
@@ -929,7 +929,7 @@ fn parse_stmt(
             push(b, code, line, Op::Throw { message });
         }
         "return" => {
-            // Phase 13: `return <expr>` states the value the task returns.
+            // `return <expr>` states the value the task returns.
             if !c.at_end() {
                 let expr = c.expr_until(&[])?;
                 done(&c)?;
@@ -1075,7 +1075,7 @@ fn parse_lock(c: &mut Cursor<'_>) -> Result<LockMode, ParseError> {
     if !c.eat_kw("for") {
         return Ok(LockMode::None);
     }
-    // Phase 13: `for share`, `for key share`, `for no key update`.
+    // `for share`, `for key share`, `for no key update`.
     if c.eat_kw("share") {
         return Ok(LockMode::ForShare);
     }

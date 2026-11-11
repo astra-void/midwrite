@@ -76,7 +76,7 @@ pub(crate) enum Event<'ir> {
 
 pub(crate) type Trace<'ir> = Vec<Event<'ir>>;
 
-/// How inlined calls are walked (Phase 7).
+/// How inlined calls are walked.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PathMode {
     /// Every trace that reaches an inlined call is walked through the
@@ -86,14 +86,14 @@ pub enum PathMode {
     /// once; the resulting *compact summary* (its trace fragments, grouped
     /// by exit) is spliced onto every incoming trace. Produces exactly the
     /// legacy traces, in the same order, with the same statistics
-    /// (`docs/phase7/COMPACT-SUMMARIES.md`).
+    /// (`docs/ARCHITECTURE.md`).
     Compact,
-    /// Phase 8: [`Self::Compact`], and a call whose body corresponds
+    /// [`Self::Compact`], and a call whose body corresponds
     /// node for node to an already summarized call (same callee, same
     /// structure, fact variables renamed bijectively — two instantiations
     /// of one callee expansion) reuses that summary through the
     /// correspondence instead of being walked
-    /// (`docs/phase8/PARAMETERIZED-SUMMARIES.md`).
+    /// (`docs/ARCHITECTURE.md`).
     Shared,
 }
 
@@ -151,14 +151,14 @@ pub struct CompactStats {
     pub reused: usize,
     /// Calls walked the legacy way because their facts are shared.
     pub shared_facts: usize,
-    /// Phase 8: call scopes whose summary was instantiated from another
+    /// Call scopes whose summary was instantiated from another
     /// instance through a verified correspondence (not walked).
     pub instantiated: usize,
-    /// Phase 8: candidates with an equal shape whose correspondence failed.
+    /// Candidates with an equal shape whose correspondence failed.
     pub shape_rejected: usize,
 }
 
-/// A summarized call (Phase 8): the call, the context key and the effect
+/// A summarized call: the call, the context key and the effect
 /// context its summary was built in.
 type ShapeEntry<'ir> = (&'ir CallScope, [usize; 3], EffectContext<'ir>);
 
@@ -1096,7 +1096,7 @@ fn fact_key(facts: &[String]) -> usize {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 8: summaries shared between call instances
+// Summaries shared between call instances
 // ---------------------------------------------------------------------------
 
 /// A canonical hash of everything the walker reads from a call body: node

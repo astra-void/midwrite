@@ -1,5 +1,0 @@
-rustc 1.98.1 (48a229cea 2026-09-01) (Homebrew)
-ProductName:		macOS
-ProductVersion:		27.0.1
-BuildVersion:		26A434
-v22.23.2

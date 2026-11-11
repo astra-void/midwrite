@@ -1,4 +1,4 @@
-//! Recovery probes (Phase 8).
+//! Recovery probes.
 //!
 //! When the model finds NO counterexample (a safe or idempotent
 //! alternative), there is no schedule to run against the original code.

@@ -22,7 +22,7 @@ pub struct TableBinding {
     pub table: String,
     /// The columns of the table; property names in source must equal these.
     pub columns: Vec<String>,
-    /// Phase 12: the declaration the table was read from (schema module
+    /// The declaration the table was read from (schema module
     /// relative to the project root, binding). When set, an identifier in
     /// source denotes this table only if it resolves (through imports and
     /// re-exports) to this declaration, whatever its local name; a
@@ -40,7 +40,7 @@ pub struct ExternalBinding {
     pub key_argument: Option<usize>,
 }
 
-/// Phase 8: an application helper that runs a callback in a database
+/// An application helper that runs a callback in a database
 /// transaction and re-runs it in a NEW transaction after a serialization
 /// failure or deadlock (SQLSTATE 40001 / 40P01). Declared by the scenario:
 /// the helper's own loop is not analyzed; source verification runs it.
@@ -58,7 +58,7 @@ pub struct TransactionRetryBinding {
 }
 
 /// What a scenario *declares* about how a wrapper invokes the selected
-/// callback (Phase 7). It is an assumption supplied by the scenario author,
+/// callback. It is an assumption supplied by the scenario author,
 /// reported as such, and never shown as proven source semantics.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -101,7 +101,7 @@ pub struct WrapperFacts {
     pub detail: String,
 }
 
-/// The selected entry function of an actor (Phase 7).
+/// The selected entry function of an actor.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EntryInfo {
@@ -138,38 +138,38 @@ pub struct ExtractRequest {
     pub arguments: Vec<Value>,
     pub tables: Vec<TableBinding>,
     pub externals: Vec<ExternalBinding>,
-    /// Phase 8: declared transaction-retry helpers.
+    /// Declared transaction-retry helpers.
     pub transaction_retries: Vec<TransactionRetryBinding>,
     /// How many levels of calls to local/imported helper functions are
     /// inlined.
     pub max_inline_depth: usize,
     /// A source selector (`file#binding/arg[1]`, `file@line:col`) choosing
-    /// the entry function instead of `function` (Phase 7).
+    /// the entry function instead of `function`.
     pub selector: Option<String>,
     /// Declared invocation assumptions for a wrapped callback.
     pub contract: Option<InvocationContract>,
-    /// Phase 13: model reads through a replicated database (`withReplicas`)
+    /// Model reads through a replicated database (`withReplicas`)
     /// as replica reads ([`crate::ir::Conn::Replica`]). When false such
     /// reads stay unknown operations, as before Phase 13.
     pub replicas: bool,
-    /// Phase 13: project functions declared to build a replicated database.
+    /// Project functions declared to build a replicated database.
     pub replica_factories: Vec<ReplicaFactoryBinding>,
-    /// Phase 13: emit [`crate::ir::Op::ReturnValue`] before the main task's
+    /// Emit [`crate::ir::Op::ReturnValue`] before the main task's
     /// returns (requested when an invariant reads return values; otherwise
     /// the extracted code is the Phase 12 code).
     pub return_values: bool,
-    /// Phase 14: lower with JavaScript value semantics (scenario feature
+    /// Lower with JavaScript value semantics (scenario feature
     /// `js-values`): `undefined` distinct from `null` (missing properties,
     /// out-of-range indices, `?.`, `??`, `== null`), strings (template
     /// literals, `+` with a string operand, string methods), arrays (literals,
     /// indexing, `.length`, `includes`/`indexOf`/`join`, pure-callback
     /// `map`/`filter`/`find`/..., destructuring, `for...of`), `Map` and `Set`
-    /// (`docs/phase14/VALUE-SEMANTICS.md`). When false the extracted code is
+    /// (`docs/concepts/value-semantics.md`). When false the extracted code is
     /// the Phase 13 code: `undefined` is `null` and these forms stay unknown.
     pub js_values: bool,
 }
 
-/// Phase 13: a project function DECLARED (by the scenario or the project's
+/// A project function DECLARED (by the scenario or the project's
 /// contract file) to return a replicated database with drizzle-orm
 /// `withReplicas` routing: `select`/`selectDistinct`/`$count`/`query`/`with`
 /// read from a replica; `insert`/`update`/`delete`/`execute`/`transaction`
@@ -205,14 +205,14 @@ pub struct Extracted {
     pub codes: Vec<Vec<Step>>,
     /// Assumptions made during extraction (for the report).
     pub assumptions: Vec<String>,
-    /// The selected entry (Phase 7; only for selector-based actors).
+    /// The selected entry (only for selector-based actors).
     pub entry: Option<EntryInfo>,
 }
 
 pub trait ActorProvider {
     fn extract(&self, request: &ExtractRequest) -> Result<Extracted, String>;
 
-    /// Phase 12: the declaration (module, binding) the name `local` of
+    /// The declaration (module, binding) the name `local` of
     /// module `file` resolves to through imports and re-exports, if the
     /// frontend can tell.
     fn resolve_reference(
@@ -225,7 +225,7 @@ pub trait ActorProvider {
         None
     }
 
-    /// Phase 8: the Drizzle schema facts of `file` (relative to `root`),
+    /// The Drizzle schema facts of `file` (relative to `root`),
     /// read statically.
     fn extract_schema(
         &self,

@@ -1,4 +1,4 @@
-//! Shrinking a scenario document while some property still holds (Phase 10).
+//! Shrinking a scenario document while some property still holds.
 //!
 //! The property is a closure: "the model still loads, the unreduced search
 //! still finishes, and reduction X still differs from it". Candidates are

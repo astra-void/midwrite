@@ -1,6 +1,6 @@
 //! A bounded heap of abstract objects, one per allocation site.
 //!
-//! See `docs/phase5/HEAP-AND-ALIASES.md`. Objects are identified by the
+//! See `docs/architecture/value-analysis.md`. Objects are identified by the
 //! allocation site that created them (an object or array literal, a `new`
 //! expression) within one function. Property writes are *strong* (replace
 //! the property) only when the target is exactly one non-summary object;

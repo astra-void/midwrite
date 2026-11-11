@@ -1,4 +1,4 @@
-//! Failure traces (Phase 3, Milestone 1): structure, validation against the
+//! Failure traces (Milestone 1): structure, validation against the
 //! analysis model, determinism, and agreement with the diagnostics.
 
 use std::path::{Path, PathBuf};
@@ -404,8 +404,8 @@ fn trace_report_round_trips_through_json() {
     let json = serde_json::to_string(&report).unwrap();
     let back: TraceReport = serde_json::from_str(&json).unwrap();
     assert_eq!(back, report);
-    assert_eq!(back.kind, "commitrift.traces");
-    // Phase 5: schema v2 adds the optional per-trace `valueRelation`.
+    assert_eq!(back.kind, "midwrite.traces");
+    // Schema v2 adds the optional per-trace `valueRelation`.
     assert_eq!(back.schema_version, 2);
     // A v1 report (no `valueRelation`) is still read.
     let mut v1: serde_json::Value = serde_json::from_str(&json).unwrap();
@@ -470,7 +470,7 @@ fn replay_harness_applications_have_the_documented_findings() {
     assert!(outbox.skipped.is_empty());
 }
 
-/// Phase 4: the application on the real Drizzle ORM (`drizzle(pool)` from
+/// The application on the real Drizzle ORM (`drizzle(pool)` from
 /// `drizzle-orm/node-postgres`, NodeNext `.js` import specifiers).
 #[test]
 fn the_real_drizzle_application_has_exactly_the_documented_findings() {

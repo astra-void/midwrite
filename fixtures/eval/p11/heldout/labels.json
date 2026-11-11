@@ -1,0 +1,31 @@
+{
+  "$comment": "HELD-OUT labels for Phase 11 discovery, transcribed from the verdicts of the hand-authored Phase 7/8 model-checking scenarios (fixtures/scenarios/server-actions, fixtures/scenarios/crash-retry; verdicts re-run with the Phase 10 binary on 2026-10-27, before this file was scored). An entry is `positive` if a hand-authored scenario of it found a counterexample to its stated property, `negative` if every hand-authored scenario of it found none. These fixtures and scenarios predate the discovery engine; the properties are the Phase 7/8 authors' (the same project), so they are not independent of the project, only of the engine.",
+  "schemaVersion": 1,
+  "projects": {
+    "shop-app": {
+      "root": "fixtures/apps/shop-app",
+      "contracts": "fixtures/eval/p11/heldout/shop-app.contracts.json",
+      "cases": [
+        { "entry": "src/app/checkout.ts#payOrder", "class": "external-effect-gap", "label": "positive", "property": "charged-at-most-once", "scenario": "checkout-crash-after-charge" },
+        { "entry": "src/app/checkout.ts#payOrderIdempotent", "class": "check-then-act", "label": "positive", "property": "charged-at-most-once", "scenario": "checkout-idempotent-two-requests (counterexample); checkout-idempotent-crash-after-charge (none)" },
+        { "entry": "src/app/inventory.ts#reserveStock", "class": "external-effect-gap", "label": "positive", "property": "one-notice-per-reservation", "scenario": "inventory-retry-duplicate-notice" },
+        { "entry": "src/app/inventory.ts#reserveStockNotifyAfterCommit", "class": "external-effect-gap", "label": "negative", "property": "one-notice-per-reservation", "scenario": "inventory-notify-after-commit" },
+        { "entry": "src/app/inventory.ts#reserveStockOnce", "class": "read-modify-write", "label": "negative", "property": "stock-accounted", "scenario": "inventory-retry-exhausted" },
+        { "entry": "src/app/jobs.ts#sendReceipt", "class": "duplicate-processing", "label": "positive", "property": "receipt-sent-at-most-once", "scenario": "job-concurrent-claims-duplicate, job-redelivery-duplicate" },
+        { "entry": "src/app/jobs.ts#sendReceiptOnce", "class": "duplicate-processing", "label": "negative", "property": "receipt-sent-at-most-once", "scenario": "job-claimed-effect-concurrent, job-claimed-effect-redelivery" },
+        { "entry": "src/app/shipping.ts#shipOrderDualWrite", "class": "external-effect-gap", "label": "positive", "property": "shipped-event-not-lost", "scenario": "shipping-dual-write-crash" },
+        { "entry": "src/app/shipping.ts#relayOutbox", "class": "duplicate-processing", "label": "positive", "property": "event-delivered-once", "scenario": "shipping-outbox-relay-duplicate" },
+        { "entry": "src/app/shipping.ts#shipOrderWithOutbox", "class": "external-effect-gap", "label": "negative", "property": "shipped-event-not-lost", "scenario": "shipping-outbox-no-loss" }
+      ]
+    },
+    "team-app": {
+      "root": "fixtures/apps/team-app",
+      "contracts": "fixtures/eval/p11/heldout/team-app.contracts.json",
+      "cases": [
+        { "entry": "src/app/actions.ts#inviteTeamMember/arg[1]", "class": "check-then-act", "label": "positive", "property": "one-pending-invitation-per-email", "scenario": "team-app-invite-double-submit" },
+        { "entry": "src/app/actions.ts#acceptInvitation/arg[1]", "class": "check-then-act", "label": "positive", "property": "one-membership-per-user-and-team", "scenario": "team-app-accept-invitation-twice (counterexample); accept-crash-* (none, another property)" }
+      ]
+    }
+  },
+  "corrections": []
+}

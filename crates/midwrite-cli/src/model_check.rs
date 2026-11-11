@@ -44,7 +44,7 @@ pub enum StrategyArg {
 
 #[derive(Debug, Args)]
 pub struct ModelCheckArgs {
-    /// A scenario file (JSON; see docs/phase6/INVARIANTS.md).
+    /// A scenario file (JSON; see docs/concepts/invariants.md).
     pub scenario: PathBuf,
     /// Output format.
     #[arg(long, value_enum, default_value_t = McFormat::Text)]
@@ -60,13 +60,13 @@ pub struct ModelCheckArgs {
     /// Disable partial-order reduction (explore every interleaving).
     #[arg(long)]
     pub no_por: bool,
-    /// Use dynamic partial-order reduction (Phase 9) instead of sleep
+    /// Use dynamic partial-order reduction instead of sleep
     /// sets: stateless (memory is the stack, not a table of states),
     /// preserves final invariants, deadlocks and stuck states; refused with
     /// an `always` invariant.
     #[arg(long, conflicts_with = "no_por")]
     pub dpor: bool,
-    /// Use source-set dynamic partial-order reduction (Phase 10) instead of
+    /// Use source-set dynamic partial-order reduction instead of
     /// sleep sets: the same properties as `--dpor` (final invariants,
     /// deadlocks and stuck states; refused with an `always` invariant or a
     /// context-switch bound), with sleep sets and/or a state cache so that
@@ -159,7 +159,7 @@ impl ActorProvider for ScenarioProvider {
         midwrite_analyzer::schema::extract_schema(root, file)
     }
 
-    /// Phase 13: through the frontend (foreign keys whose target is
+    /// Through the frontend (foreign keys whose target is
     /// imported from another schema module).
     fn resolve_reference(
         &self,
@@ -188,7 +188,7 @@ impl ActorProvider for ScenarioProvider {
 fn link_effects(root: &std::path::Path, extracted: &mut Extracted) -> Result<(), String> {
     use std::collections::BTreeMap;
     let config = if let Some(found) = midwrite_core::config::discover_config(root) {
-        midwrite_core::config::Config::load(&found.path).map_err(|e| e.to_string())?
+        midwrite_core::config::Config::load(&found).map_err(|e| e.to_string())?
     } else {
         midwrite_core::config::Config::default()
     };

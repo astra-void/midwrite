@@ -1,6 +1,6 @@
-// The postgres-js adapter's guards (Phase 8): `node --test
+// The postgres-js adapter's guards: `node --test
 // runtime/node/test/postgres-js.test.js`. Uses the postgres-js installed in
-// fixtures/phase8/pgjs-app; nothing connects to a database.
+// fixtures/apps/pgjs-app; nothing connects to a database.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -10,7 +10,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { POSTGRES_JS_VERSIONS, coordinatePostgresJs } from "../source.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const installed = join(here, "../../../fixtures/phase8/pgjs-app/node_modules/postgres/src/index.js");
+const installed = join(here, "../../../fixtures/apps/pgjs-app/node_modules/postgres/src/index.js");
 const { default: postgres } = await import(pathToFileURL(installed).href);
 
 test("an unverified postgres-js version is refused, not assumed compatible", () => {

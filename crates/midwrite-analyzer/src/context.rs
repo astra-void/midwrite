@@ -95,10 +95,10 @@ pub struct ProjectContext {
     /// Memoized import closures (files a module reaches through imports and
     /// re-exports, itself included).
     closures: Mutex<HashMap<usize, Arc<BTreeSet<usize>>>>,
-    /// Phase 13: memoized handle provenance (`crate::handles`), keyed by the
+    /// Memoized handle provenance (`crate::handles`), keyed by the
     /// declared replica factories and the query.
     handles: Mutex<HashMap<String, crate::handles::HandleFact>>,
-    /// Phase 13: the scan for drizzle-orm `withReplicas` imports (once).
+    /// The scan for drizzle-orm `withReplicas` imports (once).
     replicas: Mutex<Option<Option<String>>>,
     pub stats: ContextStats,
 }
@@ -413,7 +413,7 @@ impl ProjectContext {
         *self.replicas.lock().expect("replicas lock") = Some(found);
     }
 
-    /// Phase 12: whether the function `name` declared in file `file` returns
+    /// Whether the function `name` declared in file `file` returns
     /// a Drizzle database (its declared return type, or `Promise` of it, is
     /// a `drizzle-orm` `...Database` type, directly or through a type alias
     /// of this module or of a module it imports). Such a zero-argument call
@@ -429,7 +429,7 @@ impl ProjectContext {
         v
     }
 
-    /// Phase 12: whether the type named `name` in file `file` is a Drizzle
+    /// Whether the type named `name` in file `file` is a Drizzle
     /// database type (see [`Self::returns_drizzle_database`]).
     pub fn is_database_type(&self, file: usize, name: &str) -> bool {
         let key = format!("db-type:{file}:{name}");

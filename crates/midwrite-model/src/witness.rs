@@ -187,7 +187,7 @@ pub fn check_schedule(
     }
 }
 
-/// Phase 9: how late the server completes the operations it held (the sum
+/// How late the server completes the operations it held (the sum
 /// of the positions of its completions). Of two equally short schedules the
 /// one with the earlier completions is the simpler explanation.
 pub fn completion_delay(schedule: &[Transition]) -> usize {
@@ -300,7 +300,7 @@ pub struct FinalSummary {
     pub terms: Vec<TermValue>,
     /// Whether the state is quiescent (all tasks finished).
     pub quiescent: bool,
-    /// Phase 16: why a generated-identity invariant is violated, one line
+    /// Why a generated-identity invariant is violated, one line
     /// per failing instance (a generated-identity mismatch is worded
     /// differently from an absent or stale value). Empty, and not
     /// serialized, for every other invariant.

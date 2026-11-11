@@ -1,4 +1,0 @@
-| ledger-autocommit-blind-in-flight | COUNTEREXAMPLE_FOUND | ORIGINAL_CODE_IN_FLIGHT_FAILURE_REPRODUCED | 5/5 / 5/5 | INSERT PAYMENTS → answered-and-withheld = answered-and-withheld | CommandComplete INSERT 0 1 | idle | 23 | — | — | 9.7 |
-| ledger-blind-commit-in-flight | COUNTEREXAMPLE_FOUND | ORIGINAL_CODE_IN_FLIGHT_FAILURE_REPRODUCED | 5/5 / 5/5 | COMMIT → answered-and-withheld = answered-and-withheld | CommandComplete COMMIT | idle | 18 | — | — | 9.2 |
-| ledger-idempotent-commit-answered | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | ORIGINAL_CODE_RECOVERY_REPRODUCED | 5/5 / 5/5 | COMMIT → answered-and-withheld = answered-and-withheld | CommandComplete COMMIT | idle | 16 | — | — | 10.0 |
-| ledger-idempotent-commit-held | NO_COUNTEREXAMPLE_WITHIN_BOUNDS | ORIGINAL_CODE_RECOVERY_REPRODUCED | 5/5 / 5/5 | COMMIT → held-for-later-delivery = held-for-later-delivery | — | idle in transaction | — | — | — | 10.3 |

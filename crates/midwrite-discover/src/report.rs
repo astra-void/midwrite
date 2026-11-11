@@ -1,4 +1,4 @@
-//! The discovery report (`commitrift.discovery`, schema version 1) and its
+//! The discovery report (`midwrite.discovery`, schema version 1) and its
 //! text and HTML renderings.
 
 use std::collections::BTreeMap;
@@ -10,7 +10,7 @@ use crate::candidate::{Candidate, Rejected};
 use crate::project::HelperNote;
 use crate::synth::{SynthesisReport, Variant};
 
-pub const REPORT_KIND: &str = "commitrift.discovery";
+pub const REPORT_KIND: &str = "midwrite.discovery";
 pub const REPORT_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Clone, Debug, Serialize)]
@@ -49,7 +49,7 @@ pub struct IndexStats {
     pub unknown_operations: usize,
     pub tables_modeled: usize,
     pub tables_refused: Vec<(String, String)>,
-    /// Phase 12: modeled columns whose default generates a fresh identifier
+    /// Modeled columns whose default generates a fresh identifier
     /// (`table.column`, `database`/`application`, generator).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub generated_columns: Vec<(String, String, String)>,
@@ -150,18 +150,18 @@ pub struct ScenarioResult {
     pub source_verification: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<ModelResult>,
-    /// Phase 15: the initial world of this scenario (absent when world
+    /// The initial world of this scenario (absent when world
     /// search is off).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub world: Option<WorldInfo>,
-    /// Phase 15: the reproduction artifact of a validated counterexample
+    /// The reproduction artifact of a validated counterexample
     /// (written next to the emitted scenario only when the candidate's
     /// status is MODEL_COUNTEREXAMPLE).
     #[serde(skip)]
     pub reproduction: Option<serde_json::Value>,
 }
 
-/// Phase 15: one initial world (rows and arguments) of a variant.
+/// One initial world (rows and arguments) of a variant.
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorldInfo {
@@ -175,7 +175,7 @@ pub struct WorldInfo {
     pub fingerprint: String,
 }
 
-/// Phase 15: what happened to one world of the search.
+/// What happened to one world of the search.
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorldOutcome {
@@ -193,7 +193,7 @@ pub struct WorldOutcome {
     pub detail: String,
 }
 
-/// Phase 15: coverage of one exploration dimension.
+/// Coverage of one exploration dimension.
 #[derive(Clone, Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DimensionCoverage {
@@ -235,8 +235,8 @@ pub struct BranchCoverage {
     pub basis: String,
 }
 
-/// Phase 15: the four verification dimensions of a candidate, kept apart
-/// (`docs/phase15/VERDICT-SEMANTICS.md`).
+/// The four verification dimensions of a candidate, kept apart
+/// (`docs/architecture/world-search.md`).
 #[derive(Clone, Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Coverage {
@@ -277,15 +277,15 @@ pub struct CandidateReport {
     pub duplicate_of: Option<String>,
     pub ranking: Vec<String>,
     pub scenarios: Vec<ScenarioResult>,
-    /// Phase 14: what a developer can do next to verify (or decide) the
+    /// What a developer can do next to verify (or decide) the
     /// candidate, from its status and its property's origin.
     pub next_step: String,
-    /// Phase 15: what was and was not explored.
+    /// What was and was not explored.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub coverage: Option<Coverage>,
 }
 
-/// Phase 14: the next verification step for a candidate.
+/// The next verification step for a candidate.
 pub fn next_step(c: &Candidate, status: &str, model_checked: bool) -> String {
     use crate::candidate::Origin;
     let hypothesis = c
@@ -322,7 +322,7 @@ pub struct Budgets {
     pub scenarios_model_checked: usize,
     pub scenarios_skipped_for_budget: usize,
     pub total_states_explored: u64,
-    /// Phase 15: initial worlds per actual variant (1: world search off).
+    /// Initial worlds per actual variant (1: world search off).
     pub max_worlds_per_variant: usize,
     pub worlds_built: usize,
     pub worlds_invalid: usize,
@@ -394,7 +394,7 @@ impl DiscoveryReport {
     }
 }
 
-/// Phase 16: options of the text rendering.
+/// Options of the text rendering.
 #[derive(Clone, Debug, Default)]
 pub struct TextOptions {
     /// Also list assumptions and rejected combinations.
@@ -562,7 +562,7 @@ pub fn render_text_with(r: &DiscoveryReport, opts: &TextOptions) -> String {
     o
 }
 
-/// Phase 16: `message (location)` items with the same message listed once,
+/// `message (location)` items with the same message listed once,
 /// with their locations in order (`message (a:1:2, b:3:4)`); items without
 /// a location are kept as they are.
 fn group_unsupported(items: &[String]) -> String {
@@ -625,7 +625,7 @@ fn shell_word(s: &str) -> String {
     }
 }
 
-/// Phase 16: concrete help after the next step: a declaration skeleton for
+/// Concrete help after the next step: a declaration skeleton for
 /// a BLOCKED candidate (placeholders where only the developer knows the
 /// rule; Midwrite never fills in a business rule), the contract fields
 /// for the inputs of an INCONCLUSIVE one, and the reproduction commands of
@@ -738,7 +738,7 @@ fn help_lines(c: &CandidateReport, emit_dir: Option<&str>) -> Vec<String> {
     out
 }
 
-/// Phase 15: the input, schedule and source dimensions of a candidate.
+/// The input, schedule and source dimensions of a candidate.
 fn render_coverage(o: &mut String, cov: &Coverage, detail: bool) {
     let explored = cov.worlds.iter().filter(|w| w.status == "explored").count();
     let not = cov.worlds.len() - explored;

@@ -1,0 +1,104 @@
+{
+  "fixtures/apps/request-app/scenarios/claim-atomic.json": {
+    "report": "23c1ec417fead728",
+    "stateBytes": "d5feb9fac70d2b19",
+    "states": 5,
+    "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+  },
+  "fixtures/apps/request-app/scenarios/reserve-race.json": {
+    "report": "7e25a14623b3ac07",
+    "stateBytes": "e1e3681d9b35eda3",
+    "states": 5,
+    "verdict": "COUNTEREXAMPLE_FOUND"
+  },
+  "fixtures/apps/request-app/scenarios/signup-crash.json": {
+    "report": "863af5b42494fd30",
+    "stateBytes": "a79804a189ea7671",
+    "states": 7,
+    "verdict": "COUNTEREXAMPLE_FOUND"
+  },
+  "fixtures/concurrency/scenarios/doctors-write-skew-serializable.json": {
+    "report": "18c75828f621311d",
+    "stateBytes": "d3d233b5adca5401",
+    "states": 30,
+    "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+  },
+  "fixtures/concurrency/scenarios/inventory-oversell.json": {
+    "report": "376b256478685f9a",
+    "stateBytes": "6a11085cb07c7574",
+    "states": 20,
+    "verdict": "COUNTEREXAMPLE_FOUND"
+  },
+  "fixtures/concurrency/scenarios/inventory-row-lock.json": {
+    "report": "8811b14b98379e8f",
+    "stateBytes": "7f83d490b1d4fd95",
+    "states": 30,
+    "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+  },
+  "fixtures/concurrency/scenarios/payment-crash-retry.json": {
+    "report": "62719ae409db4852",
+    "stateBytes": "5ecbb6194e527002",
+    "states": 7,
+    "verdict": "COUNTEREXAMPLE_FOUND"
+  },
+  "fixtures/concurrency/scenarios/redeem-check-then-act-unique.json": {
+    "report": "be820842f9fbd83a",
+    "stateBytes": "83eb12fd5c4161fe",
+    "states": 12,
+    "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+  },
+  "fixtures/model/replicas/replica-read-your-writes.json": {
+    "report": "3d4e2051b48cde8c",
+    "stateBytes": "8e3838e2bb74606c",
+    "states": 6,
+    "verdict": "COUNTEREXAMPLE_FOUND"
+  },
+  "fixtures/scenarios/connection-loss/live-shared-process-lost-commit.json": {
+    "report": "9b248223a238e52b",
+    "stateBytes": "fe785bc9efd8d288",
+    "states": 188,
+    "verdict": "COUNTEREXAMPLE_FOUND"
+  },
+  "fixtures/scenarios/crash-retry/accept-crash-while-waiting.json": {
+    "report": "3ea0ed79ccb9db01",
+    "stateBytes": "d116f6e1e4b6be3b",
+    "states": 121,
+    "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+  },
+  "fixtures/scenarios/crash-retry/checkout-crash-after-charge.json": {
+    "report": "b6083149cbb5f47e",
+    "stateBytes": "8c9f5c6a1049b920",
+    "states": 23,
+    "verdict": "COUNTEREXAMPLE_FOUND"
+  },
+  "fixtures/scenarios/crash-retry/job-concurrent-claims-duplicate.json": {
+    "report": "2e2aadcd26b4c4b5",
+    "stateBytes": "bacea9c4b1d8e99e",
+    "states": 22,
+    "verdict": "COUNTEREXAMPLE_FOUND"
+  },
+  "fixtures/scenarios/in-flight/ledger-idempotent-commit-held.json": {
+    "report": "158d7e94e88ddfb0",
+    "stateBytes": "e35885f745b55293",
+    "states": 25,
+    "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+  },
+  "fixtures/scenarios/in-flight/ledger-pool-of-two.json": {
+    "report": "38359c5de3b271af",
+    "stateBytes": "3fcc17112fe50e87",
+    "states": 5,
+    "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+  },
+  "fixtures/scenarios/in-flight/ledger-settle-update-answered.json": {
+    "report": "8470a34d2a44f2d5",
+    "stateBytes": "c70e5fe63679f874",
+    "states": 14,
+    "verdict": "NO_COUNTEREXAMPLE_WITHIN_BOUNDS"
+  },
+  "fixtures/scenarios/server-actions/team-app-invite-double-submit.json": {
+    "report": "cc0cb11ab68dda2d",
+    "stateBytes": "8f7c8c3dd6eac9a7",
+    "states": 46,
+    "verdict": "COUNTEREXAMPLE_FOUND"
+  }
+}

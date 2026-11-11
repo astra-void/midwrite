@@ -9,7 +9,7 @@
 // because the supervisor kills the process while it waits. Outside replay
 // every checkpoint is a no-op.
 //
-// See docs/phase3/REPLAY-PROTOCOL.md and docs/phase4/NODE-DRIZZLE.md.
+// See docs/architecture/replay-protocol.md and docs/architecture/replay-protocol.md.
 
 import { connect } from "node:net";
 

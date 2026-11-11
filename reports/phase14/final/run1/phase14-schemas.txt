@@ -1,3 +1,0 @@
-model-check-report.v5 (builtin validator): CR-SYNTH-232519-settlePayment.json: 1 actors, 0 schema errors; corrupted copy rejected: True
-model-check-report.v3 (builtin validator): CR-SYNTH-CB8AB0-addOrderItems.json: 1 actors, 0 schema errors; corrupted copy rejected: True
-exit 0

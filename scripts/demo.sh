@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Midwrite Phase 3 demo: static finding -> failure trace -> controlled
-# injection -> observed state -> verification report -> HTML view.
+# Midwrite demo: static finding -> failure trace -> controlled injection ->
+# observed state -> verification report -> HTML view.
 #
 #   scripts/demo.sh [OUTPUT_DIR]      (default: demo-output/)
 #

@@ -1,4 +1,0 @@
-saas-starter: trace report phase5 ('840bbc21bc1e5f22', 178673, 0) phase6 ('840bbc21bc1e5f22', 178673, 0) identical=True summary={'findings': 23, 'traces': 18, 'complete': 14, 'approximated': 4, 'incomplete': 0, 'skipped': 5}
-midday: trace report phase5 ('123157a5c4549e3a', 3412604, 0) phase6 ('123157a5c4549e3a', 3412604, 0) identical=True summary={'findings': 282, 'traces': 192, 'complete': 134, 'approximated': 14, 'incomplete': 44, 'skipped': 90}
-school-ledger: trace report phase5 ('fa6448ceac0a75d6', 5779491, 0) phase6 ('fa6448ceac0a75d6', 5779491, 0) identical=True summary={'findings': 332, 'traces': 131, 'complete': 30, 'approximated': 0, 'incomplete': 101, 'skipped': 201}
-unnamed-ai-project: trace report phase5 ('77adff0c3a9d3d48', 91015, 0) phase6 ('77adff0c3a9d3d48', 91015, 0) identical=True summary={'findings': 17, 'traces': 8, 'complete': 8, 'approximated': 0, 'incomplete': 0, 'skipped': 9}

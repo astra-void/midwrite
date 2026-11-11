@@ -1,4 +1,4 @@
-//! Phase 15: typed input domains.
+//! Typed input domains.
 //!
 //! Synthesis (Phase 11–14) picks one value per parameter path. This module
 //! describes, for every parameter path an entry reads, the *domain* that
@@ -12,7 +12,7 @@
 //! parameter's annotation says so (`T | null`), `undefined` only when the
 //! annotation says so or the parameter is optional. Without an annotation the
 //! nullability is UNKNOWN and no `null` value is generated; that gap is
-//! reported as unexplored input (`docs/phase15/INPUT-DOMAINS.md`).
+//! reported as unexplored input (`docs/architecture/world-search.md`).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -83,10 +83,10 @@ pub enum ValueClass {
     },
     /// The opposite of a boolean the code tests.
     Negated,
-    /// Phase 16: the key is absent from its object (the path's zod schema
+    /// The key is absent from its object (the path's zod schema
     /// admits a missing key; distinct from a key present with `undefined`).
     Absent,
-    /// Phase 16: the key is present with a value its zod schema accepts
+    /// The key is present with a value its zod schema accepts
     /// (the base world omits the optional key).
     Present {
         value: Value,
@@ -108,7 +108,7 @@ impl ValueClass {
                 Value::Bool(b) => Value::Bool(!b),
                 _ => return None,
             },
-            // Phase 16: a removal, applied by the world (not a value).
+            // A removal, applied by the world (not a value).
             Self::Absent => return None,
             Self::Present { value } => value.clone(),
         };
@@ -130,10 +130,10 @@ impl ValueClass {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 16: zod-validated inputs
+// Zod-validated inputs
 // ---------------------------------------------------------------------------
 
-/// Phase 16: a parameter path whose value a zod schema validates (a
+/// A parameter path whose value a zod schema validates (a
 /// `ZodCheck` the extractor emitted for `schema.parse(path)`).
 #[derive(Clone, Debug)]
 pub struct ZodInput {
@@ -142,7 +142,7 @@ pub struct ZodInput {
     pub schema: zodfn::Schema,
 }
 
-/// Phase 16: the zod-validated parameter paths of `a` (the input of a
+/// The zod-validated parameter paths of `a` (the input of a
 /// `ZodCheck`, followed through the local it is bound to).
 pub fn zod_inputs(a: &Analyzed) -> Vec<ZodInput> {
     let params = &a.summary.params;
@@ -198,7 +198,7 @@ pub fn zod_inputs(a: &Analyzed) -> Vec<ZodInput> {
     out
 }
 
-/// Phase 16: the schema (with its wrappers) of the field at `rest` (dotted)
+/// The schema (with its wrappers) of the field at `rest` (dotted)
 /// below an object schema.
 pub fn zod_field<'s>(schema: &'s zodfn::Schema, rest: &str) -> Option<&'s zodfn::Schema> {
     let mut cur = schema;
@@ -216,7 +216,7 @@ pub fn zod_field<'s>(schema: &'s zodfn::Schema, rest: &str) -> Option<&'s zodfn:
     Some(cur)
 }
 
-/// Phase 16: whether the zod schema validating `path` (a validated path or
+/// Whether the zod schema validating `path` (a validated path or
 /// a field below one) accepts `value` there; `None` when no modeled schema
 /// validates the path or the outcome is not modeled.
 pub fn zod_accepts(a: &Analyzed, path: &str, value: &Value) -> Option<bool> {
@@ -237,7 +237,7 @@ pub fn zod_accepts(a: &Analyzed, path: &str, value: &Value) -> Option<bool> {
     None
 }
 
-/// Phase 16: the members of every zod enum (or string literal) a
+/// The members of every zod enum (or string literal) a
 /// validated path holds, by path.
 pub fn zod_enum_members(a: &Analyzed) -> BTreeMap<String, Vec<String>> {
     let mut out = BTreeMap::new();
@@ -262,7 +262,7 @@ pub fn zod_enum_members(a: &Analyzed) -> BTreeMap<String, Vec<String>> {
     out
 }
 
-/// Phase 16: every field path of an object schema (`base.key`, nested
+/// Every field path of an object schema (`base.key`, nested
 /// objects below), with the field's schema.
 fn zod_paths<'s>(
     base: &str,
@@ -286,7 +286,7 @@ fn zod_paths<'s>(
     }
 }
 
-/// Phase 16: the domain facts a zod schema states for one path: its kind,
+/// The domain facts a zod schema states for one path: its kind,
 /// whether `null`/`undefined` are accepted, whether the key may be absent,
 /// and a valid value.
 struct ZodFacts {
@@ -366,7 +366,7 @@ fn members(annotation: &str) -> Vec<String> {
     out
 }
 
-/// Phase 15: the members of an annotation that is a union of string
+/// The members of an annotation that is a union of string
 /// literals (`"page" | "redirect"`, as the annotation reader resolves
 /// aliases), else `None`.
 pub fn literal_members(annotation: &str) -> Option<Vec<String>> {
@@ -508,7 +508,7 @@ fn compared_literals(a: &Analyzed) -> BTreeMap<String, Vec<(BinOp, Value)>> {
     out
 }
 
-/// Phase 15: the parameter paths each branch (`JumpIf`) of `a` depends
+/// The parameter paths each branch (`JumpIf`) of `a` depends
 /// on, by source location (through locals defined once).
 pub fn branch_paths(a: &Analyzed) -> BTreeMap<String, BTreeSet<String>> {
     let params = &a.summary.params;
@@ -703,7 +703,7 @@ pub fn entry_domains(a: &Analyzed, index: &ProjectIndex) -> Vec<PathDomain> {
     out
 }
 
-/// Phase 16: a zod schema is the source contract of the paths it validates:
+/// A zod schema is the source contract of the paths it validates:
 /// its kind, whether `null` and `undefined` are accepted, whether a key may
 /// be absent (a missing key, `undefined` and `null` are three observable
 /// inputs: `{}`, `{ k: undefined }`, `{ k: null }` parse differently). Every

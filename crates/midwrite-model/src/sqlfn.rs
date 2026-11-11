@@ -1,4 +1,4 @@
-//! Phase 14: SQL built-ins of the value layer (Drizzle operators that are
+//! SQL built-ins of the value layer (Drizzle operators that are
 //! not binary comparisons), with PostgreSQL's three-valued logic.
 //!
 //! `InList` is Drizzle's `inArray(column, values)`: `args[0]` is the tested

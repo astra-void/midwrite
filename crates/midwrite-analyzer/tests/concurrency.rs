@@ -1,4 +1,4 @@
-//! The TypeScript -> concurrency IR lowering (Phase 6, stage G).
+//! The TypeScript -> concurrency IR lowering (stage G).
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -891,7 +891,7 @@ export async function unlimited(id: string) {
 
 #[test]
 fn source_excerpts_never_split_a_multi_byte_character() {
-    // Phase 11: inlining a helper emits its return slot with the CALLER's
+    // Inlining a helper emits its return slot with the CALLER's
     // call span resolved in the CALLEE's source (a pre-existing location
     // defect kept for report identity); when that offset fell inside a
     // multi-byte character of the callee, the excerpt panicked.

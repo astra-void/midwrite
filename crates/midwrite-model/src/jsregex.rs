@@ -1,6 +1,6 @@
-//! Phase 16: `RegExp.prototype.test` for a documented subset of
+//! `RegExp.prototype.test` for a documented subset of
 //! ECMAScript regular expressions (used by the zod string formats and
-//! `.regex(/literal/)` checks, `docs/phase16/ZOD-VALIDATION.md`).
+//! `.regex(/literal/)` checks, `docs/reference/zod.md`).
 //!
 //! The semantics are ECMAScript's *non-Unicode* mode (no `u`/`v` flag):
 //! patterns and inputs are sequences of UTF-16 code units, a character

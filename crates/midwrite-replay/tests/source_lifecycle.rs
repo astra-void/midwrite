@@ -1,6 +1,6 @@
-//! Phase 8: process lifecycle of source verification — planned kills,
+//! Process lifecycle of source verification — planned kills,
 //! restarts that fail to start, hung and CPU-burning workers, and detached
-//! grandchildren — against fixtures/phase8/lifecycle-harness. Needs Node.js
+//! grandchildren — against fixtures/apps/lifecycle-harness. Needs Node.js
 //! and PostgreSQL 14+ binaries; prints SKIPPED otherwise, unless
 //! `MIDWRITE_REQUIRE_REPLAY=1`.
 
@@ -16,7 +16,7 @@ use serde_json::{Value, json};
 
 fn harness() -> LoadedSource {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../fixtures/phase8/lifecycle-harness/midwrite-source.json");
+        .join("../../fixtures/apps/lifecycle-harness/midwrite-source.json");
     source::load_manifest(&path).expect("lifecycle manifest")
 }
 

@@ -1,8 +1,8 @@
 # Linux test environment for Midwrite replay (Debian bookworm, Node 22).
 #
-# Used by scripts/linux-replay-docker.sh to run the full test suite,
-# including required replay tests with bubblewrap isolation, on a Linux
-# kernel from a macOS or Linux workstation. CI runners use the workflow in
+# Used by scripts/linux-replay-docker.sh and scripts/linux-docker.sh to run
+# the full test suite, including required replay tests with bubblewrap
+# isolation, on a Linux kernel from a macOS or Linux workstation. CI runners use the workflow in
 # .github/workflows/ci.yml instead of this image.
 #
 # Containers need `--security-opt seccomp=unconfined --security-opt

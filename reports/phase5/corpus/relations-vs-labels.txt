@@ -1,8 +1,0 @@
-Value-relation status of reviewed findings (labels: corpora/labels, one reviewer + automated second opinion; NOT independent human review).
-Phase 5 release binary, recommended policy. Counts only.
-
-label                      provenShared        possiblyRelated  noRelationEstablished                unknown                   none
-false-positive                        1                      1                      0                      3                      0
-intended-risk                        13                      6                      9                     37                      0
-true-positive                         4                      3                      4                     16                      0
-unclear                               0                      0                      0                      6                      0

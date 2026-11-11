@@ -1,7 +1,7 @@
 //! Runs one harness process and speaks the checkpoint protocol with it.
 //!
 //! Protocol (JSON lines over a Unix socket whose path is passed in
-//! `MIDWRITE_REPLAY_SOCKET`; see `docs/phase3/REPLAY-PROTOCOL.md`):
+//! `MIDWRITE_REPLAY_SOCKET`; see `docs/architecture/replay-protocol.md`):
 //!
 //! ```text
 //! harness -> supervisor  {"type":"hello","protocol":1,"scenario":"..."}

@@ -1,4 +1,4 @@
-//! What the application could and could not know (Phase 9).
+//! What the application could and could not know.
 //!
 //! For a schedule that contains a lost acknowledgment, [`analyze`] builds, for
 //! each unresolved outcome, the *twin* schedule in which the server did the

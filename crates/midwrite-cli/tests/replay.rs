@@ -1,4 +1,4 @@
-//! Runtime replay integration tests (Phase 3, Milestones 2–4 and 8).
+//! Runtime replay integration tests (Milestones 2–4 and 8).
 //!
 //! They execute the first-party harnesses under `fixtures/replay/` and
 //! generated probe harnesses against a disposable PostgreSQL cluster. When
@@ -255,7 +255,7 @@ fn vulnerable_order_flow_reproduces_consistently_across_runs() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(report["kind"], "commitrift.verification");
+    assert_eq!(report["kind"], "midwrite.verification");
     assert_eq!(report["control"]["verification"], "RUNTIME_NOT_REPRODUCED");
     assert_eq!(
         report["control"]["observations"]["after"]["publishedEvents"],
@@ -816,7 +816,7 @@ fn the_isolated_invoice_pattern_loses_the_job_unless_retried() {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 4: Node.js runtime and the real Drizzle ORM.
+// Node.js runtime and the real Drizzle ORM.
 
 /// Why Node.js harness tests cannot run here, if they cannot.
 fn missing_node() -> Option<String> {
@@ -1197,7 +1197,7 @@ fn node_harnesses_are_isolated_like_bun_harnesses() {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 4: trace-to-harness generation (`midwrite init-replay`).
+// Trace-to-harness generation (`midwrite init-replay`).
 
 const DRIZZLE_MW1001: &str = "4f53a6215ac16913";
 
@@ -1487,7 +1487,7 @@ fn the_completed_generated_harness_reproduces_the_drizzle_dual_write() {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 4: replay regression against a baseline verification report.
+// Replay regression against a baseline verification report.
 
 #[test]
 fn replay_regressions_compare_with_a_baseline_and_never_pass_unverified_cases() {
@@ -1500,7 +1500,7 @@ fn replay_regressions_compare_with_a_baseline_and_never_pass_unverified_cases() 
 
     // The Phase 3 report (schema version 1) is a valid baseline: same case
     // identities, same outcomes.
-    let phase3 = repo().join("reports/phase3/replay/order-vulnerable.json");
+    let phase3 = repo().join("fixtures/reports/replay/order-vulnerable.json");
     let regression = scratch.join("regression.json");
     let (output, report) = replay(
         &dir,
@@ -1525,7 +1525,7 @@ fn replay_regressions_compare_with_a_baseline_and_never_pass_unverified_cases() 
         "order-vulnerable/kill-after-db-commit"
     );
     let comparison: Value = serde_json::from_slice(&std::fs::read(&regression).unwrap()).unwrap();
-    assert_eq!(comparison["kind"], "commitrift.regression");
+    assert_eq!(comparison["kind"], "midwrite.regression");
     assert_eq!(comparison["summary"]["stillReproduced"], 3);
     assert_eq!(comparison["summary"]["stillNotReproduced"], 3);
     let entry = comparison["entries"]
@@ -1584,7 +1584,7 @@ fn replay_regressions_compare_with_a_baseline_and_never_pass_unverified_cases() 
     assert_eq!(output.status.code(), Some(3));
 
     // A report of another harness is not a baseline.
-    let other = repo().join("reports/phase3/replay/order-outbox.json");
+    let other = repo().join("fixtures/reports/replay/order-outbox.json");
     let (output, _) = replay(&dir, &["--baseline", other.to_str().unwrap()], &[]);
     assert_eq!(output.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&output.stderr).contains("not `order-vulnerable`"));
@@ -1669,7 +1669,7 @@ fn detached_grandchildren_do_not_survive_on_linux() {
 
 #[test]
 fn html_renders_v1_reports_with_the_finding_to_case_table_and_no_scripts() {
-    let report = repo().join("reports/phase3/replay/order-vulnerable.json");
+    let report = repo().join("fixtures/reports/replay/order-vulnerable.json");
     let output = Command::new(bin())
         .arg("report")
         .arg(&report)

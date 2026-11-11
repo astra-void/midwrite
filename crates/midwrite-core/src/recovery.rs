@@ -17,7 +17,7 @@
 //!   it is never shown as runtime evidence. Only a replay harness's recovery
 //!   scenario can observe a recovery (see `verification::RecoveryObservation`).
 //!
-//! See `docs/phase4/RECOVERY-SEMANTICS.md`.
+//! See `docs/concepts/failure-model.md`.
 
 use serde::{Deserialize, Serialize};
 

@@ -1,4 +1,4 @@
-//! Recognition of column-default generators (Phase 12, Milestone 1).
+//! Recognition of column-default generators (Milestone 1).
 //!
 //! A Drizzle column can take its default from PostgreSQL (`defaultRandom()`,
 //! `default(sql\`...\`)`) or from a callback Drizzle runs in the application

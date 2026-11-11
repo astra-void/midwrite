@@ -3,7 +3,7 @@
 //! These are the only calls of code outside the analyzed files that a
 //! summary may treat as inert. Each entry says which arguments are callbacks
 //! and when they run. The table assumes the globals are not replaced
-//! (`docs/phase5/ANALYSIS-DESIGN.md`, §10) and that `console` output is not a
+//! (`docs/architecture/value-analysis.md`, §10) and that `console` output is not a
 //! consistency-relevant effect.
 
 /// When a builtin runs a callback argument.

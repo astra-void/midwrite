@@ -19,7 +19,7 @@
 //! `when: "final"` invariants are evaluated in quiescent states (all actors
 //! finished); `when: "always"` invariants in every reachable state.
 //!
-//! Phase 16: generated identities (`docs/phase16/GENERATED-ID-INVARIANTS.md`).
+//! Generated identities (`docs/concepts/invariants.md`).
 //! A generated value ([`Value::Gen`]) has no text the model knows, so an
 //! invariant never names one; it states *who generated* a value
 //! (`generatedBy`: an actor and a generator), whether two values are the
@@ -74,29 +74,29 @@ pub enum Formula {
     Or(Vec<Formula>),
     Not(Box<Formula>),
     Implies(Box<Formula>, Box<Formula>),
-    /// Phase 16: the value is a generated identifier (not a clock reading)
+    /// The value is a generated identifier (not a clock reading)
     /// whose generation event belongs to the selected actor and generator.
     GeneratedBy(Box<GeneratedBy>),
-    /// Phase 16: both values are generated identifiers of the same
+    /// Both values are generated identifiers of the same
     /// generation event (false when either is not generated).
     SameGenerated([Term; 2]),
-    /// Phase 16: both values are generated identifiers of different
+    /// Both values are generated identifiers of different
     /// generation events (false when either is not generated: this is not
     /// the negation of `sameGenerated`).
     DistinctGenerated([Term; 2]),
-    /// Phase 16: both values are present (neither `null` nor `undefined`)
+    /// Both values are present (neither `null` nor `undefined`)
     /// and equal; a generated value equals only itself.
     Same([Term; 2]),
-    /// Phase 16: the formula holds for every actor (running `function`;
+    /// The formula holds for every actor (running `function`;
     /// by default only actors that completed at least once), with the actor
     /// bound as `self`.
     ForEachActor(Box<ForEachActor>),
-    /// Phase 16: the formula holds for every committed row of `table`
+    /// The formula holds for every committed row of `table`
     /// matching `where`, with the row bound for `field` terms.
     ForEachRow(Box<ForEachRow>),
 }
 
-/// Phase 16: which actor a generation event or an inserted row belongs to.
+/// Which actor a generation event or an inserted row belongs to.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ActorSel {
@@ -110,7 +110,7 @@ pub enum ActorSel {
     Function(String),
 }
 
-/// Phase 16: which generator a generation event came from. A call site is
+/// Which generator a generation event came from. A call site is
 /// not part of a generation event's identity: every package call shares
 /// one generator (`ir::CALL_GENERATOR`).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -123,7 +123,7 @@ pub enum GeneratorSel {
     Column(String),
 }
 
-/// Phase 16: `{"generatedBy": {"value": T, "by": ..., "generator": ...}}`.
+/// `{"generatedBy": {"value": T, "by": ..., "generator": ...}}`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct GeneratedBy {
@@ -144,7 +144,7 @@ fn is_true(b: &bool) -> bool {
     *b
 }
 
-/// Phase 16: `{"forEachActor": {"function": f, "completed": true, "assert": F}}`.
+/// `{"forEachActor": {"function": f, "completed": true, "assert": F}}`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ForEachActor {
@@ -159,7 +159,7 @@ pub struct ForEachActor {
     pub formula: Formula,
 }
 
-/// Phase 16: `{"forEachRow": {"table": t, "where": {...}, "assert": F}}`.
+/// `{"forEachRow": {"table": t, "where": {...}, "assert": F}}`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ForEachRow {
@@ -196,7 +196,7 @@ pub struct ActorsRef {
     #[serde(default)]
     pub function: Option<String>,
     pub outcome: OutcomeKind,
-    /// Phase 13: count only completions whose main task returned this
+    /// Count only completions whose main task returned this
     /// value (what the caller was told: `"returned": true` for "claimed").
     /// Needs `outcome: "ok"`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -225,7 +225,7 @@ pub struct ExternalsRef {
     pub distinct_keys: bool,
 }
 
-/// Phase 16: committed rows selected by literal values (`where`), by the
+/// Committed rows selected by literal values (`where`), by the
 /// values of other terms (`match`: a row matches when its column equals the
 /// term's value, compared by identity for generated values; a `null` or
 /// `undefined` term value matches no row, as SQL `=` does) and by the actor
@@ -245,7 +245,7 @@ pub struct RowMatch {
     pub column: Option<String>,
 }
 
-/// Phase 16: what an actor's main task returned in its latest completed
+/// What an actor's main task returned in its latest completed
 /// attempt (`null` before any completion), optionally a field `path`
 /// (`"a.b"`) of a returned object (`null` when absent).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -274,27 +274,27 @@ pub enum TermOp {
     Externals(ExternalsRef),
     /// A shared in-process variable (of the first process).
     App(String),
-    /// Phase 9: running tasks of a state in which nothing can proceed (zero
+    /// Running tasks of a state in which nothing can proceed (zero
     /// unless the system is stuck: every task waits for a pool connection,
     /// or for a lock only the application's own waiting could release).
     Stuck(()),
     Add(Box<Term>, Box<Term>),
     Sub(Box<Term>, Box<Term>),
-    /// Phase 16: number of committed rows selected by a [`RowMatch`].
+    /// Number of committed rows selected by a [`RowMatch`].
     CountMatching(Box<RowMatch>),
-    /// Phase 16: `column` of the first committed row (in key order)
+    /// `column` of the first committed row (in key order)
     /// selected by a [`RowMatch`] (`null` if none).
     RowMatching(Box<RowMatch>),
-    /// Phase 16: a returned value ([`ReturnedRef`]).
+    /// A returned value ([`ReturnedRef`]).
     Returned(ReturnedRef),
-    /// Phase 16: a column of the row bound by `forEachRow`.
+    /// A column of the row bound by `forEachRow`.
     Field(String),
-    /// Phase 16: an actor's argument ([`ArgumentRef`]): what a declared
+    /// An actor's argument ([`ArgumentRef`]): what a declared
     /// property uses to name the row a call works on.
     Argument(ArgumentRef),
 }
 
-/// Phase 16: an actor's argument: `path` is the parameter's name, then
+/// An actor's argument: `path` is the parameter's name, then
 /// fields of an object argument (`params.customerId`); `null` when absent.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -336,7 +336,7 @@ impl Invariant {
     }
 }
 
-/// Phase 16: what the enclosing quantifiers bind (for validation).
+/// What the enclosing quantifiers bind (for validation).
 #[derive(Clone, Default)]
 struct Scope {
     /// Inside `forEachActor` over this function (`Some(None)`: every
@@ -533,7 +533,7 @@ fn check_actor_sel(model: &Model, by: &ActorSel, scope: &Scope) -> Result<(), St
     }
 }
 
-/// Phase 16: the generator index of `table.column`'s generated default.
+/// The generator index of `table.column`'s generated default.
 fn column_generator(model: &Model, spec: &str) -> Option<u16> {
     let (table, column) = spec.split_once('.')?;
     let t = model.schema.index(table)?;
@@ -560,7 +560,7 @@ fn validate_ref(model: &Model, r: &RowRef, needs_column: bool) -> Result<(), Str
     }
 }
 
-/// Phase 16: what the enclosing quantifiers bind (for evaluation).
+/// What the enclosing quantifiers bind (for evaluation).
 #[derive(Clone, Copy, Default)]
 struct Env<'a> {
     actor: Option<usize>,
@@ -595,7 +595,7 @@ impl Formula {
         }
     }
 
-    /// Phase 16: whether the formula uses a Phase 16 construct (generated
+    /// Whether the formula uses a Phase 16 construct (generated
     /// identity, quantifiers, term-matched rows, returned values).
     pub fn uses_identity(&self) -> bool {
         let mut any = self.has_identity_formula();
@@ -631,7 +631,7 @@ impl Formula {
         }
     }
 
-    /// Phase 13: whether the formula reads what main tasks returned.
+    /// Whether the formula reads what main tasks returned.
     pub fn reads_returned(&self) -> bool {
         let mut any = false;
         self.walk_terms(&mut |t| match t {
@@ -642,7 +642,7 @@ impl Formula {
         any
     }
 
-    /// Phase 13: the functions whose return values the formula reads
+    /// The functions whose return values the formula reads
     /// (`None`: every actor's). Phase 16: `returned` of the actor bound by
     /// `forEachActor` reads that quantifier's function; `returned` of a
     /// named actor counts as every actor's.
@@ -824,7 +824,7 @@ impl Formula {
         }
     }
 
-    /// Phase 16: why the formula is false in `s`, one line per failing
+    /// Why the formula is false in `s`, one line per failing
     /// identity predicate (inside quantifiers: per failing instance, with
     /// its binding), classified so that a generated-identity mismatch reads
     /// differently from an absent value (a missing row, or a read through a
@@ -1003,7 +1003,7 @@ fn bound_actors<'a>(
     })
 }
 
-/// Phase 16: a generated identifier, as opposed to a clock reading or a
+/// A generated identifier, as opposed to a clock reading or a
 /// clock placeholder (Phase 14 timestamps are also [`Value::Gen`]).
 fn is_identifier(g: &crate::value::GenId) -> bool {
     !crate::db::is_clock(g) && g.actor != crate::db::CLOCK_PLACEHOLDER
@@ -1080,7 +1080,7 @@ fn render_generated_by(g: &GeneratedBy, model: &Model, env: Env<'_>) -> String {
     }
 }
 
-/// Phase 16: a value with, for a generated value, the generation event it
+/// A value with, for a generated value, the generation event it
 /// names (actor and generator), for diagnoses.
 fn describe(model: &Model, v: &Value) -> String {
     match v {
@@ -1108,7 +1108,7 @@ fn describe(model: &Model, v: &Value) -> String {
     }
 }
 
-/// Phase 16: the kind of an identity predicate's failure.
+/// The kind of an identity predicate's failure.
 fn classify(model: &Model, values: &[Value]) -> String {
     if values.iter().any(Value::is_nullish) {
         if model.features.replicas {
@@ -1299,7 +1299,7 @@ impl RowMatch {
     }
 }
 
-/// Phase 16: the field `path` (`a.b`) of a value (`null` when absent).
+/// The field `path` (`a.b`) of a value (`null` when absent).
 fn field_path(v: Value, path: Option<&str>) -> Value {
     let Some(path) = path else {
         return v;
@@ -1372,7 +1372,7 @@ fn eval_op(op: &TermOp, model: &Model, s: &State, env: Env<'_>) -> Value {
                     continue;
                 }
                 if let Some(v) = &a.returned {
-                    // Phase 13: completions that returned `v`. An unknown
+                    // Completions that returned `v`. An unknown
                     // value is refused when the scenario is loaded.
                     n += st
                         .returned

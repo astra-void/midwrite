@@ -1,4 +1,4 @@
-//! Source-set DPOR (Phase 10) against the unreduced search, the sleep-set
+//! Source-set DPOR against the unreduced search, the sleep-set
 //! search and the classic DPOR of Phase 9.
 //!
 //! What a DPOR must preserve is what is a function of the final state of a

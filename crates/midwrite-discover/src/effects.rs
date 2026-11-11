@@ -362,7 +362,7 @@ struct Ctx<'a> {
     defs: BTreeMap<String, Vec<&'a Expr>>,
     /// local → (db effect, what the local holds).
     results: BTreeMap<String, (usize, ResultKind)>,
-    /// Phase 16: locals being expanded. A local reached again through its
+    /// Locals being expanded. A local reached again through its
     /// own definitions (`i = i + 1`, the unrolled iterations of a loop) is
     /// a leaf: expanding the cycle again adds no leaf, and expanding
     /// chains of such locals is exponential in their number.
@@ -376,7 +376,7 @@ enum ResultKind {
 }
 
 impl<'a> Ctx<'a> {
-    /// Phase 16: the expression of property `field` of the object literal
+    /// The expression of property `field` of the object literal
     /// `e` denotes: an `Object`, the later operand of an `ObjectAssign`
     /// that sets it (else the earlier one), or a local every definition of
     /// which agrees on it (a definition that only adds other keys to the
@@ -475,7 +475,7 @@ impl<'a> Ctx<'a> {
         if depth > 24 {
             return Val::Unknown { text: e.render() };
         }
-        // Phase 14: `At(base, "name")` (JavaScript values) reads a property.
+        // `At(base, "name")` (JavaScript values) reads a property.
         if !matches!(e, Expr::Field(..))
             && let Some((base, field)) = e.as_property()
         {
@@ -484,7 +484,7 @@ impl<'a> Ctx<'a> {
         match e {
             Expr::Lit(v) => Val::Lit { value: v.clone() },
             Expr::Local(name) => self.local(name, depth),
-            // Phase 16: a property of an object literal is that property's
+            // A property of an object literal is that property's
             // value (`({ k: e }).k` is `e`; the parsed value of a zod object
             // schema is such a literal).
             Expr::Field(base, field) if let Some(e) = self.object_property(base, field, 0) => {
@@ -574,7 +574,7 @@ fn column_name(c: &str) -> String {
     c.rsplit('.').next().unwrap_or(c).to_owned()
 }
 
-/// Phase 14: the positions of `code` reachable from `start` (jumps followed;
+/// The positions of `code` reachable from `start` (jumps followed;
 /// a return or throw ends a path).
 fn reachable(code: &[Step], start: usize) -> BTreeSet<usize> {
     let mut seen = BTreeSet::new();
@@ -713,7 +713,7 @@ pub fn summarize(extracted: &Extracted) -> EffectSummary {
                 for p in pc + 1..end {
                     in_try.insert((ci, p));
                 }
-                // Phase 14: the handler region is what the handler reaches
+                // The handler region is what the handler reaches
                 // and the try block's normal continuation does not (before:
                 // a straight line up to the first forward jump, which a
                 // conditional `return` in the handler cut short).

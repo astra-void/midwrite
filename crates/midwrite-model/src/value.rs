@@ -22,49 +22,49 @@ pub enum Value {
     Bool(bool),
     Int(i64),
     Str(String),
-    /// Phase 12: a value generated at run time by a column default (a
+    /// A value generated at run time by a column default (a
     /// random UUID from PostgreSQL, an id from an application generator).
     /// It is not a string the model knows: it equals only itself, and its
     /// order relative to other values is not determined.
     Gen(GenId),
-    /// Phase 14: JavaScript `undefined`, distinct from `null` (only produced
+    /// JavaScript `undefined`, distinct from `null` (only produced
     /// by code extracted with JavaScript value semantics; see
-    /// `docs/phase14/VALUE-SEMANTICS.md`).
+    /// `docs/concepts/value-semantics.md`).
     Undefined(UndefinedMark),
-    /// Phase 14: a bounded `Map` (insertion order kept; keys compared with
+    /// A bounded `Map` (insertion order kept; keys compared with
     /// SameValueZero on primitives).
     Map(MapVal),
-    /// Phase 14: a bounded `Set` (insertion order kept).
+    /// A bounded `Set` (insertion order kept).
     Set(SetVal),
     Row(Row),
-    /// Phase 14: a bounded JavaScript array of concrete values. Arrays are
+    /// A bounded JavaScript array of concrete values. Arrays are
     /// values, not references: code that could observe aliasing is refused
     /// by the extractor.
     List(Vec<Value>),
 }
 
-/// Phase 14: the JSON form of `undefined` (`{"$undefined": true}`).
+/// The JSON form of `undefined` (`{"$undefined": true}`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct UndefinedMark {
     #[serde(rename = "$undefined")]
     pub undefined: bool,
 }
 
-/// Phase 14: the JSON form of a `Map` (`{"$map": [[key, value], ...]}`).
+/// The JSON form of a `Map` (`{"$map": [[key, value], ...]}`).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct MapVal {
     #[serde(rename = "$map")]
     pub entries: Vec<(Value, Value)>,
 }
 
-/// Phase 14: the JSON form of a `Set` (`{"$set": [item, ...]}`).
+/// The JSON form of a `Set` (`{"$set": [item, ...]}`).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct SetVal {
     #[serde(rename = "$set")]
     pub items: Vec<Value>,
 }
 
-/// The identity of one generation event (Phase 12): which generator
+/// The identity of one generation event: which generator
 /// (`Model::generators` index), which actor, and that actor's generation
 /// counter. The counter is per actor and never reset (not by a retry or a
 /// rollback), so every event has its own identity and the identity does not
@@ -78,7 +78,7 @@ pub struct GenId {
     pub n: u32,
 }
 
-/// Phase 14: the reserved-key forms (`{"$generated": ...}`,
+/// The reserved-key forms (`{"$generated": ...}`,
 /// `{"$undefined": true}`, `{"$map": ...}`, `{"$set": ...}`) are read from
 /// JSON objects only. A derived `Deserialize` of a struct also accepts a
 /// JSON array (fields by position): inside the untagged [`Value`], `[1, 2,
@@ -181,12 +181,12 @@ impl Value {
         }
     }
 
-    /// Phase 14: `undefined`.
+    /// `undefined`.
     pub fn undefined() -> Self {
         Self::Undefined(UndefinedMark { undefined: true })
     }
 
-    /// Phase 14: `null` or `undefined` (`v == null` in JavaScript).
+    /// `null` or `undefined` (`v == null` in JavaScript).
     pub fn is_nullish(&self) -> bool {
         matches!(self, Self::Null | Self::Undefined(_))
     }
@@ -295,7 +295,7 @@ impl BinOp {
     }
 }
 
-/// Phase 14: built-in functions of the value layer. JavaScript builtins
+/// Built-in functions of the value layer. JavaScript builtins
 /// (evaluated in [`Mode::Js`] by `crate::jsfn`) dispatch on the runtime
 /// value of their first argument (the receiver): a receiver of another type
 /// is an unsupported evaluation, never a guess. SQL builtins are evaluated
@@ -342,23 +342,23 @@ pub enum Builtin {
     Delete,
     /// `m.size` / `s.size`.
     Size,
-    /// Phase 16: `Object.hasOwn(obj, key)` of a plain object (a row).
+    /// `Object.hasOwn(obj, key)` of a plain object (a row).
     HasOwn,
-    /// Phase 16: the rest of a plain object without the listed keys
+    /// The rest of a plain object without the listed keys
     /// (`const { a, b, ...rest } = obj`; the second argument is the array
     /// of keys).
     OmitKeys,
-    /// Phase 16: `{ ...a, ...b }` of plain objects (`null`/`undefined`
+    /// `{ ...a, ...b }` of plain objects (`null`/`undefined`
     /// spread nothing).
     ObjectAssign,
-    /// Phase 16: `schema.safeParse(x).success` of a zod schema; the first
+    /// `schema.safeParse(x).success` of a zod schema; the first
     /// argument is the schema's descriptor (`crate::zodfn::to_value`).
     ZodCheck,
-    /// Phase 16: the entries of a plain object whose value is not
+    /// The entries of a plain object whose value is not
     /// `undefined` (`Object.fromEntries(Object.entries(o).filter(([, v]) =>
     /// v !== undefined))`).
     DefinedEntries,
-    /// Phase 16: `schema.parse(x)` of a zod schema (its descriptor first):
+    /// `schema.parse(x)` of a zod schema (its descriptor first):
     /// the parsed value of an input the schema accepts (used for arrays
     /// whose elements are rebuilt; the input is checked by `ZodCheck`
     /// before, an input it rejects is an unsupported evaluation).
@@ -409,7 +409,7 @@ impl Builtin {
     }
 }
 
-/// Phase 14: array methods with a callback. The callback is a pure
+/// Array methods with a callback. The callback is a pure
 /// expression of one element (bound to `var`); a callback that calls
 /// anything or has effects is never lowered to this form.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -435,17 +435,17 @@ pub enum Expr {
     Not(Box<Expr>),
     IsNull(Box<Expr>),
     Bin(BinOp, Box<Expr>, Box<Expr>),
-    /// An object literal (Phase 7): evaluates to a row of its properties,
+    /// An object literal: evaluates to a row of its properties,
     /// in JavaScript mode only.
     Object(Vec<(String, Expr)>),
-    /// Phase 14: an array literal (JavaScript mode).
+    /// An array literal (JavaScript mode).
     Array(Vec<Expr>),
-    /// Phase 14: a built-in function applied to its arguments.
+    /// A built-in function applied to its arguments.
     Call {
         func: Builtin,
         args: Vec<Expr>,
     },
-    /// Phase 14: `list.<op>((var) => body)` with a pure callback.
+    /// `list.<op>((var) => body)` with a pure callback.
     Each {
         op: EachOp,
         list: Box<Expr>,
@@ -501,16 +501,16 @@ impl Expr {
     pub fn not(a: Expr) -> Self {
         Self::Not(Box::new(a))
     }
-    /// Phase 14: a built-in applied to its arguments.
+    /// A built-in applied to its arguments.
     pub fn call(func: Builtin, args: Vec<Expr>) -> Self {
         Self::Call { func, args }
     }
-    /// Phase 14: the literal `undefined`.
+    /// The literal `undefined`.
     pub fn undefined() -> Self {
         Self::Lit(Value::undefined())
     }
 
-    /// Phase 14: a property read `base.name`, as `Field(base, name)` or, in
+    /// A property read `base.name`, as `Field(base, name)` or, in
     /// code extracted with JavaScript value semantics, `At(base, "name")`
     /// (where a missing property is `undefined`).
     pub fn as_property(&self) -> Option<(&Expr, &str)> {
@@ -628,7 +628,7 @@ impl Expr {
                 Value::Null => Err(EvalError::Type(format!(
                     "cannot read property `{name}` of null"
                 ))),
-                // Phase 14: JavaScript `undefined` and arrays.
+                // JavaScript `undefined` and arrays.
                 Value::Undefined(_) => Err(EvalError::Type(format!(
                     "cannot read property `{name}` of undefined"
                 ))),
@@ -665,7 +665,7 @@ impl Expr {
                     .collect::<Result<_, _>>()?,
             )),
             Self::Call { func, args } => {
-                // Phase 14: the arguments of a JavaScript built-in are
+                // The arguments of a JavaScript built-in are
                 // JavaScript expressions, also when SQL-mode folding
                 // evaluates the call before a statement is sent.
                 let arg_mode = if func.is_sql() { mode } else { Mode::Js };
@@ -763,7 +763,7 @@ impl Expr {
     }
 }
 
-/// Phase 14: built-ins rendered as the JavaScript they stand for.
+/// Built-ins rendered as the JavaScript they stand for.
 fn render_call(func: Builtin, args: &[Expr]) -> String {
     use Builtin as B;
     let list = |items: &[Expr]| {
@@ -797,7 +797,6 @@ fn render_call(func: Builtin, args: &[Expr]) -> String {
                 .join(" + ")
         ),
         (B::NewMap | B::NewSet, items) => format!("{}({})", func.name(), list(items)),
-        // Phase 16.
         (B::ObjectAssign, [a, b]) => format!("{{...{}, ...{}}}", a.render(), b.render()),
         (B::ZodCheck, [Expr::Lit(desc), x]) => match crate::zodfn::from_value(desc) {
             Ok((_, schema)) => format!(
@@ -890,7 +889,7 @@ fn eval_bin(
                         };
                         out.map(Value::Int).ok_or(EvalError::Overflow)
                     }
-                    // Phase 14: JavaScript never throws here (`undefined + 1`
+                    // JavaScript never throws here (`undefined + 1`
                     // is NaN, `[1] + 1` is "11"): not modeled.
                     _ if is_js_value(&l) || is_js_value(&r) => Err(EvalError::Unknown(format!(
                         "arithmetic on {} and {} is not modeled",
@@ -942,7 +941,7 @@ fn eval_bin(
     }
 }
 
-/// Phase 14: the JavaScript-only values (`undefined`, arrays, `Map`, `Set`).
+/// The JavaScript-only values (`undefined`, arrays, `Map`, `Set`).
 fn is_js_value(v: &Value) -> bool {
     matches!(
         v,
@@ -950,7 +949,7 @@ fn is_js_value(v: &Value) -> bool {
     )
 }
 
-/// Phase 14: `==`/`!=`/`<`/... where one side is `undefined`, an array, a
+/// `==`/`!=`/`<`/... where one side is `undefined`, an array, a
 /// `Map` or a `Set` (and neither side is `null`, handled before). In
 /// JavaScript mode `undefined` equals only `undefined` (strict equality; the
 /// extractor lowers `x == null` to a nullish test); arrays, maps and sets
