@@ -6,7 +6,7 @@
   "type": "module",
   "dependencies": {
     "drizzle-orm": "0.45.4",
-    "nanoid": "5.1.6",
+    "nanoid": "5.1.16",
     "pg": "8.23.1"
   }
 }
