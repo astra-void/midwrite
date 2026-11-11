@@ -1,0 +1,19 @@
+# Dependabot must not propose dependency changes for code that Midwrite only
+# analyzes. Applications under fixtures/ are test inputs: they are never
+# installed by the release, the frozen evaluation sets (fixtures/eval/pNN) are
+# checksummed in their FROZEN.json, and tests depend on the pinned versions in
+# fixtures/apps (for example zod modeling in fixtures/apps/zod/app). corpora/
+# holds configuration and labels for external projects.
+#
+# open-pull-requests-limit: 0 disables version-update pull requests; this
+# entry exists only to exclude those paths.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    exclude-paths:
+      - "fixtures/**"
+      - "corpora/**"
