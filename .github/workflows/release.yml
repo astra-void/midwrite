@@ -5,7 +5,7 @@
 #
 # A successful tagged run establishes support for a release target.
 # Until a tagged run has succeeded on a platform, that platform is not a
-# supported release target; see docs/phase4/RELEASE-READINESS.md.
+# supported release target; see docs/reference/security.md.
 name: release
 
 on:
