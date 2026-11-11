@@ -11,8 +11,8 @@
       "license": "AGPL-3.0",
       "path": ".corpora/midday",
       "config": "corpora/configs/midday.json",
-      "labels": "corpora/labels/midday.json",
-      "notes": "The project the rules were developed against (Phases 2-16). Labels: Phase 2 review of a sample of findings (corpora/labels/midday.json); no audited known positives, so recall is not computed for it."
+      "labels": "corpora/eval/labels/midday.json",
+      "notes": "The project the rules were developed against (Phases 2-16). Findings: Phase 2 review of a sample (from corpora/labels/midday.json). Known positives: source-only audit added 2026-11-06 (DEV-148), so dev recall includes midday."
     },
     {
       "name": "kan",
@@ -38,27 +38,40 @@
     },
     {
       "name": "zero",
-      "set": "held-out",
+      "set": "dev",
       "repository": "https://github.com/Mail-0/Zero.git",
       "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
       "license": "MIT",
       "path": ".corpora/zero",
       "config": "corpora/configs/zero.json",
       "labels": "corpora/eval/labels/zero.json",
-      "notes": "Email client on Cloudflare Workers: Drizzle, a database Durable Object, Gmail/Outlook APIs, queues, R2/KV."
-    }
-  ],
-  "reserve": [
+      "notes": "Email client on Cloudflare Workers: Drizzle, a database Durable Object, Gmail/Outlook APIs, queues, R2/KV. Moved from held-out to dev on 2026-11-06: its false positives (the generic `fetch` rule) are to be fixed, which is tuning against it."
+    },
     {
       "name": "vercel-chatbot",
+      "set": "held-out",
       "repository": "https://github.com/vercel/chatbot.git",
-      "notes": "Drizzle + PostgreSQL (drizzle.config.ts dialect postgresql), checked 2026-11-04; not pinned yet."
+      "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+      "license": "Apache-2.0",
+      "path": ".corpora/vercel-chatbot",
+      "config": "corpora/configs/vercel-chatbot.json",
+      "labels": "corpora/eval/labels/vercel-chatbot.json",
+      "notes": "Next.js AI chat template: Drizzle + postgres-js queries in lib/db/queries.ts, Vercel Blob uploads, Redis resumable streams and rate limiting. Promoted from reserve on 2026-11-06."
     }
   ],
+  "reserve": [],
   "history": [
     {
       "date": "2026-11-04",
       "change": "Sets created. Held-out configurations were written from the projects' source by agents that did not run the analyzer, before any held-out finding was looked at. Before that, one run with the default configuration only checked that the analyzer reaches each project's database code; its finding counts were seen, not the findings."
+    },
+    {
+      "date": "2026-11-06",
+      "change": "zero moved from held-out to dev: all 10 of its false positives in the first scoring come from the generic `fetch` configuration rule, and fixing that is tuning against it. Its frozen entry (revision 36132735, config 68ff38d2..., labels 2076f2b4...) was removed from FROZEN.json. vercel-chatbot promoted from reserve to held-out at a8989b52 (HEAD of main on 2026-11-06): configuration written from source before the analyzer was run on it, known positives from a source-only audit, findings classified by a separate agent. The reserve is now empty."
+    },
+    {
+      "date": "2026-11-06",
+      "change": "midday gets audited known positives (30, source-only audit that did not see Midwrite output) in corpora/eval/labels/midday.json, so dev recall is no longer zero-only (DEV-148)."
     }
   ]
 }

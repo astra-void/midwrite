@@ -50,6 +50,22 @@ pub struct Config {
     /// See [`crate::recovery`].
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub recovery_contracts: Vec<crate::recovery::RecoveryContract>,
+    /// Recognize the side effects of well-known SDK clients (Resend, Stripe,
+    /// Supabase storage and auth admin, BullMQ, Redis, Polar, Vercel Blob,
+    /// nodemailer, AWS S3, Twilio) without a configuration entry, when the
+    /// client provably comes from that package. Configured rules are tried
+    /// first. `false` turns the built-ins off.
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub builtin_effects: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_true(value: &bool) -> bool {
+    *value
 }
 
 impl Default for Config {
@@ -61,6 +77,7 @@ impl Default for Config {
             external_effects: default_external_effects(),
             exclude: Vec::new(),
             recovery_contracts: Vec::new(),
+            builtin_effects: true,
         }
     }
 }

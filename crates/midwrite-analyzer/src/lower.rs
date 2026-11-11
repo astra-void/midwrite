@@ -440,7 +440,9 @@ impl Consumer {
         }
     }
 
-    /// Whether a lazy Drizzle builder consumed this way executes.
+    /// Whether a lazy Drizzle builder consumed this way executes. A builder
+    /// returned from a non-async function runs only if the caller awaits the
+    /// call; see [`Lowerer::executes_lazy`].
     fn awaits(self) -> bool {
         !matches!(self, Self::SyncReturn)
     }
@@ -864,6 +866,27 @@ impl<'a> Lowerer<'_> {
         }
     }
 
+    /// Whether a lazy builder consumed this way executes. Besides awaited
+    /// positions, a builder that a non-async function returns from its own
+    /// body (`(db) => db.update(t)...`, `function save() { return
+    /// db.insert(t)... }`) is part of what the function does: its summary is
+    /// applied only where a caller awaits or adopts the call
+    /// ([`Consumer::summarizes_local_calls`]), which is when the builder
+    /// runs. Returns of nested callbacks (array callbacks, transaction
+    /// callbacks) keep the older rule.
+    fn executes_lazy(&self, consumer: Consumer) -> bool {
+        consumer.awaits() || (consumer == Consumer::SyncReturn && self.callback_depth == 0)
+    }
+
+    /// How a lazy builder consumed this way runs (when
+    /// [`Self::executes_lazy`]).
+    fn lazy_execution(consumer: Consumer) -> Execution {
+        match consumer {
+            Consumer::SyncReturn => Execution::ReturnedLazy,
+            other => other.execution(),
+        }
+    }
+
     /// Lower an expression whose value is awaited, returned or run concurrently.
     fn consume(&mut self, expression: &Expression<'a>, consumer: Consumer) {
         let inner = expression.get_inner_expression();
@@ -902,12 +925,12 @@ impl<'a> Lowerer<'_> {
                     arms,
                 );
             }
-            Expression::Identifier(ident) if consumer.awaits() => {
+            Expression::Identifier(ident) if self.executes_lazy(consumer) => {
                 let resolved = self.recognizer.resolve(ident, &self.locals);
                 if let Origin::PendingBuilder(symbol) = resolved.origin
                     && let Some(builder) = self.locals.pending_builders.get(&symbol).cloned()
                 {
-                    self.push_db_effect(builder, ident.span, consumer.execution());
+                    self.push_db_effect(builder, ident.span, Self::lazy_execution(consumer));
                 }
             }
             _ => self.visit_expression(inner),
@@ -939,8 +962,8 @@ impl<'a> Lowerer<'_> {
                 let execution = match (marker, consumer) {
                     (Marker::Never, _) => None,
                     (Marker::Explicit, _) => Some(fire_and_forget),
-                    (Marker::Lazy, Some(consumer)) if consumer.awaits() => {
-                        Some(consumer.execution())
+                    (Marker::Lazy, Some(consumer)) if self.executes_lazy(consumer) => {
+                        Some(Self::lazy_execution(consumer))
                     }
                     (Marker::Lazy, _) => None,
                 };
@@ -1005,10 +1028,10 @@ impl<'a> Lowerer<'_> {
                 ));
                 // Like builders, these run when awaited or explicitly executed.
                 let executes = marker == Marker::Explicit
-                    || (marker == Marker::Lazy && consumer.is_some_and(Consumer::awaits));
+                    || (marker == Marker::Lazy && consumer.is_some_and(|c| self.executes_lazy(c)));
                 if executes {
                     let execution = if marker == Marker::Lazy {
-                        consumer.map_or(fire_and_forget, Consumer::execution)
+                        consumer.map_or(fire_and_forget, Self::lazy_execution)
                     } else {
                         fire_and_forget
                     };

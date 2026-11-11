@@ -195,6 +195,9 @@ impl Recognizer<'_> {
         if let Some(classified) = self.classify_external(chain, root, resolved.as_ref()) {
             return classified;
         }
+        if let Some(classified) = self.classify_sdk(chain, root) {
+            return classified;
+        }
         if let Some(resolved) = &resolved
             && resolved.origin == Origin::Unresolved
             && resolved.name == "Promise"
@@ -618,6 +621,70 @@ impl Recognizer<'_> {
 
     /// A short label for the call from offset `start` (the chain's root) to
     /// the end of `call`, taken from the source.
+    /// DEV-148: a call on a client of a known SDK package ([`crate::sdk`]),
+    /// tried after the configured rules.
+    fn classify_sdk<'e, 'a>(
+        &self,
+        chain: &Chain<'e, 'a>,
+        root: Root<'e, 'a>,
+    ) -> Option<Classified<'e, 'a>> {
+        if !self.config.builtin_effects {
+            return None;
+        }
+        let Root::Identifier(ident) = root else {
+            return None;
+        };
+        let symbol = resolve_reference(self.scoping, ident)?;
+        let segments = &chain.segments;
+        let end = effect_end(segments);
+        let Some(Segment::Call(call)) = end.checked_sub(1).and_then(|i| segments.get(i)) else {
+            return None;
+        };
+        let (category, client) = match self.table.sdk_client(symbol) {
+            Some(client) => (
+                crate::sdk::effect(client, &sdk_steps(&segments[..end]))?,
+                client.describe().to_owned(),
+            ),
+            None => match self.table.sdk_import(symbol)? {
+                crate::sdk::Imported::Instance(client) => (
+                    crate::sdk::effect(client, &sdk_steps(&segments[..end]))?,
+                    client.describe().to_owned(),
+                ),
+                crate::sdk::Imported::Effect(category) if end == 1 => {
+                    (category, "a function of a known SDK package".to_owned())
+                }
+                _ => return None,
+            },
+        };
+        let receiver = ident.name.as_str().to_owned();
+        Some(Classified::External {
+            category,
+            best_effort: false,
+            recovery: None,
+            recognition: Recognition {
+                basis: RecognitionBasis::BuiltinSdk,
+                detail: format!(
+                    "built-in rule: `{receiver}` is {client} ({}); `builtinEffects: false` turns built-in rules off",
+                    self.sdk_origin(symbol)
+                ),
+                receiver,
+            },
+            label: self.label(root.start(), call),
+            calls: calls(segments),
+        })
+    }
+
+    /// How the binding was found to be an SDK client, for evidence.
+    fn sdk_origin(&self, symbol: oxc_syntax::symbol::SymbolId) -> String {
+        if self.table.sdk_client(symbol).is_some() {
+            "constructed by the package, or declared with its client type, in this file".to_owned()
+        } else if let Some(module) = self.table.sdk_project_module(symbol) {
+            format!("imported from \"{module}\", which constructs it with the package")
+        } else {
+            "imported from the package".to_owned()
+        }
+    }
+
     pub fn label(&self, start: u32, call: &CallExpression<'_>) -> String {
         let full = compact(self.slice(start, call.span.end));
         if full.chars().count() <= 60 {
@@ -840,6 +907,43 @@ fn receiver_end(segments: &[Segment<'_, '_>], index: usize) -> u32 {
             Segment::Property(_) => None,
         })
         .unwrap_or_default()
+}
+
+/// The number of leading segments up to and including the effect call: the
+/// chain without trailing promise continuations (`.then(...)`,
+/// `.catch(...)`, `.finally(...)`).
+fn effect_end(segments: &[Segment<'_, '_>]) -> usize {
+    let mut end = segments.len();
+    while end >= 3
+        && matches!(&segments[end - 2], Segment::Property(name) if PROMISE_CONTINUATIONS.contains(name))
+        && matches!(&segments[end - 1], Segment::Call(_))
+    {
+        end -= 2;
+    }
+    end
+}
+
+/// The steps of a chain for [`crate::sdk::effect`].
+fn sdk_steps<'s>(segments: &[Segment<'_, 's>]) -> Vec<crate::sdk::Step<'s>> {
+    segments
+        .iter()
+        .map(|segment| match segment {
+            Segment::Property(name) => crate::sdk::Step::Property(name),
+            Segment::Call(call) => crate::sdk::Step::Call {
+                command: call
+                    .arguments
+                    .first()
+                    .and_then(Argument::as_expression)
+                    .and_then(|argument| match argument.get_inner_expression() {
+                        Expression::NewExpression(new) => match new.callee.get_inner_expression() {
+                            Expression::Identifier(callee) => Some(callee.name.as_str()),
+                            _ => None,
+                        },
+                        _ => None,
+                    }),
+            },
+        })
+        .collect()
 }
 
 fn calls<'e, 'a>(segments: &[Segment<'e, 'a>]) -> Vec<&'e CallExpression<'a>> {

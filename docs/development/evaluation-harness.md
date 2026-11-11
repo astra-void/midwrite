@@ -21,9 +21,11 @@ still scored by `scripts/eval-sets.py`. This harness scores static
 | midday | dev | `51587319` | the project the rules were developed against |
 | kan (kanbn/kan) | held-out | `1cc2f332` | tRPC + repositories, email, webhooks, Stripe, S3 |
 | dittofeed | held-out | `91277939` | Postgres through `db()`, Temporal, ClickHouse, Kafka |
-| zero (Mail-0/Zero) | held-out | `36132735` | Workers + Durable Objects, Gmail APIs, queues, R2/KV |
+| zero (Mail-0/Zero) | dev (held-out until 2026-11-06) | `36132735` | Workers + Durable Objects, Gmail APIs, queues, R2/KV |
+| vercel-chatbot (vercel/chatbot) | held-out (since 2026-11-06) | `a8989b52` | Next.js AI chat: queries in `lib/db/queries.ts`, Vercel Blob, Redis streams and rate limit |
 
-Reserve: vercel/chatbot. Every project uses Drizzle + PostgreSQL. The first
+Reserve: empty; add a project before the next held-out project moves to
+dev. Every project uses Drizzle + PostgreSQL. The first
 proposed candidates (cal.com, dub, documenso, formbricks) use Prisma, which
 Midwrite does not analyze.
 
@@ -106,10 +108,32 @@ labels. Fetch or analyzer errors fail the job as well. Scores, counts and
 gate failure reasons appear in the job log; `eval.json` stays in the job's
 workspace. Recall and dev-set precision do not determine this gate.
 
-The first recorded baseline below already fails the threshold. Enabling
-the job does not lower the threshold or change the frozen labels to make
-that baseline pass. Follow the set rotation rules above when a held-out
-result drives an analyzer change.
+The first scoring below failed the threshold (0.89). The gate passes only
+since the second scoring's set change (0.96), so the job depends on the
+current `sets.json` and `FROZEN.json`. The job was not enabled by lowering
+the threshold or editing frozen labels. Follow the set rotation rules above
+when a held-out result drives an analyzer change.
+
+## Label rekeys
+
+Labels are matched to findings by fingerprint. A change to how fingerprints
+are computed therefore leaves every affected finding unlabeled, and the gate
+fails even though the findings themselves are unchanged.
+
+On 2026-11-11, DEV-152 removed positions from anonymous-function names
+(`<anonymous@11:18>`), which changed 124 fingerprints: kan 71, midday 46,
+zero 5 and dittofeed 2. These labels were rekeyed as follows:
+
+- Each old ID was looked up in the last scoring record
+  (`reports/eval/2026-11-06-dev148-sdk-builtins.json`). Midday labels store
+  only the ID, so this record is the only source of their locations.
+- Each was matched to exactly one new unlabeled finding with the same code,
+  file, line and position-free function name.
+- Only the ID strings were replaced. No classification changed.
+
+kan and dittofeed were refrozen with that reason, and every score matched
+the DEV-148 record (held-out 0.96, 122/127). A label that was already stale
+before the change (one in midday) stays stale.
 
 ## Caveats
 
@@ -159,3 +183,128 @@ Record: [`reports/eval/2026-11-05-first-scoring.json`](../../reports/eval/2026-1
   from Midday". Those are the newest synthetic frozen set's (`fixtures/eval/p16`)
   `discover --model-check` scores, not Midday's. Midday has never produced a
   model counterexample.
+
+## Second scoring (2026-11-06)
+
+Record: [`reports/eval/2026-11-06-second-scoring.json`](../../reports/eval/2026-11-06-second-scoring.json)
+(release build of commit `87186c0`; the analyzer is unchanged since the first
+scoring).
+
+Changes to the sets, following the rules above (`sets.json` `history`):
+
+* Zero moved to dev, so its `fetch` false positives can be fixed. Its frozen
+  entry was removed from `FROZEN.json`.
+* vercel/chatbot was promoted from reserve, pinned at `a8989b52`. Its
+  configuration was written from source before the analyzer ran on it. The
+  8 known positives come from a source-only audit, and a separate agent
+  classified the 11 findings without seeing them. 2 auditor/labeler
+  disagreements are in `reviewQueue`: the Redis rate-limit increment and the
+  resumable-stream row, which the labeler called intended-risk.
+
+| set | precision (hazard) | bug precision | recall |
+| --- | --- | --- | --- |
+| dev (midday + zero) | 0.84 (74/88) | 0.26 (23/88) | 0.30 (3/10), zero only |
+| **held-out** | **0.96 (118/123)** | 0.46 (57/123) | **0.77 (48/62)** |
+| kan | 0.96 (87/91) | 0.47 (43/91) | 0.94 (31/33) |
+| dittofeed | 0.95 (20/21) | 0.24 (5/21) | 0.48 (10/21) |
+| vercel-chatbot | 1.00 (11/11) | 0.82 (9/11) | 0.88 (7/8) |
+
+**Stage-1 gate: PASS** (0.96 ≥ 0.9).
+
+* The pass comes from changing the sets, not from a better analyzer. kan
+  and dittofeed alone already score 0.96 (107/112). vercel-chatbot adds
+  only 11 findings: a small project whose Drizzle helpers have no
+  transactions, so most windows are plain independent-commit chains
+  (MW1004).
+* The `fetch` rule that produced Zero's false positives is unchanged. It is
+  now dev work.
+* All labels are still AI-only, with no human review.
+* vercel-chatbot's one missed known positive is KP04: per-message
+  `updateMessage` / `saveMessages` calls inside `Promise.all` in `onEnd`.
+
+## Missed cases (DEV-148, 2026-11-06)
+
+Fixes are chosen from **dev** misses only (midday, zero). Held-out misses are
+listed for the record and were not used to pick or shape a fix. midday now
+has known positives: a source-only audit (30, capped; the auditor listed
+11 more windows it left out), so dev recall covers midday too.
+
+Dev misses by cause, before the fix below (20 of 52 dev positives):
+
+| cause | dev misses | examples |
+| --- | --- | --- |
+| external effect not recognized (not in the configuration, no built-in) | 8 | midday: `notifications.create` email (KP02), accounting provider push (KP06, KP07), Supabase auth admin and Resend contacts (KP13), BullMQ `job.remove()` (KP20), Polar SDK (KP22), Supabase storage `remove` (KP24), Redis cache delete (KP28) |
+| database writes behind a project RPC stub that Midwrite does not model | 4 | zero: `getZeroDB(userId).deleteConnection/deleteUser` (KP02–KP05); reported as MW9001 |
+| writes through a non-Drizzle client (Supabase JS `from(t).upsert/update/insert`) | 3 | midday KP04, KP14, KP30 |
+| async callback flows | 3 | midday KP05 (writes in a CSV parser `chunk` callback), zero KP07 (`onSecretRotated` callback), zero KP10 (email inside `Effect.runPromise`) |
+| lazy builder returned from a non-async function | 1 | zero KP08: `withAssistantDb((db) => db.update(...))` after an email. **Fixed** |
+| class instance created with `new` and a private method | 1 | midday KP29 (`new InboxConnector(...).exchangeCodeForAccount` → `#saveAccount`) |
+
+Held-out misses (not used for fixes): 14. Mostly ClickHouse and Temporal
+effects reached through helpers in dittofeed (11), plus kan KP09 and KP21 and
+vercel-chatbot KP04.
+
+**What was fixed.** Lazy builders returned from non-async functions now run
+where the caller awaits the call (`Execution::ReturnedLazy`). An unawaited
+call drops them, because a builder nobody awaits never runs
+(`crates/midwrite-analyzer/tests/returned_builders.rs`). This is a small group (1 dev miss),
+chosen because it is an analyzer bug. The largest group, unrecognized
+external effects, is a configuration-coverage question and is left open:
+built-in recognition of common SDKs would change the default rules, and
+needs a decision first.
+
+Record: [`reports/eval/2026-11-06-dev148-returned-builders.json`](../../reports/eval/2026-11-06-dev148-returned-builders.json).
+Differences from the second scoring:
+
+* Removed findings: none.
+* New findings: 3, all labeled intended-risk by a separate agent: midday
+  `enrich-transaction.ts:147`, zero `assistant.ts:253` (KP08, auditor and
+  labeler disagree → `reviewQueue`), and held-out dittofeed
+  `requestContext.ts:353`. dittofeed was refrozen with that reason; no
+  existing label changed.
+
+| set | precision (hazard) | recall |
+| --- | --- | --- |
+| dev (midday + zero) | 0.84 (76/90) | 0.63 (33/52); was 0.62 (32/52) |
+| held-out | 0.96 (119/124); was 0.96 (118/123) | 0.77 (48/62), unchanged |
+
+Stage-1 gate: still PASS.
+
+### Built-in SDK effects (largest group)
+
+The largest dev group, unrecognized external effects, is addressed by
+built-in recognition of common SDK clients (`builtinEffects`, on by default;
+[configuration](../reference/configuration.md#built-in-sdk-effects)). Clients
+are matched by provenance: constructed or typed in the file, or imported from
+a project module that constructs or returns one. A name alone never matches.
+
+Record: [`reports/eval/2026-11-06-dev148-sdk-builtins.json`](../../reports/eval/2026-11-06-dev148-sdk-builtins.json).
+
+* midday known positives found: 17/30 → 20/30. KP13 (Supabase auth admin and
+  Resend contacts), KP20 (BullMQ `job.remove()` through `getQueue()` and
+  `getJob()`) and KP22 (Polar) are found now.
+* Still missed from that group: KP02, KP06 and KP07 (effects inside
+  project classes reached through dynamic providers), KP24 (the storage
+  helper's client parameter has a local structural type, `StorageClient`,
+  not the SDK's client type, so nothing proves it is a Supabase client), and
+  KP28 (a Redis client held in a class field, `this.redis`, behind an object
+  service).
+* New findings: midday 32 (dev) and dittofeed 3 (held-out). Separate agents
+  labeled them:
+  * midday: 6 true-positive, 20 intended-risk, 6 false-positive. All 6
+    false positives pair a real effect with a commit on a path where both
+    cannot happen, mostly cleanup on failure (`if (!updated) await
+    job.remove()`). The recognition is right; the path reasoning is the
+    weak point.
+  * dittofeed: 3 intended-risk (a best-effort "view in browser" copy before
+    the send). dittofeed was refrozen with that reason; no existing label
+    changed.
+
+| set | precision (hazard) | recall |
+| --- | --- | --- |
+| dev (midday + zero) | 0.84 (102/121); was 0.84 (76/90) | 0.70 (38/54); was 0.63 (33/52) |
+| held-out | 0.96 (122/127); was 0.96 (119/124) | 0.77 (48/62), unchanged |
+
+Stage-1 gate: still PASS. Recall denominators grow when a new finding is a
+true positive outside the audit (midday 12 → 14).
+

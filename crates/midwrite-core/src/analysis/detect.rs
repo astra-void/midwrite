@@ -742,7 +742,7 @@ fn assess<'ir>(
                     effect.label
                 ));
             }
-            Execution::Awaited | Execution::Returned => {}
+            Execution::Awaited | Execution::Returned | Execution::ReturnedLazy => {}
         }
         if let Some(summary) = &effect.summary
             && !summary.on_every_path

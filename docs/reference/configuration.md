@@ -38,6 +38,37 @@ their own `extraction` section ([model-check](../user-guide/model-check.md#scena
 | `externalEffects[]` | one rule: `queue.publish` (`message-publish`) | `receiver` + `method`, or `function`; `category` (`message-publish`, `http-request`, `email`, `payment`, `file-write`, `other`); optional `importedFrom`, `firstArgument` (string literal), `bestEffort`, `recovery`; rules are tried in order |
 | `exclude` | `[]` | glob patterns skipped when a directory is scanned (with `/`: relative to the scanned directory; without: each file and directory name) |
 | `recoveryContracts[]` | `[]` | function-level recovery mechanisms, below |
+| `builtinEffects` | `true` | recognize writes of well-known SDK clients without an `externalEffects` entry (below); `false` turns them off |
+
+## Built-in SDK effects
+
+With `builtinEffects` (the default), calls that change state through these
+SDKs are external effects without a configuration entry. Configured rules
+are tried first.
+
+| package | client | effects (category) |
+| --- | --- | --- |
+| `resend` | `new Resend()` | `emails.send`, `batch.send`, `broadcasts.*` (email); `contacts`/`audiences`/`domains` `create`/`update`/`remove` (other) |
+| `stripe` | `new Stripe()` | `<resource>.create/update/del/cancel/confirm/capture/refund…` (payment); reads such as `retrieve`/`list` and `webhooks.*` are not effects |
+| `@supabase/supabase-js`, `@supabase/ssr` | `createClient()`, `createServerClient()`, `SupabaseClient` | `storage.from(b).upload/update/move/copy/remove` (file-write); `auth.admin.createUser/deleteUser/updateUserById/inviteUserByEmail/generateLink/signOut` (other). Table writes (`from(t).insert(...)`) are not modeled |
+| `bullmq` | `new Queue()`, `Job`, `FlowProducer`, `queue.getJob()` | queue `add/addBulk/remove/drain/clean/obliterate/…`, job `remove/retry/promote/update/moveTo…` (message-publish) |
+| `ioredis`, `redis`, `@upstash/redis` | `new Redis()`, `createClient()`, `Redis.fromEnv()` | write commands (`set`, `del`, `incr`, `expire`, `hset`, `lpush`, `publish`, …), and `multi()/pipeline() … exec()` with a queued write (other) |
+| `@polar-sh/sdk` | `new Polar()` | `<resource>.create/update/delete/revoke` (payment) |
+| `nodemailer` | `createTransport()` | `sendMail` (email) |
+| `@aws-sdk/client-s3` | `new S3Client()` | `send(new XCommand(...))` except `Get*`/`Head*`/`List*`/`Select*`, and v2-style `putObject`/`deleteObject`/… (file-write) |
+| `twilio` | `twilio()`, `new Twilio()` | `messages.create`, `calls.create` (other) |
+| `@sendgrid/mail` | default export | `send`, `sendMultiple` (email) |
+| `@vercel/blob` | — | `put`, `del`, `copy` (file-write) |
+
+A rule applies only when the client provably comes from the package: it is
+constructed in the same file by the package's class or factory (awaited or
+not), declared with its client type (`client: SupabaseClient`, `queue:
+Queue`), exported by the package itself, or imported from a project module
+that constructs it (`export const resend = new Resend(key)`) or from a
+project function that returns such a construction or declares the client
+type (`export function getQueue(): Queue`), through re-exports. A name alone
+never matches. Recognition evidence says `built-in rule`, and its strength
+is the same as an `importedFrom` configuration match.
 
 A sample with several receivers: [`fixtures/midwrite.json`](../../fixtures/midwrite.json).
 

@@ -1,0 +1,253 @@
+{
+  "$comment": "Held-out evaluation labels (scripts/eval.py). knownPositives come from a code audit by an AI agent (Claude) that read only the project's source at the pinned revision: it did not run Midwrite and did not see its output. findings are classified afterwards, finding by finding, with the Phase 2 classes. No independent human review has been performed; an AI agent checking another AI agent's results is not independent human validation. Corrections go in `corrections` with a reason, never by editing a label to raise a score.",
+  "schemaVersion": 1,
+  "kind": "midwrite.eval-labels",
+  "project": "vercel-chatbot",
+  "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+  "set": "held-out",
+  "labeling": {
+    "knownPositives": {
+      "by": "AI agent (Claude), source-only audit",
+      "date": "2026-11-06",
+      "humanReviewed": false,
+      "scope": "unhandled half-written-state windows in server code; the audit was capped at 30 entries, highest confidence first, so the list is a sample when the project has more"
+    },
+    "findings": {
+      "by": "AI agent (Claude), finding-by-finding source review, separate from the auditor; did not see knownPositives",
+      "date": "2026-11-06",
+      "humanReviewed": false
+    }
+  },
+  "knownPositives": [
+    {
+      "id": "vercel-chatbot-KP01",
+      "file": "lib/db/queries.ts",
+      "function": "deleteChatById",
+      "functionStartLine": 99,
+      "functionEndLine": 113,
+      "pattern": "D",
+      "dbAccess": "db.delete(vote), db.delete(message), db.delete(stream), db.delete(chat) - four separate auto-commit statements, no db.transaction",
+      "firstEffect": "db.delete(vote).where(chatId) at line 101 (then db.delete(message) at line 102, db.delete(stream) at line 103)",
+      "secondEffect": "db.delete(chat).where(id).returning() at line 105",
+      "consequence": "If the request dies or a later delete fails (reached from DELETE /api/chat), votes and messages are already gone but the Chat row is left. The chat stays in the sidebar history as an empty conversation, and the DELETE returns an error.",
+      "confidence": "high",
+      "source": "independent audit"
+    },
+    {
+      "id": "vercel-chatbot-KP02",
+      "file": "lib/db/queries.ts",
+      "function": "deleteAllChatsByUserId",
+      "functionStartLine": 115,
+      "functionEndLine": 141,
+      "pattern": "D",
+      "dbAccess": "db.delete(vote/message/stream).where(inArray(chatId, chatIds)), then db.delete(chat).where(userId) - separate statements, no transaction",
+      "firstEffect": "db.delete(vote) at line 128 (then db.delete(message) at line 129, db.delete(stream) at line 130)",
+      "secondEffect": "db.delete(chat).where(eq(chat.userId)).returning() at line 132",
+      "consequence": "If it fails part way (reached from DELETE /api/history), every chat of the user loses its votes and/or messages but the Chat rows stay. The history shows all chats as empty shells and the 'delete all' reports failure.",
+      "confidence": "high",
+      "source": "independent audit"
+    },
+    {
+      "id": "vercel-chatbot-KP03",
+      "file": "app/(chat)/api/chat/route.ts",
+      "function": "POST",
+      "functionStartLine": 70,
+      "functionEndLine": 445,
+      "pattern": "D",
+      "dbAccess": "saveChat -> db.insert(chat); saveMessages -> db.insert(message) (user message); later saveMessages -> db.insert(message) for the assistant reply in the onEnd callback",
+      "firstEffect": "saveChat (insert Chat titled 'New chat') at line 126",
+      "secondEffect": "saveMessages (insert the user message) at line 183; the assistant reply is only saved later at line 379 (onEnd)",
+      "consequence": "If saveMessages fails or the request dies after line 126, a 'New chat' Chat row with no messages is left in the history. If the request dies after line 183 (getCapabilities/convertToModelMessages throw, model stream crashes, 60s maxDuration timeout) the user message is saved with no assistant reply. Any documents a tool already saved during the stream are also left with no assistant message pointing at them. Re-sending the same message id then hits a primary-key conflict on Message_v2.",
+      "confidence": "high",
+      "source": "independent audit"
+    },
+    {
+      "id": "vercel-chatbot-KP04",
+      "file": "app/(chat)/api/chat/route.ts",
+      "function": "onEnd",
+      "functionStartLine": 349,
+      "functionEndLine": 390,
+      "pattern": "D",
+      "dbAccess": "updateMessage -> db.update(message) and saveMessages -> db.insert(message), one statement per finished message under Promise.all, no transaction",
+      "firstEffect": "updateMessage (existing message parts, e.g. tool approval state) at line 357",
+      "secondEffect": "saveMessages (new assistant message) at line 364",
+      "consequence": "In the tool-approval flow every message is written on its own. If one write rejects or the function dies, some messages are updated or inserted and others are not. The chat can show the approved tool call with no follow-up assistant message, or a new message while the earlier one still shows 'awaiting approval'.",
+      "confidence": "medium",
+      "source": "independent audit"
+    },
+    {
+      "id": "vercel-chatbot-KP05",
+      "file": "lib/db/queries.ts",
+      "function": "deleteMessagesByChatIdAfterTimestamp",
+      "functionStartLine": 466,
+      "functionEndLine": 501,
+      "pattern": "D",
+      "dbAccess": "db.delete(vote) then db.delete(message), separate statements, no transaction (called by server action deleteTrailingMessages)",
+      "firstEffect": "db.delete(vote).where(chatId, messageId in ids) at line 486",
+      "secondEffect": "db.delete(message).where(chatId, id in ids) at line 492",
+      "consequence": "When a user edits a message, the trailing messages are removed. If the message delete fails after the vote delete, the trailing messages stay visible but their up/down votes are silently lost. The edit flow then errors, leaving the old trailing messages in the chat.",
+      "confidence": "medium",
+      "source": "independent audit"
+    },
+    {
+      "id": "vercel-chatbot-KP06",
+      "file": "lib/db/queries.ts",
+      "function": "deleteDocumentsByIdAfterTimestamp",
+      "functionStartLine": 405,
+      "functionEndLine": 429,
+      "pattern": "D",
+      "dbAccess": "db.delete(suggestion) then db.delete(document), separate statements, no transaction (called by DELETE /api/document)",
+      "firstEffect": "db.delete(suggestion).where(documentId, documentCreatedAt > ts) at line 413",
+      "secondEffect": "db.delete(document).where(id, createdAt > ts).returning() at line 422",
+      "consequence": "Reverting a document to an earlier version first deletes the suggestions of the later versions. If the document delete then fails, the later versions are still there and still shown, but their suggestions are permanently gone.",
+      "confidence": "medium",
+      "source": "independent audit"
+    },
+    {
+      "id": "vercel-chatbot-KP07",
+      "file": "app/(chat)/api/chat/route.ts",
+      "function": "consumeSseStream",
+      "functionStartLine": 406,
+      "functionEndLine": 423,
+      "pattern": "A",
+      "dbAccess": "createStreamId -> db.insert(stream)",
+      "firstEffect": "createStreamId (insert Stream row) at line 414",
+      "secondEffect": "streamContext.createNewResumableStream (Redis resumable stream) at line 415",
+      "consequence": "If the Redis publish fails or the function dies after the Stream row commits, a Stream row points to a resumable stream that does not exist. The catch at line 420 swallows the error with no compensation. The effect is mostly latent: the resume route (app/(chat)/api/chat/[id]/stream/route.ts) currently returns 204 and getStreamIdsByChatId is unused, so the result is orphan Stream rows.",
+      "confidence": "low",
+      "source": "independent audit"
+    },
+    {
+      "id": "vercel-chatbot-KP08",
+      "file": "app/(chat)/api/chat/route.ts",
+      "function": "POST",
+      "functionStartLine": 70,
+      "functionEndLine": 445,
+      "pattern": "B",
+      "dbAccess": "saveChat -> db.insert(chat), saveMessages -> db.insert(message)",
+      "firstEffect": "checkIpRateLimit -> redis.multi().incr(ip-rate-limit:ip).expire().exec() at line 101 (lib/ratelimit.ts:34-38)",
+      "secondEffect": "saveChat at line 126 / saveMessages at line 183",
+      "consequence": "The per-IP Redis counter is incremented before any DB write and is never decremented. Requests that then fail (DB error, hourly quota rejection at line 111, crash) still use up the 10-per-hour IP budget. After repeated server-side failures the user is locked out for up to an hour without a single message saved. Possibly intended as attempt counting, hence low confidence.",
+      "confidence": "low",
+      "source": "independent audit"
+    }
+  ],
+  "findings": [
+    {
+      "findingId": "98be7ef3c8958ebb",
+      "code": "MW1002",
+      "file": "app/(chat)/api/chat/route.ts",
+      "line": 101,
+      "function": "POST",
+      "classification": "intended-risk",
+      "notes": "lib/ratelimit.ts:34-38 INCR/EXPIRE is a per-IP attempt counter taken as a pre-check before any work. It is meant to count requests whatever happens next: it also counts requests later rejected at route.ts:110-111 or for existing chats where saveChat never runs. A bumped counter with no chat row is the intended behavior of a rate limiter, not a half-written state."
+    },
+    {
+      "findingId": "90b81a346055ada7",
+      "code": "MW1004",
+      "file": "app/(chat)/api/chat/route.ts",
+      "line": 183,
+      "function": "POST",
+      "classification": "true-positive",
+      "notes": "saveChat (route.ts:126) and saveMessages (route.ts:183) run as separate autocommit inserts with no transaction. If the second fails, the user is left with an empty 'New chat' in their history. The title is also never generated, because titlePromise is only consumed inside the stream (route.ts:338-342) and a retry takes the existing-chat branch (route.ts:120). A retry with the same id does save the message, but nothing cleans up an abandoned empty chat."
+    },
+    {
+      "findingId": "00989cb619160167",
+      "code": "MW1001",
+      "file": "app/(chat)/api/chat/route.ts",
+      "line": 415,
+      "function": "consumeSseStream",
+      "classification": "intended-risk",
+      "notes": "The Stream-row insert followed by the Redis resumable-stream publish sits inside try/catch marked '/* non-critical */' (route.ts:410-422), so failure is accepted on purpose. The partial state is also harmless: Stream rows are never read (getStreamIdsByChatId has no callers, and app/(chat)/api/chat/[id]/stream/route.ts always returns 204)."
+    },
+    {
+      "findingId": "792a95b112f665d8",
+      "code": "MW1004",
+      "file": "lib/db/queries.ts",
+      "line": 102,
+      "function": "deleteChatById",
+      "classification": "true-positive",
+      "notes": "Votes are deleted (queries.ts:101), then messages (queries.ts:102), with no transaction and no ON DELETE CASCADE (schema.ts:58-64, 0000_initial.sql has plain REFERENCES). If the message delete fails, the chat and its messages survive with their votes silently wiped. The client never checks the DELETE response and shows 'Chat deleted' anyway (sidebar-history.tsx:149-154), so the chat comes back on reload. Impact is low, since votes are the only data lost."
+    },
+    {
+      "findingId": "4dadd85b0fd6b43e",
+      "code": "MW1004",
+      "file": "lib/db/queries.ts",
+      "line": 103,
+      "function": "deleteChatById",
+      "classification": "true-positive",
+      "notes": "Messages are deleted (queries.ts:102) before streams and the chat (queries.ts:103-108), with no transaction. A failure in between leaves the Chat row with its whole history gone. Because the client fire-and-forgets the DELETE and toasts success (sidebar-history.tsx:149-154, multimodal-input.tsx:195-200), the user later finds an empty chat shell in the sidebar."
+    },
+    {
+      "findingId": "5b4a2af38f30fe3f",
+      "code": "MW1004",
+      "file": "lib/db/queries.ts",
+      "line": 105,
+      "function": "deleteChatById",
+      "classification": "true-positive",
+      "notes": "Streams are deleted (queries.ts:103), then the chat (queries.ts:105-108), as separate autocommits. If the chat delete fails, the chat survives with its messages and votes already deleted (an empty shell) even though the UI said 'Chat deleted'. No transaction and no cascade in schema.ts or the migrations."
+    },
+    {
+      "findingId": "470b67d1ef70d529",
+      "code": "MW1004",
+      "file": "lib/db/queries.ts",
+      "line": 129,
+      "function": "deleteAllChatsByUserId",
+      "classification": "true-positive",
+      "notes": "The vote delete (queries.ts:128) and message delete (queries.ts:129) are separate commits with no transaction or cascade. If the second fails, every chat keeps its messages but loses its votes, while app-sidebar.tsx:77-81 has already shown 'All chats deleted' without checking the response. Impact is low (only votes are lost), but the window is real and unhandled."
+    },
+    {
+      "findingId": "d3bff0d90655b36b",
+      "code": "MW1004",
+      "file": "lib/db/queries.ts",
+      "line": 130,
+      "function": "deleteAllChatsByUserId",
+      "classification": "true-positive",
+      "notes": "Messages for all the user's chats are deleted (queries.ts:129) before streams and chats (queries.ts:130-135), with no transaction. A failure leaves every chat as an empty shell in the history. The client has already reported 'All chats deleted' (app-sidebar.tsx:77-81)."
+    },
+    {
+      "findingId": "be92cc71e5cbda3c",
+      "code": "MW1004",
+      "file": "lib/db/queries.ts",
+      "line": 132,
+      "function": "deleteAllChatsByUserId",
+      "classification": "true-positive",
+      "notes": "The stream delete (queries.ts:130) and the final chat delete (queries.ts:132-135) commit separately. The final delete filters by eq(chat.userId), not by the selected chatIds, so a chat with messages created after the select at queries.ts:117-120 triggers a Message_v2 FK violation there. That realistically aborts the request with every older chat's messages and votes already gone and the Chat rows left behind as empty shells."
+    },
+    {
+      "findingId": "434057130492cb86",
+      "code": "MW1004",
+      "file": "lib/db/queries.ts",
+      "line": 422,
+      "function": "deleteDocumentsByIdAfterTimestamp",
+      "classification": "true-positive",
+      "notes": "Suggestions on later document versions are deleted (queries.ts:413-420) before those versions (queries.ts:422-425), with no transaction and no cascade on Suggestion's FK (schema.ts:110-113). If the second delete fails during a version restore (version-footer.tsx:60-66), the later versions survive with their suggestions stripped. Impact is low: suggestions can be regenerated."
+    },
+    {
+      "findingId": "4973a09bcadd7d32",
+      "code": "MW1004",
+      "file": "lib/db/queries.ts",
+      "line": 492,
+      "function": "deleteMessagesByChatIdAfterTimestamp",
+      "classification": "true-positive",
+      "notes": "During an edit, votes on the trailing messages are deleted (queries.ts:485-489), then the messages (queries.ts:492-495), as separate commits. If the second fails, deleteTrailingMessages throws and submitEditedMessage stops (message-editor.tsx:18), leaving the trailing messages in place with their votes lost. Real and unhandled, but low impact."
+    }
+  ],
+  "corrections": [],
+  "reviewQueue": [
+    {
+      "knownPositive": "vercel-chatbot-KP07",
+      "findings": [
+        "00989cb619160167"
+      ],
+      "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+    },
+    {
+      "knownPositive": "vercel-chatbot-KP08",
+      "findings": [
+        "98be7ef3c8958ebb"
+      ],
+      "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+    }
+  ]
+}

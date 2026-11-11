@@ -1,0 +1,1126 @@
+{
+ "$comment": "Dev evaluation labels for midday (scripts/eval.py). findings: the Phase 2 corpus review of a sample of findings, copied from corpora/labels/midday.json (reviewed entries only). knownPositives: a source-only audit by an AI agent (Claude) that read only the project's source at the pinned revision and did not run Midwrite or see its output (2026-11-06). Midday is the dev set: rules may be tuned against it. No independent human review has been performed.",
+ "schemaVersion": 1,
+ "kind": "midwrite.eval-labels",
+ "project": "midday",
+ "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+ "set": "dev",
+ "labeling": {
+  "knownPositives": {
+   "by": "AI agent (Claude), source-only audit",
+   "date": "2026-11-06",
+   "humanReviewed": false,
+   "scope": "unhandled half-written-state windows in server code; the audit was capped at 30 entries, highest confidence first, so the list is a sample when the project has more"
+  },
+  "findings": {
+   "by": "Phase 2 corpus review (corpora/labels/midday.json)",
+   "humanReviewed": false
+  }
+ },
+ "knownPositives": [
+  {
+   "id": "midday-KP01",
+   "file": "apps/worker/src/processors/invoices/schedule-invoice.ts",
+   "function": "process",
+   "functionStartLine": 16,
+   "functionEndLine": 112,
+   "pattern": "A",
+   "dbAccess": "ScheduleInvoiceProcessor.process -> updateInvoice(db) (status unpaid, scheduledJobId null)",
+   "firstEffect": "updateInvoice status='unpaid' at line 86",
+   "secondEffect": "invoicesQueue.add('generate-invoice') at line 100",
+   "consequence": "If the enqueue fails the job retries, but the invoice is already 'unpaid' so the retry exits at the status!=='scheduled' guard (line 34). The scheduled invoice is never generated or emailed, yet shows as sent/unpaid.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP02",
+   "file": "apps/worker/src/processors/invoices/send-invoice-email.ts",
+   "function": "process",
+   "functionStartLine": 14,
+   "functionEndLine": 154,
+   "pattern": "B",
+   "dbAccess": "SendInvoiceEmailProcessor.process -> updateInvoice(db)",
+   "firstEffect": "notifications.create('invoice_sent', sendEmail) emails the customer at line 91",
+   "secondEffect": "updateInvoice status='unpaid', sentTo, sentAt at line 135",
+   "consequence": "If the DB update throws after the email went out, BullMQ retries (attempts:3) and the customer gets the invoice email again. If it returns null, the invoice stays draft/unsent though the customer has it.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP03",
+   "file": "apps/worker/src/processors/invoices/generate-recurring.ts",
+   "function": "process",
+   "functionStartLine": 63,
+   "functionEndLine": 564,
+   "pattern": "A",
+   "dbAccess": "GenerateRecurringInvoiceProcessor.process -> markInvoiceGenerated(db) (increments invoicesGenerated)",
+   "firstEffect": "markInvoiceGenerated for an existing draft/scheduled invoice at line 208",
+   "secondEffect": "invoicesQueue.add('generate-invoice') at line 214 (and notificationsQueue.add at 226)",
+   "consequence": "If the enqueue fails, the series counter has already moved on. The next run looks for sequence+1, so the existing draft/scheduled invoice for this period is never sent, and the recurring schedule treats it as generated.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP04",
+   "file": "packages/jobs/src/tasks/bank/transactions/upsert.ts",
+   "function": "run",
+   "functionStartLine": 34,
+   "functionEndLine": 83,
+   "pattern": "A",
+   "dbAccess": "upsertTransactions.run -> supabase.from('transactions').upsert(ignoreDuplicates)",
+   "firstEffect": "transactions upsert (ignoreDuplicates, returns only new rows) at line 50",
+   "secondEffect": "enrichTransactions.trigger at line 63 / tasks.trigger('match-transactions-bidirectional') at line 68",
+   "consequence": "If a trigger fails, the task throws and retries. On retry the upsert returns no ids (the rows already exist), so enrichment and inbox matching are never triggered. The bank transactions stay uncategorized and unmatched to receipts.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP05",
+   "file": "apps/worker/src/processors/transactions/import-transactions.ts",
+   "function": "process",
+   "functionStartLine": 23,
+   "functionEndLine": 256,
+   "pattern": "A",
+   "dbAccess": "ImportTransactionsProcessor.process -> upsertTransactions(db) (onConflictDoNothing)",
+   "firstEffect": "upsertTransactions batches at line 184",
+   "secondEffect": "triggerJob('enrich-transactions') at line 222 / triggerJob('match-transactions-bidirectional') at line 231",
+   "consequence": "Imported rows are committed. If an enqueue fails, the retry's onConflictDoNothing returns no ids, so allTransactionIds is empty and enrichment/matching are skipped for good. If only the first trigger succeeds, transactions are enriched but never matched.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP06",
+   "file": "apps/worker/src/processors/accounting/export-transactions.ts",
+   "function": "process",
+   "functionStartLine": 124,
+   "functionEndLine": 509,
+   "pattern": "B",
+   "dbAccess": "AccountingExportProcessor.process -> upsertAccountingSyncRecord(db)",
+   "firstEffect": "provider.syncTransactions creates transactions in Xero/QuickBooks/Fortnox at line 267",
+   "secondEffect": "upsertAccountingSyncRecord per result at line 281 (catch at 425 marks whole batch 'failed')",
+   "consequence": "If a sync-record write fails after the provider accepted the batch, nothing records the provider transaction ids, and the catch block marks the whole batch failed. The next export pushes them again, creating duplicate bookkeeping entries in the accounting system.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP07",
+   "file": "apps/worker/src/processors/accounting/sync-attachments.ts",
+   "function": "process",
+   "functionStartLine": 50,
+   "functionEndLine": 358,
+   "pattern": "B",
+   "dbAccess": "AccountingAttachmentSyncProcessor.process -> updateSyncedAttachmentMapping(db)",
+   "firstEffect": "attachments uploaded to the provider via throttledConcurrent/uploadSingleAttachment (provider.uploadAttachment) starting at line 198",
+   "secondEffect": "updateSyncedAttachmentMapping at line 292",
+   "consequence": "If the mapping update fails or the worker dies after the uploads, the mapping does not list them. The retry (attempts:4) uploads them again, leaving duplicate receipts attached to the transaction in Xero/QuickBooks.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP08",
+   "file": "apps/api/src/trpc/routers/bank-connections.ts",
+   "function": "mutation",
+   "functionStartLine": 60,
+   "functionEndLine": 77,
+   "pattern": "A",
+   "dbAccess": "bankConnections.delete -> deleteBankConnection(db) -> db.delete(bankConnections)",
+   "firstEffect": "deleteBankConnection at line 61",
+   "secondEffect": "tasks.trigger('delete-connection') at line 70",
+   "consequence": "If the trigger fails, the connection row (and its access token) is already gone from Midday but the connection is never revoked at Plaid/GoCardless/Teller/EnableBanking. Bank consent stays active (and billable) with no record left to retry from.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP09",
+   "file": "apps/api/src/trpc/routers/invoice.ts",
+   "function": "mutation",
+   "functionStartLine": 450,
+   "functionEndLine": 609,
+   "pattern": "A",
+   "dbAccess": "invoice.create -> updateInvoice(db) status='unpaid'",
+   "firstEffect": "updateInvoice status='unpaid' at line 585",
+   "secondEffect": "triggerJob('generate-invoice') at line 599",
+   "consequence": "If the enqueue fails, the invoice shows as unpaid/sent but no PDF is generated and no email reaches the customer. The user gets an error for an invoice that already left draft.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP10",
+   "file": "apps/api/src/rest/routers/invoices.ts",
+   "function": "anonymous openapi handler (POST /invoices)",
+   "functionStartLine": 406,
+   "functionEndLine": 627,
+   "pattern": "A",
+   "dbAccess": "createInvoice REST handler -> draftInvoice(db) + updateInvoice(db)",
+   "firstEffect": "draftInvoice at line 449 / updateInvoice status='unpaid' at line 487",
+   "secondEffect": "triggerJob('generate-invoice') at line 499 (scheduled path: triggerJob('schedule-invoice') at 529)",
+   "consequence": "If the enqueue fails, the API client gets a 500 but the invoice already exists (unpaid with no PDF, or a draft). The client's retry creates a duplicate invoice with a new invoice number.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP11",
+   "file": "packages/db/src/queries/bank-connections.ts",
+   "function": "createBankConnection",
+   "functionStartLine": 121,
+   "functionEndLine": 208,
+   "pattern": "D",
+   "dbAccess": "createBankConnection -> db.insert(bankConnections).onConflictDoUpdate, then db.insert(bankAccounts)",
+   "firstEffect": "bank_connections upsert at line 144",
+   "secondEffect": "bank_accounts insert (no conflict handling, separate statement) at line 176",
+   "consequence": "If the accounts insert fails, a connection row with fresh tokens exists but has no (or stale) accounts. The UI shows a connected bank with no accounts, and the initial sync has nothing to sync.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP12",
+   "file": "packages/db/src/queries/inbox.ts",
+   "function": "matchTransaction",
+   "functionStartLine": 1222,
+   "functionEndLine": 1385,
+   "pattern": "D",
+   "dbAccess": "matchTransaction -> db.insert(transactionAttachments), db.update(transactions), db.update(inbox)",
+   "firstEffect": "transaction_attachments insert per inbox item at line 1317",
+   "secondEffect": "inbox update to status 'done' with attachmentId at line 1374 (transactions tax update at 1359 in between)",
+   "consequence": "If a later write fails, the transaction already has the receipt attached (and maybe tax copied), but the inbox item still shows unmatched. Retrying the match inserts the attachment again, leaving duplicate attachments.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP13",
+   "file": "apps/api/src/trpc/routers/user.ts",
+   "function": "mutation",
+   "functionStartLine": 74,
+   "functionEndLine": 87,
+   "pattern": "A",
+   "dbAccess": "user.delete -> deleteUser(db) (db.delete(users), db.delete(teams))",
+   "firstEffect": "deleteUser DB deletes at line 78",
+   "secondEffect": "supabaseAdmin.auth.admin.deleteUser at line 79 and resend.contacts.remove at line 80 (all in Promise.all)",
+   "consequence": "These run concurrently with no compensation. If the Supabase auth delete fails, the user row and teams are gone but the auth account still exists, so the person can sign in to an empty account. If it succeeds and the DB delete fails, data remains for an account that can no longer sign in. The marketing contact may be left either way.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP14",
+   "file": "packages/jobs/src/tasks/bank/notifications/transactions.ts",
+   "function": "run",
+   "functionStartLine": 15,
+   "functionEndLine": 64,
+   "pattern": "A",
+   "dbAccess": "transactionNotifications.run -> supabase.from('transactions').update({notified:true})",
+   "firstEffect": "mark all unnotified transactions notified=true at line 24",
+   "secondEffect": "notifications.create('transactions_created', sendEmail) at line 46",
+   "consequence": "If the notification or email fails, the error is caught and logged (line 61) and the task succeeds. The transactions are permanently flagged notified, so the team never gets the new-transactions email or activity.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP15",
+   "file": "packages/db/src/queries/users.ts",
+   "function": "deleteUser",
+   "functionStartLine": 125,
+   "functionEndLine": 151,
+   "pattern": "D",
+   "dbAccess": "deleteUser -> db.delete(users) and db.delete(teams) in Promise.all",
+   "firstEffect": "db.delete(users) at line 144",
+   "secondEffect": "db.delete(teams) for single-member teams at line 146",
+   "consequence": "These are concurrent, independent commits. If the team delete fails, the user is gone but their solo team (bank connections, transactions, invoices) is orphaned with no members, and a retry cannot find it.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP16",
+   "file": "packages/db/src/queries/documents.ts",
+   "function": "deleteDocument",
+   "functionStartLine": 312,
+   "functionEndLine": 345,
+   "pattern": "D",
+   "dbAccess": "deleteDocument -> db.delete(documents), then db.delete(transactionAttachments)",
+   "firstEffect": "documents row delete at line 318",
+   "secondEffect": "transaction_attachments delete by path at line 336",
+   "consequence": "If the second delete fails, transactions still show attachments for a file the document list no longer has (and the router then removes it from storage). A retry returns NOT_FOUND because the document row is gone.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP17",
+   "file": "apps/api/src/trpc/routers/team.ts",
+   "function": "mutation",
+   "functionStartLine": 150,
+   "functionEndLine": 214,
+   "pattern": "B",
+   "dbAccess": "team.delete -> deleteTeam(db) -> db.delete(teams)",
+   "firstEffect": "triggerJob('delete-team') (revokes bank connections at providers) at line 180",
+   "secondEffect": "deleteTeam at line 193",
+   "consequence": "If deleteTeam fails or the request dies after the enqueue, the cleanup job still revokes every bank connection at the providers. The team survives with bank connections that look connected in the DB but are dead.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP18",
+   "file": "apps/api/src/trpc/routers/team.ts",
+   "function": "mutation",
+   "functionStartLine": 317,
+   "functionEndLine": 372,
+   "pattern": "A",
+   "dbAccess": "team.invite -> createTeamInvites(db) -> db.insert(userInvites)",
+   "firstEffect": "createTeamInvites inserts invites at line 328",
+   "secondEffect": "tasks.trigger('invite-team-members') email at line 358",
+   "consequence": "If the trigger fails, the invites exist (and show as pending) but no email is sent. Re-inviting the same addresses is skipped by onConflictDoNothing and validateInvites, so the emails never go out.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP19",
+   "file": "apps/api/src/trpc/routers/invoice.ts",
+   "function": "mutation",
+   "functionStartLine": 450,
+   "functionEndLine": 609,
+   "pattern": "B",
+   "dbAccess": "invoice.create (scheduled) -> updateInvoice(db) status='scheduled', scheduledJobId",
+   "firstEffect": "triggerJob('schedule-invoice') at line 484 then removal of the previous scheduled job at line 513",
+   "secondEffect": "updateInvoice with the new scheduledJobId at line 537",
+   "consequence": "When rescheduling, the old job is removed before the DB update. If updateInvoice then throws, the invoice still points at the removed job, and the new job is skipped as stale (id mismatch). The invoice stays 'scheduled' and is never sent.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP20",
+   "file": "apps/api/src/trpc/routers/invoice.ts",
+   "function": "mutation",
+   "functionStartLine": 739,
+   "functionEndLine": 774,
+   "pattern": "B",
+   "dbAccess": "invoice.cancelSchedule -> updateInvoice(db) status='draft'",
+   "firstEffect": "BullMQ job.remove() of the scheduled send at line 760",
+   "secondEffect": "updateInvoice status draft, scheduledJobId null at line 765",
+   "consequence": "If the update fails after the job is removed, the invoice shows 'scheduled' with a date but nothing will ever send it.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP21",
+   "file": "apps/api/src/trpc/routers/invoice.ts",
+   "function": "mutation",
+   "functionStartLine": 613,
+   "functionEndLine": 627,
+   "pattern": "B",
+   "dbAccess": "invoice.remind -> updateInvoice(db) reminderSentAt",
+   "firstEffect": "triggerJob('send-invoice-reminder') (customer email) at line 614",
+   "secondEffect": "updateInvoice reminderSentAt at line 622",
+   "consequence": "If the update fails, the reminder email goes out but reminderSentAt is not recorded. The UI offers the reminder again, and the user's retry emails the customer a second time.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP22",
+   "file": "apps/api/src/trpc/routers/billing.ts",
+   "function": "mutation",
+   "functionStartLine": 316,
+   "functionEndLine": 355,
+   "pattern": "B",
+   "dbAccess": "billing.reactivateSubscription -> updateTeamById(db) canceledAt=null",
+   "firstEffect": "Polar api.subscriptions.update cancelAtPeriodEnd=false at line 339",
+   "secondEffect": "updateTeamById canceledAt null at line 346",
+   "consequence": "If the DB write fails, Polar has reactivated the subscription but the team keeps canceledAt set. A retry finds no canceled subscription (NOT_FOUND), and no handled webhook clears it, so the team stays flagged canceled (cancellation follow-ups, isTeamStillCanceled).",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP23",
+   "file": "apps/api/src/trpc/routers/bank-connections.ts",
+   "function": "mutation",
+   "functionStartLine": 36,
+   "functionEndLine": 56,
+   "pattern": "A",
+   "dbAccess": "bankConnections.create -> createBankConnection(db)",
+   "firstEffect": "createBankConnection (connection + accounts) at line 37",
+   "secondEffect": "tasks.trigger('initial-bank-setup') at line 50",
+   "consequence": "If the trigger fails, the connection and accounts exist but no daily sync schedule is created and no initial sync runs. The bank shows as connected with no transactions, and the user only sees an error.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP24",
+   "file": "apps/api/src/trpc/routers/documents.ts",
+   "function": "mutation",
+   "functionStartLine": 69,
+   "functionEndLine": 89,
+   "pattern": "A",
+   "dbAccess": "documents.delete -> deleteDocument(db)",
+   "firstEffect": "deleteDocument (documents + transaction_attachments rows) at line 70",
+   "secondEffect": "Supabase storage remove from 'vault' at line 83",
+   "consequence": "If the storage remove fails, the DB rows are gone but the file stays in the vault bucket with no record. It is orphaned and keeps sensitive financial data the user asked to delete, and a retry returns NOT_FOUND.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP25",
+   "file": "apps/api/src/trpc/routers/customers.ts",
+   "function": "mutation",
+   "functionStartLine": 123,
+   "functionEndLine": 161,
+   "pattern": "A",
+   "dbAccess": "customers.enrich -> updateCustomerEnrichmentStatus(db) 'pending'",
+   "firstEffect": "enrichment status set to 'pending' at line 145",
+   "secondEffect": "triggerJob('enrich-customer') at line 150",
+   "consequence": "If the enqueue fails, the customer is stuck showing 'enriching/pending' forever. Unlike upsert (lines 97-107), no compensating reset is done.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP26",
+   "file": "apps/api/src/trpc/routers/transactions.ts",
+   "function": "mutation",
+   "functionStartLine": 132,
+   "functionEndLine": 159,
+   "pattern": "A",
+   "dbAccess": "transactions.create -> createTransaction(db)",
+   "firstEffect": "createTransaction insert at line 133",
+   "secondEffect": "triggerJob('enrich-transactions') at line 139 / triggerJob('match-transactions-bidirectional') at line 148",
+   "consequence": "If an enqueue fails, the user gets an error though the transaction was saved. It is never enriched or matched, and the user's retry creates a duplicate manual transaction.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP27",
+   "file": "apps/worker/src/processors/invoices/generate-invoice.ts",
+   "function": "process",
+   "functionStartLine": 18,
+   "functionEndLine": 124,
+   "pattern": "E",
+   "dbAccess": "GenerateInvoiceProcessor.process -> updateInvoice(db) filePath, then two queue adds",
+   "firstEffect": "invoicesQueue.add('send-invoice-email') at line 94",
+   "secondEffect": "documentsQueue.add('process-document') at line 108",
+   "consequence": "If the second enqueue fails, the job retries (attempts:3) and enqueues send-invoice-email again, so the customer receives the invoice email twice or three times.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP28",
+   "file": "apps/api/src/trpc/routers/api-keys.ts",
+   "function": "mutation",
+   "functionStartLine": 62,
+   "functionEndLine": 74,
+   "pattern": "A",
+   "dbAccess": "apiKeys.delete -> deleteApiKey(db) -> db.delete(apiKeys)",
+   "firstEffect": "deleteApiKey at line 63",
+   "secondEffect": "apiKeyCache.delete (Redis) at line 70",
+   "consequence": "RedisCache.delete swallows errors and skips when disconnected. If invalidation fails, the deleted key stays cached and keeps authenticating REST calls through the auth middleware for up to the 30-minute TTL.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP29",
+   "file": "apps/api/src/rest/routers/apps/gmail/oauth-callback.ts",
+   "function": "anonymous openapi handler (GET gmail oauth callback)",
+   "functionStartLine": 86,
+   "functionEndLine": 179,
+   "pattern": "A",
+   "dbAccess": "InboxConnector.exchangeCodeForAccount -> #saveAccount (inbox_accounts upsert)",
+   "firstEffect": "inbox account with OAuth tokens saved at line 126",
+   "secondEffect": "tasks.trigger('initial-inbox-setup') at line 146",
+   "consequence": "If the trigger fails, the user is redirected to an error page, but the Gmail account is stored with no sync schedule and no initial sync. It shows as connected and never imports attachments.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "midday-KP30",
+   "file": "packages/jobs/src/tasks/invoice/operations/check-status.ts",
+   "function": "run",
+   "functionStartLine": 16,
+   "functionEndLine": 92,
+   "pattern": "D",
+   "dbAccess": "checkInvoiceStatus.run -> supabase insert transaction_attachments, then updateInvoiceStatus (supabase update invoices)",
+   "firstEffect": "transaction_attachments insert linking the invoice PDF at line 60",
+   "secondEffect": "updateInvoiceStatus status='paid' at line 73",
+   "consequence": "If the status update fails (supabase errors are not thrown), the invoice PDF is attached to the matching transaction but the invoice stays unpaid/overdue. The transaction is now fulfilled, so later runs never match it again.",
+   "confidence": "medium",
+   "source": "independent audit"
+  }
+ ],
+ "findings": [
+  {
+   "findingId": "a9dd7b55ab5a8cc9",
+   "classification": "true-positive",
+   "notes": "MCP tool: the invoice is set to 'unpaid' (sent) before the generate-invoice job is enqueued; a crash in between leaves an invoice marked sent that is never generated or emailed. No outbox."
+  },
+  {
+   "findingId": "a9dd7b55ab5a8cc9-2",
+   "classification": "true-positive",
+   "notes": "Same pattern as 969a4a4b: status 'unpaid' committed before the generate-invoice job."
+  },
+  {
+   "findingId": "ccc881e558fee7d3",
+   "classification": "true-positive",
+   "notes": "REST router: same pattern (status 'unpaid' before the generate-invoice job)."
+  },
+  {
+   "findingId": "88652c7450f06c81",
+   "classification": "intended-risk",
+   "notes": "A draft invoice is inserted before the schedule job; a leftover draft is a safe, user-visible state."
+  },
+  {
+   "findingId": "12c3eeba290713a5",
+   "classification": "intended-risk",
+   "notes": "Notification job explicitly fire-and-forget (comment in source)."
+  },
+  {
+   "findingId": "3c3b912e6cf0b0c8",
+   "classification": "intended-risk",
+   "notes": "'App installed' email after creating the authorization code: best-effort email inside try/catch."
+  },
+  {
+   "findingId": "3b4e68d59625a60a",
+   "classification": "intended-risk",
+   "notes": "Polar webhook: team marked past_due, then a payment-issue email job inside try/catch (best effort; webhook redelivery covers crashes)."
+  },
+  {
+   "findingId": "107828d985eaf4fa",
+   "classification": "intended-risk",
+   "notes": "Stripe webhook: invoice marked paid, then a notification job (best effort)."
+  },
+  {
+   "findingId": "107828d985eaf4fa-2",
+   "classification": "intended-risk",
+   "notes": "Stripe webhook: invoice marked refunded, then a notification job (best effort)."
+  },
+  {
+   "findingId": "d67d30ae478ea4c7",
+   "classification": "intended-risk",
+   "notes": "API key created, then a 'new API key' email sent in the background on purpose (comment: 'We don't need to await this')."
+  },
+  {
+   "findingId": "196ac4044afa160b",
+   "classification": "true-positive",
+   "notes": "Bank connection and accounts are inserted before the initial-bank-setup task is triggered; a failure leaves a connection that never gets its initial sync."
+  },
+  {
+   "findingId": "9ad9ff792938b38f",
+   "classification": "true-positive",
+   "notes": "The bank connection row is deleted before the delete-connection task (which revokes the provider connection) is triggered; a failure leaves the provider connection active, and the data needed to revoke it is already deleted."
+  },
+  {
+   "findingId": "963836ce4d558a75",
+   "classification": "true-positive",
+   "notes": "Enrichment status set to 'pending' before the enrich-customer job is enqueued; a crash leaves the customer stuck in 'pending' (the catch handler does not run on a crash)."
+  },
+  {
+   "findingId": "963836ce4d558a75-2",
+   "classification": "true-positive",
+   "notes": "Same as 2cbad1f6 (manual enrichment)."
+  },
+  {
+   "findingId": "de62c41c6ff1c955",
+   "classification": "true-positive",
+   "notes": "Document processing status reset to 'pending' before the reprocessing job is enqueued; a crash leaves it stuck in 'pending'."
+  },
+  {
+   "findingId": "20161cc0b71b07cf",
+   "classification": "intended-risk",
+   "notes": "Fire-and-forget notification (comment in source)."
+  },
+  {
+   "findingId": "560287de3f4efa09",
+   "classification": "true-positive",
+   "notes": "tRPC: status 'unpaid' committed before the generate-invoice job (same pattern as 969a4a4b)."
+  },
+  {
+   "findingId": "32ace9df1c7d8b5d",
+   "classification": "intended-risk",
+   "notes": "Best-effort 'app installed' email."
+  },
+  {
+   "findingId": "be6bb7027f1f6b89",
+   "classification": "unclear",
+   "notes": "Application set to review-pending, then a review-request email to a fixed reviewer address. Whether pending applications are also visible elsewhere was not determined."
+  },
+  {
+   "findingId": "30dcdd2ef00f2705",
+   "classification": "unclear",
+   "notes": "Manual transaction created, then an enrichment job. Enrichment is optional data; whether other jobs re-enrich was not determined."
+  },
+  {
+   "findingId": "a599c87cc53e4771",
+   "classification": "true-positive",
+   "notes": "Bank account balance/currency updated before the import-transactions job is enqueued; a failure leaves the new balance without the imported transactions."
+  },
+  {
+   "findingId": "7152316730e65b31",
+   "classification": "unclear",
+   "notes": "Worker job: sync record upserted, then the attachment-sync job enqueued for the same transaction. BullMQ retries and the later 'already synced with changes' step may repair it; not determined."
+  },
+  {
+   "findingId": "7152316730e65b31-2",
+   "classification": "false-positive",
+   "notes": "The upsert (first loop) and the enqueue (second loop, for other, already-synced transactions) concern different records; the enqueue is not owed by that commit."
+  },
+  {
+   "findingId": "2b7504eae7852445",
+   "classification": "intended-risk",
+   "notes": "Worker: classification saved, then a fire-and-forget tag-embedding job; job retries rerun it."
+  },
+  {
+   "findingId": "78ff1a4d87b6e69b",
+   "classification": "intended-risk",
+   "notes": "Same as 2b7504ea (images)."
+  },
+  {
+   "findingId": "04d6562eb1e4c94b",
+   "classification": "intended-risk",
+   "notes": "Worker job: scheduler key stored, then the initial sync job; a failure fails the job, which BullMQ retries."
+  },
+  {
+   "findingId": "70e1fad12736298b",
+   "classification": "intended-risk",
+   "notes": "Worker job: best-effort grouping, then the non-blocking process-document job; covered by job retries."
+  },
+  {
+   "findingId": "58f0f19da26dfe33",
+   "classification": "intended-risk",
+   "notes": "Same as 70e1fad1 (Slack upload)."
+  },
+  {
+   "findingId": "8b8c7ac740588bf4",
+   "classification": "intended-risk",
+   "notes": "Insight saved, then an opt-in notification inside try/catch (best effort)."
+  },
+  {
+   "findingId": "64fe61d229d6534c",
+   "classification": "intended-risk",
+   "notes": "Worker job: invoice file info saved, then the email job; a failure fails the job and the retry regenerates and re-enqueues."
+  },
+  {
+   "findingId": "d2dcc44e38d7a7f4",
+   "classification": "intended-risk",
+   "notes": "Same job: document-processing enqueue after the file info update."
+  },
+  {
+   "findingId": "edb3db940cdd9f6c",
+   "classification": "true-positive",
+   "notes": "Recurring scheduler: the series is marked as having generated the invoice before the generate-invoice job is queued; a crash in between skips that occurrence (the next sweep sees it as generated)."
+  },
+  {
+   "findingId": "6bf3829b50972d53",
+   "classification": "intended-risk",
+   "notes": "Explicitly accepted in the source: 'Queue jobs AFTER transaction commits ... will be picked up by idempotency checks on retry, or can be manually processed via the dashboard.'"
+  },
+  {
+   "findingId": "45d205c2620e9515",
+   "classification": "intended-risk",
+   "notes": "Auto-pause recorded, then a notification (best effort)."
+  },
+  {
+   "findingId": "4a686b9a5a0a5b8c",
+   "classification": "true-positive",
+   "notes": "Scheduled-invoice job sets status 'unpaid' before queueing generate-invoice. On a retry after a crash the job returns early because the status is no longer 'scheduled' (checked by reading the processor), so the invoice is never generated or sent."
+  },
+  {
+   "findingId": "c0e11cca0958955a",
+   "classification": "intended-risk",
+   "notes": "Transactions marked exported, then an emailed download link inside try/catch (best effort; the export remains available)."
+  },
+  {
+   "findingId": "1706a3e9bf495af0",
+   "classification": "intended-risk",
+   "notes": "Tax data saved, then a non-blocking classification job inside try/catch."
+  },
+  {
+   "findingId": "1158bbb561efdd18",
+   "classification": "true-positive",
+   "notes": "Bot upload handler: the inbox item is committed and updated, then process-document is enqueued outside any retrying job; a crash leaves an inbox item that is never processed."
+  },
+  {
+   "findingId": "be31ac8ec5c04658",
+   "classification": "intended-risk",
+   "notes": "Match suggestion persisted, then a notification (best effort)."
+  },
+  {
+   "findingId": "851a19d04c7f4e80",
+   "classification": "intended-risk",
+   "notes": "Match persisted, then a notification (best effort)."
+  },
+  {
+   "findingId": "b8ff21aaef5c4c0a",
+   "classification": "true-positive",
+   "notes": "Reminder job enqueued before reminderSentAt is recorded; a failure in between sends a reminder that is not recorded (duplicates later). Low impact."
+  },
+  {
+   "findingId": "06e109afae65ae0c",
+   "classification": "intended-risk",
+   "notes": "Schedule job created first on purpose; the processor skips invoices that are not 'scheduled', so an orphan job is harmless."
+  },
+  {
+   "findingId": "22fd5c0283bc5928",
+   "classification": "intended-risk",
+   "notes": "Explicit design: 'Create the new scheduled job FIRST to ensure we don't lose the job if creation fails'; stale-job checks in the processor."
+  },
+  {
+   "findingId": "9e810469818bc20a",
+   "classification": "true-positive",
+   "notes": "Same as 305e17b4 (tRPC remind)."
+  },
+  {
+   "findingId": "22fd5c0283bc5928-2",
+   "classification": "intended-risk",
+   "notes": "Same design as 6f6d8954 (reschedule)."
+  },
+  {
+   "findingId": "ebffc654a4e12508",
+   "classification": "intended-risk",
+   "notes": "Explicit design: 'Trigger cleanup job BEFORE deleting team from database' so a queue failure leaves the team intact."
+  },
+  {
+   "findingId": "30b45470f9206870",
+   "classification": "false-positive",
+   "notes": "An 'uploaded' activity notification before processing updates: the notification does not describe the later update, so no state is owed."
+  },
+  {
+   "findingId": "f67d93b946c14519",
+   "classification": "unclear",
+   "notes": "Path through an approximated catch-handler entry (low confidence); whether this order is reachable as described was not determined."
+  },
+  {
+   "findingId": "d6cc779a0da27f5a",
+   "classification": "false-positive",
+   "notes": "'New inbox items' notification before an account bookkeeping update; the notification does not imply that update."
+  },
+  {
+   "findingId": "b87bde98f2d6e251",
+   "classification": "true-positive",
+   "notes": "Link token consumed before the platform identity is created; a failure burns the token without linking (the user must request a new code)."
+  },
+  {
+   "findingId": "18f8946eb989e07b",
+   "classification": "intended-risk",
+   "notes": "DCR app claimed for the team, then an auth code created; the claim is repeatable by the same team."
+  },
+  {
+   "findingId": "2a4e4d24c3990939",
+   "classification": "intended-risk",
+   "notes": "Worker job: inbox set to 'analyzing', then the matching transaction; job retries rerun it."
+  },
+  {
+   "findingId": "92e76f3400624b30",
+   "classification": "unclear",
+   "notes": "Worker job: inbox created, then updated with processed data; whether a retry duplicates or resumes was not determined."
+  },
+  {
+   "findingId": "d6890f03a7e24bf2",
+   "classification": "intended-risk",
+   "notes": "Processed data saved, then best-effort grouping (try/catch)."
+  },
+  {
+   "findingId": "3a6e26950e995fa5",
+   "classification": "intended-risk",
+   "notes": "Upcoming-invoice notification marked as sent before sending (deliberate at-most-once to avoid duplicates)."
+  },
+  {
+   "findingId": "a2f398e0bcf73531-2",
+   "classification": "true-positive",
+   "notes": "Bot upload handler: inbox item inserted, then updated with processed data outside any retrying job; a crash leaves a half-processed item."
+  },
+  {
+   "findingId": "6a635992061d93fd",
+   "classification": "true-positive",
+   "notes": "createBankConnection inserts the connection, then its accounts, without a transaction; a failure leaves a connection without accounts."
+  },
+  {
+   "findingId": "41b76f15d5a434ea-2",
+   "classification": "unclear",
+   "notes": "Error-recovery path of calculateInboxSuggestions; the pairing (status update, then a reset that deletes attachments) was not fully understood."
+  },
+  {
+   "findingId": "4011c009010edc42",
+   "classification": "intended-risk",
+   "notes": "Suggestions deleted, then the inbox item marked deleted; leftover state is harmless (suggestions are recomputed)."
+  },
+  {
+   "findingId": "09b879a17dc26ef1",
+   "classification": "true-positive",
+   "notes": "Attachment unlinked before the transaction's tax fields are reset; a failure leaves stale tax data."
+  },
+  {
+   "findingId": "4bac58c25319b3c3",
+   "classification": "true-positive",
+   "notes": "Attachments inserted before the accounting sync record is invalidated; a failure means the next export misses the new attachment."
+  },
+  {
+   "findingId": "bd8ebd95eb045c78",
+   "classification": "true-positive",
+   "notes": "Status changed away from 'exported' before the sync record is deleted (the code comment says this keeps them consistent); a failure leaves them inconsistent."
+  },
+  {
+   "findingId": "d151e922d49909b7",
+   "classification": "intended-risk",
+   "notes": "Test seed helper."
+  },
+  {
+   "findingId": "b4250db606a83de4",
+   "classification": "intended-risk",
+   "notes": "Job: inbox set to 'analyzing', then matching; covered by job retries (same as 2a4e4d24)."
+  },
+  {
+   "findingId": "7d936cae51a620b5",
+   "classification": "intended-risk",
+   "notes": "Two independent background jobs (enrichment, matching), both best effort."
+  },
+  {
+   "findingId": "de2c2b657c4a7d57",
+   "classification": "false-positive",
+   "notes": "An upload notification and a classification job are unrelated; neither is owed by the other."
+  },
+  {
+   "findingId": "213e57a5ac013b67",
+   "classification": "intended-risk",
+   "notes": "process-document then batch-process-matching; matching also runs in later batches."
+  },
+  {
+   "findingId": "e50b4aab33fce3ef-2",
+   "classification": "intended-risk",
+   "notes": "Invoice generation job, then a notification (best effort)."
+  },
+  {
+   "findingId": "9c8d2dfb90af5378",
+   "classification": "intended-risk",
+   "notes": "Same as 213e57a5 (bot upload)."
+  },
+  {
+   "findingId": "ed20918d61f08487",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/transactions/enrich-transaction.ts",
+   "line": 147,
+   "function": "EnrichTransactionProcessor.process::<anonymous@67:7>",
+   "classification": "intended-risk",
+   "notes": "The two writes go to disjoint transaction rows (updates vs noUpdateNeeded), and each row update sets enrichmentCompleted on its own, so no invariant spans them. On a thrown error the catch at enrich-transaction.ts:202-217 marks the whole batch completed on purpose (comment 209-210). On a crash, BullMQ retries (transactions.config.ts:14, attempts: 3), and getTransactionsForEnrichment (transaction-enrichment.ts:58) re-selects only rows with enrichmentCompleted=false, so the retry converges and the leftover partial state is harmless. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 returned-builder change.)"
+  },
+  {
+   "findingId": "435298ef88efc13d",
+   "code": "MW1002",
+   "file": "apps/api/src/rest/routers/invoice-payments.ts",
+   "line": 533,
+   "function": "<anonymous@388:3>",
+   "classification": "intended-risk",
+   "notes": "invoice-payments.ts:528-550: PaymentIntent is created with a deterministic idempotencyKey (invoice id+amount+currency); if updateInvoice fails the client gets a 500 and a retry sees no paymentIntentId and gets the same intent back from Stripe, then saves it. An unconfirmed intent charges nothing, so the window converges by design. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "a94d0af4e1b61bde",
+   "code": "MW1001",
+   "file": "apps/api/src/rest/routers/invoices.ts",
+   "line": 563,
+   "function": "<anonymous@406:3>",
+   "classification": "false-positive",
+   "notes": "rest/routers/invoices.ts:556-575: job.remove() runs only when updateInvoice returned no row, so the update matched nothing and committed no change. The remove is the compensation for the triggerJob at 528. The claimed commit-then-effect state does not exist. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "128a958fe938ddcd",
+   "code": "MW1002",
+   "file": "apps/api/src/trpc/routers/billing.ts",
+   "line": 294,
+   "function": "<anonymous@251:15>",
+   "classification": "intended-risk",
+   "notes": "billing.ts:294-306: if updateTeamById fails after Polar cancelAtPeriodEnd, the Polar subscription.canceled webhook (webhooks/polar/index.ts:148-166) also sets teams.canceledAt, so the DB converges without the request. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "128a958fe938ddcd-2",
+   "code": "MW1002",
+   "file": "apps/api/src/trpc/routers/billing.ts",
+   "line": 339,
+   "function": "<anonymous@317:5>",
+   "classification": "true-positive",
+   "notes": "billing.ts:339-349: Polar is uncanceled first, then canceledAt is cleared. If the DB write fails, a retry hits NOT_FOUND (the sub no longer has cancelAtPeriodEnd, line 330) and the Polar webhook handler has no uncanceled/updated case to clear canceledAt. teams.canceledAt stays set (read by isTeamStillCanceled, teams.ts:715). (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "02e5078f48ae3cea",
+   "code": "MW1002",
+   "file": "apps/api/src/trpc/routers/invoice-payments.ts",
+   "line": 149,
+   "function": "<anonymous@99:15>",
+   "classification": "intended-risk",
+   "notes": "trpc/invoice-payments.ts:149-161: refund then status update; comment at 154-155 relies on the Stripe charge.refunded webhook (webhooks/stripe/index.ts:169-201), which sets status=refunded/refundedAt if the inline update is lost. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "9ebbcb00b89a4776",
+   "code": "MW1001",
+   "file": "apps/api/src/trpc/routers/invoice-recurring.ts",
+   "line": 560,
+   "function": "<anonymous@500:15>",
+   "classification": "intended-risk",
+   "notes": "invoice-recurring.ts:509-563: DB changes commit in one transaction, and job removal is deliberately done after commit (comment 557). A leftover schedule-invoice job is harmless because ScheduleInvoiceProcessor skips invoices whose status is not 'scheduled' (schedule-invoice.ts:35-42). (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "9ebbcb00b89a4776-2",
+   "code": "MW1001",
+   "file": "apps/api/src/trpc/routers/invoice-recurring.ts",
+   "line": 630,
+   "function": "<anonymous@571:15>",
+   "classification": "intended-risk",
+   "notes": "invoice-recurring.ts:580-633: same pattern as delete. Invoices are reverted to draft in one transaction and jobs are removed afterwards on purpose. A stale job no-ops because schedule-invoice.ts:35 checks status !== 'scheduled'. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "82215503ef7fd6b8",
+   "code": "MW1002",
+   "file": "apps/api/src/trpc/routers/invoice.ts",
+   "line": 513,
+   "function": "<anonymous@450:15>",
+   "classification": "true-positive",
+   "notes": "trpc/invoice.ts:505-543: the old scheduled job is removed before updateInvoice records the new scheduledJobId. If the update fails or the process crashes in between, the DB still points at the removed old job, and the new job is skipped as stale by schedule-invoice.ts:60-72. The invoice stays 'scheduled' and is never sent. updateSchedule (lines 725-732) avoids this by removing only after the DB update. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "f682ec02c08a2384",
+   "code": "MW1005",
+   "file": "apps/api/src/trpc/routers/invoice.ts",
+   "line": 513,
+   "function": "<anonymous@450:15>",
+   "classification": "intended-risk",
+   "notes": "trpc/invoice.ts:484-519: the new job is created first on purpose (comment 483, 503). If removing the old job fails or is interrupted, the comment at 514-515 accepts it: the DB still points to the old job, and the orphan new job no-ops in schedule-invoice.ts (status/stale-id checks). (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "9c06fc48f83b54bc",
+   "code": "MW1001",
+   "file": "apps/api/src/trpc/routers/invoice.ts",
+   "line": 552,
+   "function": "<anonymous@450:15>",
+   "classification": "false-positive",
+   "notes": "trpc/invoice.ts:545-553: job.remove() is on the !data path, where updateInvoice matched no row and committed nothing. The remove is cleanup of the orphan job, so there is no DB commit before it. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "1d41717fb64b983c",
+   "code": "MW1001",
+   "file": "apps/api/src/trpc/routers/invoice.ts",
+   "line": 705,
+   "function": "<anonymous@644:15>",
+   "classification": "false-positive",
+   "notes": "trpc/invoice.ts:699-710: newJob.remove() runs only when updateInvoice returned no row (no committed change). It is the compensation for the triggerJob at 677, so the claimed commit-then-effect window is not real. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "26b970ade5ffcd9b",
+   "code": "MW1001",
+   "file": "apps/api/src/trpc/routers/invoice.ts",
+   "line": 725,
+   "function": "<anonymous@644:15>",
+   "classification": "intended-risk",
+   "notes": "trpc/invoice.ts:692-732: the DB is updated to the new job id first, then the old job is removed best-effort with .catch. The comment at 728-729 says a leftover old job is detected as stale by the processor (schedule-invoice.ts:60-72). (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "5e7f8eee77378fe3",
+   "code": "MW1002",
+   "file": "apps/api/src/trpc/routers/invoice.ts",
+   "line": 760,
+   "function": "<anonymous@739:15>",
+   "classification": "true-positive",
+   "notes": "trpc/invoice.ts:760-773: the BullMQ job is removed before the invoice is reset to draft. If updateInvoice fails, the invoice stays 'scheduled' with scheduledJobId pointing at a deleted job: the UI shows a scheduled send that will never happen. Only a manual retry fixes it, and the reverse order would be safe given the processor's status guard. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "14ab2d73f97844bd",
+   "code": "MW1001",
+   "file": "apps/api/src/trpc/routers/user.ts",
+   "line": 79,
+   "function": "<anonymous@74:39>",
+   "classification": "true-positive",
+   "notes": "user.ts:77-85 with users.ts:139-145: the DB delete of the user and sole-member teams and supabaseAdmin.auth.admin.deleteUser run concurrently in Promise.all with no compensation. If the DB delete succeeds and the auth delete fails, the user's data is gone but the auth account can still sign in. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "25f9f3e10616c3c4",
+   "code": "MW1005",
+   "file": "apps/api/src/trpc/routers/user.ts",
+   "line": 80,
+   "function": "<anonymous@74:39>",
+   "classification": "true-positive",
+   "notes": "user.ts:79-83: the auth user delete and resend.contacts.remove run concurrently, and the Resend SDK reports errors in its return value rather than throwing. If the contact removal fails after the account is deleted, the email stays in the marketing audience, and a retry is impossible once the auth user is gone. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "e49a741bc94128ee",
+   "code": "MW1002",
+   "file": "apps/worker/src/processors/documents/process-document.ts",
+   "line": 147,
+   "function": "ProcessDocumentProcessor.process",
+   "classification": "false-positive",
+   "notes": "process-document.ts:147-157,184: the path goes through `!uploadedData` (upload returned no data, i.e. failed) into the catch-block fallback update at 184, so no upload was durably performed before that DB write. On the success path the upload is an in-place upsert that a BullMQ retry redoes. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "74fbecc77d453ef4",
+   "code": "MW1005",
+   "file": "apps/worker/src/processors/documents/process-document.ts",
+   "line": 147,
+   "function": "ProcessDocumentProcessor.process",
+   "classification": "intended-risk",
+   "notes": "process-document.ts:44-63: the document_uploaded notification is wrapped in try/catch as non-critical. If the job stops before the HEIC upload, BullMQ retry (attempts 3) reruns the conversion; at worst the activity notification is duplicated. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "bb3c809e9d0e6ba7",
+   "code": "MW1005",
+   "file": "apps/worker/src/processors/documents/process-document.ts",
+   "line": 317,
+   "function": "ProcessDocumentProcessor.process",
+   "classification": "intended-risk",
+   "notes": "process-document.ts:147-160,317: the converted JPEG overwrites the same vault path (upsert). If the job stops before classify-image, BullMQ retries (documents queue attempts 3); sharp re-converts the already-JPEG file (image-processing.ts:145) and classification is triggered, so the job converges. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "8d3d33cc4ab5a6eb",
+   "code": "MW1005",
+   "file": "apps/worker/src/processors/documents/process-document.ts",
+   "line": 472,
+   "function": "ProcessDocumentProcessor.process",
+   "classification": "false-positive",
+   "notes": "process-document.ts:147-166 vs 305: the HEIC upload path always sets processedMimetype='image/jpeg', which then takes the image/ branch and returns at 330. classify-document at 472 is only reached on the non-image else path, so the upload and this effect are mutually exclusive. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "e0d0ae23ec86049b",
+   "code": "MW1002",
+   "file": "apps/worker/src/processors/inbox/process-attachment.ts",
+   "line": 108,
+   "function": "ProcessAttachmentProcessor.process",
+   "classification": "intended-risk",
+   "notes": "inbox/process-attachment.ts:108-139: in-place upsert of the converted JPEG, then contentType is updated. A BullMQ retry (inbox attempts 3) reloads the item, re-converts and updates again; the job is idempotent and converges. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "77cf2a7e7b4bc26d",
+   "code": "MW1002",
+   "file": "apps/worker/src/processors/inbox/slack-upload.ts",
+   "line": 148,
+   "function": "SlackUploadProcessor.process",
+   "classification": "intended-risk",
+   "notes": "slack-upload.ts:148-176: upload is an upsert to a deterministic path and createInbox uses ON CONFLICT on referenceId slack_<fileId> (inbox.ts:1786). A BullMQ retry (default attempts 3) converges. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "2591c96dad4f1812",
+   "code": "MW1002",
+   "file": "apps/worker/src/processors/inbox/sync-scheduler.ts",
+   "line": 195,
+   "function": "SyncSchedulerProcessor.process",
+   "classification": "false-positive",
+   "notes": "sync-scheduler.ts:198-239: uploadedAttachments contains exactly the uploads that returned data, so the reported `uploadedAttachments.length > 0` else path means no upload succeeded and no durable effect precedes updateInboxAccount. Even on the success path, lastAccessed is not advanced until the end, so the next sync re-uploads (upsert) and converges. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "aa3a39c117c1781b",
+   "code": "MW1005",
+   "file": "apps/worker/src/processors/inbox/sync-scheduler.ts",
+   "line": 247,
+   "function": "SyncSchedulerProcessor.process",
+   "classification": "intended-risk",
+   "notes": "sync-scheduler.ts:207,247-249: uploads are upserts to deterministic paths and lastAccessed is updated only at 283. If the job stops before process-attachment is enqueued, the retry or next sync re-fetches (no inbox rows exist yet), re-uploads and enqueues; process-attachment dedupes via getInboxByFilePath/ON CONFLICT. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "37e97f9d53b82d88",
+   "code": "MW1005",
+   "file": "apps/worker/src/processors/inbox/sync-scheduler.ts",
+   "line": 254,
+   "function": "SyncSchedulerProcessor.process",
+   "classification": "intended-risk",
+   "notes": "sync-scheduler.ts:251-271: the inbox_new notification is in try/catch, explicitly non-critical ('Don't fail the entire process'). The reported path (length>0 yet map body not run) is contradictory, but the upload-then-notification window is real and accepted. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "d754726c71173f71",
+   "code": "MW1002",
+   "file": "apps/worker/src/processors/invoices/generate-invoice.ts",
+   "line": 60,
+   "function": "GenerateInvoiceProcessor.process",
+   "classification": "intended-risk",
+   "notes": "generate-invoice.ts:60-90: the PDF goes to a deterministic path (invoiceNumber.pdf) with upsert, and a DB update failure throws, so the job retries (job-client default attempts 3) and overwrites idempotently. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "7827a13ba5308682",
+   "code": "MW1002",
+   "file": "apps/worker/src/processors/transactions/export.ts",
+   "line": 214,
+   "function": "ExportTransactionsProcessor.process",
+   "classification": "intended-risk",
+   "notes": "export.ts:214-235: the code labels the documents-table update 'non-critical' (line 227). If it fails, the job retries and regenerates the export; the leftover zip/document row is accepted. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "2e15ce8fa6ec34c0",
+   "code": "MW1005",
+   "file": "apps/worker/src/processors/transactions/export.ts",
+   "line": 266,
+   "function": "ExportTransactionsProcessor.process",
+   "classification": "intended-risk",
+   "notes": "export.ts:214-283: the accountant notification after upload is wrapped in try/catch with a warning (best-effort). A crash before it leads to a BullMQ retry that regenerates the zip and re-sends. The `!pathTokens` path condition is infeasible but irrelevant. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "a3d4c5b21cf0783f",
+   "code": "MW1002",
+   "file": "apps/worker/src/processors/transactions/process-attachment.ts",
+   "line": 47,
+   "function": "ProcessTransactionAttachmentProcessor.process",
+   "classification": "intended-risk",
+   "notes": "transactions/process-attachment.ts:47-99: in-place upsert of the HEIC->JPEG conversion, then the tax fields are updated. A retry (transactions queue attempts 3) re-converts (sharp accepts JPEG) and re-extracts, so it converges. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "18607cde6a2b53b1",
+   "code": "MW1005",
+   "file": "apps/worker/src/processors/transactions/process-attachment.ts",
+   "line": 114,
+   "function": "ProcessTransactionAttachmentProcessor.process",
+   "classification": "intended-risk",
+   "notes": "transactions/process-attachment.ts:112-131: the process-document trigger is explicitly non-critical (try/catch, 'Don't fail the entire process'), after an idempotent in-place upload. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "7b376da1aa67181c",
+   "code": "MW1002",
+   "file": "packages/bot/src/inbox-upload.ts",
+   "line": 145,
+   "function": "processInboxUpload",
+   "classification": "true-positive",
+   "notes": "bot/inbox-upload.ts:145-171: the file is uploaded to vault, then createInbox runs. If the insert fails, callers (bot/runtime.ts:748-783, rest/routers/chat.ts:101-120) only log a warning, with no retry or cleanup, leaving an orphan vault file with no inbox item. Unlike the worker jobs, nothing re-runs this. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "47b50958e7f268f5",
+   "code": "MW1005",
+   "file": "packages/jobs/src/tasks/inbox/provider/sync-account.ts",
+   "line": 250,
+   "function": "run",
+   "classification": "intended-risk",
+   "notes": "sync-account.ts:206,241-257: the uploads are upserts and the only missing step is an informational inbox_new notification. The trigger.dev retry (maxAttempts 3, line 32) reprocesses, and a lost notification is harmless. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "cbe3695b588517f1",
+   "code": "MW1005",
+   "file": "packages/jobs/src/tasks/team/onboarding.ts",
+   "line": 41,
+   "function": "run",
+   "classification": "intended-risk",
+   "notes": "onboarding.ts:33-49: if the task stops after resend.contacts.create, the trigger.dev default retry (trigger.config.ts maxAttempts 3) re-runs. Re-creating the contact is harmless (the Resend SDK returns errors rather than throwing), and the welcome email is then sent. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  }
+ ],
+ "corrections": [],
+ "reviewQueue": [
+  {
+   "knownPositive": "midday-KP03",
+   "findings": [
+    "6bf3829b50972d53",
+    "45d205c2620e9515"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  },
+  {
+   "knownPositive": "midday-KP09",
+   "findings": [
+    "20161cc0b71b07cf"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  },
+  {
+   "knownPositive": "midday-KP10",
+   "findings": [
+    "88652c7450f06c81",
+    "12c3eeba290713a5"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  },
+  {
+   "knownPositive": "midday-KP17",
+   "findings": [
+    "ebffc654a4e12508"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  },
+  {
+   "knownPositive": "midday-KP19",
+   "findings": [
+    "22fd5c0283bc5928"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  }
+ ]
+}

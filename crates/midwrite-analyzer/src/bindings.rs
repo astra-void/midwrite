@@ -107,10 +107,38 @@ pub(crate) struct SymbolTable {
     /// `new Promise(...)`: calling them settles that promise and does
     /// nothing else.
     promise_resolvers: HashSet<SymbolId>,
+    /// DEV-148: bindings that hold a client of a known SDK package
+    /// ([`crate::sdk`]): constructed in this file by the package's class or
+    /// factory, or declared with its client type.
+    sdk_clients: HashMap<SymbolId, crate::sdk::Client>,
+    /// DEV-148: imports of project modules that export an SDK client or a
+    /// function returning one.
+    project_sdk: HashMap<SymbolId, crate::sdk::Imported>,
+}
+
+/// DEV-148: how a binding may hold an SDK client, resolved once every import
+/// of the file is known.
+enum PendingSdk {
+    /// `const x = new C(...)` (also awaited).
+    New { binding: SymbolId, callee: SymbolId },
+    /// `const x = f(...)` (also awaited).
+    Call { binding: SymbolId, callee: SymbolId },
+    /// `const x = o.m(...)` (also awaited).
+    MemberCall {
+        binding: SymbolId,
+        object: SymbolId,
+        method: String,
+    },
+    /// `x: T` on a variable or a parameter.
+    Typed { binding: SymbolId, ty: SymbolId },
 }
 
 impl SymbolTable {
-    pub fn collect(program: &oxc_ast::ast::Program<'_>, scoping: &Scoping) -> Self {
+    pub fn collect(
+        program: &oxc_ast::ast::Program<'_>,
+        scoping: &Scoping,
+        sdk: Option<&crate::sdk::ImportedClients>,
+    ) -> Self {
         let mut collector = Collector {
             scoping,
             table: Self::default(),
@@ -120,6 +148,7 @@ impl SymbolTable {
             class_stack: Vec::new(),
             supers: Vec::new(),
             prototype_writes: Vec::new(),
+            sdk: Vec::new(),
         };
         collector.visit_program(program);
         // Resolve property values that name a function of this file, now
@@ -171,6 +200,22 @@ impl SymbolTable {
                 info.superclass = Some(resolved);
             }
         }
+        // SDK clients imported from project modules (the project pre-pass).
+        if let Some(sdk) = sdk {
+            for (symbol, import) in &table.imports {
+                if import.kind == ImportKind::Namespace {
+                    continue;
+                }
+                let name = import
+                    .imported
+                    .clone()
+                    .unwrap_or_else(|| "default".to_owned());
+                if let Some(export) = sdk.get(&(import.module.clone(), name)) {
+                    table.project_sdk.insert(*symbol, export.imported());
+                }
+            }
+        }
+        table.resolve_sdk(&collector.sdk);
         for (symbol, name) in collector.prototype_writes {
             if let Some(start) = table.class_symbols.get(&symbol)
                 && let Some(info) = table.classes.get_mut(start)
@@ -179,6 +224,89 @@ impl SymbolTable {
             }
         }
         table
+    }
+
+    /// DEV-148: the SDK client a binding holds, if provably one.
+    pub fn sdk_client(&self, symbol: SymbolId) -> Option<crate::sdk::Client> {
+        self.sdk_clients.get(&symbol).copied()
+    }
+
+    /// DEV-148: what an imported binding is in a known SDK package.
+    pub fn sdk_import(&self, symbol: SymbolId) -> Option<crate::sdk::Imported> {
+        let import = self.imports.get(&symbol)?;
+        crate::sdk::imported(&import.module, import.imported.as_deref())
+            .or_else(|| self.project_sdk.get(&symbol).copied())
+    }
+
+    /// DEV-148: the project module an SDK client binding is imported from,
+    /// when it is not the package itself.
+    pub fn sdk_project_module(&self, symbol: SymbolId) -> Option<&str> {
+        self.project_sdk
+            .contains_key(&symbol)
+            .then(|| {
+                self.imports
+                    .get(&symbol)
+                    .map(|import| import.module.as_str())
+            })
+            .flatten()
+    }
+
+    fn resolve_sdk(&mut self, pending: &[PendingSdk]) {
+        use crate::sdk::Imported;
+        // A few passes: `const job = await queue.getJob(id)` needs `queue`.
+        for _ in 0..3 {
+            let mut changed = false;
+            for item in pending {
+                let (binding, client) = match item {
+                    PendingSdk::New { binding, callee } => match self.sdk_import(*callee) {
+                        Some(Imported::Class(client)) => (*binding, client),
+                        _ => continue,
+                    },
+                    PendingSdk::Call { binding, callee } => match self.sdk_import(*callee) {
+                        Some(Imported::Factory(client)) => (*binding, client),
+                        _ => continue,
+                    },
+                    PendingSdk::Typed { binding, ty } => match self.sdk_import(*ty) {
+                        Some(Imported::Class(client) | Imported::Type(client)) => {
+                            (*binding, client)
+                        }
+                        _ => continue,
+                    },
+                    PendingSdk::MemberCall {
+                        binding,
+                        object,
+                        method,
+                    } => {
+                        let client = match self.sdk_import(*object) {
+                            Some(Imported::Module {
+                                method: factory,
+                                client,
+                            }) if factory == method => Some(client),
+                            // `Redis.fromEnv()` (`@upstash/redis`).
+                            Some(Imported::Class(crate::sdk::Client::Redis))
+                                if method == "fromEnv" =>
+                            {
+                                Some(crate::sdk::Client::Redis)
+                            }
+                            _ => self
+                                .sdk_clients
+                                .get(object)
+                                .and_then(|client| crate::sdk::returned_client(*client, method)),
+                        };
+                        match client {
+                            Some(client) => (*binding, client),
+                            None => continue,
+                        }
+                    }
+                };
+                if self.sdk_clients.insert(binding, client) != Some(client) {
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
     }
 
     /// The class (start offset) a binding names.
@@ -270,6 +398,7 @@ struct Collector<'s> {
     supers: Vec<(u32, PendingSuper)>,
     /// `C.prototype.m = ...`: (class binding, method name).
     prototype_writes: Vec<(SymbolId, String)>,
+    sdk: Vec<PendingSdk>,
 }
 
 enum PendingSuper {
@@ -353,6 +482,7 @@ impl<'a> Visit<'a> for Collector<'_> {
                 None => Initializer::Other,
             };
             let is_const = self.scoping.symbol_flags(symbol).is_const_variable();
+            self.note_sdk(symbol, it.init.as_ref(), it.type_annotation.as_deref());
             if is_const && let Some(literal) = it.init.as_ref().and_then(literal_value) {
                 self.table.literals.insert(symbol, literal);
             }
@@ -470,6 +600,15 @@ impl<'a> Visit<'a> for Collector<'_> {
         if pushed.is_some() {
             self.functions.pop();
         }
+    }
+
+    fn visit_formal_parameter(&mut self, it: &oxc_ast::ast::FormalParameter<'a>) {
+        if let BindingPattern::BindingIdentifier(id) = &it.pattern
+            && let Some(symbol) = id.symbol_id.get()
+        {
+            self.note_sdk(symbol, None, it.type_annotation.as_deref());
+        }
+        walk::walk_formal_parameter(self, it);
     }
 
     fn visit_arrow_function_expression(&mut self, it: &ArrowFunctionExpression<'a>) {
@@ -728,6 +867,57 @@ pub(crate) fn function_scope_of(scoping: &Scoping, scope: ScopeId) -> ScopeId {
 }
 
 impl Collector<'_> {
+    /// DEV-148: record how `binding` may hold an SDK client.
+    fn note_sdk(
+        &mut self,
+        binding: SymbolId,
+        init: Option<&Expression<'_>>,
+        annotation: Option<&oxc_ast::ast::TSTypeAnnotation<'_>>,
+    ) {
+        if let Some(annotation) = annotation
+            && let oxc_ast::ast::TSType::TSTypeReference(reference) = &annotation.type_annotation
+            && let oxc_ast::ast::TSTypeName::IdentifierReference(name) = &reference.type_name
+            && let Some(ty) = resolve_reference(self.scoping, name)
+        {
+            self.sdk.push(PendingSdk::Typed { binding, ty });
+        }
+        let Some(mut init) = init.map(Expression::get_inner_expression) else {
+            return;
+        };
+        if let Expression::AwaitExpression(awaited) = init {
+            init = awaited.argument.get_inner_expression();
+        }
+        match init {
+            Expression::NewExpression(new) => {
+                if let Expression::Identifier(callee) = new.callee.get_inner_expression()
+                    && let Some(callee) = resolve_reference(self.scoping, callee)
+                {
+                    self.sdk.push(PendingSdk::New { binding, callee });
+                }
+            }
+            Expression::CallExpression(call) => match call.callee.get_inner_expression() {
+                Expression::Identifier(callee) => {
+                    if let Some(callee) = resolve_reference(self.scoping, callee) {
+                        self.sdk.push(PendingSdk::Call { binding, callee });
+                    }
+                }
+                Expression::StaticMemberExpression(member) => {
+                    if let Expression::Identifier(object) = member.object.get_inner_expression()
+                        && let Some(object) = resolve_reference(self.scoping, object)
+                    {
+                        self.sdk.push(PendingSdk::MemberCall {
+                            binding,
+                            object,
+                            method: member.property.name.as_str().to_owned(),
+                        });
+                    }
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+    }
+
     fn classify(&self, init: &Expression<'_>) -> Initializer {
         match init.get_inner_expression() {
             Expression::Identifier(ident) => Initializer::Alias {

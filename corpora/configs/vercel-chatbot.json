@@ -1,0 +1,14 @@
+{
+  "databaseReceivers": ["db"],
+  "transactionMethods": ["transaction"],
+  "externalEffects": [
+    { "function": "put", "category": "file-write", "importedFrom": "@vercel/blob" },
+    { "receiver": "streamContext", "method": "createNewResumableStream", "category": "message-publish" },
+    { "receiver": "redis", "method": "multi", "category": "other" }
+  ],
+  "exclude": [
+    "**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.mock.ts", "tests/**",
+    "lib/db/migrations/**", "lib/db/migrate.ts", "drizzle.config.ts", "playwright.config.ts",
+    "*.d.ts", ".next", "node_modules"
+  ]
+}

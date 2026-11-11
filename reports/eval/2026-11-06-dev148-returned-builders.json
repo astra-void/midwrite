@@ -1,0 +1,3493 @@
+{
+  "schemaVersion": 1,
+  "kind": "midwrite.eval-report",
+  "binary": {
+    "path": "target/release/midwrite",
+    "sha256": "5e22036f1476478a6aba5678c13e1ade293275df6387c14e37476693dc3db108"
+  },
+  "runAtUtc": "2026-11-06T06:35:24Z",
+  "projects": [
+    {
+      "hazardFindings": 193,
+      "bySeverity": {
+        "error": 0,
+        "warning": 52,
+        "info": 141
+      },
+      "analysisLimitations": 92,
+      "filesAnalyzed": 2022,
+      "filesFailed": 0,
+      "labels": {
+        "true-positive": 21,
+        "intended-risk": 39,
+        "false-positive": 4,
+        "unclear": 6
+      },
+      "unlabeled": 123,
+      "staleLabels": 0,
+      "recall": {
+        "found": 29,
+        "positives": 42,
+        "knownPositivesFound": [
+          "midday-KP01",
+          "midday-KP03",
+          "midday-KP08",
+          "midday-KP09",
+          "midday-KP10",
+          "midday-KP11",
+          "midday-KP12",
+          "midday-KP15",
+          "midday-KP16",
+          "midday-KP17",
+          "midday-KP18",
+          "midday-KP19",
+          "midday-KP21",
+          "midday-KP23",
+          "midday-KP25",
+          "midday-KP26",
+          "midday-KP27"
+        ],
+        "knownPositivesMissed": [
+          "midday-KP02",
+          "midday-KP04",
+          "midday-KP05",
+          "midday-KP06",
+          "midday-KP07",
+          "midday-KP13",
+          "midday-KP14",
+          "midday-KP20",
+          "midday-KP22",
+          "midday-KP24",
+          "midday-KP28",
+          "midday-KP29",
+          "midday-KP30"
+        ],
+        "truePositiveFindingsOutsideAudit": 12
+      },
+      "findings": [
+        {
+          "findingId": "b87bde98f2d6e251",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/api/src/bot/platform-resolver.ts",
+          "line": 107,
+          "function": "resolvePlatformLinkCode",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "90d4e5f9de04293d",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/api/src/bot/platform-resolver.ts",
+          "line": 107,
+          "function": "resolvePlatformLinkCode",
+          "classification": null
+        },
+        {
+          "findingId": "246c976e5813fb6e",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/api/src/bot/runtime.ts",
+          "line": 613,
+          "function": "resolveSlackConversation",
+          "classification": null
+        },
+        {
+          "findingId": "ab258026ff1ce99e",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/api/src/bot/runtime.ts",
+          "line": 613,
+          "function": "resolveSlackConversation",
+          "classification": null
+        },
+        {
+          "findingId": "305e17b4841f2f15",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "apps/api/src/mcp/tools/invoices.ts",
+          "line": 819,
+          "function": "registerInvoiceTools::<anonymous@794:7>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "b465512a8062da82",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/api/src/mcp/tools/invoices.ts",
+          "line": 1141,
+          "function": "registerInvoiceTools::<anonymous@978:7>",
+          "classification": null
+        },
+        {
+          "findingId": "969a4a4beac1ad30",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/mcp/tools/invoices.ts",
+          "line": 1152,
+          "function": "registerInvoiceTools::<anonymous@978:7>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "f132d93f92baccba",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/mcp/tools/invoices.ts",
+          "line": 1614,
+          "function": "registerInvoiceTools::<anonymous@1568:7>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "76357f06fb1b7666",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/api/src/rest/routers/apps/slack/oauth-callback.ts",
+          "line": 190,
+          "function": "<anonymous@112:3>",
+          "classification": null
+        },
+        {
+          "findingId": "255f904dfa4cfe76",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/api/src/rest/routers/apps/slack/oauth-callback.ts",
+          "line": 190,
+          "function": "<anonymous@112:3>",
+          "classification": null
+        },
+        {
+          "findingId": "41a3f6143d8ca784",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/api/src/rest/routers/invoices.ts",
+          "line": 487,
+          "function": "<anonymous@406:3>",
+          "classification": null
+        },
+        {
+          "findingId": "34107b6f5fb66fb4",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/rest/routers/invoices.ts",
+          "line": 499,
+          "function": "<anonymous@406:3>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "cca78cb3c982e524",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/rest/routers/invoices.ts",
+          "line": 529,
+          "function": "<anonymous@406:3>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "d49f27d85b46bdcb",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "apps/api/src/rest/routers/invoices.ts",
+          "line": 529,
+          "function": "<anonymous@406:3>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "28837a752034d3fe",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/rest/routers/invoices.ts",
+          "line": 580,
+          "function": "<anonymous@406:3>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "90fbce8d80a84d02",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/api/src/rest/routers/oauth.ts",
+          "line": 371,
+          "function": "<anonymous@303:3>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "5418c2c528e820df",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/rest/routers/oauth.ts",
+          "line": 409,
+          "function": "<anonymous@303:3>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "cd96946a5cfad17d",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/api/src/rest/routers/webhooks/inbox/utils.ts",
+          "line": 168,
+          "function": "triggerProcessingJobs",
+          "classification": null
+        },
+        {
+          "findingId": "67d1ce98080d5690",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/rest/routers/webhooks/polar/index.ts",
+          "line": 198,
+          "function": "<anonymous@49:3>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "00cf4d5e2d54ce6b",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/rest/routers/webhooks/stripe/index.ts",
+          "line": 122,
+          "function": "<anonymous@44:3>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "00cf4d5e2d54ce6b-2",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/rest/routers/webhooks/stripe/index.ts",
+          "line": 212,
+          "function": "<anonymous@44:3>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "b3e9b032fd9f2325",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/trpc/routers/api-keys.ts",
+          "line": 35,
+          "function": "<anonymous@20:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "74c861a4484f3ca6",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/trpc/routers/bank-connections.ts",
+          "line": 50,
+          "function": "<anonymous@36:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "51f1f0b3a17c8005",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/trpc/routers/bank-connections.ts",
+          "line": 70,
+          "function": "<anonymous@60:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "92a4016b984fb22d",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/api/src/trpc/routers/customers.ts",
+          "line": 82,
+          "function": "<anonymous@65:15>",
+          "classification": null
+        },
+        {
+          "findingId": "2cbad1f66f43eda6",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/trpc/routers/customers.ts",
+          "line": 87,
+          "function": "<anonymous@65:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "b2985f50538e379b",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/trpc/routers/customers.ts",
+          "line": 150,
+          "function": "<anonymous@123:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "cd8aed4cc7a8568d",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/api/src/trpc/routers/document-tags.ts",
+          "line": 34,
+          "function": "<anonymous@22:15>",
+          "classification": null
+        },
+        {
+          "findingId": "98f724aa3de6d633",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/trpc/routers/documents.ts",
+          "line": 121,
+          "function": "<anonymous@93:15>",
+          "classification": null
+        },
+        {
+          "findingId": "17dd88ef91007e7c",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/trpc/routers/documents.ts",
+          "line": 194,
+          "function": "<anonymous@142:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "273936e01d122e2f",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/api/src/trpc/routers/inbox.ts",
+          "line": 167,
+          "function": "<anonymous@143:15>",
+          "classification": null
+        },
+        {
+          "findingId": "6f6d8954665298e9",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "apps/api/src/trpc/routers/invoice.ts",
+          "line": 484,
+          "function": "<anonymous@450:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "07eca3c2866c3e58",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/trpc/routers/invoice.ts",
+          "line": 567,
+          "function": "<anonymous@450:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "fba9377725fc1392",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/trpc/routers/invoice.ts",
+          "line": 599,
+          "function": "<anonymous@450:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "204f4ab8e0eff974",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "apps/api/src/trpc/routers/invoice.ts",
+          "line": 614,
+          "function": "<anonymous@613:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "e7c31d611b163e0a",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "apps/api/src/trpc/routers/invoice.ts",
+          "line": 673,
+          "function": "<anonymous@644:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "20b2e43b7f8f200f",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/api/src/trpc/routers/oauth-applications.ts",
+          "line": 163,
+          "function": "<anonymous@98:15>",
+          "classification": null
+        },
+        {
+          "findingId": "2357d158263797c2",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/trpc/routers/oauth-applications.ts",
+          "line": 199,
+          "function": "<anonymous@98:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "f9c28d740325d73a",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/trpc/routers/oauth-applications.ts",
+          "line": 368,
+          "function": "<anonymous@331:15>",
+          "classification": "unclear"
+        },
+        {
+          "findingId": "d23420629d1e6866",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "apps/api/src/trpc/routers/team.ts",
+          "line": 180,
+          "function": "<anonymous@150:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "5cceab96561cbe39",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/trpc/routers/team.ts",
+          "line": 358,
+          "function": "<anonymous@317:15>",
+          "classification": null
+        },
+        {
+          "findingId": "33484bedacefd509",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/trpc/routers/transactions.ts",
+          "line": 139,
+          "function": "<anonymous@132:15>",
+          "classification": "unclear"
+        },
+        {
+          "findingId": "4e8086ef81382aa1",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/api/src/trpc/routers/transactions.ts",
+          "line": 148,
+          "function": "<anonymous@132:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "282b3d4d6e290aef",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/api/src/trpc/routers/transactions.ts",
+          "line": 221,
+          "function": "<anonymous@185:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "bf7f7b9886c13fb1",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/accounting/export-transactions.ts",
+          "line": 281,
+          "function": "ExportTransactionsProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "7152316730e65b31",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/worker/src/processors/accounting/export-transactions.ts",
+          "line": 329,
+          "function": "ExportTransactionsProcessor.process",
+          "classification": "unclear"
+        },
+        {
+          "findingId": "bf7f7b9886c13fb1-2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/accounting/export-transactions.ts",
+          "line": 425,
+          "function": "ExportTransactionsProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "7152316730e65b31-2",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/worker/src/processors/accounting/export-transactions.ts",
+          "line": 456,
+          "function": "ExportTransactionsProcessor.process",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "c2455d12176cd60b",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/worker/src/processors/accounting/export-transactions.ts",
+          "line": 456,
+          "function": "ExportTransactionsProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "b0a11fa4f1db08fb",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/accounting/sync-attachments.ts",
+          "line": 292,
+          "function": "SyncAttachmentsProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "fa8a9ec55efccfa6",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/customers/enrich-customer.ts",
+          "line": 70,
+          "function": "EnrichCustomerProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "c33acaecce003bd2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/customers/enrich-customer.ts",
+          "line": 106,
+          "function": "EnrichCustomerProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "2b7504eae7852445",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/worker/src/processors/documents/classify-document.ts",
+          "line": 170,
+          "function": "ClassifyDocumentProcessor.process",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "78ff1a4d87b6e69b",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/worker/src/processors/documents/classify-image.ts",
+          "line": 203,
+          "function": "ClassifyImageProcessor.process",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "018e04c86add0b55",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/documents/embed-document-tags.ts",
+          "line": 104,
+          "function": "EmbedDocumentTagsProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "34ec356c01d2f06d",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/documents/embed-document-tags.ts",
+          "line": 125,
+          "function": "EmbedDocumentTagsProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "30b45470f9206870",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "apps/worker/src/processors/documents/process-document.ts",
+          "line": 45,
+          "function": "ProcessDocumentProcessor.process",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "013bb18f232103bb",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/worker/src/processors/documents/process-document.ts",
+          "line": 317,
+          "function": "ProcessDocumentProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "de2c2b657c4a7d57",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/worker/src/processors/documents/process-document.ts",
+          "line": 472,
+          "function": "ProcessDocumentProcessor.process",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "b38118e50a4b1d0b",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/worker/src/processors/documents/process-document.ts",
+          "line": 498,
+          "function": "ProcessDocumentProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "04d6562eb1e4c94b",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/worker/src/processors/inbox/initial-setup.ts",
+          "line": 50,
+          "function": "InitialSetupProcessor.process",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "2a4e4d24c3990939",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts",
+          "line": 65,
+          "function": "MatchTransactionsBidirectionalProcessor.process",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "a101c4ca65ed78ae",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts",
+          "line": 171,
+          "function": "MatchTransactionsBidirectionalProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "b5c28dcf88a37554",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts",
+          "line": 171,
+          "function": "MatchTransactionsBidirectionalProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "7b6606f1b7dee4d0",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts",
+          "line": 171,
+          "function": "MatchTransactionsBidirectionalProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "ee30546fc74edebc",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts",
+          "line": 229,
+          "function": "MatchTransactionsBidirectionalProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "c2b5815bff6458be",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts",
+          "line": 229,
+          "function": "MatchTransactionsBidirectionalProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "f2338bc951472a2a",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts",
+          "line": 229,
+          "function": "MatchTransactionsBidirectionalProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "a125b2ac5b61bd26",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/process-attachment.ts",
+          "line": 149,
+          "function": "ProcessAttachmentProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "92e76f3400624b30",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/process-attachment.ts",
+          "line": 317,
+          "function": "ProcessAttachmentProcessor.process",
+          "classification": "unclear"
+        },
+        {
+          "findingId": "92e76f3400624b30-2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/process-attachment.ts",
+          "line": 336,
+          "function": "ProcessAttachmentProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "3e8f00c64ace90be",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/process-attachment.ts",
+          "line": 353,
+          "function": "ProcessAttachmentProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "70e1fad12736298b",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/worker/src/processors/inbox/process-attachment.ts",
+          "line": 374,
+          "function": "ProcessAttachmentProcessor.process",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "f67d93b946c14519",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "apps/worker/src/processors/inbox/process-attachment.ts",
+          "line": 374,
+          "function": "ProcessAttachmentProcessor.process",
+          "classification": "unclear"
+        },
+        {
+          "findingId": "f99b4a2b1e0893df",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/process-attachment.ts",
+          "line": 407,
+          "function": "ProcessAttachmentProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "698789580be3ea72",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/process-attachment.ts",
+          "line": 507,
+          "function": "ProcessAttachmentProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "71d513c71b8653a8",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/process-attachment.ts",
+          "line": 507,
+          "function": "ProcessAttachmentProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "67871384bd4caf94",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/process-attachment.ts",
+          "line": 507,
+          "function": "ProcessAttachmentProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "cb04575e4a022224",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/slack-upload.ts",
+          "line": 259,
+          "function": "SlackUploadProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "cb04575e4a022224-2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/slack-upload.ts",
+          "line": 306,
+          "function": "SlackUploadProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "d6890f03a7e24bf2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/slack-upload.ts",
+          "line": 323,
+          "function": "SlackUploadProcessor.process",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "58f0f19da26dfe33",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/worker/src/processors/inbox/slack-upload.ts",
+          "line": 513,
+          "function": "SlackUploadProcessor.process",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "213e57a5ac013b67",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/slack-upload.ts",
+          "line": 524,
+          "function": "SlackUploadProcessor.process",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "10ef242b309c280e",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/slack-upload.ts",
+          "line": 575,
+          "function": "SlackUploadProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "861d5e6f1baf4674",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/slack-upload.ts",
+          "line": 575,
+          "function": "SlackUploadProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "f1dfc38dbd9d9270",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/slack-upload.ts",
+          "line": 575,
+          "function": "SlackUploadProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "cb04575e4a022224-3",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/slack-upload.ts",
+          "line": 606,
+          "function": "SlackUploadProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "d6cc779a0da27f5a",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "apps/worker/src/processors/inbox/sync-scheduler.ts",
+          "line": 254,
+          "function": "SyncSchedulerProcessor.process",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "5033c042fb853dbf",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/worker/src/processors/inbox/sync-scheduler.ts",
+          "line": 254,
+          "function": "SyncSchedulerProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "3f6ae28452b6c1cf",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/insights/generate-team-insights.ts",
+          "line": 157,
+          "function": "GenerateInsightsProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "c6b903cb815fe230",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/insights/generate-team-insights.ts",
+          "line": 179,
+          "function": "GenerateInsightsProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "8b8c7ac740588bf4",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/worker/src/processors/insights/generate-team-insights.ts",
+          "line": 208,
+          "function": "GenerateInsightsProcessor.process",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "c6b903cb815fe230-2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/insights/generate-team-insights.ts",
+          "line": 246,
+          "function": "GenerateInsightsProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "64fe61d229d6534c",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/worker/src/processors/invoices/generate-invoice.ts",
+          "line": 94,
+          "function": "GenerateInvoiceProcessor.process",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "d2dcc44e38d7a7f4",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/worker/src/processors/invoices/generate-invoice.ts",
+          "line": 108,
+          "function": "GenerateInvoiceProcessor.process",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "b1745ea3f348702e",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/worker/src/processors/invoices/generate-invoice.ts",
+          "line": 108,
+          "function": "GenerateInvoiceProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "edb3db940cdd9f6c",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/worker/src/processors/invoices/generate-recurring.ts",
+          "line": 214,
+          "function": "InvoiceRecurringSchedulerProcessor.process",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "e50b4aab33fce3ef",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/worker/src/processors/invoices/generate-recurring.ts",
+          "line": 226,
+          "function": "InvoiceRecurringSchedulerProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "6bf3829b50972d53",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/worker/src/processors/invoices/generate-recurring.ts",
+          "line": 422,
+          "function": "InvoiceRecurringSchedulerProcessor.process",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "e50b4aab33fce3ef-2",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/worker/src/processors/invoices/generate-recurring.ts",
+          "line": 432,
+          "function": "InvoiceRecurringSchedulerProcessor.process",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "a86fc50262a4bc3b",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/worker/src/processors/invoices/generate-recurring.ts",
+          "line": 449,
+          "function": "InvoiceRecurringSchedulerProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "45d205c2620e9515",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/worker/src/processors/invoices/generate-recurring.ts",
+          "line": 522,
+          "function": "InvoiceRecurringSchedulerProcessor.process",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "4a686b9a5a0a5b8c",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/worker/src/processors/invoices/schedule-invoice.ts",
+          "line": 100,
+          "function": "ScheduleInvoiceProcessor.process",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "3a6e26950e995fa5",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/invoices/upcoming-notification.ts",
+          "line": 228,
+          "function": "InvoiceUpcomingNotificationProcessor.process",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "1971c07cf478c175",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/invoices/upcoming-notification.ts",
+          "line": 228,
+          "function": "InvoiceUpcomingNotificationProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "b900e23c8134a906",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/invoices/upcoming-notification.ts",
+          "line": 228,
+          "function": "InvoiceUpcomingNotificationProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "652325736bfb0caf",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/transactions/enrich-transaction.ts",
+          "line": 147,
+          "function": "EnrichTransactionProcessor.process::<anonymous@67:7>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "562e919fa335c7e6",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/transactions/enrich-transaction.ts",
+          "line": 180,
+          "function": "EnrichTransactionProcessor.process::<anonymous@67:7>",
+          "classification": null
+        },
+        {
+          "findingId": "c1f06571e8e4bfec",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/transactions/enrich-transaction.ts",
+          "line": 217,
+          "function": "EnrichTransactionProcessor.process::<anonymous@67:7>",
+          "classification": null
+        },
+        {
+          "findingId": "f1f1cbd82048506c",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/worker/src/processors/transactions/export.ts",
+          "line": 238,
+          "function": "ExportTransactionsProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "c0e11cca0958955a",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/worker/src/processors/transactions/export.ts",
+          "line": 266,
+          "function": "ExportTransactionsProcessor.process",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "1243d2e80ee1e83a",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/worker/src/processors/transactions/import-transactions.ts",
+          "line": 231,
+          "function": "ImportTransactionsProcessor.process",
+          "classification": null
+        },
+        {
+          "findingId": "1706a3e9bf495af0",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/worker/src/processors/transactions/process-attachment.ts",
+          "line": 114,
+          "function": "ProcessTransactionAttachmentProcessor.process",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "10a4438c99947b37",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/bot/src/activity-notifications.ts",
+          "line": 279,
+          "function": "flushDueActivityNotificationBatches",
+          "classification": null
+        },
+        {
+          "findingId": "a2f398e0bcf73531",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/bot/src/inbox-upload.ts",
+          "line": 196,
+          "function": "processInboxUpload",
+          "classification": null
+        },
+        {
+          "findingId": "a2f398e0bcf73531-2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/bot/src/inbox-upload.ts",
+          "line": 214,
+          "function": "processInboxUpload",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "6ee083e4e5b0a689",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/bot/src/inbox-upload.ts",
+          "line": 230,
+          "function": "processInboxUpload",
+          "classification": null
+        },
+        {
+          "findingId": "1158bbb561efdd18",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/bot/src/inbox-upload.ts",
+          "line": 241,
+          "function": "processInboxUpload",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "9c8d2dfb90af5378",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/bot/src/inbox-upload.ts",
+          "line": 251,
+          "function": "processInboxUpload",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "0b2413d17787323b",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/bot/src/inbox-upload.ts",
+          "line": 279,
+          "function": "processInboxUpload",
+          "classification": null
+        },
+        {
+          "findingId": "398369a15d235a27",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/bot/src/inbox-upload.ts",
+          "line": 279,
+          "function": "processInboxUpload",
+          "classification": null
+        },
+        {
+          "findingId": "d9c695c40aea710f",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/bot/src/inbox-upload.ts",
+          "line": 279,
+          "function": "processInboxUpload",
+          "classification": null
+        },
+        {
+          "findingId": "e7c9a8566c0c0444",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/apps.ts",
+          "line": 183,
+          "function": "disconnectApp",
+          "classification": null
+        },
+        {
+          "findingId": "8c34f1ec481aadbd",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/apps.ts",
+          "line": 433,
+          "function": "removeWhatsAppConnection",
+          "classification": null
+        },
+        {
+          "findingId": "e44f0046b1284927",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/apps.ts",
+          "line": 440,
+          "function": "removeWhatsAppConnection",
+          "classification": null
+        },
+        {
+          "findingId": "6a635992061d93fd",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/bank-connections.ts",
+          "line": 176,
+          "function": "createBankConnection",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "881bc43f84a6c044",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/customers.ts",
+          "line": 442,
+          "function": "upsertCustomer",
+          "classification": null
+        },
+        {
+          "findingId": "bc0c0d7f3a7d325c",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/customers.ts",
+          "line": 453,
+          "function": "upsertCustomer",
+          "classification": null
+        },
+        {
+          "findingId": "904e58b51537360a",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/documents.ts",
+          "line": 335,
+          "function": "deleteDocument",
+          "classification": null
+        },
+        {
+          "findingId": "41b76f15d5a434ea",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/inbox-matching.ts",
+          "line": 177,
+          "function": "calculateInboxSuggestions",
+          "classification": null
+        },
+        {
+          "findingId": "e06269ca1ccc2006",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/inbox-matching.ts",
+          "line": 177,
+          "function": "calculateInboxSuggestions",
+          "classification": null
+        },
+        {
+          "findingId": "d0dd253149ffd8b2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/inbox-matching.ts",
+          "line": 177,
+          "function": "calculateInboxSuggestions",
+          "classification": null
+        },
+        {
+          "findingId": "aaa87248ca87596a",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/inbox-matching.ts",
+          "line": 186,
+          "function": "calculateInboxSuggestions",
+          "classification": null
+        },
+        {
+          "findingId": "41b76f15d5a434ea-2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/inbox-matching.ts",
+          "line": 211,
+          "function": "calculateInboxSuggestions",
+          "classification": "unclear"
+        },
+        {
+          "findingId": "e06269ca1ccc2006-2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/inbox-matching.ts",
+          "line": 211,
+          "function": "calculateInboxSuggestions",
+          "classification": null
+        },
+        {
+          "findingId": "d0dd253149ffd8b2-2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/inbox-matching.ts",
+          "line": 211,
+          "function": "calculateInboxSuggestions",
+          "classification": null
+        },
+        {
+          "findingId": "4081668c91879382",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/inbox.ts",
+          "line": 530,
+          "function": "deleteInbox",
+          "classification": null
+        },
+        {
+          "findingId": "d1296812cac9a2aa",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/inbox.ts",
+          "line": 541,
+          "function": "deleteInbox",
+          "classification": null
+        },
+        {
+          "findingId": "9fde97de86be22e9",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/inbox.ts",
+          "line": 561,
+          "function": "deleteInbox",
+          "classification": null
+        },
+        {
+          "findingId": "a16c84bb38514479",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/inbox.ts",
+          "line": 636,
+          "function": "deleteInboxMany",
+          "classification": null
+        },
+        {
+          "findingId": "868f2098ab2a26ab",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/inbox.ts",
+          "line": 647,
+          "function": "deleteInboxMany",
+          "classification": null
+        },
+        {
+          "findingId": "4011c009010edc42",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/inbox.ts",
+          "line": 657,
+          "function": "deleteInboxMany",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "49d704c3d7e36d24",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/inbox.ts",
+          "line": 1122,
+          "function": "updateInbox",
+          "classification": null
+        },
+        {
+          "findingId": "c8e04ee35a7150e4",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/inbox.ts",
+          "line": 1133,
+          "function": "updateInbox",
+          "classification": null
+        },
+        {
+          "findingId": "1840a074d61c191f",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/inbox.ts",
+          "line": 1144,
+          "function": "updateInbox",
+          "classification": null
+        },
+        {
+          "findingId": "f6effe95abcc5918",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/inbox.ts",
+          "line": 1358,
+          "function": "matchTransaction",
+          "classification": null
+        },
+        {
+          "findingId": "3940d7c4689ea6d2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/inbox.ts",
+          "line": 1373,
+          "function": "matchTransaction",
+          "classification": null
+        },
+        {
+          "findingId": "ab71f5b9b8f819f8",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/inbox.ts",
+          "line": 1490,
+          "function": "unmatchTransaction",
+          "classification": null
+        },
+        {
+          "findingId": "54cf2dee2257f846",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/inbox.ts",
+          "line": 1513,
+          "function": "unmatchTransaction",
+          "classification": null
+        },
+        {
+          "findingId": "09b879a17dc26ef1",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/inbox.ts",
+          "line": 1537,
+          "function": "unmatchTransaction",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "8a0b84097527f6ef",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/oauth-flow.ts",
+          "line": 162,
+          "function": "exchangeAuthorizationCode",
+          "classification": null
+        },
+        {
+          "findingId": "9fa2009baa7c522f",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/oauth-flow.ts",
+          "line": 361,
+          "function": "refreshAccessToken",
+          "classification": null
+        },
+        {
+          "findingId": "3ff46231b276492b",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/teams.ts",
+          "line": 227,
+          "function": "createSystemCategoriesForTeam",
+          "classification": null
+        },
+        {
+          "findingId": "9b320b7325f23fe2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/teams.ts",
+          "line": 370,
+          "function": "leaveTeam",
+          "classification": null
+        },
+        {
+          "findingId": "3ef329787ad15324",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/tracker-entries.ts",
+          "line": 437,
+          "function": "startTimer",
+          "classification": null
+        },
+        {
+          "findingId": "2c7b1f1b8694507f",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/tracker-projects.ts",
+          "line": 368,
+          "function": "upsertTrackerProject",
+          "classification": null
+        },
+        {
+          "findingId": "3278abb93a4a0193",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/tracker-projects.ts",
+          "line": 379,
+          "function": "upsertTrackerProject",
+          "classification": null
+        },
+        {
+          "findingId": "4bac58c25319b3c3",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/transaction-attachments.ts",
+          "line": 52,
+          "function": "createAttachments",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "7b873cc8546d82a7",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/transaction-attachments.ts",
+          "line": 178,
+          "function": "deleteAttachment",
+          "classification": null
+        },
+        {
+          "findingId": "8db2acea6dc8f1a9",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/transaction-attachments.ts",
+          "line": 215,
+          "function": "deleteAttachment",
+          "classification": null
+        },
+        {
+          "findingId": "4943916f7095548a",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/transaction-attachments.ts",
+          "line": 228,
+          "function": "deleteAttachment",
+          "classification": null
+        },
+        {
+          "findingId": "97b92165266eb826",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/transaction-attachments.ts",
+          "line": 234,
+          "function": "deleteAttachment",
+          "classification": null
+        },
+        {
+          "findingId": "c60fb221a7380453",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/transaction-attachments.ts",
+          "line": 245,
+          "function": "deleteAttachment",
+          "classification": null
+        },
+        {
+          "findingId": "825372822f9064c5",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/transactions.ts",
+          "line": 1566,
+          "function": "updateTransaction",
+          "classification": null
+        },
+        {
+          "findingId": "bb4e08045103af77",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/transactions.ts",
+          "line": 1754,
+          "function": "updateTransactions",
+          "classification": null
+        },
+        {
+          "findingId": "bd8ebd95eb045c78",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/transactions.ts",
+          "line": 1771,
+          "function": "updateTransactions",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "60b8ba7be63544f4",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/transactions.ts",
+          "line": 1875,
+          "function": "createTransaction",
+          "classification": null
+        },
+        {
+          "findingId": "8d601d22ac3589d2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/transactions.ts",
+          "line": 2199,
+          "function": "moveTransactionToReview",
+          "classification": null
+        },
+        {
+          "findingId": "02e794e4ed30fbcd",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/user-invites.ts",
+          "line": 71,
+          "function": "acceptTeamInvite",
+          "classification": null
+        },
+        {
+          "findingId": "25825e796ff697a0",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/queries/users.ts",
+          "line": 146,
+          "function": "deleteUser",
+          "classification": null
+        },
+        {
+          "findingId": "5e8a14b298b074fd",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/test/helpers/seed.ts",
+          "line": 98,
+          "function": "seedAll",
+          "classification": null
+        },
+        {
+          "findingId": "6b4948d08a9844f3",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/test/helpers/seed.ts",
+          "line": 99,
+          "function": "seedAll",
+          "classification": null
+        },
+        {
+          "findingId": "ac690489652d4e50",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/test/helpers/seed.ts",
+          "line": 100,
+          "function": "seedAll",
+          "classification": null
+        },
+        {
+          "findingId": "d151e922d49909b7",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/test/helpers/seed.ts",
+          "line": 101,
+          "function": "seedAll",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "c0415b292a70c09b",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/test/helpers/seed.ts",
+          "line": 102,
+          "function": "seedAll",
+          "classification": null
+        },
+        {
+          "findingId": "d1189efd3ed4d380",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/test/helpers/seed.ts",
+          "line": 103,
+          "function": "seedAll",
+          "classification": null
+        },
+        {
+          "findingId": "f31093a51ef4d094",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/test/helpers/seed.ts",
+          "line": 104,
+          "function": "seedAll",
+          "classification": null
+        },
+        {
+          "findingId": "24098d398d68b6a1",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/test/helpers/seed.ts",
+          "line": 105,
+          "function": "seedAll",
+          "classification": null
+        },
+        {
+          "findingId": "c7b58fba4d522cf2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/test/helpers/seed.ts",
+          "line": 334,
+          "function": "seedCategories",
+          "classification": null
+        },
+        {
+          "findingId": "55adc6e161e1a3bd",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/test/helpers/seed.ts",
+          "line": 381,
+          "function": "seedBankAccounts",
+          "classification": null
+        },
+        {
+          "findingId": "82a050ba6d5e896a",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/test/helpers/seed.ts",
+          "line": 551,
+          "function": "seedTrackerData",
+          "classification": null
+        },
+        {
+          "findingId": "e8c739e4f9354389",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/jobs/src/tasks/document/process-document.ts",
+          "line": 76,
+          "function": "run",
+          "classification": null
+        },
+        {
+          "findingId": "96f21af1526c0281",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/jobs/src/tasks/inbox/batch-process-matching.ts",
+          "line": 42,
+          "function": "run::<anonymous@34:19>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "b4250db606a83de4",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts",
+          "line": 61,
+          "function": "run",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "851a19d04c7f4e80",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts",
+          "line": 104,
+          "function": "run",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "84fdd9d28315fdaf",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts",
+          "line": 154,
+          "function": "run",
+          "classification": null
+        },
+        {
+          "findingId": "ab486c34ea1d199b",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts",
+          "line": 154,
+          "function": "run",
+          "classification": null
+        },
+        {
+          "findingId": "720265abc7596ca3",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts",
+          "line": 154,
+          "function": "run",
+          "classification": null
+        },
+        {
+          "findingId": "5bb512335cf623e5",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts",
+          "line": 210,
+          "function": "run",
+          "classification": null
+        },
+        {
+          "findingId": "e210973bdbc392c1",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts",
+          "line": 210,
+          "function": "run",
+          "classification": null
+        },
+        {
+          "findingId": "dcad981cd0b4fe99",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts",
+          "line": 210,
+          "function": "run",
+          "classification": null
+        },
+        {
+          "findingId": "c2e81439d1cfa083",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts",
+          "line": 218,
+          "function": "run",
+          "classification": null
+        },
+        {
+          "findingId": "bedbe8685bdc49ef",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/jobs/src/tasks/team/onboarding.ts",
+          "line": 67,
+          "function": "run",
+          "classification": null
+        }
+      ],
+      "name": "midday",
+      "set": "dev",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazardPrecision": {
+        "value": 0.9375,
+        "num": 60,
+        "den": 64
+      },
+      "bugPrecision": {
+        "value": 0.328125,
+        "num": 21,
+        "den": 64
+      },
+      "recallRatio": {
+        "value": 0.6904761904761905,
+        "num": 29,
+        "den": 42
+      }
+    },
+    {
+      "hazardFindings": 91,
+      "bySeverity": {
+        "error": 0,
+        "warning": 19,
+        "info": 72
+      },
+      "analysisLimitations": 35,
+      "filesAnalyzed": 374,
+      "filesFailed": 0,
+      "labels": {
+        "true-positive": 43,
+        "intended-risk": 44,
+        "false-positive": 4,
+        "unclear": 0
+      },
+      "unlabeled": 0,
+      "staleLabels": 0,
+      "recall": {
+        "found": 31,
+        "positives": 33,
+        "knownPositivesFound": [
+          "kan-KP01",
+          "kan-KP02",
+          "kan-KP03",
+          "kan-KP04",
+          "kan-KP05",
+          "kan-KP06",
+          "kan-KP07",
+          "kan-KP08",
+          "kan-KP10",
+          "kan-KP11",
+          "kan-KP12",
+          "kan-KP13",
+          "kan-KP14",
+          "kan-KP15",
+          "kan-KP16",
+          "kan-KP17",
+          "kan-KP18",
+          "kan-KP19",
+          "kan-KP20",
+          "kan-KP22",
+          "kan-KP23",
+          "kan-KP24",
+          "kan-KP25",
+          "kan-KP26",
+          "kan-KP27",
+          "kan-KP28",
+          "kan-KP29",
+          "kan-KP30"
+        ],
+        "knownPositivesMissed": [
+          "kan-KP09",
+          "kan-KP21"
+        ],
+        "truePositiveFindingsOutsideAudit": 3
+      },
+      "findings": [
+        {
+          "findingId": "d50662eb3812a136",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/web/src/pages/api/partner/link.ts",
+          "line": 72,
+          "function": "<anonymous@11:18>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "11727d753731af8a",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/web/src/pages/api/partner/webhook.ts",
+          "line": 97,
+          "function": "createAndLinkSlots",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "0056f75a241753b2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/web/src/pages/api/partner/webhook.ts",
+          "line": 253,
+          "function": "<anonymous@162:3>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "426d3625fe3540ad",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/web/src/pages/api/stripe/create_checkout_session.ts",
+          "line": 128,
+          "function": "<anonymous@34:18>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "6ee9f5e8e12c956e",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/web/src/pages/api/stripe/webhook.ts",
+          "line": 87,
+          "function": "handler",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "bc692225fb350786",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/web/src/pages/api/upload/attachment.ts",
+          "line": 134,
+          "function": "<anonymous@26:18>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "e7dfa143dfc28bdb",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "apps/web/src/pages/api/upload/avatar.ts",
+          "line": 108,
+          "function": "<anonymous@42:18>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "ab8c8311268dd856",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/attachment.ts",
+          "line": 163,
+          "function": "<anonymous@120:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "4133d8b316d38b9c",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "packages/api/src/routers/attachment.ts",
+          "line": 217,
+          "function": "<anonymous@186:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "df3726531ce3c879",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/attachment.ts",
+          "line": 231,
+          "function": "<anonymous@186:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "157f0a9006eefa2a",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/board.ts",
+          "line": 455,
+          "function": "<anonymous@324:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "cc5009624c5e3d9f",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/board.ts",
+          "line": 467,
+          "function": "<anonymous@324:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "7a62882cf46a7ce9",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/board.ts",
+          "line": 560,
+          "function": "<anonymous@499:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "0a2eacc361d2e407",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/board.ts",
+          "line": 633,
+          "function": "<anonymous@593:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "9284ac49e55a2153",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/board.ts",
+          "line": 646,
+          "function": "<anonymous@593:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "7afa4440631d1dea",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/board.ts",
+          "line": 666,
+          "function": "<anonymous@593:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "65235521013e407e",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 170,
+          "function": "<anonymous@65:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "95ab381c6e66dec3",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 188,
+          "function": "<anonymous@65:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "ff4258ee1a42c360",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 198,
+          "function": "<anonymous@65:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "f2f6152e685dd636",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 216,
+          "function": "<anonymous@65:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "75a95acad685343b",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 220,
+          "function": "<anonymous@65:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "e3a1e73d4475987f",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 230,
+          "function": "<anonymous@65:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "b59187668bf84f19",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 230,
+          "function": "<anonymous@65:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "e498aeac43609dcb",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 320,
+          "function": "<anonymous@276:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "a7a6ad91c28e42ab",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 328,
+          "function": "<anonymous@276:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "4e48ab66bbe913ef",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 413,
+          "function": "<anonymous@358:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "ac4a832958073992",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 422,
+          "function": "<anonymous@358:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "db0fea6b4a87b2de",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 506,
+          "function": "<anonymous@450:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "6f92e391296cf23f",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 585,
+          "function": "<anonymous@533:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "ab0687b9549d7f3e",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 705,
+          "function": "<anonymous@646:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "ef0b15fc7e2ba7c9",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 737,
+          "function": "<anonymous@646:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "71dd23cd2ecafb06",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1156,
+          "function": "<anonymous@1001:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "171427924e77ebdd",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1156,
+          "function": "<anonymous@1001:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "7646225b722eb67a",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1216,
+          "function": "<anonymous@1001:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "91eea3879e8f3322",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1230,
+          "function": "<anonymous@1001:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "34ae56526e3799d4",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1268,
+          "function": "<anonymous@1001:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "3549d703aa6a45a8",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1268,
+          "function": "<anonymous@1001:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "b9e77286efb4bac6",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1361,
+          "function": "<anonymous@1317:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "f1485e8463b3cd46",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1369,
+          "function": "<anonymous@1317:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "a320f28a45dc3f9b",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1538,
+          "function": "<anonymous@1425:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "a2baada6bb5a7830",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1545,
+          "function": "<anonymous@1425:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "d8ab3099dd8fe783",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1567,
+          "function": "<anonymous@1425:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "de39efbc3731b78d",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1577,
+          "function": "<anonymous@1425:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "e8ebe7a172665d89",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/checklist.ts",
+          "line": 80,
+          "function": "<anonymous@42:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "104ff019b8d423dd",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/checklist.ts",
+          "line": 149,
+          "function": "<anonymous@107:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "2d8fb1ea8b5b954f",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/checklist.ts",
+          "line": 207,
+          "function": "<anonymous@172:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "f652f20f9e897567",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/checklist.ts",
+          "line": 219,
+          "function": "<anonymous@172:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "0100867e0df449c7",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/checklist.ts",
+          "line": 289,
+          "function": "<anonymous@246:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "ec78b2fee97f4944",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/checklist.ts",
+          "line": 372,
+          "function": "<anonymous@318:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "b82aa5b72e69805a",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/checklist.ts",
+          "line": 387,
+          "function": "<anonymous@318:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "d0985306de06b537",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/checklist.ts",
+          "line": 399,
+          "function": "<anonymous@318:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "3dc72378f3b8ba0c",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/checklist.ts",
+          "line": 464,
+          "function": "<anonymous@423:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "5cfe7f6140d9417b",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/api/src/routers/health.ts",
+          "line": 55,
+          "function": "checkS3Connection",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "90f5e6441a25bfe5",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 260,
+          "function": "<anonymous@229:17>",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "f322f5de643c442a",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 349,
+          "function": "importSingleBoard",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "b0f7b6257b9c45b2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 361,
+          "function": "importSingleBoard",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "77134ebef6b28627",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 382,
+          "function": "importSingleBoard",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "2aadc5212a97547b",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 406,
+          "function": "importSingleBoard",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "5384ab5884bd761e",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 455,
+          "function": "importSingleBoard",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "f9dbd0f549717e01",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 496,
+          "function": "importSingleBoard",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "2eac1a17a1dcaebd",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 526,
+          "function": "importSingleBoard",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "a3a471334a1a5dd8",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 561,
+          "function": "<anonymous@229:17>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "50c685fa42ff9b2b",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 828,
+          "function": "<anonymous@703:17>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "0d40178595543f2c",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 864,
+          "function": "<anonymous@703:17>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "27f1c286094c6b8b",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 909,
+          "function": "<anonymous@703:17>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "cf708759a64d5d39",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 964,
+          "function": "<anonymous@703:17>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "1d4fb30158138be4",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 974,
+          "function": "<anonymous@703:17>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "396f9044b5036a87",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 995,
+          "function": "<anonymous@703:17>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "34834e0321be5827",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 1005,
+          "function": "<anonymous@703:17>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "86d9c7727c1d6684",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/label.ts",
+          "line": 234,
+          "function": "<anonymous@206:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "0787196a08b8a83a",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/list.ts",
+          "line": 138,
+          "function": "<anonymous@91:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "bfd64eb4b44d0b95",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/list.ts",
+          "line": 156,
+          "function": "<anonymous@91:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "8e53967fe6a25015",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "packages/api/src/routers/member.ts",
+          "line": 109,
+          "function": "<anonymous@49:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "03e87e71e7a62d96",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/api/src/routers/member.ts",
+          "line": 189,
+          "function": "<anonymous@49:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "7f6eb78358ec67f7",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "packages/api/src/routers/member.ts",
+          "line": 189,
+          "function": "<anonymous@49:15>",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "a62e9d64abcabf80",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/api/src/routers/member.ts",
+          "line": 295,
+          "function": "<anonymous@232:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "f4f4d8b677e363dc",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/member.ts",
+          "line": 486,
+          "function": "<anonymous@427:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "a4df5ffa4c6d1d83",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "packages/api/src/routers/member.ts",
+          "line": 704,
+          "function": "<anonymous@627:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "a79237aa99371cf7",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/workspace.ts",
+          "line": 385,
+          "function": "<anonymous@300:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "15792ac949a87fb4",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/workspace.ts",
+          "line": 388,
+          "function": "<anonymous@300:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "224614f2d572e4a6",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "packages/api/src/utils/notifications.ts",
+          "line": 120,
+          "function": "sendMentionEmails::<anonymous@112:27>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "ef9ae70aa67571b1",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/utils/workspace.ts",
+          "line": 35,
+          "function": "cancelWorkspaceAccess",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "2c382d9a94c97b87",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "packages/auth/src/hooks.ts",
+          "line": 76,
+          "function": "after",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "75762e7727b4fcef",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/auth/src/hooks.ts",
+          "line": 106,
+          "function": "after",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "52fb1382d21b06d9",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/auth/src/hooks.ts",
+          "line": 130,
+          "function": "after",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "5e383e079218cb24",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/auth/src/plugins.ts",
+          "line": 60,
+          "function": "cancelWorkspaceAccess",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "747591607038c6a8",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/auth/src/plugins.ts",
+          "line": 141,
+          "function": "onSubscriptionComplete",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "b977c8352e96c174",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/repository/boardMember.repo.ts",
+          "line": 193,
+          "function": "removeAllForMember",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "7c36034f5768f35e",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/repository/permission.repo.ts",
+          "line": 405,
+          "function": "createRole",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "59473a530cb514aa",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/repository/workspace.repo.ts",
+          "line": 104,
+          "function": "create",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "524eca09c0497add",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/repository/workspace.repo.ts",
+          "line": 117,
+          "function": "create",
+          "classification": "true-positive"
+        }
+      ],
+      "name": "kan",
+      "set": "held-out",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazardPrecision": {
+        "value": 0.9560439560439561,
+        "num": 87,
+        "den": 91
+      },
+      "bugPrecision": {
+        "value": 0.4725274725274725,
+        "num": 43,
+        "den": 91
+      },
+      "recallRatio": {
+        "value": 0.9393939393939394,
+        "num": 31,
+        "den": 33
+      }
+    },
+    {
+      "hazardFindings": 22,
+      "bySeverity": {
+        "error": 0,
+        "warning": 6,
+        "info": 16
+      },
+      "analysisLimitations": 39,
+      "filesAnalyzed": 594,
+      "filesFailed": 1,
+      "labels": {
+        "true-positive": 5,
+        "intended-risk": 16,
+        "false-positive": 1,
+        "unclear": 0
+      },
+      "unlabeled": 0,
+      "staleLabels": 0,
+      "recall": {
+        "found": 10,
+        "positives": 21,
+        "knownPositivesFound": [
+          "dittofeed-KP07",
+          "dittofeed-KP08",
+          "dittofeed-KP09",
+          "dittofeed-KP10",
+          "dittofeed-KP15",
+          "dittofeed-KP17"
+        ],
+        "knownPositivesMissed": [
+          "dittofeed-KP01",
+          "dittofeed-KP02",
+          "dittofeed-KP03",
+          "dittofeed-KP04",
+          "dittofeed-KP05",
+          "dittofeed-KP06",
+          "dittofeed-KP11",
+          "dittofeed-KP12",
+          "dittofeed-KP13",
+          "dittofeed-KP14",
+          "dittofeed-KP16"
+        ],
+        "truePositiveFindingsOutsideAudit": 4
+      },
+      "findings": [
+        {
+          "findingId": "bbc36ce9a6dbf4f8",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/api/src/controllers/segmentsController.ts",
+          "line": 442,
+          "function": "segmentsController::<anonymous@289:5>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "03647486b6c2e0eb",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/apps.ts",
+          "line": 65,
+          "function": "submitTrackWithTriggers",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "0004381ff177b014",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/apps.ts",
+          "line": 118,
+          "function": "submitBatchWithTriggers",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "7323fd6e3fa25fbe",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/bootstrap.ts",
+          "line": 135,
+          "function": "bootstrapPostgres",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "f146afc56bc88e37",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/bootstrap.ts",
+          "line": 505,
+          "function": "bootstrapWorkspace",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "f937b45cb972bc5a",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/broadcasts.ts",
+          "line": 364,
+          "function": "triggerBroadcast",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "641d7d73ce314294",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/computedProperties/computePropertiesIncremental.ts",
+          "line": 3746,
+          "function": "processRowsInner",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "a4a880f65a586c00",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/features.ts",
+          "line": 179,
+          "function": "removeFeatures",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "29694cf677dd7e5d",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/journeys.ts",
+          "line": 1236,
+          "function": "upsertJourney",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "b862be2651212aee",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/journeys/recordNodeProcessed.ts",
+          "line": 51,
+          "function": "recordNodeProcessed",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "a6be48101537d7f0",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/journeys/userWorkflow/activities.ts",
+          "line": 385,
+          "function": "sendMessageWithSender::<anonymous@325:56>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "0669c992ac579abe",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/messaging.ts",
+          "line": 1444,
+          "function": "sendEmail",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "985208f60c8a5189",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/backend-lib/src/requestContext.ts",
+          "line": 337,
+          "function": "getMultiTenantRequestContext",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "9ce210754461e404",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/backend-lib/src/requestContext.ts",
+          "line": 353,
+          "function": "getMultiTenantRequestContext",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "25ef4b1f2152bce2",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/segments/manualSegment/activities.ts",
+          "line": 255,
+          "function": "appendToManualSegment",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "9b8b8efa9d181686",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/segments/manualSegment/activities.ts",
+          "line": 359,
+          "function": "replaceManualSegment",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "4c333a182f17b3b6",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/segments/manualSegment/activities.ts",
+          "line": 386,
+          "function": "replaceManualSegment",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "a9c5210acd781bfd",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/segments/manualSegment/activities.ts",
+          "line": 386,
+          "function": "replaceManualSegment",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "db634001a0e83a12",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/subscriptionGroups.ts",
+          "line": 782,
+          "function": "updateUserSubscriptions",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "9d1e0d68fc836ba7",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/backend-lib/src/users.ts",
+          "line": 1547,
+          "function": "deleteUsers",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "96905e8612ed72ce",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/backend-lib/src/users.ts",
+          "line": 1606,
+          "function": "deleteAllUsers",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "04965312c322a397",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/dashboard/src/lib/oauth.ts",
+          "line": 321,
+          "function": "handleOauthCallback",
+          "classification": "true-positive"
+        }
+      ],
+      "name": "dittofeed",
+      "set": "held-out",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazardPrecision": {
+        "value": 0.9545454545454546,
+        "num": 21,
+        "den": 22
+      },
+      "bugPrecision": {
+        "value": 0.22727272727272727,
+        "num": 5,
+        "den": 22
+      },
+      "recallRatio": {
+        "value": 0.47619047619047616,
+        "num": 10,
+        "den": 21
+      }
+    },
+    {
+      "hazardFindings": 26,
+      "bySeverity": {
+        "error": 0,
+        "warning": 2,
+        "info": 24
+      },
+      "analysisLimitations": 143,
+      "filesAnalyzed": 446,
+      "filesFailed": 0,
+      "labels": {
+        "true-positive": 2,
+        "intended-risk": 14,
+        "false-positive": 10,
+        "unclear": 0
+      },
+      "unlabeled": 0,
+      "staleLabels": 0,
+      "recall": {
+        "found": 4,
+        "positives": 10,
+        "knownPositivesFound": [
+          "zero-KP01",
+          "zero-KP06",
+          "zero-KP08",
+          "zero-KP09"
+        ],
+        "knownPositivesMissed": [
+          "zero-KP02",
+          "zero-KP03",
+          "zero-KP04",
+          "zero-KP05",
+          "zero-KP07",
+          "zero-KP10"
+        ],
+        "truePositiveFindingsOutsideAudit": 0
+      },
+      "findings": [
+        {
+          "findingId": "2ab7bc90cdcc6463",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/lib/auth.ts",
+          "line": 229,
+          "function": "beforeDelete",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "6372758b463e75d6",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/lib/auth.ts",
+          "line": 257,
+          "function": "beforeDelete",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "a7266452b468cb90",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/lib/chat-attachments.ts",
+          "line": 77,
+          "function": "storeAttachment",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "8ca1ab73a5e612e0",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/lib/chat-attachments.ts",
+          "line": 82,
+          "function": "storeAttachment",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "c5d91a80615a7b92",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+          "line": 97,
+          "function": "GoogleSubscriptionFactory.makeAuthenticatedRequest",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "53181a727bd06fbe",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+          "line": 120,
+          "function": "GoogleSubscriptionFactory.setupPubSubTopic",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "ba3ab99185c7cfed",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+          "line": 120,
+          "function": "GoogleSubscriptionFactory.setupPubSubTopic",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "d4a973f7e232cfb4",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+          "line": 131,
+          "function": "GoogleSubscriptionFactory.setupPubSubTopic",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "a71ab1e70888bd25",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+          "line": 131,
+          "function": "GoogleSubscriptionFactory.setupPubSubTopic",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "5e8c9e804cce020a",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+          "line": 157,
+          "function": "GoogleSubscriptionFactory.setTopicIamPolicy",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "daed97e3f219a569",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+          "line": 157,
+          "function": "GoogleSubscriptionFactory.setTopicIamPolicy",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "85aecdebf5465eac",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+          "line": 190,
+          "function": "GoogleSubscriptionFactory.createPubSubSubscription",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "8476ea21da24169b",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+          "line": 190,
+          "function": "GoogleSubscriptionFactory.createPubSubSubscription",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "bc72117c963a249c",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+          "line": 290,
+          "function": "GoogleSubscriptionFactory.subscribe",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "d593cc69030384d3",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+          "line": 300,
+          "function": "GoogleSubscriptionFactory.subscribe",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "16ded142f6286c39",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/main.ts",
+          "line": 1060,
+          "function": "Entry.scheduled",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "3bebcd672be5e88f",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/routes/agent/index.ts",
+          "line": 1025,
+          "function": "ZeroDriver.renewMailboxWatch",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "b5b2a5c87858bbb8",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/server/src/routes/agent/index.ts",
+          "line": 1869,
+          "function": "ZeroDriver.disconnectImap",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "6ad34eaa7cf2f3c0",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/routes/agent/index.ts",
+          "line": 3524,
+          "function": "ZeroDriver.unsnoozeThreadsHandler",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "d6eb0c0e59fe3ca6",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/server/src/routes/assistant.ts",
+          "line": 253,
+          "function": "decideAction",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "183f20efdc6b6c5f",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "apps/server/src/routes/assistant.ts",
+          "line": 253,
+          "function": "decideAction",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "10af11f3c4b1edec",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/trpc/routes/bimi.ts",
+          "line": 138,
+          "function": "<anonymous@114:12>",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "ed1f7c555bef9c04",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/trpc/routes/bimi.ts",
+          "line": 193,
+          "function": "<anonymous@178:12>",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "24fa21e885e21ab8",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/trpc/routes/mail.ts",
+          "line": 194,
+          "function": "<anonymous@113:12>::<anonymous@173:39>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "96d4f8870e9f74d7",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/trpc/routes/mail.ts",
+          "line": 623,
+          "function": "<anonymous@606:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "dffdf9b53fcef78a",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "apps/server/src/trpc/routes/mail.ts",
+          "line": 645,
+          "function": "<anonymous@638:15>",
+          "classification": "intended-risk"
+        }
+      ],
+      "name": "zero",
+      "set": "dev",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazardPrecision": {
+        "value": 0.6153846153846154,
+        "num": 16,
+        "den": 26
+      },
+      "bugPrecision": {
+        "value": 0.07692307692307693,
+        "num": 2,
+        "den": 26
+      },
+      "recallRatio": {
+        "value": 0.4,
+        "num": 4,
+        "den": 10
+      }
+    },
+    {
+      "hazardFindings": 11,
+      "bySeverity": {
+        "error": 0,
+        "warning": 2,
+        "info": 9
+      },
+      "analysisLimitations": 3,
+      "filesAnalyzed": 141,
+      "filesFailed": 0,
+      "labels": {
+        "true-positive": 9,
+        "intended-risk": 2,
+        "false-positive": 0,
+        "unclear": 0
+      },
+      "unlabeled": 0,
+      "staleLabels": 0,
+      "recall": {
+        "found": 7,
+        "positives": 8,
+        "knownPositivesFound": [
+          "vercel-chatbot-KP01",
+          "vercel-chatbot-KP02",
+          "vercel-chatbot-KP03",
+          "vercel-chatbot-KP05",
+          "vercel-chatbot-KP06",
+          "vercel-chatbot-KP07",
+          "vercel-chatbot-KP08"
+        ],
+        "knownPositivesMissed": [
+          "vercel-chatbot-KP04"
+        ],
+        "truePositiveFindingsOutsideAudit": 0
+      },
+      "findings": [
+        {
+          "findingId": "98be7ef3c8958ebb",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "app/(chat)/api/chat/route.ts",
+          "line": 101,
+          "function": "POST",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "90b81a346055ada7",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "app/(chat)/api/chat/route.ts",
+          "line": 183,
+          "function": "POST",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "00989cb619160167",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "app/(chat)/api/chat/route.ts",
+          "line": 415,
+          "function": "consumeSseStream",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "792a95b112f665d8",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "lib/db/queries.ts",
+          "line": 102,
+          "function": "deleteChatById",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "4dadd85b0fd6b43e",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "lib/db/queries.ts",
+          "line": 103,
+          "function": "deleteChatById",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "5b4a2af38f30fe3f",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "lib/db/queries.ts",
+          "line": 105,
+          "function": "deleteChatById",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "470b67d1ef70d529",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "lib/db/queries.ts",
+          "line": 129,
+          "function": "deleteAllChatsByUserId",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "d3bff0d90655b36b",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "lib/db/queries.ts",
+          "line": 130,
+          "function": "deleteAllChatsByUserId",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "be92cc71e5cbda3c",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "lib/db/queries.ts",
+          "line": 132,
+          "function": "deleteAllChatsByUserId",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "434057130492cb86",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "lib/db/queries.ts",
+          "line": 422,
+          "function": "deleteDocumentsByIdAfterTimestamp",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "4973a09bcadd7d32",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "lib/db/queries.ts",
+          "line": 492,
+          "function": "deleteMessagesByChatIdAfterTimestamp",
+          "classification": "true-positive"
+        }
+      ],
+      "name": "vercel-chatbot",
+      "set": "held-out",
+      "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+      "hazardPrecision": {
+        "value": 1.0,
+        "num": 11,
+        "den": 11
+      },
+      "bugPrecision": {
+        "value": 0.8181818181818182,
+        "num": 9,
+        "den": 11
+      },
+      "recallRatio": {
+        "value": 0.875,
+        "num": 7,
+        "den": 8
+      }
+    }
+  ],
+  "sets": {
+    "dev": {
+      "hazardFindings": 219,
+      "labels": {
+        "true-positive": 23,
+        "intended-risk": 53,
+        "false-positive": 14,
+        "unclear": 6
+      },
+      "unlabeled": 123,
+      "hazardPrecision": {
+        "value": 0.8444444444444444,
+        "num": 76,
+        "den": 90
+      },
+      "bugPrecision": {
+        "value": 0.25555555555555554,
+        "num": 23,
+        "den": 90
+      },
+      "recall": {
+        "value": 0.6346153846153846,
+        "num": 33,
+        "den": 52
+      },
+      "projectsWithoutAudit": []
+    },
+    "held-out": {
+      "hazardFindings": 124,
+      "labels": {
+        "true-positive": 57,
+        "intended-risk": 62,
+        "false-positive": 5,
+        "unclear": 0
+      },
+      "unlabeled": 0,
+      "hazardPrecision": {
+        "value": 0.9596774193548387,
+        "num": 119,
+        "den": 124
+      },
+      "bugPrecision": {
+        "value": 0.4596774193548387,
+        "num": 57,
+        "den": 124
+      },
+      "recall": {
+        "value": 0.7741935483870968,
+        "num": 48,
+        "den": 62
+      },
+      "projectsWithoutAudit": []
+    }
+  },
+  "gate": {
+    "threshold": 0.9,
+    "metric": "held-out hazard precision",
+    "passed": true,
+    "reasons": []
+  }
+}

@@ -243,7 +243,7 @@
  ],
  "findings": [
   {
-   "findingId": "bbc36ce9a6dbf4f8",
+   "findingId": "5bcebdfd1952237c",
    "code": "MW1005",
    "file": "packages/api/src/controllers/segmentsController.ts",
    "line": 442,
@@ -333,7 +333,7 @@
    "notes": "recordNodeProcessed runs in a Temporal activity; onConflictDoNothing on a unique index (recordNodeProcessed.ts:50) and a deterministic uuidv5 messageId (:56) make retries converge."
   },
   {
-   "findingId": "a6be48101537d7f0",
+   "findingId": "ece472399ebf7efb",
    "code": "MW1005",
    "file": "packages/backend-lib/src/journeys/userWorkflow/activities.ts",
    "line": 385,
@@ -430,6 +430,42 @@
    "function": "handleOauthCallback",
    "classification": "true-positive",
    "notes": "handleOauthCallback (dashboard/src/lib/oauth.ts:258-323) commits tokens and the integration before startHubspotIntegrationWorkflow (its only caller); a failure leaves the integration enabled without a sync workflow."
+  },
+  {
+   "findingId": "9ce210754461e404",
+   "code": "MW1004",
+   "file": "packages/backend-lib/src/requestContext.ts",
+   "line": 353,
+   "function": "getMultiTenantRequestContext",
+   "classification": "intended-risk",
+   "notes": "The account-link insert (requestContext.ts:337-344, onConflictDoNothing) and the domain auto-join role inserts (88-97, onConflictDoNothing) are lazy get-or-create steps that run on every authenticated request. findAndCreateRoles recomputes the missing domain roles each time (81-83), so an account row without its role is fixed on the user's next request. Until then the user just looks not-onboarded, which is harmless by design. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 returned-builder change.)"
+  },
+  {
+   "findingId": "2e0a09c0253930e9",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/messaging.ts",
+   "line": 1198,
+   "function": "sendEmail",
+   "classification": "intended-risk",
+   "notes": "Window is real: storeEmailForViewInBrowser (messaging.ts:999, S3 putObject in viewInBrowser.ts) runs before sendMailSmtp -> transport.sendMail (smtp.ts:56), and a failed send leaves a stored body. But the store is an auxiliary view-in-browser copy: its own failure is only logged as a warning and sending continues (messaging.ts:1004-1012), the blob is keyed by messageId (overwritten on retry) and is reachable only via the hashed link inside the email, so an unsent email leaves an unreachable, harmless orphan object. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "cd600080513c83a1",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/messaging.ts",
+   "line": 1285,
+   "function": "sendEmail",
+   "classification": "intended-risk",
+   "notes": "Same pattern on the SendGrid branch: storeEmailForViewInBrowser (messaging.ts:999) then sendMailSendgrid -> sendgridMail.send (sendgrid.ts:55, which is awaited via ResultAsync by the caller). The leftover is a view-in-browser blob keyed by emails/{workspaceId}/{messageId}/body.html, treated as non-critical (store failure only warns, messaging.ts:1004-1012), idempotent on retry and unreachable without the email's hashed link, so the partial state is harmless by design. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "6613a8c1fddd79bf",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/messaging.ts",
+   "line": 1526,
+   "function": "sendEmail",
+   "classification": "intended-risk",
+   "notes": "Same pattern on the Resend branch: storeEmailForViewInBrowser (messaging.ts:999) then sendMailResend -> resend.emails.send (resend.ts:33). The window exists, but the blob is a best-effort side copy for view-in-browser (failure logged as warn and ignored, messaging.ts:1004-1012), overwritten on retry under the same messageId key and only reachable via a link in the sent email, so an orphan after a failed send is harmless. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
   }
  ],
  "corrections": [],

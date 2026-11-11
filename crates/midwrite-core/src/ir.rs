@@ -611,6 +611,10 @@ pub enum Execution {
     Awaited,
     /// Returned from an `async` function, which adopts and awaits it.
     Returned,
+    /// A lazy database builder returned from a non-async function: it runs
+    /// only if the caller awaits the call. Inlining into an awaiting caller
+    /// turns it into [`Execution::Returned`]; a fire-and-forget call drops it.
+    ReturnedLazy,
     /// Started without being awaited; it may complete after later operations.
     FireAndForget,
     /// Started together with other operations (e.g. `Promise.all`).
@@ -619,7 +623,7 @@ pub enum Execution {
 
 impl Execution {
     pub fn is_ordered(self) -> bool {
-        matches!(self, Self::Awaited | Self::Returned)
+        matches!(self, Self::Awaited | Self::Returned | Self::ReturnedLazy)
     }
 }
 
@@ -652,6 +656,9 @@ pub enum RecognitionBasis {
     /// A Drizzle-shaped call on a parameter whose name is not configured: a
     /// database operation only if a caller passes a database handle for it.
     Parameter,
+    /// A built-in SDK rule: the client was constructed from, typed as, or
+    /// imported from a known SDK package (`builtinEffects`).
+    BuiltinSdk,
 }
 
 /// How strong the evidence for a recognized operation is, from weakest to
@@ -689,7 +696,7 @@ impl RecognitionBasis {
         match self {
             Self::ConfiguredMemberPath => EvidenceStrength::MemberPath,
             Self::ConfiguredName => EvidenceStrength::ConfiguredName,
-            Self::ConfiguredImport => EvidenceStrength::ConfiguredImport,
+            Self::ConfiguredImport | Self::BuiltinSdk => EvidenceStrength::ConfiguredImport,
             Self::DrizzleConstructor | Self::TransactionHandle => EvidenceStrength::Provenance,
             Self::Parameter => EvidenceStrength::Unknown,
         }
@@ -707,6 +714,7 @@ impl RecognitionBasis {
             Self::ConfiguredImport => "import-based match against the configuration",
             Self::DrizzleConstructor => "created by `drizzle(...)` from `drizzle-orm` in this file",
             Self::TransactionHandle => "parameter of a recognized transaction callback",
+            Self::BuiltinSdk => "built-in rule for a client of a known SDK package",
         }
     }
 }

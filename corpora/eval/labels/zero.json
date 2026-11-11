@@ -4,7 +4,7 @@
  "kind": "midwrite.eval-labels",
  "project": "zero",
  "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
- "set": "held-out",
+ "set": "dev",
  "labeling": {
   "knownPositives": {
    "by": "AI agent (Claude), source-only audit",
@@ -342,7 +342,7 @@
    "notes": "assistant.ts:231-232 comment: an indeterminate send is never retried because duplicate mail is worse than an error; the stuck 'running' state is accepted on purpose."
   },
   {
-   "findingId": "10af11f3c4b1edec",
+   "findingId": "ca6441fb2f6b4979",
    "code": "MW1005",
    "file": "apps/server/src/trpc/routes/bimi.ts",
    "line": 138,
@@ -351,7 +351,7 @@
    "notes": "Both calls are read-only GETs (DNS-over-HTTPS lookup at bimi.ts:24 and the logo fetch) in a query procedure."
   },
   {
-   "findingId": "ed1f7c555bef9c04",
+   "findingId": "c0dba6e7042301d7",
    "code": "MW1005",
    "file": "apps/server/src/trpc/routes/bimi.ts",
    "line": 193,
@@ -360,7 +360,7 @@
    "notes": "getByDomain (bimi.ts:178-193) only does a DNS TXT GET and a logo GET; neither is a write."
   },
   {
-   "findingId": "24fa21e885e21ab8",
+   "findingId": "d835107cbe669c45",
    "code": "MW1005",
    "file": "apps/server/src/trpc/routes/mail.ts",
    "line": 194,
@@ -369,7 +369,7 @@
    "notes": "Unsnooze-on-access (mail.ts:193-198) is try/catch log-only; a leftover expired key is consumed by the cron (main.ts:996-1033)."
   },
   {
-   "findingId": "96d4f8870e9f74d7",
+   "findingId": "b084454e0f0328df",
    "code": "MW1005",
    "file": "apps/server/src/trpc/routes/mail.ts",
    "line": 623,
@@ -378,13 +378,22 @@
    "notes": "snoozeThreads applies SNOOZED and removes INBOX (mail.ts:619) before writing the wakeAt KV keys (:622-628); if the put fails the thread stays snoozed forever (cron main.ts:996-1022 never finds it), with no compensation."
   },
   {
-   "findingId": "dffdf9b53fcef78a",
+   "findingId": "77935fd3f97b3b79",
    "code": "MW1005",
    "file": "apps/server/src/trpc/routes/mail.ts",
    "line": 645,
    "function": "<anonymous@638:15>",
    "classification": "intended-risk",
    "notes": "If the KV delete fails after the unsnooze label change (mail.ts:642-648), the stale key is consumed by the cron unsnooze path, which repeats the idempotent change."
+  },
+  {
+   "findingId": "183f20efdc6b6c5f",
+   "code": "MW1002",
+   "file": "apps/server/src/routes/assistant.ts",
+   "line": 253,
+   "function": "decideAction",
+   "classification": "intended-risk",
+   "notes": "The window is real: the action is claimed as 'running' (assistant.ts:233-249), the mail is sent (253), and only then is it marked 'completed' (254-259). A crash in between leaves the action stuck in 'running' and nothing sweeps it. The comment at 231-232 accepts this on purpose (it is never retried automatically because duplicate mail is worse than an error), and the catch at 261-271 marks it failed and tells the user to check their mailbox. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 returned-builder change.)"
   }
  ],
  "corrections": [],
@@ -392,7 +401,14 @@
   {
    "knownPositive": "zero-KP09",
    "findings": [
-    "dffdf9b53fcef78a"
+    "77935fd3f97b3b79"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  },
+  {
+   "knownPositive": "zero-KP08",
+   "findings": [
+    "183f20efdc6b6c5f"
    ],
    "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
   }
