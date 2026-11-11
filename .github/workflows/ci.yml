@@ -20,6 +20,10 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
+  # Model exploration is CPU-heavy; retain test assertions and overflow checks.
+  CARGO_PROFILE_TEST_OPT_LEVEL: "1"
+  CARGO_PROFILE_TEST_DEBUG_ASSERTIONS: "true"
+  CARGO_PROFILE_TEST_OVERFLOW_CHECKS: "true"
 
 jobs:
   lint:
