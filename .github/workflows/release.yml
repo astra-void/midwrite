@@ -36,6 +36,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Prepare Linux replay runtime
+        if: runner.os == 'Linux'
+        run: scripts/setup-ci-linux-runtime.sh
       - name: Build first-party fixtures
         run: scripts/setup-ci-fixtures.sh
       - run: cargo test --workspace --locked
