@@ -27,8 +27,7 @@ Concept summary: [supported semantics](../concepts/supported-semantics.md).
 | handle arguments | a transaction handle, configured receiver (or configured call) or `drizzle(...)` instance passed as a direct identifier is bound to the callee's parameter |
 | branch correlation | contradictory decisions on never-reassigned variables, `const` literals, literals returned by inline transaction callbacks and by summarized helpers, properties of unescaped objects |
 
-Source: [README § supported patterns](../../README.md#supported-patterns),
-[`docs/LIMITATIONS.md` § support levels](../LIMITATIONS.md#support-levels).
+Source: [`docs/LIMITATIONS.md` § support levels](../LIMITATIONS.md#support-levels).
 
 ## Concurrency extractor (`model-check`, `discover`)
 

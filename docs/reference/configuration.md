@@ -170,7 +170,6 @@ runtime observation never changes a static finding.
   the configuration says.
 
 Source of truth for the analyzer:
-[README § configuration](../../README.md#configuration),
 [`docs/LIMITATIONS.md` § recognition trust model](../LIMITATIONS.md#recognition-trust-model).
 
 ## Configuration in other commands
