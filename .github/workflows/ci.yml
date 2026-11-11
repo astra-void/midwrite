@@ -70,6 +70,7 @@ jobs:
           ./target/release/midwrite check fixtures/vulnerable --config fixtures/midwrite.json --format sarif --fail-on never > fixtures.sarif
           ./target/release/midwrite trace fixtures/vulnerable --config fixtures/midwrite.json --format json > fixtures.traces.json
           .venv/bin/python scripts/validate-schemas.py --sarif-schema sarif-2.1.0.json fixtures.sarif fixtures.traces.json
+          .venv/bin/python scripts/tests/test_verification_schemas.py
           # Phase 16: a fresh discovery report against the published discovery-report schema.
           ./target/release/midwrite discover fixtures/phase15/worlds-app --model-check --format json --output discovery.json > /dev/null || true
           .venv/bin/python scripts/validate-schemas.py discovery.json
@@ -103,4 +104,5 @@ jobs:
             --format json --output order-vulnerable.json --regression-output order-vulnerable.regression.json > /dev/null
           python3 -m venv .venv && .venv/bin/pip install --quiet jsonschema
           .venv/bin/python scripts/validate-schemas.py drizzle-node.json order-vulnerable.json order-vulnerable.regression.json
+          .venv/bin/python scripts/tests/test_verification_schemas.py
           python3 -c "import json; r=json.load(open('drizzle-node.json')); assert r['environment']['isolation']=='bubblewrap', r['environment']; print(r['summary'])"

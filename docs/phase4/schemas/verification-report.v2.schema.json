@@ -568,7 +568,7 @@
           ]
         },
         "trace": {
-          "$ref": "commitrift.traces.v1#/definitions/trace"
+          "$ref": "commitrift.traces.v2#/definitions/trace"
         },
         "failureMode": {
           "enum": [
