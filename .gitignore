@@ -9,38 +9,23 @@
 /.corpora/
 /demo-output/
 
-# Phase 4: JavaScript dependencies and build outputs of replay fixtures and
+# JavaScript dependencies and build outputs of the fixture applications and
 # generated harnesses (lockfiles are tracked), scratch output of tests, and
 # local tooling caches.
 node_modules/
 /fixtures/replay/**/dist/
-# Phase 7: build output of the first-party source-verification application.
-/fixtures/phase7/**/dist/
-# Phase 8: build output of the crash/recovery applications.
-/fixtures/phase8/**/dist/
+/fixtures/apps/**/dist/
+/fixtures/eval/**/dist/
 /fixtures/replay/drizzle-node/.gen-*
 /digest.txt
 .DS_Store
 
-# Phase 9: the saved Phase 8 release binary used for comparisons.
-/reports/phase9/baseline/commitrift-phase8
-/fixtures/phase9/**/dist/
-
-# Phase 10: the saved Phase 9 release binary used for comparisons.
-/reports/phase10/baseline/commitrift-phase9
-/fixtures/phase10/**/dist/
-/fixtures/phase11/**/dist/
-/reports/phase11/baseline/commitrift-phase10
-/reports/phase12/baseline/commitrift-phase11
-/fixtures/phase12/**/dist/
-/reports/phase13/baseline/commitrift-phase12
-/fixtures/phase13/**/dist/
-/fixtures/phase14/**/dist/
-/fixtures/phase15/**/dist/
-/fixtures/phase16/**/dist/
-# Phase 13–15: the request and worlds applications link the Phase 12 fixture's packages
-# locally (`npm ci` creates their own elsewhere); Python bytecode of scripts.
-/fixtures/phase13/request-app/node_modules
-/fixtures/phase14/request-app/node_modules
-/fixtures/phase15/worlds-app/node_modules
+# Release binaries saved for before/after comparisons.
+/reports/baseline/
+# The request, retry-wrapper and worlds applications link the workspace
+# application's packages locally (`npm ci` creates their own elsewhere);
+# Python bytecode of scripts.
+/fixtures/apps/request-app/node_modules
+/fixtures/apps/retry-wrapper-app/node_modules
+/fixtures/apps/worlds-app/node_modules
 /scripts/__pycache__/
