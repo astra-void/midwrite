@@ -1,4 +1,4 @@
-"""Verify current trace embedding while retaining historical verification reports."""
+"""Verify current trace embedding in verification reports, starting from a recorded Linux run."""
 import copy
 import importlib.util
 import json
@@ -18,9 +18,9 @@ spec.loader.exec_module(report_schemas)
 class VerificationSchemas(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        schema = json.loads((ROOT / "docs/phase4/schemas/verification-report.v2.schema.json").read_text())
+        schema = json.loads((ROOT / "docs/reference/schemas/verification-report.v2.schema.json").read_text())
         cls.validator = jsonschema.validators.validator_for(schema)(schema, registry=report_schemas.registry())
-        cls.legacy = json.loads((ROOT / "reports/phase6/linux/generated-harness.json").read_text())
+        cls.recorded = json.loads((ROOT / "fixtures/reports/replay/generated-harness.linux.json").read_text())
         binary = os.environ.get("MIDWRITE_BIN", str(ROOT / "target/release/midwrite"))
         output = subprocess.run(
             [binary, "trace", str(ROOT / "fixtures/vulnerable"),
@@ -29,12 +29,12 @@ class VerificationSchemas(unittest.TestCase):
         )
         traces = json.loads(output.stdout)["traces"]
         trace = next(trace for trace in traces if trace.get("valueRelation") is not None)
-        cls.current = copy.deepcopy(cls.legacy)
+        cls.current = copy.deepcopy(cls.recorded)
         cls.current["cases"][0]["trace"] = trace
         cls.current["cases"][0]["traceId"] = trace["id"]
 
-    def test_historical_verification_report_still_validates(self):
-        self.validator.validate(self.legacy)
+    def test_recorded_verification_report_validates(self):
+        self.validator.validate(self.recorded)
 
     def test_verification_report_accepts_a_current_generated_trace(self):
         self.validator.validate(self.current)
