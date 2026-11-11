@@ -629,20 +629,28 @@ fn documentation_covers_every_code() {
     let diagnostics = std::fs::read_to_string(root().join("docs/DIAGNOSTICS.md")).unwrap();
     let readme = std::fs::read_to_string(root().join("README.md")).unwrap();
     let list = stdout(&run(&["explain"]));
+    let mut checked = 0;
     for line in list
         .lines()
-        .filter(|line| line.trim_start().starts_with("CP"))
+        .filter(|line| line.trim_start().starts_with("MW"))
     {
-        let code = line.split_whitespace().next().unwrap();
+        let mut fields = line.split_whitespace();
+        let code = fields.next().unwrap();
+        checked += 1;
         assert!(
             diagnostics.contains(&format!("## {code}:")),
             "{code} has a section in DIAGNOSTICS.md"
         );
-        assert!(
-            readme.contains(&format!("`{code}`")),
-            "{code} is listed in the README"
-        );
+        // `check` codes carry a severity; model-check codes are documented
+        // in DIAGNOSTICS.md and the model-check guide, not the README.
+        if fields.next().is_some() {
+            assert!(
+                readme.contains(&format!("`{code}`")),
+                "{code} is listed in the README"
+            );
+        }
     }
+    assert!(checked >= 12, "explain listed {checked} codes:\n{list}");
 }
 
 // --- Phase 2: CI workflow ------------------------------------------------------
