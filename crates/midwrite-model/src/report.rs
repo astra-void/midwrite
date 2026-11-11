@@ -771,6 +771,7 @@ fn not_requested() -> RuntimeVerification {
     }
 }
 
+#[cfg(feature = "postgres")]
 const RUNTIME_NOTE: &str = "Each actor ran on its own PostgreSQL connection (a psql process) against a private, disposable cluster; the model's schedule decided which session sent its next statement, and a statement counts as blocked only when the server reported a lock wait. Deadlock victim choice depends on PostgreSQL's deadlock timer and is steered with delays. Not exercised: the original TypeScript/Drizzle code, application-level retries, external services.";
 
 #[cfg(feature = "postgres")]

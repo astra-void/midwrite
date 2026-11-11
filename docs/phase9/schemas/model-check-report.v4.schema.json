@@ -938,7 +938,7 @@
         "properties": {
           "code": {
             "type": "string",
-            "pattern": "^CP7[0-9]{3}$"
+            "pattern": "^(CP|MW)7[0-9]{3}$"
           },
           "severity": {
             "enum": [

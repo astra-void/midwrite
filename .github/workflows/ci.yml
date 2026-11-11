@@ -7,9 +7,7 @@
 # Nothing is uploaded anywhere: reports stay in the job's workspace and are
 # summarized in the log.
 #
-# Status: written in Phase 4 and exercised locally (scripts/linux-replay-docker.sh
-# reproduces the replay job's steps on Debian bookworm); it has not run on
-# GitHub-hosted runners yet, because the repository has no remote.
+# scripts/setup-ci-fixtures.sh installs only first-party test applications.
 name: ci
 
 on:
@@ -40,11 +38,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-14]
+        os: [ubuntu-24.04, macos-15]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build first-party fixtures
+        run: scripts/setup-ci-fixtures.sh
       - name: Build (release)
         run: cargo build --release --locked
       - name: Build without the replay feature
@@ -57,8 +60,8 @@ jobs:
         run: |
           python3 -m venv .venv && .venv/bin/pip install --quiet jsonschema
           curl -fsSL -o sarif-2.1.0.json https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json
-          ./target/release/midwrite check fixtures --config fixtures/midwrite.json --format sarif --fail-on never > fixtures.sarif
-          ./target/release/midwrite trace fixtures --config fixtures/midwrite.json --format json > fixtures.traces.json
+          ./target/release/midwrite check fixtures/vulnerable --config fixtures/midwrite.json --format sarif --fail-on never > fixtures.sarif
+          ./target/release/midwrite trace fixtures/vulnerable --config fixtures/midwrite.json --format json > fixtures.traces.json
           .venv/bin/python scripts/validate-schemas.py --sarif-schema sarif-2.1.0.json fixtures.sarif fixtures.traces.json
           # Phase 16: a fresh discovery report against the published discovery-report schema.
           ./target/release/midwrite discover fixtures/phase15/worlds-app --model-check --format json --output discovery.json > /dev/null || true
@@ -92,9 +95,8 @@ jobs:
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           fi
           bwrap --unshare-user --unshare-net --unshare-pid --ro-bind / / --dev /dev --proc /proc true
-      - name: Install the Drizzle fixture's pinned dependencies
-        working-directory: fixtures/replay/drizzle-node
-        run: npm ci --ignore-scripts --no-audit --no-fund && npm run build
+      - name: Build first-party fixtures
+        run: scripts/setup-ci-fixtures.sh
       - name: Tests including required replay
         run: cargo test --workspace --locked
       - name: Drizzle replay (CLI) and verification schema validation
