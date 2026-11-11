@@ -1,0 +1,173 @@
+{
+  "schemaVersion": 1,
+  "kind": "midwrite.upstream-review",
+  "date": "2026-11-11",
+  "reviewer": "Codex (AI-assisted manual source review)",
+  "humanReviewed": false,
+  "midwriteUrl": "https://github.com/astra-void/midwrite",
+  "beforeBinarySha256": "97525ffb70a5ba968568393103d51b41d22bf0b7c9872e964fe0f1df7b8c5294",
+  "afterBinarySha256": "b5f177758502136c0bb2f6b146e3ea5107a4d1b9e0813e27982f19ee723ff841",
+  "projects": [
+    {
+      "name": "chatbot",
+      "repository": "vercel/chatbot",
+      "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+      "path": ".corpora/upstream/chatbot",
+      "scanPath": ".corpora/upstream/chatbot",
+      "sourceTreeSha256": "46311b51534e36d1c87a798230d05a1346a529aa0a369860291eb906b3cea6b2",
+      "config": "corpora/upstream/configs/chatbot.json",
+      "beforeConfig": "corpora/upstream/configs/chatbot.json",
+      "reviews": "corpora/upstream/reviews/chatbot.json",
+      "exitCode": 0,
+      "existingEvaluationSet": "new-review",
+      "dialect": "PostgreSQL",
+      "beforeCounts": {
+        "MW9001": 3,
+        "MW1004": 9
+      },
+      "afterCounts": {
+        "MW9001": 3,
+        "MW1004": 9
+      },
+      "beforeConfigSha256": "fcf76ae2dc910d714c34625526252128f33511c45d6a08b7d8d64982be5a6856",
+      "configSha256": "fcf76ae2dc910d714c34625526252128f33511c45d6a08b7d8d64982be5a6856"
+    },
+    {
+      "name": "rybbit",
+      "repository": "rybbit-io/rybbit",
+      "revision": "4288204761ed2fc801fcaa0b3bbfacd1b8cc3936",
+      "path": ".corpora/upstream/rybbit-source",
+      "scanPath": ".corpora/upstream/rybbit-source/server/src",
+      "sourceTreeSha256": "22d88f6d7fed9f4de4bb8c9559896c83df3373ca0607407449e686fe30a5a95e",
+      "config": "corpora/upstream/configs/rybbit.json",
+      "beforeConfig": "corpora/upstream/configs/rybbit.before.json",
+      "reviews": "corpora/upstream/reviews/rybbit.json",
+      "exitCode": 0,
+      "existingEvaluationSet": "new-review",
+      "dialect": "PostgreSQL",
+      "beforeCounts": {
+        "MW9001": 72,
+        "MW1005": 4,
+        "MW1004": 13,
+        "MW1002": 10,
+        "MW1001": 8
+      },
+      "afterCounts": {
+        "MW9001": 70,
+        "MW1004": 13,
+        "MW1002": 7,
+        "MW1001": 7,
+        "MW1005": 1
+      },
+      "beforeConfigSha256": "8ff55ce576d841ce0e6fb298cbe3f65d41beb14af00b0a1c568f4463300d0b74",
+      "configSha256": "e565d2fa28a3b6902fef32120f7528c74d8328450472a3b1693604e37e44f241"
+    },
+    {
+      "name": "openstatus",
+      "repository": "openstatusHQ/openstatus",
+      "revision": "36288495c8544d4498986be7d72c37ee7e666837",
+      "path": ".corpora/upstream/openstatus-source",
+      "scanPath": ".corpora/upstream/openstatus-source",
+      "sourceTreeSha256": "6a3403f76c58c17b55d2e2d153019dd241135c50e919919309dbe6731648b75a",
+      "config": "corpora/upstream/configs/openstatus.json",
+      "beforeConfig": "corpora/upstream/configs/openstatus.before.json",
+      "reviews": "corpora/upstream/reviews/openstatus.json",
+      "exitCode": 0,
+      "existingEvaluationSet": "new-review",
+      "dialect": "libSQL (static effect ordering only; no PostgreSQL modeling)",
+      "beforeCounts": {
+        "MW9001": 95,
+        "MW1004": 48,
+        "MW1001": 3,
+        "MW1005": 31,
+        "MW1002": 1
+      },
+      "afterCounts": {
+        "MW9001": 59,
+        "MW1004": 48,
+        "MW1001": 3,
+        "MW1005": 18,
+        "MW1002": 1
+      },
+      "beforeConfigSha256": "fe0ecd8e90239f72798669f642c969507576fdcd2534098b088c8d997c8ad474",
+      "configSha256": "26dadd2a1bef443ef7a9860702b72ac8afa73b7c49edae326558d6dedd0aa0e4"
+    },
+    {
+      "name": "kan",
+      "repository": "kanbn/kan",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "path": ".corpora/upstream/kan-source",
+      "scanPath": ".corpora/upstream/kan-source",
+      "sourceTreeSha256": "274f9c102fe665d95f4826154d7a5cbb8ce522a78564e4d4465264f2d450d56c",
+      "config": "corpora/upstream/configs/kan.json",
+      "beforeConfig": "corpora/upstream/configs/kan.json",
+      "reviews": "corpora/upstream/reviews/kan.json",
+      "exitCode": 0,
+      "existingEvaluationSet": "held-out",
+      "dialect": "PostgreSQL",
+      "beforeCounts": {
+        "MW1004": 68,
+        "MW9001": 39,
+        "MW1001": 11,
+        "MW1002": 8,
+        "MW1005": 4
+      },
+      "afterCounts": {
+        "MW1004": 68,
+        "MW9001": 39,
+        "MW1001": 11,
+        "MW1002": 8,
+        "MW1005": 4
+      },
+      "beforeConfigSha256": "5e6090706221bce55f15992e9dc6ad92962512ebdeb9e58ab7c22fbc03eb5c34",
+      "configSha256": "5e6090706221bce55f15992e9dc6ad92962512ebdeb9e58ab7c22fbc03eb5c34"
+    },
+    {
+      "name": "dittofeed",
+      "repository": "dittofeed/dittofeed",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "path": ".corpora/upstream/dittofeed-source",
+      "scanPath": ".corpora/upstream/dittofeed-source",
+      "sourceTreeSha256": "1fdece6048973df97cdc596396ede179b70563ab1df131a10ca62888b258fb33",
+      "config": "corpora/upstream/configs/dittofeed.json",
+      "beforeConfig": "corpora/upstream/configs/dittofeed.json",
+      "reviews": "corpora/upstream/reviews/dittofeed.json",
+      "exitCode": 3,
+      "existingEvaluationSet": "held-out",
+      "dialect": "PostgreSQL",
+      "beforeCounts": {
+        "MW1005": 12,
+        "MW9001": 40,
+        "MW1002": 2,
+        "MW1001": 4,
+        "MW1004": 3
+      },
+      "afterCounts": {
+        "MW1005": 12,
+        "MW9001": 40,
+        "MW1002": 2,
+        "MW1001": 4,
+        "MW1004": 3
+      },
+      "beforeConfigSha256": "9c69f1b494e926de643ea6c89e6453c1dfb9d0314c49fd2b449dd6a3a88e1943",
+      "configSha256": "9c69f1b494e926de643ea6c89e6453c1dfb9d0314c49fd2b449dd6a3a88e1943"
+    }
+  ],
+  "screenedOut": [
+    {
+      "repository": "Openpanel-dev/openpanel",
+      "revision": "a5a6eb7d62c9579620ec5e3fbfd4ce760f3d8073",
+      "reason": "Prisma, not the supported Drizzle backend; not counted as a scan or a clean result."
+    },
+    {
+      "repository": "useplunk/plunk",
+      "revision": "37e5f818e8087fc5947ecdc399b7f59efed0b342",
+      "reason": "Prisma; not counted as a scan or a clean result."
+    }
+  ],
+  "midwriteUrlVerification": {
+    "source": "user-provided URL",
+    "githubApiStatus": 404,
+    "note": "Reports use the exact URL the user specified; public availability was not established."
+  }
+}

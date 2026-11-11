@@ -1,0 +1,7 @@
+{
+  "repository": "openstatusHQ/openstatus",
+  "title": "Auth createUser can commit a user without its workspace membership",
+  "bodyFile": "reports/upstream/issues/openstatus-partial-signup.md",
+  "status": "reported",
+  "url": "https://github.com/openstatusHQ/openstatus/issues/3077"
+}

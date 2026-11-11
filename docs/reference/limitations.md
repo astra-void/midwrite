@@ -26,6 +26,11 @@ Contents:
 [lifted limitations](#limitations-lifted-by-later-phases) ·
 [Phase 14 changes](#phase-14-changes)
 
+Broad HTTP-effect rules can flag read-only network requests. The optional
+[`httpMethods` filter](configuration.md#narrowing-http-effects) narrows literal
+fetch-style methods; unresolved options remain unknown, and a POST query may
+still be read-only.
+
 ## What any result means
 
 * A static diagnostic is a **potential** hazard (`"reproduced": false`).

@@ -6,6 +6,27 @@ call *between two independently committed side effects* can leave your system
 half-done: the database says an order is paid, but the `order.completed` event
 was never published.
 
+A real example: [Kan's checkout webhook](https://github.com/kanbn/kan/issues/697)
+creates a workspace before its subscription record. If the second write fails,
+Stripe's retry finds the existing workspace and skips the missing subscription:
+
+```ts
+// Reduced from Kan's checkout.session.completed handler.
+if (!existingWorkspace) {
+  await workspaceRepo.create(db, workspaceInput);  // commits
+  // A failure here leaves a workspace without its subscription.
+  await subscriptionRepo.create(db, subscriptionInput);
+}
+// On retry, existingWorkspace is present: neither create runs.
+```
+
+Midwrite reported this through cross-module call summaries (`MW1004`).
+The failure path was checked against the source and
+[reported upstream](https://github.com/kanbn/kan/issues/697); it has not been
+runtime-reproduced or confirmed by the maintainer. The
+[five-repository review](docs/development/upstream-review.md) records four
+upstream reports, every diagnostic's review, and the HTTP false-positive fix.
+
 > **Documentation: [`docs/README.md`](docs/README.md)** — installation,
 > quickstart, CLI reference, supported technologies, the verification
 > workflow, evidence levels, the [current limitations](docs/reference/limitations.md),

@@ -1,0 +1,126 @@
+{
+  "databaseReceivers": [
+    "db",
+    "ctx.db",
+    "defaultDb",
+    "syncDB"
+  ],
+  "externalEffects": [
+    {
+      "receiver": "resend.emails",
+      "method": "send",
+      "category": "email"
+    },
+    {
+      "receiver": "resend.emails",
+      "method": "cancel",
+      "category": "email"
+    },
+    {
+      "receiver": "resend.batch",
+      "method": "send",
+      "category": "email"
+    },
+    {
+      "function": "fetch",
+      "category": "http-request",
+      "httpMethods": [
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ]
+    },
+    {
+      "receiver": "stripe.customers",
+      "method": "create",
+      "category": "payment"
+    },
+    {
+      "receiver": "stripe.customers",
+      "method": "update",
+      "category": "payment"
+    },
+    {
+      "receiver": "stripe.customers",
+      "method": "del",
+      "category": "payment"
+    },
+    {
+      "receiver": "stripe.subscriptions",
+      "method": "create",
+      "category": "payment"
+    },
+    {
+      "receiver": "stripe.subscriptions",
+      "method": "update",
+      "category": "payment"
+    },
+    {
+      "receiver": "stripe.subscriptions",
+      "method": "cancel",
+      "category": "payment"
+    },
+    {
+      "receiver": "stripe.subscriptionItems",
+      "method": "create",
+      "category": "payment"
+    },
+    {
+      "receiver": "stripe.subscriptionItems",
+      "method": "update",
+      "category": "payment"
+    },
+    {
+      "receiver": "stripe.subscriptionItems",
+      "method": "del",
+      "category": "payment"
+    },
+    {
+      "receiver": "stripe.checkout.sessions",
+      "method": "create",
+      "category": "payment"
+    },
+    {
+      "receiver": "stripe.billingPortal.sessions",
+      "method": "create",
+      "category": "payment"
+    },
+    {
+      "function": "safeFetch",
+      "category": "http-request",
+      "httpMethods": [
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ]
+    },
+    {
+      "function": "addDomainToVercel",
+      "category": "http-request",
+      "importedFrom": "../lib/vercel"
+    },
+    {
+      "function": "removeDomainFromVercelIfUnused",
+      "category": "http-request",
+      "importedFrom": "../lib/vercel"
+    },
+    {
+      "function": "issueCertificateOnVercel",
+      "category": "http-request",
+      "importedFrom": "../lib/vercel"
+    }
+  ],
+  "exclude": [
+    "*.test.ts",
+    "*.test.tsx",
+    "*.spec.ts",
+    "*.spec.tsx",
+    "*.d.ts",
+    "__tests__",
+    "node_modules",
+    "dist",
+    ".next"
+  ]
+}

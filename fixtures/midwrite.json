@@ -3,6 +3,7 @@
   "transactionMethods": ["transaction"],
   "externalEffects": [
     { "receiver": "queue", "method": "publish", "category": "message-publish" },
+    { "function": "fetch", "category": "http-request", "httpMethods": ["POST", "PUT", "PATCH", "DELETE"] },
     { "receiver": "this.queue", "method": "publish", "category": "message-publish" },
     { "receiver": "mailer", "method": "send", "category": "email" },
     { "receiver": "stripe.charges", "method": "create", "category": "payment" },

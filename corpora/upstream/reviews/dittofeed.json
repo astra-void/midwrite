@@ -1,0 +1,886 @@
+{
+  "schemaVersion": 1,
+  "project": "dittofeed",
+  "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+  "reviewer": "Codex (AI-assisted manual source review)",
+  "humanReviewed": false,
+  "runtimeExecuted": false,
+  "method": "Manual source review; source-window/recovery decisions transcribed into per-fingerprint records. Existing Kan/Dittofeed labels are identified explicitly; source-reviewed candidates with unresolved contracts remain needs-triage. MW9001 is a limitation, never a defect.",
+  "reviews": [
+    {
+      "fingerprint": "5d6e537d4e6508f4",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/api/src/controllers/segmentsController.ts",
+      "line": 442,
+      "function": "segmentsController::<anonymous@289:5>",
+      "classification": "needs-triage",
+      "notes": "segmentsController.ts:440-448 publishes identify events (random messageIds) before updateManualSegmentUsers; no compensation or retry, so traits are ingested but membership is unchanged. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/api/src/controllers/segmentsController.ts#L442",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "c81c490e1e7c90aa",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/controllers/segmentsController.ts",
+      "line": 450,
+      "function": "segmentsController::<anonymous@289:5>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `reply.status(200).send()` runs after `updateManualSegmentUsers(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/api/src/controllers/segmentsController.ts#L450"
+    },
+    {
+      "fingerprint": "58253012c892d07f",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/adminApiKeys.ts",
+      "line": 37,
+      "function": "createAdminApiKey",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `queryResult(\u2026)` runs after the transaction started at 38:5 has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/adminApiKeys.ts#L37"
+    },
+    {
+      "fingerprint": "995ee9ac1196a0b3",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/backend-lib/src/apps.ts",
+      "line": 65,
+      "function": "submitTrackWithTriggers",
+      "classification": "intended-risk",
+      "notes": "persistFiles (apps/files.ts:18-28,36-72) writes under a deterministic messageId key before submitTrack (apps.ts:65); only an overwritable orphan blob can remain. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/apps.ts#L65",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "039bb5837dca0c33",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/apps.ts",
+      "line": 81,
+      "function": "submitTrackWithTriggers",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `triggerEventEntryJourneys(\u2026)` runs after `submitTrack({ workspaceId, data: {...data, properties, }, })` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/apps.ts#L81"
+    },
+    {
+      "fingerprint": "d740741c6e6d791c",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/backend-lib/src/apps.ts",
+      "line": 118,
+      "function": "submitBatchWithTriggers",
+      "classification": "intended-risk",
+      "notes": "Same upload-then-reference pattern: persistFiles (apps.ts:101) uses a messageId-keyed path before submitBatch (:118). Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/apps.ts#L118",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "9022b922b2631f75",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/apps.ts",
+      "line": 143,
+      "function": "submitBatchWithTriggers",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `(trigger) => triggerEventEntryJourneys(\u2026 (per element)` runs after `submitBatch({ workspaceId, data })` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/apps.ts#L143"
+    },
+    {
+      "fingerprint": "cab07bcd5e0b019a",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/apps/files.ts",
+      "line": 63,
+      "function": "persistFiles",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `Promise.all(promises)` runs after `putObject(s, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/apps/files.ts#L63"
+    },
+    {
+      "fingerprint": "305fd27677b077ac",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/bootstrap.ts",
+      "line": 68,
+      "function": "bootstrapPostgres",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `bootstrapPostgres` has more than 512 execution paths; only the first 512 were analyzed No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/bootstrap.ts#L68"
+    },
+    {
+      "fingerprint": "1edc6cae32f63aac",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1002",
+      "file": "packages/backend-lib/src/bootstrap.ts",
+      "line": 135,
+      "function": "bootstrapPostgres",
+      "classification": "intended-risk",
+      "notes": "Bootstrap code: terminateComputePropertiesWorkflow is best-effort (lifecycle.ts:130-141) and the later inserts are idempotent upserts, so re-running converges. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/bootstrap.ts#L135",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "f41bca3180480caf",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/bootstrap.ts",
+      "line": 251,
+      "function": "bootstrapPostgres",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `Promise.all(upsertPromises)` (via `getOrCreateSmsProviders({ workspaceId, })`) runs after the transaction started at .corpora/upstream/dittofeed-source/packages/backend-lib/src/auth.ts:134:10 (via `getOrCreateWriteKey(\u2026)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/bootstrap.ts#L251"
+    },
+    {
+      "fingerprint": "91196b7f87ff840c",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/bootstrap.ts",
+      "line": 475,
+      "function": "bootstrapWorkspace",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `bootstrapWorkspace` has more than 512 execution paths; only the first 512 were analyzed No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/bootstrap.ts#L475"
+    },
+    {
+      "fingerprint": "53bb3c0b02be44f4",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/bootstrap.ts",
+      "line": 504,
+      "function": "bootstrapWorkspace",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `startComputePropertiesWorkflowGlobal()` (via `bootstrapComputeProperties({ workspaceId })`) runs after `submitBatch(\u2026)` (via `insertDefaultEvents({ workspaceId })`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/bootstrap.ts#L504"
+    },
+    {
+      "fingerprint": "4b66110f683c794f",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/backend-lib/src/bootstrap.ts",
+      "line": 505,
+      "function": "bootstrapWorkspace",
+      "classification": "intended-risk",
+      "notes": "bootstrapWorkspace (bootstrap.ts:499-506) seeds demo events behind a flag and startGlobalCron swallows failures: re-runnable bootstrap code. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/bootstrap.ts#L505",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "69aab93be3cd72aa",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/bootstrap.ts",
+      "line": 630,
+      "function": "bootstrap",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `bootstrap` has more than 512 execution paths; only the first 512 were analyzed No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/bootstrap.ts#L630"
+    },
+    {
+      "fingerprint": "397018ece5df2080",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1002",
+      "file": "packages/backend-lib/src/broadcasts.ts",
+      "line": 364,
+      "function": "triggerBroadcast",
+      "classification": "intended-risk",
+      "notes": "triggerBroadcast (broadcasts.ts:363-393) uses a deterministic workflowId, tolerates already-started, and the activity sets Triggered itself (performBroadcast.ts:59-62). Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/broadcasts.ts#L364",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "afe50d87f4514b5c",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/backend-lib/src/computedProperties/computePropertiesIncremental.ts",
+      "line": 3746,
+      "function": "processRowsInner",
+      "classification": "intended-risk",
+      "notes": "processRowsInner (computePropertiesIncremental.ts:3683-3746) is deliberately at-least-once with deterministic per-user workflowIds and versioned updates. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/computedProperties/computePropertiesIncremental.ts#L3746",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "2d6d0af34197c3cb",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/computedProperties/periods.ts",
+      "line": 167,
+      "function": "getPeriodsByComputedPropertyId",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db().execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/computedProperties/periods.ts#L167"
+    },
+    {
+      "fingerprint": "54e632eb22410889",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/db.ts",
+      "line": 201,
+      "function": "insert",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `queryResult(\u2026)` runs after `tx.insert(table)` has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/db.ts#L201"
+    },
+    {
+      "fingerprint": "78a315b5f95cab2e",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/destinations/sendgrid.ts",
+      "line": 217,
+      "function": "handleSendgridEvents",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `handleSendgridEvents` has more than 512 execution paths; only the first 512 were analyzed No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/destinations/sendgrid.ts#L217"
+    },
+    {
+      "fingerprint": "a3bd68f40c08ea72",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/features.ts",
+      "line": 157,
+      "function": "addFeatures",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `Promise.all(effects)` runs after `terminateComputePropertiesWorkflow({ workspaceId })` (via `(workspaceId) => features.flatMap((feat\u2026 (per element)`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/features.ts#L157"
+    },
+    {
+      "fingerprint": "9649959151b6c650",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "packages/backend-lib/src/features.ts",
+      "line": 179,
+      "function": "removeFeatures",
+      "classification": "intended-risk",
+      "notes": "removeFeatures (features.ts:160-190) is called only from the admin CLI; the delete is idempotent and start errors are swallowed, so re-running converges. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/features.ts#L179",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "2a8e53484acab3a2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/features.ts",
+      "line": 189,
+      "function": "removeFeatures",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `Promise.all(effects)` runs after `db().delete(dbFeature)` has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/features.ts#L189"
+    },
+    {
+      "fingerprint": "691dc8e7388ded18",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/integrations/hubspot/activities.ts",
+      "line": 185,
+      "function": "refreshToken",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `upsert(\u2026)` runs after `axios(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/integrations/hubspot/activities.ts#L185"
+    },
+    {
+      "fingerprint": "84ab250874b56195",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/backend-lib/src/journeys.ts",
+      "line": 1236,
+      "function": "upsertJourney",
+      "classification": "false-positive",
+      "notes": "journeys.ts:1183-1194 needs status===Running && journey.status===Paused, but journey is the row returned after the transaction set the status (1084-1094, 1141): the branch is unreachable. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/journeys.ts#L1236",
+      "priorFrozenClassification": "false-positive"
+    },
+    {
+      "fingerprint": "bc190f3ebac55cfe",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "packages/backend-lib/src/journeys/recordNodeProcessed.ts",
+      "line": 51,
+      "function": "recordNodeProcessed",
+      "classification": "intended-risk",
+      "notes": "recordNodeProcessed runs in a Temporal activity; onConflictDoNothing on a unique index (recordNodeProcessed.ts:50) and a deterministic uuidv5 messageId (:56) make retries converge. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/journeys/recordNodeProcessed.ts#L51",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "55aa9d80bf571263",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/backend-lib/src/journeys/userWorkflow/activities.ts",
+      "line": 385,
+      "function": "sendMessageWithSender::<anonymous@325:56>",
+      "classification": "intended-risk",
+      "notes": "sendMessageWithSender is a retry-aware Temporal activity (activities.ts:270-300) and submitTrack reuses the deterministic messageId (:385); a possible duplicate send is the accepted cost. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/journeys/userWorkflow/activities.ts#L385",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "5478220cfdebff13",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/messaging.ts",
+      "line": 1155,
+      "function": "sendEmail",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `Promise.all(attachmentPromises)` runs after `storeEmailForViewInBrowser(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/messaging.ts#L1155"
+    },
+    {
+      "fingerprint": "5d13e022418bd4e6",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/backend-lib/src/messaging.ts",
+      "line": 1444,
+      "function": "sendEmail",
+      "classification": "intended-risk",
+      "notes": "storeEmailForViewInBrowser (messaging.ts:998-1014) is explicitly best-effort and writes a messageId-keyed object. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/messaging.ts#L1444",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "205733b2fe1568ed",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/messaging.ts",
+      "line": 2406,
+      "function": "sendMessage::<anonymous@2406:44>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `sendMessage::<anonymous@2406:44>` has more than 512 execution paths; only the first 512 were analyzed No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/messaging.ts#L2406"
+    },
+    {
+      "fingerprint": "0dd719cec6638bf6",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/messaging/email.ts",
+      "line": 84,
+      "function": "upsertEmailProvider",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `upsert({ table: dbSecret, tx, target: [dbSecret.w\u2026(\u2026)` runs inside the transaction started at 83:10, before it commits; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/messaging/email.ts#L84"
+    },
+    {
+      "fingerprint": "1a5332f8cf28778d",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/messaging/sms.ts",
+      "line": 26,
+      "function": "upsertSmsProvider",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `upsert({ table: dbSecret, tx, target: [dbSecret.w\u2026(\u2026)` runs inside the transaction started at 25:10, before it commits; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/messaging/sms.ts#L26"
+    },
+    {
+      "fingerprint": "565f184f9e8ff09f",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/backend-lib/src/requestContext.ts",
+      "line": 337,
+      "function": "getMultiTenantRequestContext",
+      "classification": "intended-risk",
+      "notes": "getMultiTenantRequestContext (requestContext.ts:270-345) re-checks and upserts a missing member/account on every request. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/requestContext.ts#L337",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "b0e60ca5ba9736ca",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/requestContext.ts",
+      "line": 353,
+      "function": "getMultiTenantRequestContext",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `(w) => db().insert(dbWorkspaceMemberRol\u2026 (per element)` (via `findAndCreateRoles(member)`) runs after `db().insert(dbWorkspaceMembeAccount)` has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/requestContext.ts#L353"
+    },
+    {
+      "fingerprint": "da7af21dbd0ccc71",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/requestContext.ts",
+      "line": 456,
+      "function": "getRequestContext::<anonymous@427:52>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `requestContextPostProcessor().postProcessor(result)` runs after `db().insert(dbWorkspaceMember)` (via `getMultiTenantRequestContext(\u2026)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/requestContext.ts#L456"
+    },
+    {
+      "fingerprint": "eb762bd46c1dc96d",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/restartUserJourneyWorkflow/activities.ts",
+      "line": 122,
+      "function": "restartUserJourneysActivity",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `Promise.all(promises)` runs after `workflowClient.signalWithStart(userJourneyWorkflow, \u2026)` (via `({ userId }) => { const workflowId = ge\u2026 (per element)`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/restartUserJourneyWorkflow/activities.ts#L122"
+    },
+    {
+      "fingerprint": "f82204342f960d35",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/segments.ts",
+      "line": 1178,
+      "function": "deleteSegment",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `(query) => chCommand({ query, query_par\u2026 (per element)` runs after `db().delete(dbSegment)` has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/segments.ts#L1178"
+    },
+    {
+      "fingerprint": "f110169c7306da77",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/segments/manualSegment/activities.ts",
+      "line": 124,
+      "function": "computePropertiesForManualSegment",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `computePropertiesIncremental(args)` runs after `enqueueRecompute(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/segments/manualSegment/activities.ts#L124"
+    },
+    {
+      "fingerprint": "cdb603ff767d3941",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/segments/manualSegment/activities.ts",
+      "line": 242,
+      "function": "appendToManualSegment",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `waitForEventAvailability(\u2026)` runs after `submitBatch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/segments/manualSegment/activities.ts#L242"
+    },
+    {
+      "fingerprint": "b2e383955dbd2a0a",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/backend-lib/src/segments/manualSegment/activities.ts",
+      "line": 255,
+      "function": "appendToManualSegment",
+      "classification": "intended-risk",
+      "notes": "appendToManualSegment is a Temporal activity (maximumAttempts 5) with deterministic uuidv5 messageIds (activities.ts:220-223): retries converge. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/segments/manualSegment/activities.ts#L255",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "79f1a584928572f6",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "packages/backend-lib/src/segments/manualSegment/activities.ts",
+      "line": 359,
+      "function": "replaceManualSegment",
+      "classification": "intended-risk",
+      "notes": "replaceManualSegment is a retried activity whose version derives from the workflow's fixed now (manualSegmentWorkflow.ts:103-111) and submitBatch uses deterministic messageIds. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/segments/manualSegment/activities.ts#L359",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "fffe0fc66f93afde",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/segments/manualSegment/activities.ts",
+      "line": 372,
+      "function": "replaceManualSegment",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `waitForEventAvailability(\u2026)` runs after `submitBatch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/segments/manualSegment/activities.ts#L372"
+    },
+    {
+      "fingerprint": "6c21a6e79525b706",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "packages/backend-lib/src/segments/manualSegment/activities.ts",
+      "line": 386,
+      "function": "replaceManualSegment",
+      "classification": "intended-risk",
+      "notes": "Same activity-retry convergence: the transaction at activities.ts:275 is idempotent for a given now and the recompute at :386 is re-run by Temporal. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/segments/manualSegment/activities.ts#L386",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "7d52d3d6b9393125",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/backend-lib/src/segments/manualSegment/activities.ts",
+      "line": 386,
+      "function": "replaceManualSegment",
+      "classification": "intended-risk",
+      "notes": "submitBatch (activities.ts:359) uses deterministic messageIds and enqueueRecompute (:386) runs inside a retried Temporal activity. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/segments/manualSegment/activities.ts#L386",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "ead1d4b08ea68a09",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/segments/manualSegmentWorkflow.ts",
+      "line": 119,
+      "function": "manualSegmentWorkflow",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. unsupported control flow (labeled `break mainLoop`); paths through this point are not analyzed further No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/segments/manualSegmentWorkflow.ts#L119"
+    },
+    {
+      "fingerprint": "ead1d4b08ea68a09-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/segments/manualSegmentWorkflow.ts",
+      "line": 176,
+      "function": "manualSegmentWorkflow",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. unsupported control flow (labeled `break mainLoop`); paths through this point are not analyzed further No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/segments/manualSegmentWorkflow.ts#L176"
+    },
+    {
+      "fingerprint": "ead1d4b08ea68a09-3",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/segments/manualSegmentWorkflow.ts",
+      "line": 205,
+      "function": "manualSegmentWorkflow",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. unsupported control flow (labeled `break mainLoop`); paths through this point are not analyzed further No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/segments/manualSegmentWorkflow.ts#L205"
+    },
+    {
+      "fingerprint": "ead1d4b08ea68a09-4",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/segments/manualSegmentWorkflow.ts",
+      "line": 221,
+      "function": "manualSegmentWorkflow",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. unsupported control flow (labeled `break mainLoop`); paths through this point are not analyzed further No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/segments/manualSegmentWorkflow.ts#L221"
+    },
+    {
+      "fingerprint": "c0bf4be08c15696f",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/segments/manualSegments.ts",
+      "line": 55,
+      "function": "updateManualSegmentUsers",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `handle.result()` runs after `temporalClient.signalWithStart(manualSegmentWorkflow, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/segments/manualSegments.ts#L55"
+    },
+    {
+      "fingerprint": "68ab46fbf21cb26b",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/segments/manualSegments.ts",
+      "line": 84,
+      "function": "clearManualSegment",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `handle.result()` runs after `temporalClient.signalWithStart(manualSegmentWorkflow, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/segments/manualSegments.ts#L84"
+    },
+    {
+      "fingerprint": "8e8fede3206a66aa",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/backend-lib/src/subscriptionGroups.ts",
+      "line": 782,
+      "function": "updateUserSubscriptions",
+      "classification": "needs-triage",
+      "notes": "updateUserSubscriptions (subscriptionGroups.ts:780-786) writes ClickHouse assignments and the source-of-truth events concurrently without compensation; a recompute can revert the unsubscribe. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/subscriptionGroups.ts#L782",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "dc3c3160fb158c03",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/userProperties.ts",
+      "line": 1004,
+      "function": "deleteUserProperty",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `(query) => chCommand({ query, query_par\u2026 (per element)` runs after `db().delete(dbUserProperty)` has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/userProperties.ts#L1004"
+    },
+    {
+      "fingerprint": "4b3bec0fc0d3f1e0",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/userPropertyIndices.ts",
+      "line": 161,
+      "function": "upsertUserPropertyIndex",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `clickhouseClient().insert(\u2026)` runs after the transaction started at 119:30 has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/userPropertyIndices.ts#L161"
+    },
+    {
+      "fingerprint": "0653218763688743",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/userPropertyIndices.ts",
+      "line": 226,
+      "function": "deleteUserPropertyIndex",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `chCommand(\u2026)` runs after the transaction started at 192:30 has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/userPropertyIndices.ts#L226"
+    },
+    {
+      "fingerprint": "5fa6b5b94bd2d491",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/backend-lib/src/users.ts",
+      "line": 1547,
+      "function": "deleteUsers",
+      "classification": "needs-triage",
+      "notes": "deleteUsers (users.ts:1525-1557) runs ClickHouse deletes and two Postgres deletes in Promise.all without a transaction or retry: partly deleted user data. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/users.ts#L1547",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "5ef46d55105569c4",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/backend-lib/src/users.ts",
+      "line": 1606,
+      "function": "deleteAllUsers",
+      "classification": "needs-triage",
+      "notes": "deleteAllUsers (users.ts:1594-1611): the same Promise.all pattern workspace-wide. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/users.ts#L1606",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "37008671a2574759",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/workspaces.ts",
+      "line": 174,
+      "function": "tombstoneWorkspace",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `coldStoreWorkspaceEvents({ workspaceId })` runs after the transaction started at 142:24 has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/workspaces.ts#L174"
+    },
+    {
+      "fingerprint": "0b2b8c7178bf4087",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/workspaces.ts",
+      "line": 270,
+      "function": "pauseWorkspace",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `coldStoreWorkspaceEvents({ workspaceId })` runs after `db().update(dbWorkspace)` has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/workspaces.ts#L270"
+    },
+    {
+      "fingerprint": "64927708a6edcfc9",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/backend-lib/src/workspaces.ts",
+      "line": 292,
+      "function": "resumeWorkspace",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `restoreWorkspaceEvents({ workspaceId })` runs after `db().update(dbWorkspace)` has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/workspaces.ts#L292"
+    },
+    {
+      "fingerprint": "5d8e8f3d5e738544",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/dashboard/src/lib/oauth.ts",
+      "line": 265,
+      "function": "handleOauthCallback",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `findEnrichedIntegration({ workspaceId, name: HUBS\u2026(\u2026)` runs after `axios(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/dashboard/src/lib/oauth.ts#L265"
+    },
+    {
+      "fingerprint": "8ba24598197449bf",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/dashboard/src/lib/oauth.ts",
+      "line": 321,
+      "function": "handleOauthCallback",
+      "classification": "needs-triage",
+      "notes": "handleOauthCallback (dashboard/src/lib/oauth.ts:258-323) commits tokens and the integration before startHubspotIntegrationWorkflow (its only caller); a failure leaves the integration enabled without a sync workflow. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/dittofeed/dittofeed/blob/91277939a9afcee797ab2562025f6b02d823b00c/packages/dashboard/src/lib/oauth.ts#L321",
+      "priorFrozenClassification": "true-positive"
+    }
+  ]
+}

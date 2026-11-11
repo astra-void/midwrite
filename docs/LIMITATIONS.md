@@ -101,6 +101,11 @@ rates on real projects are in `docs/phase2/CORPUS-EVALUATION.md`.
 
 ## Recognition trust model
 
+* Broad HTTP rules can match read-only requests, including POST query APIs.
+  Opt-in `externalEffects[].httpMethods` narrows fetch-style calls to an
+  explicit literal method in their second argument. Dynamic options and
+  unmatched methods stay unknown; this filter does not prove a request mutates
+  state ([configuration](reference/configuration.md#narrowing-http-effects)).
 * `databaseReceivers` and `externalEffects` are trusted declarations. Matching
   uses the root identifier after following `const` aliases and renamed imports.
 * An entry may be a member path (`this.db`, `ctx.db`, `stripe.charges`,

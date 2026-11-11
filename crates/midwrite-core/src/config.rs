@@ -109,6 +109,7 @@ fn default_external_effects() -> Vec<ExternalEffectRule> {
         category: ExternalCategory::MessagePublish,
         imported_from: None,
         first_argument: None,
+        http_methods: None,
         best_effort: false,
         recovery: None,
     }]
@@ -182,6 +183,10 @@ pub struct ExternalEffectRule {
     /// in order, so a narrow rule goes before a general one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub first_argument: Option<String>,
+    /// Restrict an HTTP effect to a literal `method` in its second argument
+    /// (fetch-style options). Unresolved options do not match this rule.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub http_methods: Option<Vec<String>>,
     /// The application accepts that this effect is sometimes not performed
     /// (a best-effort notification). Under the `recommended` policy, a
     /// finding whose only claim is that this effect may not happen after an
@@ -353,6 +358,17 @@ impl Config {
             }
             if rule.first_argument.as_deref().is_some_and(str::is_empty) {
                 return Err(format!("externalEffects[{index}]: empty `firstArgument`"));
+            }
+            if let Some(methods) = &rule.http_methods
+                && (rule.category != ExternalCategory::HttpRequest
+                    || methods.is_empty()
+                    || methods.iter().any(|method| {
+                        method.is_empty() || !method.bytes().all(|byte| byte.is_ascii_uppercase())
+                    }))
+            {
+                return Err(format!(
+                    "externalEffects[{index}]: `httpMethods` requires category `http-request` and a nonempty list of uppercase HTTP methods"
+                ));
             }
             if rule.best_effort
                 && rule
@@ -591,6 +607,29 @@ mod tests {
         assert!(!is_receiver_path("ctx.this"));
         assert!(!is_receiver_path("a..b"));
         assert!(!is_receiver_path(".db"));
+    }
+
+    #[test]
+    fn http_method_filters_are_validated_and_round_trip() {
+        let config = Config::from_json(
+            r#"{"externalEffects":[{"function":"fetch","category":"http-request","httpMethods":["POST","DELETE"]}]}"#,
+            "test",
+        ).unwrap();
+        assert_eq!(
+            Config::from_json(&serde_json::to_string(&config).unwrap(), "round trip").unwrap(),
+            config
+        );
+        for rule in [
+            r#"{"function":"fetch","category":"http-request","httpMethods":[]}"#,
+            r#"{"function":"fetch","category":"http-request","httpMethods":["post"]}"#,
+            r#"{"function":"fetch","category":"http-request","httpMethods":[""]}"#,
+            r#"{"function":"fetch","category":"email","httpMethods":["POST"]}"#,
+        ] {
+            assert!(
+                Config::from_json(&format!(r#"{{"externalEffects":[{rule}]}}"#), "test").is_err(),
+                "{rule}"
+            );
+        }
     }
 
     #[test]

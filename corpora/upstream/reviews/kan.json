@@ -1,0 +1,1926 @@
+{
+  "schemaVersion": 1,
+  "project": "kan",
+  "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+  "reviewer": "Codex (AI-assisted manual source review)",
+  "humanReviewed": false,
+  "runtimeExecuted": false,
+  "method": "Manual source review; source-window/recovery decisions transcribed into per-fingerprint records. Existing Kan/Dittofeed labels are identified explicitly; source-reviewed candidates with unresolved contracts remain needs-triage. MW9001 is a limitation, never a defect.",
+  "reviews": [
+    {
+      "fingerprint": "1ccbfe8105967c93",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/web/src/pages/api/partner/link.ts",
+      "line": 72,
+      "function": "<anonymous@11:18>",
+      "classification": "needs-triage",
+      "notes": "partner/link.ts:68-74 links the slot then updates the plan in separate writes; a revisit redirects at :50, so the workspace stays on the old plan with the slot linked. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/apps/web/src/pages/api/partner/link.ts#L72",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "56071aca71e413b0",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/web/src/pages/api/partner/webhook.ts",
+      "line": 75,
+      "function": "createAndLinkSlots",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `(workspace, i) => { const slot = newSlo\u2026 (per element)` runs after `db.insert(subscription)` (via `subscriptionRepo.createPartnerLicenseSlots(\u2026)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/apps/web/src/pages/api/partner/webhook.ts#L75"
+    },
+    {
+      "fingerprint": "521248f5702b5e6e",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/web/src/pages/api/partner/webhook.ts",
+      "line": 97,
+      "function": "createAndLinkSlots",
+      "classification": "needs-triage",
+      "notes": "partner/webhook.ts:61 and :97 insert license slots in separate statements with linking at :74-87 between; a failure leaves fewer slots than the tier. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/apps/web/src/pages/api/partner/webhook.ts#L97",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "3d7336f726bec1f2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/web/src/pages/api/partner/webhook.ts",
+      "line": 253,
+      "function": "<anonymous@162:3>",
+      "classification": "needs-triage",
+      "notes": "Deactivate path: webhook.ts:239-251 downgrades workspaces (utils/workspace.ts:31-40) before :253 cancels subscriptions, no transaction: free workspaces with active subscriptions. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/apps/web/src/pages/api/partner/webhook.ts#L253",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "39bceee85b4c750d",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "apps/web/src/pages/api/stripe/create_checkout_session.ts",
+      "line": 128,
+      "function": "<anonymous@34:18>",
+      "classification": "intended-risk",
+      "notes": "create_checkout_session.ts:105-111 inserts an 'incomplete' placeholder before the Stripe session (:128); a failure looks like an abandoned checkout, which the design tolerates. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/apps/web/src/pages/api/stripe/create_checkout_session.ts#L128",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "e4bc38db9c98df12",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/web/src/pages/api/stripe/webhook.ts",
+      "line": 87,
+      "function": "handler",
+      "classification": "reported",
+      "notes": "stripe/webhook.ts:75-93 creates the workspace then the subscription without a transaction; the redelivery guard at :72 skips both, so the subscription row is never created. Source review follows these writes from the checkout webhook on the root database handle; atomic provisioning/retry repair is covered by issue 697.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/apps/web/src/pages/api/stripe/webhook.ts#L87",
+      "upstream": "https://github.com/kanbn/kan/issues/697",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "ce1b2be80a98f875",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/web/src/pages/api/upload/attachment.ts",
+      "line": 134,
+      "function": "<anonymous@26:18>",
+      "classification": "intended-risk",
+      "notes": "upload/attachment.ts:134 is only an activity row after the attachment insert (:120); attachments load from the relation (card.repo.ts:624). Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/apps/web/src/pages/api/upload/attachment.ts#L134",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "5a7c49609191512a",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1002",
+      "file": "apps/web/src/pages/api/upload/avatar.ts",
+      "line": 108,
+      "function": "<anonymous@42:18>",
+      "classification": "intended-risk",
+      "notes": "upload/avatar.ts:108-121 uploads before storing the key; a failure leaves an unreferenced object at a deterministic key that a retry overwrites. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/apps/web/src/pages/api/upload/avatar.ts#L108",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "b675e368e1eb0fef",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/attachment.ts",
+      "line": 163,
+      "function": "<anonymous@120:15>",
+      "classification": "intended-risk",
+      "notes": "attachment.ts:163 audit row after the insert at :146; attachments are read from the relation. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/attachment.ts#L163",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "8aa49cb23db39c67",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1002",
+      "file": "packages/api/src/routers/attachment.ts",
+      "line": 217,
+      "function": "<anonymous@186:15>",
+      "classification": "needs-triage",
+      "notes": "attachment.ts:217 deletes the S3 object before the soft-delete at :226; a failure leaves a visible attachment pointing at a missing file. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/attachment.ts#L217",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "4abbd5c8408c2df0",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/attachment.ts",
+      "line": 231,
+      "function": "<anonymous@186:15>",
+      "classification": "intended-risk",
+      "notes": "attachment.ts:231 only an audit row after the soft-delete at :226. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/attachment.ts#L231",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "6bcd62702fe71b4d",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/board.ts",
+      "line": 455,
+      "function": "<anonymous@324:15>",
+      "classification": "needs-triage",
+      "notes": "board.ts:431 commits the board (board.repo.ts:639) before lists at :455 in another transaction; a failure leaves a board without lists and a retry duplicates it. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/board.ts#L455",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "523e0c4695aa5540",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/routers/board.ts",
+      "line": 455,
+      "function": "<anonymous@324:15>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` (via `listRepo.bulkCreate(ctx.db, listInputs)`) is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/board.ts#L455"
+    },
+    {
+      "fingerprint": "9e8bef8780e5602a",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/board.ts",
+      "line": 467,
+      "function": "<anonymous@324:15>",
+      "classification": "needs-triage",
+      "notes": "board.ts:455 lists and :467 labels are independent commits: a new board missing its requested labels. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/board.ts#L467",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "9413e53cff1bfbfb",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/board.ts",
+      "line": 560,
+      "function": "<anonymous@499:15>",
+      "classification": "intended-risk",
+      "notes": "board.ts:528-535 handles the favorite toggle separately on purpose and idempotently (onConflictDoNothing); an independent preference. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/board.ts#L560",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "a00f8c954d11f898",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/board.ts",
+      "line": 633,
+      "function": "<anonymous@593:15>",
+      "classification": "needs-triage",
+      "notes": "board.ts:626 soft-deletes the board before its lists (:633) without a transaction; lists and cards stay live under a deleted board and a retry cannot fix it. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/board.ts#L633",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "1ff8c72df64aef1c",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/board.ts",
+      "line": 646,
+      "function": "<anonymous@593:15>",
+      "classification": "needs-triage",
+      "notes": "board.ts:633 lists and :646 cards are soft-deleted in separate commits: live cards in deleted lists. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/board.ts#L646",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "cb50c00e733fadb5",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/board.ts",
+      "line": 666,
+      "function": "<anonymous@593:15>",
+      "classification": "intended-risk",
+      "notes": "board.ts:666 only audit rows after the cards' soft-delete at :646. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/board.ts#L666",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "b5f8417713fb726f",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 170,
+      "function": "<anonymous@65:15>",
+      "classification": "needs-triage",
+      "notes": "card.ts:146 commits the card (card.repo.ts:50) before labels at :170 in another transaction; the client gets an error and a retry duplicates the card. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L170",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "6244c644c9ddd94c",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 188,
+      "function": "<anonymous@65:15>",
+      "classification": "intended-risk",
+      "notes": "card.ts:188 only activity rows after the label links at :170; labels are read from the relation. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L188",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "026987ac94712e0f",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 198,
+      "function": "<anonymous@65:15>",
+      "classification": "needs-triage",
+      "notes": "Card create: a failure after :188 and before the member links at :198 leaves the card without its assignees, no transaction or compensation. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L198",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "f5a1a955896801d9",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 216,
+      "function": "<anonymous@65:15>",
+      "classification": "intended-risk",
+      "notes": "card.ts:216 only activity rows after the member links at :198. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L216",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "b9382ebaa33e6556",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 220,
+      "function": "<anonymous@65:15>",
+      "classification": "intended-risk",
+      "notes": "card.ts:220 `void sendMentionEmails(...)` is fire-and-forget. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L220",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "69895d9602bbcf20",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 230,
+      "function": "<anonymous@65:15>",
+      "classification": "intended-risk",
+      "notes": "card.ts:229-254 webhooks are marked non-blocking with a log-only .catch. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L230",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "088775d5ddadf4b4",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 230,
+      "function": "<anonymous@65:15>",
+      "classification": "intended-risk",
+      "notes": "Mention email (card.ts:220, void) and webhook (:230, .catch) are both best-effort. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L230",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "cc882e0ea8cc59ee",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 320,
+      "function": "<anonymous@276:15>",
+      "classification": "needs-triage",
+      "notes": "Comments render only through their activity (ActivityList.tsx:406, card.repo.ts:738-818); if card.ts:320 fails after the insert at :308 the comment is invisible. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L320",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "2260b74a32373126",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 328,
+      "function": "<anonymous@276:15>",
+      "classification": "intended-risk",
+      "notes": "card.ts:328 `void sendMentionEmails(...)` is fire-and-forget. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L328",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "c0272f298578c92f",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 413,
+      "function": "<anonymous@358:15>",
+      "classification": "intended-risk",
+      "notes": "card.ts:413 audit row after the edit at :402; the UI reads the comment row. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L413",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "2260b74a32373126-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 422,
+      "function": "<anonymous@358:15>",
+      "classification": "intended-risk",
+      "notes": "card.ts:422 `void sendMentionEmails(...)` is fire-and-forget. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L422",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "f6b353b42d04256d",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 506,
+      "function": "<anonymous@450:15>",
+      "classification": "intended-risk",
+      "notes": "card.ts:506 audit row after the soft-delete at :494; deleted comments are filtered (card.repo.ts:817). Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L506",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "889c86d8d15c3c22",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 585,
+      "function": "<anonymous@533:15>",
+      "classification": "intended-risk",
+      "notes": "card.ts:585 audit row after the label link delete at :577. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L585",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "1bafaf97298725d6",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 705,
+      "function": "<anonymous@646:15>",
+      "classification": "intended-risk",
+      "notes": "card.ts:705 audit row after the member link delete at :694. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L705",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "d4ba69e50393a9b1",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 737,
+      "function": "<anonymous@646:15>",
+      "classification": "intended-risk",
+      "notes": "card.ts:737 audit row after the member link insert at :729. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L737",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "ef3cfcb331bbf375",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 1121,
+      "function": "<anonymous@1001:15>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` (via `cardRepo.reorder(\u2026)`) is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L1121"
+    },
+    {
+      "fingerprint": "49ad848a34021afa",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 1156,
+      "function": "<anonymous@1001:15>",
+      "classification": "intended-risk",
+      "notes": "card.ts:1156 `void sendMentionEmails(...)` after the update at :1107 is fire-and-forget. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L1156",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "6553a967afd1b05f",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1002",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 1156,
+      "function": "<anonymous@1001:15>",
+      "classification": "intended-risk",
+      "notes": "Mention email (card.ts:1156, void) then an audit row (:1230): accepted and harmless. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L1156",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "543a34680d610e0b",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 1204,
+      "function": "<anonymous@1001:15>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `cardRepo.getAssignees(ctx.db, card.id)` runs after `sendMentionEmails(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L1204"
+    },
+    {
+      "fingerprint": "ca9427efca98939c",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 1216,
+      "function": "<anonymous@1001:15>",
+      "classification": "needs-triage",
+      "notes": "card.ts:1107/:1121 commit update and move before :1215-1226 unassigns members not on the new board; no transaction. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L1216",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "0e9fa43110059748",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 1230,
+      "function": "<anonymous@1001:15>",
+      "classification": "intended-risk",
+      "notes": "card.ts:1230 only audit rows after the member removals at :1216. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L1230",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "66a4b4892a154d50",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 1268,
+      "function": "<anonymous@1001:15>",
+      "classification": "intended-risk",
+      "notes": "card.ts:1267-1296 webhooks are non-blocking with a log-only .catch. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L1268",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "088775d5ddadf4b4-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 1268,
+      "function": "<anonymous@1001:15>",
+      "classification": "intended-risk",
+      "notes": "Mention email (card.ts:1156, void) and webhook (:1268, .catch) are both best-effort. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L1268",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "5923551973b6ab2e",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 1361,
+      "function": "<anonymous@1317:15>",
+      "classification": "intended-risk",
+      "notes": "card.ts:1361 audit row after the transactional soft-delete at :1355. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L1361",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "f60c7a04e34f4eb0",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 1369,
+      "function": "<anonymous@1317:15>",
+      "classification": "intended-risk",
+      "notes": "card.ts:1367-1393 webhooks are non-blocking with a log-only .catch. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L1369",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "bf8a933544a150b2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 1425,
+      "function": "<anonymous@1425:15>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `<anonymous@1425:15>` has more than 512 execution paths; only the first 512 were analyzed No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L1425"
+    },
+    {
+      "fingerprint": "b1032bd150b27474",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 1524,
+      "function": "<anonymous@1425:15>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` (via `cardRepo.reorder(\u2026)`) is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L1524"
+    },
+    {
+      "fingerprint": "b5f8417713fb726f-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 1538,
+      "function": "<anonymous@1425:15>",
+      "classification": "needs-triage",
+      "notes": "Duplicate commits the new card (card.ts:1513) before labels (:1538) in another transaction: a partial duplicate without labels. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L1538",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "6244c644c9ddd94c-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 1545,
+      "function": "<anonymous@1425:15>",
+      "classification": "intended-risk",
+      "notes": "card.ts:1545 only audit rows after the label links at :1538. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L1545",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "07d76e7cd96e75ca",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 1556,
+      "function": "<anonymous@1425:15>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `workspaceRepo.getAllMembersByPublicIds(\u2026)` runs after `db.insert(cardActivities)` (via `cardActivityRepo.bulkCreate(ctx.db, cardActivitesInsert)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L1556"
+    },
+    {
+      "fingerprint": "026987ac94712e0f-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 1567,
+      "function": "<anonymous@1425:15>",
+      "classification": "needs-triage",
+      "notes": "Duplicate: a failure after :1545 and before the member links (:1567) leaves the copy without its members. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L1567",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "f5a1a955896801d9-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/card.ts",
+      "line": 1577,
+      "function": "<anonymous@1425:15>",
+      "classification": "intended-risk",
+      "notes": "card.ts:1577 only audit rows after the member links at :1567. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/card.ts#L1577",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "0ef1241a986c1e97",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/checklist.ts",
+      "line": 80,
+      "function": "<anonymous@42:15>",
+      "classification": "intended-risk",
+      "notes": "checklist.ts:80 audit row after the checklist create at :68. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/checklist.ts#L80",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "668d7e9c0d726797",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/checklist.ts",
+      "line": 149,
+      "function": "<anonymous@107:15>",
+      "classification": "intended-risk",
+      "notes": "checklist.ts:149 audit row after the rename at :138. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/checklist.ts#L149",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "db3b0d290a80e1c9",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/checklist.ts",
+      "line": 207,
+      "function": "<anonymous@172:15>",
+      "classification": "needs-triage",
+      "notes": "checklist.ts:201 soft-deletes all items before the checklist (:207) without a transaction: a visible empty checklist. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/checklist.ts#L207",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "8de285e3cadac419",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/checklist.ts",
+      "line": 219,
+      "function": "<anonymous@172:15>",
+      "classification": "intended-risk",
+      "notes": "checklist.ts:207-219 the checklist soft-delete commits before the activity insert; only the audit row can be lost. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/checklist.ts#L219",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "65371df8495ca613",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/checklist.ts",
+      "line": 289,
+      "function": "<anonymous@246:15>",
+      "classification": "intended-risk",
+      "notes": "checklist.ts:277-289 item created in its own tx, then an activity row; only the audit row can be lost. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/checklist.ts#L289",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "0e89a5bd8a7db600",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/checklist.ts",
+      "line": 372,
+      "function": "<anonymous@318:15>",
+      "classification": "needs-triage",
+      "notes": "checklist.ts:364-372 updateItemById (non-tx, checklist.repo.ts:162) commits before reorderItem's separate tx; a reorder error leaves the request failed with the change persisted. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/checklist.ts#L372",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "ac584595d7242de8",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/routers/checklist.ts",
+      "line": 372,
+      "function": "<anonymous@318:15>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` (via `checklistRepo.reorderItem(\u2026)`) is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/checklist.ts#L372"
+    },
+    {
+      "fingerprint": "4e3e7acfe0950dae",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/checklist.ts",
+      "line": 387,
+      "function": "<anonymous@318:15>",
+      "classification": "intended-risk",
+      "notes": "checklist.ts:372-387 reorder commits, then a completion activity row; losing it is harmless. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/checklist.ts#L387",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "2ca663ac44324ddb",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/checklist.ts",
+      "line": 399,
+      "function": "<anonymous@318:15>",
+      "classification": "intended-risk",
+      "notes": "checklist.ts:387-399 both writes are audit activity rows. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/checklist.ts#L399",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "aba73177fd6f2825",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/checklist.ts",
+      "line": 464,
+      "function": "<anonymous@423:15>",
+      "classification": "intended-risk",
+      "notes": "checklist.ts:452-464 item soft-delete then only the item.deleted activity row can be lost. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/checklist.ts#L464",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "91150a05b173d596",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/routers/health.ts",
+      "line": 31,
+      "function": "checkDatabaseConnection",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(sql`SELECT 1`)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/health.ts#L31"
+    },
+    {
+      "fingerprint": "e90360375757271d",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/api/src/routers/health.ts",
+      "line": 55,
+      "function": "checkS3Connection",
+      "classification": "false-positive",
+      "notes": "health.ts:54-55 both client.send calls are read-only HeadBucketCommand probes in a health check. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/health.ts#L55",
+      "priorFrozenClassification": "false-positive"
+    },
+    {
+      "fingerprint": "39cfebada8fe187d",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 189,
+      "function": "<anonymous@170:14>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `fetch(\u2026)` runs after `db.update(integrations)` (via `getTrelloTokenForUser(ctx.db, user.id)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L189"
+    },
+    {
+      "fingerprint": "750cd4a20aa9e6cd",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 248,
+      "function": "<anonymous@229:17>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `workspaceRepo.getByPublicId(\u2026)` runs after `db.update(integrations)` (via `getTrelloTokenForUser(ctx.db, userId)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L248"
+    },
+    {
+      "fingerprint": "3a9daebe7895dbfe",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 260,
+      "function": "<anonymous@229:17>",
+      "classification": "false-positive",
+      "notes": "import.ts:50 getTrelloTokenForUser only lazily re-encrypts the stored token, an idempotent migration unrelated to the imports row at :260. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L260",
+      "priorFrozenClassification": "false-positive"
+    },
+    {
+      "fingerprint": "03e4e3270b77412e",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 267,
+      "function": "importSingleBoard",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `importSingleBoard` has more than 512 execution paths; only the first 512 were analyzed No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L267"
+    },
+    {
+      "fingerprint": "7d2c4264050771a6",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 349,
+      "function": "importSingleBoard",
+      "classification": "needs-triage",
+      "notes": "import.ts:319-349 the board commits before labels with no transaction or cleanup: a visible half-imported board. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L349",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "4bb7719768b664b6",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 361,
+      "function": "importSingleBoard",
+      "classification": "needs-triage",
+      "notes": "import.ts:349-361 labels commit, then lists per iteration with no outer transaction: board missing lists and cards. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L361",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "9a8af424a75118b3",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 361,
+      "function": "importSingleBoard",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` (via `listRepo.create(\u2026)`) is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L361"
+    },
+    {
+      "fingerprint": "e5f5c3df78f3fbab",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 382,
+      "function": "importSingleBoard",
+      "classification": "needs-triage",
+      "notes": "import.ts:361-382 each list's tx commits before its cards' tx, no cleanup: empty or missing lists. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L382",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "9c120d8e5f7211dc",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 382,
+      "function": "importSingleBoard",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` (via `cardRepo.bulkCreate(ctx.db, cardsInsert)`) is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L382"
+    },
+    {
+      "fingerprint": "f5162643bf991da7",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 406,
+      "function": "importSingleBoard",
+      "classification": "needs-triage",
+      "notes": "import.ts:382-406 a failure after the cards commit aborts the rest of the import with no cleanup. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L406",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "70bd7679f6955892",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 455,
+      "function": "importSingleBoard",
+      "classification": "needs-triage",
+      "notes": "import.ts:406-455 cards and activities commit before checklists in a separate tx: cards without checklists. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L455",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "0b3c7ded1ffe610d",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 496,
+      "function": "importSingleBoard",
+      "classification": "needs-triage",
+      "notes": "import.ts:455-496 checklists and their items commit in separate transactions: empty checklists. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L496",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "bb1a996f13980931",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 526,
+      "function": "importSingleBoard",
+      "classification": "needs-triage",
+      "notes": "import.ts:496-526 checklist items commit before the card-label links: cards missing labels. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L526",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "565ff843475b7583",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 561,
+      "function": "<anonymous@229:17>",
+      "classification": "intended-risk",
+      "notes": "import.ts:260/:561 the imports row is created 'started' (import.repo.ts:23) and finalized later by design; a crash leaves the in-progress marker. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L561",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "a4f3108fc2bc3fdb",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 809,
+      "function": "<anonymous@703:17>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `fetch(\u2026)` runs after `db.insert(imports)` (via `importRepo.create(\u2026)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L809"
+    },
+    {
+      "fingerprint": "2dd692b83928ed53",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 828,
+      "function": "<anonymous@703:17>",
+      "classification": "intended-risk",
+      "notes": "import.ts:737-828 a failure after the 'started' tracking row leaves only that harmless status row. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L828",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "0bb230ee5408e464",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 864,
+      "function": "<anonymous@703:17>",
+      "classification": "needs-triage",
+      "notes": "import.ts:828-864 the GitHub-import board commits before its labels with no transaction or cleanup. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L864",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "58000bbddc919b03",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 909,
+      "function": "<anonymous@703:17>",
+      "classification": "needs-triage",
+      "notes": "import.ts:864-909 labels commit before lists: a board with labels but no lists or cards. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L909",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "6b9bd7fd4dc9e304",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 909,
+      "function": "<anonymous@703:17>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` (via `listRepo.bulkCreate(ctx.db, listsInsert)`) is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L909"
+    },
+    {
+      "fingerprint": "29c942950307cd11",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 964,
+      "function": "<anonymous@703:17>",
+      "classification": "needs-triage",
+      "notes": "import.ts:909-964 the lists tx commits before the cards tx: empty lists. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L964",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "f5d93afb2753652b",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 964,
+      "function": "<anonymous@703:17>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` (via `cardRepo.bulkCreate(ctx.db, cardsInput)`) is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L964"
+    },
+    {
+      "fingerprint": "66df82c6d0276a2c",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 974,
+      "function": "<anonymous@703:17>",
+      "classification": "needs-triage",
+      "notes": "import.ts:964-995 a failure after the cards commit aborts activities and label links with no cleanup. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L974",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "a2dbcfb27c85171f",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 995,
+      "function": "<anonymous@703:17>",
+      "classification": "needs-triage",
+      "notes": "import.ts:974-995 cards and activities commit before the card-label links: cards without their labels. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L995",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "bdc2c5f76efa6ebf",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 1005,
+      "function": "<anonymous@703:17>",
+      "classification": "intended-risk",
+      "notes": "import.ts:995-1005 the board is fully imported; only the status row stays 'started', a harmless marker. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/import.ts#L1005",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "1cfec846c62c68f4",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/label.ts",
+      "line": 234,
+      "function": "<anonymous@206:15>",
+      "classification": "needs-triage",
+      "notes": "label.ts:232-234 card-label links are hard-deleted (card.repo.ts:1127) before the label soft-delete commits separately: a live label removed from every card. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/label.ts#L234",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "8e74f0cb9cb0158c",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/list.ts",
+      "line": 138,
+      "function": "<anonymous@91:15>",
+      "classification": "needs-triage",
+      "notes": "list.ts:126-138 the list soft-delete commits before the cards soft-delete (card.repo.ts:1067); live cards under a deleted list, and a retry cannot repair it. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/list.ts#L138",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "c4915679a59d704b",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/list.ts",
+      "line": 156,
+      "function": "<anonymous@91:15>",
+      "classification": "intended-risk",
+      "notes": "list.ts:138-156 only the card.archived activity rows can be lost. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/list.ts#L156",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "f24a5f042ce39ce5",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/routers/list.ts",
+      "line": 223,
+      "function": "<anonymous@179:15>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` (via `listRepo.reorder(\u2026)`) is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/list.ts#L223"
+    },
+    {
+      "fingerprint": "4acb22fe5daeed2c",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1002",
+      "file": "packages/api/src/routers/member.ts",
+      "line": 109,
+      "function": "<anonymous@49:15>",
+      "classification": "needs-triage",
+      "notes": "member.ts:109 Stripe seats increase before the seat-limit check (:150) and memberRepo.create (:173), with no decrement on failure. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/member.ts#L109",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "c4c00398c36c9329",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/routers/member.ts",
+      "line": 164,
+      "function": "<anonymous@49:15>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `userRepo.getByEmail(ctx.db, input.email)` runs after `updateSubscriptionSeats(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/member.ts#L164"
+    },
+    {
+      "fingerprint": "5f4d5979ae77a9af",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "packages/api/src/routers/member.ts",
+      "line": 189,
+      "function": "<anonymous@49:15>",
+      "classification": "needs-triage",
+      "notes": "member.ts:173-189 the invited member commits before signInMagicLink; compensation (:202) runs only on a falsy status, not on a throw or crash, and the row blocks re-invites (:71). Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/member.ts#L189",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "b6cfd5ecd074b77c",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1002",
+      "file": "packages/api/src/routers/member.ts",
+      "line": 189,
+      "function": "<anonymous@49:15>",
+      "classification": "false-positive",
+      "notes": "member.ts:189-206 softDelete runs only when signInMagicLink reports failure; there is no path where the email was sent and the DB change is then missing. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/member.ts#L189",
+      "priorFrozenClassification": "false-positive"
+    },
+    {
+      "fingerprint": "7c0cbd4130f67bf7",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "packages/api/src/routers/member.ts",
+      "line": 295,
+      "function": "<anonymous@232:15>",
+      "classification": "intended-risk",
+      "notes": "member.ts:266-317 the Stripe seat decrement after the soft-delete is in a log-only try/catch: deliberately best-effort. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/member.ts#L295",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "96a314030d30887d",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/member.ts",
+      "line": 486,
+      "function": "<anonymous@427:15>",
+      "classification": "needs-triage",
+      "notes": "member.ts:475-486 active invite links are deactivated (inviteLink.repo.ts:48) before the new link is inserted: no working invite link. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/member.ts#L486",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "4acb22fe5daeed2c-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1002",
+      "file": "packages/api/src/routers/member.ts",
+      "line": 704,
+      "function": "<anonymous@627:15>",
+      "classification": "needs-triage",
+      "notes": "member.ts:704 Stripe seats increase before the seat-limit check and the member insert, with no compensation. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/member.ts#L704",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "f7d1f2744521c550",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/routers/user.ts",
+      "line": 114,
+      "function": "<anonymous@95:15>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `generateAvatarUrl(result.image)` runs after `db.update(users)` (via `userRepo.update(ctx.db, userId, input)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/user.ts#L114"
+    },
+    {
+      "fingerprint": "08902841685f3b62",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/workspace.ts",
+      "line": 385,
+      "function": "<anonymous@300:15>",
+      "classification": "needs-triage",
+      "notes": "workspace.ts:345-385 the workspace commits before partner-slot linking; a failure leaves the workspace without its plan and the slot unlinked. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/workspace.ts#L385",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "f5b75296d6d96df1",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/routers/workspace.ts",
+      "line": 388,
+      "function": "<anonymous@300:15>",
+      "classification": "needs-triage",
+      "notes": "workspace.ts:384-390 subscription link and workspace plan update run in Promise.all without a transaction. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/routers/workspace.ts#L388",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "6f3384aaf922409b",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1002",
+      "file": "packages/api/src/utils/notifications.ts",
+      "line": 120,
+      "function": "sendMentionEmails::<anonymous@112:27>",
+      "classification": "intended-risk",
+      "notes": "notifications.ts:118-148 the mention email and the notification row each sit in a log-only try/catch: explicit best-effort. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/utils/notifications.ts#L120",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "bec429eed380f325",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/api/src/utils/workspace.ts",
+      "line": 35,
+      "function": "cancelWorkspaceAccess",
+      "classification": "needs-triage",
+      "notes": "utils/workspace.ts:31-40 member pause and plan downgrade run in Promise.all without a transaction; called from partner/webhook.ts:248. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/api/src/utils/workspace.ts#L35",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "3769775685b8cb03",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1002",
+      "file": "packages/auth/src/hooks.ts",
+      "line": 76,
+      "function": "after",
+      "classification": "intended-risk",
+      "notes": "hooks.ts:62-92 avatar upload and user.image update share a log-only try/catch; a failure orphans an object at a deterministic key, best-effort mirroring. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/auth/src/hooks.ts#L76",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "58bab6bb781b4c79",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "packages/auth/src/hooks.ts",
+      "line": 106,
+      "function": "after",
+      "classification": "intended-risk",
+      "notes": "hooks.ts:88-121 subscriber.create is in its own log-only try/catch: best-effort marketing sync. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/auth/src/hooks.ts#L106",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "379dcdaf2421f09b",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/auth/src/hooks.ts",
+      "line": 130,
+      "function": "after",
+      "classification": "intended-risk",
+      "notes": "hooks.ts:106-138 subscribers.create and workflows.trigger are each log-only try/catch: best-effort. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/auth/src/hooks.ts#L130",
+      "priorFrozenClassification": "intended-risk"
+    },
+    {
+      "fingerprint": "a1ee918c4813d9c8",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/auth/src/plugins.ts",
+      "line": 60,
+      "function": "cancelWorkspaceAccess",
+      "classification": "needs-triage",
+      "notes": "plugins.ts:56-65 member pause and workspace downgrade run in Promise.all without a transaction in onSubscriptionDeleted (:146). Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/auth/src/plugins.ts#L60",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "356d4358f428ef54",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/auth/src/plugins.ts",
+      "line": 135,
+      "function": "onSubscriptionComplete",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `workspaceRepo.getByPublicId(db, subscription.referenceId,)` runs after `db.update(subscription)` (via `subscriptionRepo.updateByStripeSubscriptionId(\u2026)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/auth/src/plugins.ts#L135"
+    },
+    {
+      "fingerprint": "f911a0d05836a074",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/auth/src/plugins.ts",
+      "line": 141,
+      "function": "onSubscriptionComplete",
+      "classification": "needs-triage",
+      "notes": "plugins.ts:123-141 unlimitedSeats is set before members are unpaused in a separate write: a Pro workspace with paused members. Earlier AI labels call this a true positive. This pass verifies the source window but does not promote it to a newly confirmed upstream bug without resolving current caller/recovery intent.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/auth/src/plugins.ts#L141",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "0a68a5dc8af71fe6",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/db/src/repository/board.repo.ts",
+      "line": 1100,
+      "function": "moveToWorkspace",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/db/src/repository/board.repo.ts#L1100"
+    },
+    {
+      "fingerprint": "971f6cb82472bde0",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/repository/boardMember.repo.ts",
+      "line": 193,
+      "function": "removeAllForMember",
+      "classification": "false-positive",
+      "notes": "boardMember.repo.ts:181-195 removeAllForMember's only caller (member.repo.ts:173) passes the transaction handle, so both writes are atomic. Source locations and the stated sequencing/recovery condition were checked; the original frozen label is unchanged.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/db/src/repository/boardMember.repo.ts#L193",
+      "priorFrozenClassification": "false-positive"
+    },
+    {
+      "fingerprint": "ed29fdb63c91bd4e",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/db/src/repository/card.repo.ts",
+      "line": 80,
+      "function": "create",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/db/src/repository/card.repo.ts#L80"
+    },
+    {
+      "fingerprint": "ed29fdb63c91bd4e-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/db/src/repository/card.repo.ts",
+      "line": 140,
+      "function": "create",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/db/src/repository/card.repo.ts#L140"
+    },
+    {
+      "fingerprint": "783df640e1f1ed21",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/db/src/repository/card.repo.ts",
+      "line": 514,
+      "function": "bulkCreate",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/db/src/repository/card.repo.ts#L514"
+    },
+    {
+      "fingerprint": "8d8ccb0449a21c6d",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/db/src/repository/card.repo.ts",
+      "line": 893,
+      "function": "reorder",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/db/src/repository/card.repo.ts#L893"
+    },
+    {
+      "fingerprint": "8d8ccb0449a21c6d-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/db/src/repository/card.repo.ts",
+      "line": 905,
+      "function": "reorder",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/db/src/repository/card.repo.ts#L905"
+    },
+    {
+      "fingerprint": "8d8ccb0449a21c6d-3",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/db/src/repository/card.repo.ts",
+      "line": 911,
+      "function": "reorder",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/db/src/repository/card.repo.ts#L911"
+    },
+    {
+      "fingerprint": "8d8ccb0449a21c6d-4",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/db/src/repository/card.repo.ts",
+      "line": 917,
+      "function": "reorder",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/db/src/repository/card.repo.ts#L917"
+    },
+    {
+      "fingerprint": "8d8ccb0449a21c6d-5",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/db/src/repository/card.repo.ts",
+      "line": 951,
+      "function": "reorder",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/db/src/repository/card.repo.ts#L951"
+    },
+    {
+      "fingerprint": "8d8ccb0449a21c6d-6",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/db/src/repository/card.repo.ts",
+      "line": 963,
+      "function": "reorder",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/db/src/repository/card.repo.ts#L963"
+    },
+    {
+      "fingerprint": "df4dddbe7ad96e58",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/db/src/repository/card.repo.ts",
+      "line": 1031,
+      "function": "softDelete",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/db/src/repository/card.repo.ts#L1031"
+    },
+    {
+      "fingerprint": "86ba0951e100c52c",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/db/src/repository/checklist.repo.ts",
+      "line": 409,
+      "function": "reorderItem",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/db/src/repository/checklist.repo.ts#L409"
+    },
+    {
+      "fingerprint": "86ba0951e100c52c-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/db/src/repository/checklist.repo.ts",
+      "line": 418,
+      "function": "reorderItem",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/db/src/repository/checklist.repo.ts#L418"
+    },
+    {
+      "fingerprint": "624e8731cc2d30a5",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/db/src/repository/list.repo.ts",
+      "line": 72,
+      "function": "create",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/db/src/repository/list.repo.ts#L72"
+    },
+    {
+      "fingerprint": "b74f8463362eb7b1",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/db/src/repository/list.repo.ts",
+      "line": 176,
+      "function": "bulkCreate",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/db/src/repository/list.repo.ts#L176"
+    },
+    {
+      "fingerprint": "3d7a9183eabb9847",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/db/src/repository/list.repo.ts",
+      "line": 298,
+      "function": "reorder",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/db/src/repository/list.repo.ts#L298"
+    },
+    {
+      "fingerprint": "3d7a9183eabb9847-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/db/src/repository/list.repo.ts",
+      "line": 324,
+      "function": "reorder",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/db/src/repository/list.repo.ts#L324"
+    },
+    {
+      "fingerprint": "80d134cbc61e60ac",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/db/src/repository/list.repo.ts",
+      "line": 404,
+      "function": "softDeleteById",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/db/src/repository/list.repo.ts#L404"
+    },
+    {
+      "fingerprint": "65c386d94ede9bca",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/repository/permission.repo.ts",
+      "line": 405,
+      "function": "createRole",
+      "classification": "reported",
+      "notes": "permission.repo.ts:388-405 role and permissions are inserted separately and the only caller (workspace.repo.ts:104) passes plain db: a role with no permissions. Source review follows these writes from the checkout webhook on the root database handle; atomic provisioning/retry repair is covered by issue 697.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/db/src/repository/permission.repo.ts#L405",
+      "upstream": "https://github.com/kanbn/kan/issues/697",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "4c5b8ba9e8cb3276",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/repository/workspace.repo.ts",
+      "line": 104,
+      "function": "create",
+      "classification": "reported",
+      "notes": "workspace.repo.ts:76-104 the workspace commits before its system roles, with no transaction from either caller. Source review follows these writes from the checkout webhook on the root database handle; atomic provisioning/retry repair is covered by issue 697.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/db/src/repository/workspace.repo.ts#L104",
+      "upstream": "https://github.com/kanbn/kan/issues/697",
+      "priorFrozenClassification": "true-positive"
+    },
+    {
+      "fingerprint": "c527e8a573758209",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/repository/workspace.repo.ts",
+      "line": 117,
+      "function": "create",
+      "classification": "reported",
+      "notes": "workspace.repo.ts:104-117 roles commit before the creator's admin member row: an orphaned workspace. Source review follows these writes from the checkout webhook on the root database handle; atomic provisioning/retry repair is covered by issue 697.",
+      "sourceUrl": "https://github.com/kanbn/kan/blob/1cc2f332131d736c5e262654bd279e3beb95c93d/packages/db/src/repository/workspace.repo.ts#L117",
+      "upstream": "https://github.com/kanbn/kan/issues/697",
+      "priorFrozenClassification": "true-positive"
+    }
+  ]
+}

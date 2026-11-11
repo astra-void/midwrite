@@ -1,0 +1,87 @@
+{
+  "databaseReceivers": [
+    "db"
+  ],
+  "externalEffects": [
+    {
+      "receiver": "resend.emails",
+      "method": "send",
+      "category": "email"
+    },
+    {
+      "receiver": "stripe.checkout.sessions",
+      "method": "create",
+      "category": "payment"
+    },
+    {
+      "receiver": "stripe.billingPortal.sessions",
+      "method": "create",
+      "category": "payment"
+    },
+    {
+      "receiver": "stripe.customers",
+      "method": "create",
+      "category": "payment"
+    },
+    {
+      "receiver": "stripe.customers",
+      "method": "update",
+      "category": "payment"
+    },
+    {
+      "receiver": "stripe.customers",
+      "method": "del",
+      "category": "payment"
+    },
+    {
+      "receiver": "stripe.subscriptions",
+      "method": "create",
+      "category": "payment"
+    },
+    {
+      "receiver": "stripe.subscriptions",
+      "method": "update",
+      "category": "payment"
+    },
+    {
+      "receiver": "stripe.subscriptions",
+      "method": "cancel",
+      "category": "payment"
+    },
+    {
+      "receiver": "stripe.subscriptionItems",
+      "method": "create",
+      "category": "payment"
+    },
+    {
+      "receiver": "stripe.subscriptionItems",
+      "method": "update",
+      "category": "payment"
+    },
+    {
+      "receiver": "stripe.subscriptionItems",
+      "method": "del",
+      "category": "payment"
+    },
+    {
+      "receiver": "stripe.refunds",
+      "method": "create",
+      "category": "payment"
+    },
+    {
+      "function": "fetch",
+      "category": "http-request"
+    }
+  ],
+  "exclude": [
+    "*.test.ts",
+    "*.test.tsx",
+    "*.spec.ts",
+    "*.spec.tsx",
+    "*.d.ts",
+    "__tests__",
+    "node_modules",
+    "dist",
+    ".next"
+  ]
+}

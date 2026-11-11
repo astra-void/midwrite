@@ -1,0 +1,2516 @@
+{
+  "schemaVersion": 1,
+  "project": "openstatus",
+  "revision": "36288495c8544d4498986be7d72c37ee7e666837",
+  "reviewer": "Codex (AI-assisted manual source review)",
+  "humanReviewed": false,
+  "runtimeExecuted": false,
+  "method": "Manual source review; source-window/recovery decisions transcribed into per-fingerprint records. Existing Kan/Dittofeed labels are identified explicitly; source-reviewed candidates with unresolved contracts remain needs-triage. MW9001 is a limitation, never a defect.",
+  "reviews": [
+    {
+      "fingerprint": "8c4128f385a2fb66",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/dashboard/src/app/api/chat/route.ts",
+      "line": 146,
+      "function": "POST",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `convertToModelMessages(\u2026)` runs after `tx.insert(chatSession)` (via `createChatSession(\u2026)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/dashboard/src/app/api/chat/route.ts#L146"
+    },
+    {
+      "fingerprint": "52d480708e91988f",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/dashboard/src/components/onboarding/use-stream-checks.ts",
+      "line": 55,
+      "function": "useStreamChecks::<anonymous@26:5>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `reader.read()` runs after `fetch(\"/api/onboarding/checks\", \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/dashboard/src/components/onboarding/use-stream-checks.ts#L55"
+    },
+    {
+      "fingerprint": "d02755a6a8a664e1",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/dashboard/src/lib/auth/helpers.ts",
+      "line": 68,
+      "function": "createUser",
+      "classification": "reported",
+      "notes": "User, workspace, and owner-membership inserts use the root handle and commit separately; failed signup can leave a persisted user without its initial owned workspace.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/dashboard/src/lib/auth/helpers.ts#L68",
+      "upstream": "https://github.com/openstatusHQ/openstatus/issues/3077"
+    },
+    {
+      "fingerprint": "eba4c57305aebb05",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/dashboard/src/lib/auth/helpers.ts",
+      "line": 74,
+      "function": "createUser",
+      "classification": "reported",
+      "notes": "User, workspace, and owner-membership inserts use the root handle and commit separately; failed signup can leave a persisted user without its initial owned workspace.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/dashboard/src/lib/auth/helpers.ts#L74",
+      "upstream": "https://github.com/openstatusHQ/openstatus/issues/3077"
+    },
+    {
+      "fingerprint": "2f2f193a002cb4f3",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/dashboard/src/lib/auth/index.ts",
+      "line": 146,
+      "function": "signIn",
+      "classification": "false-positive",
+      "notes": "The diagnostic combines mutually exclusive values of one property (account.provider, or data.kind). No callback changes that discriminator between these branches in the reviewed source.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/dashboard/src/lib/auth/index.ts#L146"
+    },
+    {
+      "fingerprint": "2f2f193a002cb4f3-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/dashboard/src/lib/auth/index.ts",
+      "line": 161,
+      "function": "signIn",
+      "classification": "false-positive",
+      "notes": "The diagnostic combines mutually exclusive values of one property (account.provider, or data.kind). No callback changes that discriminator between these branches in the reviewed source.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/dashboard/src/lib/auth/index.ts#L161"
+    },
+    {
+      "fingerprint": "d44607ee36947011",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/dashboard/src/lib/auth/index.ts",
+      "line": 170,
+      "function": "signIn",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `getWorkspaceByWorkosOrganization(db, organization\u2026(\u2026)` (via `authorizeSsoSignIn(readWorkOSProfile(params.profile))`) runs after `db.update(user)` (via `syncUser(\u2026)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/dashboard/src/lib/auth/index.ts#L170"
+    },
+    {
+      "fingerprint": "d07e62fc0c06bbe7",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/dashboard/src/lib/auth/index.ts",
+      "line": 175,
+      "function": "signIn",
+      "classification": "false-positive",
+      "notes": "The diagnostic combines mutually exclusive values of one property (account.provider, or data.kind). No callback changes that discriminator between these branches in the reviewed source.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/dashboard/src/lib/auth/index.ts#L175"
+    },
+    {
+      "fingerprint": "694a2eb3efea0d4d",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/screenshot-service/src/index.ts",
+      "line": 87,
+      "function": "<anonymous@42:3>",
+      "classification": "false-positive",
+      "notes": "The diagnostic combines mutually exclusive values of one property (account.provider, or data.kind). No callback changes that discriminator between these branches in the reviewed source.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/screenshot-service/src/index.ts#L87"
+    },
+    {
+      "fingerprint": "f07d81c16ddd78b1",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/server/src/libs/middlewares/auth.ts",
+      "line": 87,
+      "function": "authMiddleware",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `lookupWorkspace(ownerId)` runs after `db.update(oauthGrant)` (via `validateKey(credential.token)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/libs/middlewares/auth.ts#L87"
+    },
+    {
+      "fingerprint": "6b764f67d8ba428d",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/server/src/routes/heartbeat/index.ts",
+      "line": 48,
+      "function": "handlePing",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `readCappedBody(c.req.raw)` runs after `db.insert(monitorHeartbeatState)` (via `recordHeartbeatPing({ token, at, kind })`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/heartbeat/index.ts#L48"
+    },
+    {
+      "fingerprint": "3f418e67ba3adef3",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "apps/server/src/routes/mcp/resources.ts",
+      "line": 35,
+      "function": "fetchText",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.text()` runs after `fetch(resource.uri, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/mcp/resources.ts#L35"
+    },
+    {
+      "fingerprint": "1a0dfdbc0cc4c033",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/server/src/routes/rpc/interceptors/auth.ts",
+      "line": 49,
+      "function": "authInterceptor::<anonymous@19:10>::<anonymous@19:20>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `lookupWorkspace(ownerId)` runs after `db.update(oauthGrant)` (via `validateKey(credential.token)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/rpc/interceptors/auth.ts#L49"
+    },
+    {
+      "fingerprint": "5e644dde613427a0",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/server/src/routes/slack/handler.ts",
+      "line": 350,
+      "function": "catchUpChannel",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `catchUpChannel` has more than 512 execution paths; only the first 512 were analyzed No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/slack/handler.ts#L350"
+    },
+    {
+      "fingerprint": "fec276b358a807cb",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/server/src/routes/slack/incident-modal.ts",
+      "line": 379,
+      "function": "submitDeclareIncident::<anonymous@379:5>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `submitDeclareIncident::<anonymous@379:5>` has more than 512 execution paths; only the first 512 were analyzed No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/slack/incident-modal.ts#L379"
+    },
+    {
+      "fingerprint": "6b2644db4b2dc837",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/server/src/routes/slack/incident-slack.ts",
+      "line": 75,
+      "function": "afterIncidentTool",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `afterIncidentTool` has more than 512 execution paths; only the first 512 were analyzed No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/slack/incident-slack.ts#L75"
+    },
+    {
+      "fingerprint": "63f4f719d0703be5",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/server/src/routes/slack/incident-slack.ts",
+      "line": 217,
+      "function": "onIncidentDeclared",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `onIncidentDeclared` has more than 512 execution paths; only the first 512 were analyzed No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/slack/incident-slack.ts#L217"
+    },
+    {
+      "fingerprint": "53562f0c342ec6da",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/server/src/routes/slack/oauth.ts",
+      "line": 114,
+      "function": "handleSlackOAuthCallback",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `tokenRes.json()` runs after `fetch(SLACK_TOKEN_URL, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/slack/oauth.ts#L114"
+    },
+    {
+      "fingerprint": "92cd02520290c24b",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/server/src/routes/slack/response-url.ts",
+      "line": 27,
+      "function": "respondLater",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.text().catch(() => \"\")` runs after `fetch(responseUrl, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/slack/response-url.ts#L27"
+    },
+    {
+      "fingerprint": "5c2a32359f4c2324",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "apps/server/src/routes/v1/check/http/post.ts",
+      "line": 79,
+      "function": "registerHTTPPostCheck::<anonymous@51:33>",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/v1/check/http/post.ts#L79"
+    },
+    {
+      "fingerprint": "7c077f1967e7eda8",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/server/src/routes/v1/check/http/post.ts",
+      "line": 107,
+      "function": "registerHTTPPostCheck::<anonymous@51:33>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `Promise.allSettled(currentFetch)` runs after `db.insert(check)` has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/v1/check/http/post.ts#L107"
+    },
+    {
+      "fingerprint": "ef112581c9874d41",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/server/src/routes/v1/maintenances/post.ts",
+      "line": 161,
+      "function": "registerPostMaintenance::<anonymous@58:33>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `async ([channelType, subs]) => { const \u2026 (per element)` (via `dispatchMaintenanceUpdate(_newMaintenance.initialUpdateId)`) runs after the transaction started at 73:35 has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/v1/maintenances/post.ts#L161"
+    },
+    {
+      "fingerprint": "c43b621c4b32afcf",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "apps/server/src/routes/v1/monitors/run/post.ts",
+      "line": 147,
+      "function": "registerRunMonitor::<anonymous@52:35>",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/v1/monitors/run/post.ts#L147"
+    },
+    {
+      "fingerprint": "6ddddb9617f08344",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/server/src/routes/v1/monitors/run/post.ts",
+      "line": 175,
+      "function": "registerRunMonitor::<anonymous@52:35>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `Promise.all(allResult)` runs after `db.insert(monitorRun)` has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/v1/monitors/run/post.ts#L175"
+    },
+    {
+      "fingerprint": "59fb657128817403",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "apps/server/src/routes/v1/monitors/trigger/post.ts",
+      "line": 148,
+      "function": "registerTriggerMonitor::<anonymous@47:33>",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/v1/monitors/trigger/post.ts#L148"
+    },
+    {
+      "fingerprint": "72a97836a9352a30",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/server/src/routes/v1/monitors/trigger/post.ts",
+      "line": 162,
+      "function": "registerTriggerMonitor::<anonymous@47:33>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `Promise.all(allResult)` runs after `db.insert(monitorRun)` has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/v1/monitors/trigger/post.ts#L162"
+    },
+    {
+      "fingerprint": "1407df6f026a43d9",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/server/src/routes/v1/notifications/post.ts",
+      "line": 111,
+      "function": "registerPostNotification::<anonymous@48:33>",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/v1/notifications/post.ts#L111"
+    },
+    {
+      "fingerprint": "7eab6458307566a9",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/server/src/routes/v1/pageSubscribers/post.ts",
+      "line": 114,
+      "function": "registerPostPageSubscriber::<anonymous@50:43>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `sendEmail(\u2026)` runs after `db.insert(pageSubscriber)` has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/v1/pageSubscribers/post.ts#L114"
+    },
+    {
+      "fingerprint": "81af6526aec60f05",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/server/src/routes/v1/pages/post.ts",
+      "line": 213,
+      "function": "registerPostPage::<anonymous@51:33>",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/v1/pages/post.ts#L213"
+    },
+    {
+      "fingerprint": "4a3c18f2d16f9e43",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/server/src/routes/v1/pages/put.ts",
+      "line": 219,
+      "function": "registerPutPage::<anonymous@53:32>",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/v1/pages/put.ts#L219"
+    },
+    {
+      "fingerprint": "a0462a44c83f86c2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/server/src/routes/v1/pages/put.ts",
+      "line": 244,
+      "function": "registerPutPage::<anonymous@53:32>",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/v1/pages/put.ts#L244"
+    },
+    {
+      "fingerprint": "cc7cf882f1c8a6c0",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/server/src/routes/v1/statusReportUpdates/post.ts",
+      "line": 95,
+      "function": "registerPostStatusReportUpdate::<anonymous@42:42>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `async ([channelType, subs]) => { const \u2026 (per element)` (via `dispatchStatusReportUpdate(_statusReportUpdate.id)`) runs after the transaction started at 69:39 has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/v1/statusReportUpdates/post.ts#L95"
+    },
+    {
+      "fingerprint": "d3099601c189bfc0",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/server/src/routes/v1/statusReports/post.ts",
+      "line": 168,
+      "function": "registerPostStatusReport::<anonymous@58:33>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `async ([channelType, subs]) => { const \u2026 (per element)` (via `dispatchStatusReportUpdate(_newStatusReportUpdate.id)`) runs after the transaction started at 100:64 has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/v1/statusReports/post.ts#L168"
+    },
+    {
+      "fingerprint": "f8bc10bcfc42eff0",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/server/src/routes/v1/statusReports/update/post.ts",
+      "line": 86,
+      "function": "registerStatusReportUpdateRoutes::<anonymous@56:39>",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/v1/statusReports/update/post.ts#L86"
+    },
+    {
+      "fingerprint": "cbcaa033b90df727",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/server/src/routes/v1/statusReports/update/post.ts",
+      "line": 131,
+      "function": "registerStatusReportUpdateRoutes::<anonymous@56:39>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `emailClient.sendPageUpdate(\u2026)` runs after `db.insert(statusReportUpdate)` has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/server/src/routes/v1/statusReports/update/post.ts#L131"
+    },
+    {
+      "fingerprint": "2481ac4b29c117b1",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/web/src/app/(landing)/play/cdn-checker/client.tsx",
+      "line": 129,
+      "function": "runCheck::<anonymous@81:21>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `reader.read()` runs after `fetch(\"/play/cdn-checker/api\", \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/web/src/app/(landing)/play/cdn-checker/client.tsx#L129"
+    },
+    {
+      "fingerprint": "cc91adb06748c388",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/web/src/app/(landing)/play/checker/api/route.ts",
+      "line": 113,
+      "function": "makeIterator::<anonymous@99:42>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `storeCheckerData({ check, id })` runs after `fetch(endpoint, \u2026)` (via `checkRegion({ url, region, method })`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/web/src/app/(landing)/play/checker/api/route.ts#L113"
+    },
+    {
+      "fingerprint": "1eb01e9963f90032",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/web/src/app/(landing)/play/checker/client.tsx",
+      "line": 215,
+      "function": "fetchAndReadStream",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `reader.read()` runs after `fetch(\"/play/checker/api\", \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/web/src/app/(landing)/play/checker/client.tsx#L215"
+    },
+    {
+      "fingerprint": "fdc8408046f2cd0f",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "apps/web/src/app/(landing)/play/mcp-health/api/route.ts",
+      "line": 58,
+      "function": "POST",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `POST` has more than 512 execution paths; only the first 512 were analyzed No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/web/src/app/(landing)/play/mcp-health/api/route.ts#L58"
+    },
+    {
+      "fingerprint": "f8ca1d1e6e31731d",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/web/src/app/(landing)/play/mcp-health/client.tsx",
+      "line": 141,
+      "function": "handleSubmit::<anonymous@127:21>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.json()` runs after `fetch(\"/play/mcp-health/api\", \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/web/src/app/(landing)/play/mcp-health/client.tsx#L141"
+    },
+    {
+      "fingerprint": "30d09014fd2cc6c5",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/web/src/app/api/checker/test/tcp/route.ts",
+      "line": 74,
+      "function": "checkTCP",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.json()` runs after `fetch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/web/src/app/api/checker/test/tcp/route.ts#L74"
+    },
+    {
+      "fingerprint": "eaa2f07083bdca9a",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1005",
+      "file": "apps/web/src/app/api/og/route.tsx",
+      "line": 16,
+      "function": "GET",
+      "classification": "false-positive",
+      "notes": "The paired calls load fonts/recording JSON or SELECT/count results. They are reads, so a partially completed pair is not the claimed durable two-effect state.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/web/src/app/api/og/route.tsx#L16"
+    },
+    {
+      "fingerprint": "eaa2f07083bdca9a-2",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1005",
+      "file": "apps/web/src/app/api/og/route.tsx",
+      "line": 19,
+      "function": "GET",
+      "classification": "false-positive",
+      "notes": "The paired calls load fonts/recording JSON or SELECT/count results. They are reads, so a partially completed pair is not the claimed durable two-effect state.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/web/src/app/api/og/route.tsx#L19"
+    },
+    {
+      "fingerprint": "e46db8f27a48b173",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1005",
+      "file": "apps/web/src/app/api/og/status/route.tsx",
+      "line": 55,
+      "function": "GET",
+      "classification": "false-positive",
+      "notes": "The paired calls load fonts/recording JSON or SELECT/count results. They are reads, so a partially completed pair is not the claimed durable two-effect state.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/web/src/app/api/og/status/route.tsx#L55"
+    },
+    {
+      "fingerprint": "e46db8f27a48b173-2",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1005",
+      "file": "apps/web/src/app/api/og/status/route.tsx",
+      "line": 58,
+      "function": "GET",
+      "classification": "false-positive",
+      "notes": "The paired calls load fonts/recording JSON or SELECT/count results. They are reads, so a partially completed pair is not the claimed durable two-effect state.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/web/src/app/api/og/status/route.tsx#L58"
+    },
+    {
+      "fingerprint": "b4a7ada732999690",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "apps/web/src/app/api/og/status/route.tsx",
+      "line": 66,
+      "function": "GET",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `api.statusPage.get.query({ slug: slug || \"\" })` runs after `fetch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/web/src/app/api/og/status/route.tsx#L66"
+    },
+    {
+      "fingerprint": "c1c16977fc10aa03",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "apps/web/src/content/copy-button.tsx",
+      "line": 79,
+      "function": "handleCopyMarkdown",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `navigator.clipboard.write([item])` runs after `fetch(window.location.pathname, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/web/src/content/copy-button.tsx#L79"
+    },
+    {
+      "fingerprint": "1f6ebf839602edfb",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "apps/web/src/content/footer-status.tsx",
+      "line": 17,
+      "function": "queryFn",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.json()` runs after `fetch(\"https://api.openstatus.dev/public/status/status\",)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/web/src/content/footer-status.tsx#L17"
+    },
+    {
+      "fingerprint": "8cd7c1e4e298d0b3",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "apps/web/src/content/oss-friends.ts",
+      "line": 17,
+      "function": "getOssFriends",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.json()` runs after `fetch(\"https://formbricks.com/api/oss-friends\")` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/web/src/content/oss-friends.ts#L17"
+    },
+    {
+      "fingerprint": "a5d806c7ae863928",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "apps/web/src/lib/cdn-checker/dev-probe.ts",
+      "line": 46,
+      "function": "devProbeCdnRegion",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `response.arrayBuffer()` runs after `fetch(url, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/web/src/lib/cdn-checker/dev-probe.ts#L46"
+    },
+    {
+      "fingerprint": "c9f51264aba86b0d",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/web/src/lib/checker/utils.ts",
+      "line": 259,
+      "function": "checkRegion",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.json()` runs after `fetch(endpoint, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/web/src/lib/checker/utils.ts#L259"
+    },
+    {
+      "fingerprint": "3dbd299dda16dff1",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "apps/web/src/lib/mcp/health-check.ts",
+      "line": 289,
+      "function": "sendRpc",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.text()` runs after `fetch(target, {...init, signal, redirect: \"manual\" })` (via `safeFetch(\u2026)`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/web/src/lib/mcp/health-check.ts#L289"
+    },
+    {
+      "fingerprint": "5790efb9d19f3ba4",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "apps/web/src/lib/mcp/health-check.ts",
+      "line": 495,
+      "function": "resolveAuthChallenge",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.json()` runs after `fetch(target, {...init, signal, redirect: \"manual\" })` (via `safeFetch(\u2026)`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/web/src/lib/mcp/health-check.ts#L495"
+    },
+    {
+      "fingerprint": "00daefc8f3f342c4",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1005",
+      "file": "apps/web/src/lib/mcp/health-check.ts",
+      "line": 684,
+      "function": "runMcpHealthCheck",
+      "classification": "false-positive",
+      "notes": "The calls probe MCP initialization/auth/tool listing. No application-mutating tool invocation is made by this health check; broad fetch configuration overstates them as independent mutations.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/web/src/lib/mcp/health-check.ts#L684"
+    },
+    {
+      "fingerprint": "fabaccf96be73e38",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1005",
+      "file": "apps/web/src/lib/mcp/health-check.ts",
+      "line": 701,
+      "function": "runMcpHealthCheck",
+      "classification": "false-positive",
+      "notes": "The calls probe MCP initialization/auth/tool listing. No application-mutating tool invocation is made by this health check; broad fetch configuration overstates them as independent mutations.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/web/src/lib/mcp/health-check.ts#L701"
+    },
+    {
+      "fingerprint": "00daefc8f3f342c4-2",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1005",
+      "file": "apps/web/src/lib/mcp/health-check.ts",
+      "line": 851,
+      "function": "runMcpHealthCheck",
+      "classification": "false-positive",
+      "notes": "The calls probe MCP initialization/auth/tool listing. No application-mutating tool invocation is made by this health check; broad fetch configuration overstates them as independent mutations.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/web/src/lib/mcp/health-check.ts#L851"
+    },
+    {
+      "fingerprint": "4513acc5faa59c00",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/workflows/src/checker/alerting.ts",
+      "line": 137,
+      "function": "triggerNotifications",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `Effect.runPromise(alertResult).catch(\u2026)` runs after `db.insert(schema.notificationTrigger)` (via `insertNotificationTrigger(\u2026)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/workflows/src/checker/alerting.ts#L137"
+    },
+    {
+      "fingerprint": "2180a0d843908bfb",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/workflows/src/checker/incident-utils.ts",
+      "line": 86,
+      "function": "resolveIncident",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `checkerAudit.publishAuditLog(\u2026)` runs after `db.update(schema.monitorIncidentTable)` has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/workflows/src/checker/incident-utils.ts#L86"
+    },
+    {
+      "fingerprint": "0958f1afa3ef1dbd",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/workflows/src/checker/private-location.ts",
+      "line": 248,
+      "function": "updateStatusPrivate",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/workflows/src/checker/private-location.ts#L248"
+    },
+    {
+      "fingerprint": "dac52252b6177925",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/workflows/src/checker/private-location.ts",
+      "line": 259,
+      "function": "updateStatusPrivate",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/workflows/src/checker/private-location.ts#L259"
+    },
+    {
+      "fingerprint": "2ee83290a4217272",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/workflows/src/checker/private-location.ts",
+      "line": 317,
+      "function": "updateStatusPrivate",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `checkerAudit.publishAuditLog(\u2026)` runs after `db.update(schema.monitor)` has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/workflows/src/checker/private-location.ts#L317"
+    },
+    {
+      "fingerprint": "7a657f4b1cf002c4",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/workflows/src/checker/private-location.ts",
+      "line": 334,
+      "function": "updateStatusPrivate",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/workflows/src/checker/private-location.ts#L334"
+    },
+    {
+      "fingerprint": "0958f1afa3ef1dbd-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/workflows/src/checker/private-location.ts",
+      "line": 357,
+      "function": "updateStatusPrivate",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/workflows/src/checker/private-location.ts#L357"
+    },
+    {
+      "fingerprint": "f532e56b564bbf0c",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/workflows/src/checker/private-location.ts",
+      "line": 366,
+      "function": "updateStatusPrivate",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/workflows/src/checker/private-location.ts#L366"
+    },
+    {
+      "fingerprint": "9a1038fe65f3551b",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/workflows/src/checker/private-location.ts",
+      "line": 400,
+      "function": "updateStatusPrivate",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/workflows/src/checker/private-location.ts#L400"
+    },
+    {
+      "fingerprint": "0958f1afa3ef1dbd-3",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/workflows/src/checker/private-location.ts",
+      "line": 423,
+      "function": "updateStatusPrivate",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/workflows/src/checker/private-location.ts#L423"
+    },
+    {
+      "fingerprint": "f532e56b564bbf0c-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/workflows/src/checker/private-location.ts",
+      "line": 432,
+      "function": "updateStatusPrivate",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/workflows/src/checker/private-location.ts#L432"
+    },
+    {
+      "fingerprint": "9a1038fe65f3551b-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "apps/workflows/src/checker/private-location.ts",
+      "line": 463,
+      "function": "updateStatusPrivate",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/workflows/src/checker/private-location.ts#L463"
+    },
+    {
+      "fingerprint": "1c0c85f616e0df68",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "apps/workflows/src/scripts/tinybird.ts",
+      "line": 77,
+      "function": "deleteLogs",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `response.json()` runs after `fetch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/workflows/src/scripts/tinybird.ts#L77"
+    },
+    {
+      "fingerprint": "c916d3f9e07b6ede",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "apps/workflows/src/scripts/tinybird.ts",
+      "line": 112,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "Retention cleanup independently deletes different plan cohorts; completing one cohort without another is not an atomicity violation.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/workflows/src/scripts/tinybird.ts#L112"
+    },
+    {
+      "fingerprint": "5cf0e16af88573e6",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "apps/workflows/src/scripts/tinybird.ts",
+      "line": 115,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "Retention cleanup independently deletes different plan cohorts; completing one cohort without another is not an atomicity violation.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/workflows/src/scripts/tinybird.ts#L115"
+    },
+    {
+      "fingerprint": "4d4718c3c6fe47ac",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "apps/workflows/src/scripts/tinybird.ts",
+      "line": 118,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "Retention cleanup independently deletes different plan cohorts; completing one cohort without another is not an atomicity violation.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/apps/workflows/src/scripts/tinybird.ts#L118"
+    },
+    {
+      "fingerprint": "4279de4b6d9bdd40",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/lib/vercel.ts",
+      "line": 45,
+      "function": "addDomainToVercel",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `response.json().catch(() => ({}))` runs after `fetch(url, \u2026)` (via `vercelFetch(\u2026)`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/lib/vercel.ts#L45"
+    },
+    {
+      "fingerprint": "94de88004ce6d247",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/lib/vercel.ts",
+      "line": 82,
+      "function": "fetchDomainConfig",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `data.json()` runs after `fetch(url, \u2026)` (via `vercelFetch(\u2026)`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/lib/vercel.ts#L82"
+    },
+    {
+      "fingerprint": "4848dbbbd12b8573",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/lib/vercel.ts",
+      "line": 92,
+      "function": "getCertificateReadiness",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `hasTrustedCertificate(domain)` runs after `fetch(url, \u2026)` (via `fetchDomainConfig(domain)`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/lib/vercel.ts#L92"
+    },
+    {
+      "fingerprint": "929c8d22db180f71",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/lib/vercel.ts",
+      "line": 104,
+      "function": "issueCertificateOnVercel",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `response.json().catch(() => ({}))` runs after `fetch(url, \u2026)` (via `vercelFetch(\u2026)`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/lib/vercel.ts#L104"
+    },
+    {
+      "fingerprint": "a05f74b2aaf32e92",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/lib/vercel.ts",
+      "line": 184,
+      "function": "removeDomainFromVercel",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `response.json().catch(() => ({}))` runs after `fetch(url, \u2026)` (via `vercelFetch(\u2026)`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/lib/vercel.ts#L184"
+    },
+    {
+      "fingerprint": "031c3085c3b385f1",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/checker.ts",
+      "line": 308,
+      "function": "testHttp",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.json()` runs after `fetch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/checker.ts#L308"
+    },
+    {
+      "fingerprint": "b1bc1f9f28565c0a",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/checker.ts",
+      "line": 382,
+      "function": "testTcp",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.json()` runs after `fetch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/checker.ts#L382"
+    },
+    {
+      "fingerprint": "64cbe41307a39a7a",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/checker.ts",
+      "line": 424,
+      "function": "testDns",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.json()` runs after `fetch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/checker.ts#L424"
+    },
+    {
+      "fingerprint": "0c159ab5437350c8",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/checker.ts",
+      "line": 484,
+      "function": "testIcmp",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.json()` runs after `fetch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/checker.ts#L484"
+    },
+    {
+      "fingerprint": "532ba612d475569d",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/checker.ts",
+      "line": 530,
+      "function": "testGrpc",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.json()` runs after `fetch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/checker.ts#L530"
+    },
+    {
+      "fingerprint": "ff4967f518ca5460",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/checker.ts",
+      "line": 604,
+      "function": "triggerChecker",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `Promise.allSettled(allResult)` runs after `fetch(generateUrl({ row: input }), \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/checker.ts#L604"
+    },
+    {
+      "fingerprint": "771ccb8b2d9a4ba5",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/domain.ts",
+      "line": 79,
+      "function": "<anonymous@71:12>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `data.json()` runs after `fetch(url, \u2026)` (via `vercelFetch(\u2026)`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/domain.ts#L79"
+    },
+    {
+      "fingerprint": "b598463c101e6c64",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1005",
+      "file": "packages/api/src/router/domain.ts",
+      "line": 124,
+      "function": "<anonymous@113:15>",
+      "classification": "false-positive",
+      "notes": "getCertificateReadiness reads domain configuration and certificate state before requesting issuance; the first operation is not a remote mutation.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/domain.ts#L124"
+    },
+    {
+      "fingerprint": "771ccb8b2d9a4ba5-2",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/domain.ts",
+      "line": 136,
+      "function": "<anonymous@127:61>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `data.json()` runs after `fetch(url, \u2026)` (via `vercelFetch(\u2026)`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/domain.ts#L136"
+    },
+    {
+      "fingerprint": "36cec736f40f8d0c",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/feedback.ts",
+      "line": 18,
+      "function": "<anonymous@17:12>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `opts.ctx.db.select({ id: feedback.id })` is not analyzed: `opts.ctx.db` resembles the configured database receiver `ctx.db`, but its path is not configured; add `opts.ctx.db` to `databaseReceivers` to analyze it No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/feedback.ts#L18"
+    },
+    {
+      "fingerprint": "9d48520d61920420",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/feedback.ts",
+      "line": 51,
+      "function": "<anonymous@49:15>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `opts.ctx.db.insert(feedback)` is not analyzed: `opts.ctx.db` resembles the configured database receiver `ctx.db`, but its path is not configured; add `opts.ctx.db` to `databaseReceivers` to analyze it No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/feedback.ts#L51"
+    },
+    {
+      "fingerprint": "7e7376e72ecb3c38",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/monitor.ts",
+      "line": 403,
+      "function": "<anonymous@348:15>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `updateMonitorGeneral(\u2026)` runs after `fetch(\u2026)` (via `testHttp(\u2026)`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/monitor.ts#L403"
+    },
+    {
+      "fingerprint": "b0d6e9bc911e27ef",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/monitor.ts",
+      "line": 480,
+      "function": "<anonymous@429:15>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `createMonitor(\u2026)` runs after `fetch(\u2026)` (via `testHttp(\u2026)`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/monitor.ts#L480"
+    },
+    {
+      "fingerprint": "6168a1ca5042abee",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/notification.ts",
+      "line": 363,
+      "function": "<anonymous@359:12>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.json()` runs after `fetch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/notification.ts#L363"
+    },
+    {
+      "fingerprint": "2f45b2175fa08159",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1005",
+      "file": "packages/api/src/router/page.ts",
+      "line": 250,
+      "function": "<anonymous@204:15>",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/page.ts#L250"
+    },
+    {
+      "fingerprint": "3da7a21ea0d2a913",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/page.ts",
+      "line": 255,
+      "function": "<anonymous@204:15>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `updatePageCustomDomain(\u2026)` runs after `fetch(url, \u2026)` (via `addDomainToVercel(newDomain)`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/page.ts#L255"
+    },
+    {
+      "fingerprint": "5a29203fac8a8995",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/statusPage.ts",
+      "line": 747,
+      "function": "<anonymous@744:12>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `opts.ctx.db.select()` is not analyzed: `opts.ctx.db` resembles the configured database receiver `ctx.db`, but its path is not configured; add `opts.ctx.db` to `databaseReceivers` to analyze it No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/statusPage.ts#L747"
+    },
+    {
+      "fingerprint": "5d567e1fe4696c6a",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/statusPage.ts",
+      "line": 880,
+      "function": "<anonymous@798:12>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `opts.ctx.db.query.privateLocationToMonitors.findM\u2026(\u2026)` runs after `fetch()` (via `withTinybirdFallback(\u2026)`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/statusPage.ts#L880"
+    },
+    {
+      "fingerprint": "5a29203fac8a8995-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/statusPage.ts",
+      "line": 1011,
+      "function": "<anonymous@1008:12>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `opts.ctx.db.select()` is not analyzed: `opts.ctx.db` resembles the configured database receiver `ctx.db`, but its path is not configured; add `opts.ctx.db` to `databaseReceivers` to analyze it No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/statusPage.ts#L1011"
+    },
+    {
+      "fingerprint": "bc61e93c07c5fbed",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/stripe/index.ts",
+      "line": 108,
+      "function": "ensureStripeCustomer",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `updateWorkspaceStripeId(\u2026)` runs after `stripe.customers.create(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/stripe/index.ts#L108"
+    },
+    {
+      "fingerprint": "76d911abb0f9bc5d",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/api/src/router/stripe/index.ts",
+      "line": 112,
+      "function": "ensureStripeCustomer",
+      "classification": "intended-risk",
+      "notes": "ensureStripeCustomer caches a reusable uncharged customer and compensates failed persistence; later checkout/portal creation may fail independently without charging or provisioning a subscription.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/stripe/index.ts#L112"
+    },
+    {
+      "fingerprint": "5e89a5a232e197ec",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/api/src/router/stripe/index.ts",
+      "line": 182,
+      "function": "<anonymous@176:15>",
+      "classification": "intended-risk",
+      "notes": "ensureStripeCustomer caches a reusable uncharged customer and compensates failed persistence; later checkout/portal creation may fail independently without charging or provisioning a subscription.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/stripe/index.ts#L182"
+    },
+    {
+      "fingerprint": "626bb2b9af73c505",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/stripe/index.ts",
+      "line": 254,
+      "function": "<anonymous@208:15>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `getCurrentSubscription(stripeId)` runs after `stripe.customers.del(customer.id)` (via `ensureStripeCustomer(resolved.ctx, resolved.email)`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/stripe/index.ts#L254"
+    },
+    {
+      "fingerprint": "6ff4f49d8bbd46ab",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/api/src/router/stripe/index.ts",
+      "line": 268,
+      "function": "<anonymous@208:15>",
+      "classification": "intended-risk",
+      "notes": "ensureStripeCustomer caches a reusable uncharged customer and compensates failed persistence; later checkout/portal creation may fail independently without charging or provisioning a subscription.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/stripe/index.ts#L268"
+    },
+    {
+      "fingerprint": "5463d0535647c663",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/api/src/router/stripe/index.ts",
+      "line": 318,
+      "function": "<anonymous@208:15>",
+      "classification": "intended-risk",
+      "notes": "ensureStripeCustomer caches a reusable uncharged customer and compensates failed persistence; later checkout/portal creation may fail independently without charging or provisioning a subscription.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/stripe/index.ts#L318"
+    },
+    {
+      "fingerprint": "69557f1a65c3bc99",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/api/src/router/stripe/index.ts",
+      "line": 360,
+      "function": "<anonymous@208:15>",
+      "classification": "intended-risk",
+      "notes": "ensureStripeCustomer caches a reusable uncharged customer and compensates failed persistence; later checkout/portal creation may fail independently without charging or provisioning a subscription.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/stripe/index.ts#L360"
+    },
+    {
+      "fingerprint": "89e7d4666aaab5ba",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/api/src/router/stripe/index.ts",
+      "line": 552,
+      "function": "<anonymous@439:15>",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/stripe/index.ts#L552"
+    },
+    {
+      "fingerprint": "a13a92a93ac0e17d",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/api/src/router/stripe/index.ts",
+      "line": 555,
+      "function": "<anonymous@439:15>",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/stripe/index.ts#L555"
+    },
+    {
+      "fingerprint": "be5f23c7b8540d5f",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/api/src/router/stripe/index.ts",
+      "line": 559,
+      "function": "<anonymous@439:15>",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/stripe/index.ts#L559"
+    },
+    {
+      "fingerprint": "5aa709a52119fa0a",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/stripe/index.ts",
+      "line": 566,
+      "function": "<anonymous@439:15>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `updateWorkspaceLimits(\u2026)` runs after `stripe.subscriptionItems.del(item.id)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/stripe/index.ts#L566"
+    },
+    {
+      "fingerprint": "3fe8e0fe4ec6cbe6",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/api/src/router/stripe/webhook.ts",
+      "line": 252,
+      "function": "sendCancellationEmails",
+      "classification": "intended-risk",
+      "notes": "The signed webhook is redelivered and these metadata/default-payment-method/trial markers are idempotent updates. Automatic-tax enablement is explicitly best-effort; no retry-skipping guard like Kan was established here.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/stripe/webhook.ts#L252"
+    },
+    {
+      "fingerprint": "0c17fb2f807c2332",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/stripe/webhook.ts",
+      "line": 252,
+      "function": "sendCancellationEmails",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `cancelScheduledEmail(reminderId)` (via `cancelReminders(current.id, metadata)`) runs after `stripe.subscriptions.update(current.id, { metadata })` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/stripe/webhook.ts#L252"
+    },
+    {
+      "fingerprint": "dae50961bcca911d",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/stripe/webhook.ts",
+      "line": 276,
+      "function": "attachSetupPaymentMethod",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `getCurrentSubscription(customerId)` runs after `stripe.customers.update(customerId, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/stripe/webhook.ts#L276"
+    },
+    {
+      "fingerprint": "c78e0e2e5c24a880",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/api/src/router/stripe/webhook.ts",
+      "line": 282,
+      "function": "attachSetupPaymentMethod",
+      "classification": "intended-risk",
+      "notes": "The signed webhook is redelivered and these metadata/default-payment-method/trial markers are idempotent updates. Automatic-tax enablement is explicitly best-effort; no retry-skipping guard like Kan was established here.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/stripe/webhook.ts#L282"
+    },
+    {
+      "fingerprint": "77ae9a41120a568e",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/api/src/router/stripe/webhook.ts",
+      "line": 291,
+      "function": "attachSetupPaymentMethod",
+      "classification": "intended-risk",
+      "notes": "The signed webhook is redelivered and these metadata/default-payment-method/trial markers are idempotent updates. Automatic-tax enablement is explicitly best-effort; no retry-skipping guard like Kan was established here.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/stripe/webhook.ts#L291"
+    },
+    {
+      "fingerprint": "a8b647b3994ac04b",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/stripe/webhook.ts",
+      "line": 423,
+      "function": "<anonymous@307:58>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `setupAnalytics(\u2026)` (via `trackForWorkspaceOwner(\u2026)`) runs after `stripe.subscriptions.update(subscriptionId, \u2026)` (via `sendCancellationEmails(\u2026)`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/stripe/webhook.ts#L423"
+    },
+    {
+      "fingerprint": "d8b200c45404223a",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/stripe/webhook.ts",
+      "line": 458,
+      "function": "<anonymous@448:47>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `setupAnalytics(\u2026)` (via `trackForWorkspaceOwner(\u2026)`) runs after `stripe.subscriptions.update(subscriptionId, \u2026)` (via `attachSetupPaymentMethod(session)`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/stripe/webhook.ts#L458"
+    },
+    {
+      "fingerprint": "d08a79f7c9fa78c8",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1002",
+      "file": "packages/api/src/router/stripe/webhook.ts",
+      "line": 549,
+      "function": "<anonymous@448:47>",
+      "classification": "intended-risk",
+      "notes": "The signed webhook is redelivered and these metadata/default-payment-method/trial markers are idempotent updates. Automatic-tax enablement is explicitly best-effort; no retry-skipping guard like Kan was established here.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/stripe/webhook.ts#L549"
+    },
+    {
+      "fingerprint": "e1184a03bf39a1b9",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/stripe/webhook.ts",
+      "line": 772,
+      "function": "<anonymous@666:58>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `setupAnalytics(\u2026)` (via `trackForWorkspaceOwner(\u2026)`) runs after `fetch(url, \u2026)` (via `removeDomainFromVercelIfUnused(opts.ctx.db, domain)`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/stripe/webhook.ts#L772"
+    },
+    {
+      "fingerprint": "df82b03a895ff551",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 100,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L100"
+    },
+    {
+      "fingerprint": "297655f88fd79901",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 171,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L171"
+    },
+    {
+      "fingerprint": "7d79d8c6c351084a",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 186,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L186"
+    },
+    {
+      "fingerprint": "d18a0c60bc1ecb8e",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 201,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L201"
+    },
+    {
+      "fingerprint": "2b4c59d8e01b04a4",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 213,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L213"
+    },
+    {
+      "fingerprint": "92d0049878e7f414",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 221,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L221"
+    },
+    {
+      "fingerprint": "2b4c59d8e01b04a4-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 247,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L247"
+    },
+    {
+      "fingerprint": "1288dcd705b4c301",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 258,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L258"
+    },
+    {
+      "fingerprint": "7c81148b06c3995e",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 268,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L268"
+    },
+    {
+      "fingerprint": "4ab2259332e825a5",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 295,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L295"
+    },
+    {
+      "fingerprint": "12105aeb39513bd9",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 307,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L307"
+    },
+    {
+      "fingerprint": "8b80ddc6b7d54962",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 325,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L325"
+    },
+    {
+      "fingerprint": "c221a3b5a44a2ebb",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 338,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L338"
+    },
+    {
+      "fingerprint": "caedfcb3802d366b",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 382,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L382"
+    },
+    {
+      "fingerprint": "c221a3b5a44a2ebb-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 395,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L395"
+    },
+    {
+      "fingerprint": "54caf534c5e6bd72",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 437,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L437"
+    },
+    {
+      "fingerprint": "42a846c8bf9e6e33",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 465,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L465"
+    },
+    {
+      "fingerprint": "5243e5761f1bc7e5",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 493,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L493"
+    },
+    {
+      "fingerprint": "8f9b9c580e317bb9",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 509,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L509"
+    },
+    {
+      "fingerprint": "7327fb039343c6d4",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 531,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L531"
+    },
+    {
+      "fingerprint": "a0b195a16c70e83c",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 556,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L556"
+    },
+    {
+      "fingerprint": "c8bb68b50176f97e",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 578,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L578"
+    },
+    {
+      "fingerprint": "82719697c761f286",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 658,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L658"
+    },
+    {
+      "fingerprint": "d51a775e031ffc7e",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 669,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L669"
+    },
+    {
+      "fingerprint": "eb46506641b6ab08",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/db/src/seed.mts",
+      "line": 679,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "These are independent development seed records; the source is a seed script, not a user-facing atomic operation. It was still scanned rather than excluded after seeing the output.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/db/src/seed.mts#L679"
+    },
+    {
+      "fingerprint": "146473fd92c716f6",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/emails/src/utils.ts",
+      "line": 5,
+      "function": "validateEmailNotDisposable",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `response.json()` runs after `fetch(`https://open.kickbox.com/v1/disposable/${mailHost}`,)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/emails/src/utils.ts#L5"
+    },
+    {
+      "fingerprint": "0493407f6a5dabf3",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/importers/src/providers/betterstack/client.ts",
+      "line": 62,
+      "function": "request",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `response.json()` runs after `fetch(url, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/importers/src/providers/betterstack/client.ts#L62"
+    },
+    {
+      "fingerprint": "acf23e4f93ab2c16",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/importers/src/providers/checkly/client.ts",
+      "line": 49,
+      "function": "request",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `response.json()` runs after `fetch(url, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/importers/src/providers/checkly/client.ts#L49"
+    },
+    {
+      "fingerprint": "46c391dec6f1401a",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/importers/src/providers/instatus/client.ts",
+      "line": 44,
+      "function": "request",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `response.json()` runs after `fetch(url, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/importers/src/providers/instatus/client.ts#L44"
+    },
+    {
+      "fingerprint": "f08ce7cbb781cfa6",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/importers/src/providers/statuspage/client.ts",
+      "line": 45,
+      "function": "request",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `response.json()` runs after `fetch(url, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/importers/src/providers/statuspage/client.ts#L45"
+    },
+    {
+      "fingerprint": "47c2b78a06c02ecd",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1005",
+      "file": "packages/notifications/ms-teams/src/mock.ts",
+      "line": 73,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "A manual notification demo intentionally sends four different sample alerts. No atomic relationship between those demonstration deliveries is required.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/notifications/ms-teams/src/mock.ts#L73"
+    },
+    {
+      "fingerprint": "a43dc8e947d11bac",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1005",
+      "file": "packages/notifications/ms-teams/src/mock.ts",
+      "line": 84,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "A manual notification demo intentionally sends four different sample alerts. No atomic relationship between those demonstration deliveries is required.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/notifications/ms-teams/src/mock.ts#L84"
+    },
+    {
+      "fingerprint": "8370da56c46710b4",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/notifications/ms-teams/src/mock.ts",
+      "line": 84,
+      "function": "main",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `assertSafeUrl(target)` (via `sendRecovery(\u2026)`) runs after `fetch(target, {...init, redirect: \"manual\" })` (via `sendDegraded(\u2026)`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/notifications/ms-teams/src/mock.ts#L84"
+    },
+    {
+      "fingerprint": "44c0de6c00a9e1c2",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1005",
+      "file": "packages/notifications/ms-teams/src/mock.ts",
+      "line": 94,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "A manual notification demo intentionally sends four different sample alerts. No atomic relationship between those demonstration deliveries is required.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/notifications/ms-teams/src/mock.ts#L94"
+    },
+    {
+      "fingerprint": "022a927364599436",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/notifications/opsgenie/src/index.ts",
+      "line": 142,
+      "function": "sendTest",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.json()` runs after `fetch(url, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/notifications/opsgenie/src/index.ts#L142"
+    },
+    {
+      "fingerprint": "5b24e6d71b837af5",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/react/src/widget.tsx",
+      "line": 27,
+      "function": "getStatus",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.json()` runs after `fetch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/react/src/widget.tsx#L27"
+    },
+    {
+      "fingerprint": "600b55aee40bc8f8",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/services/src/agent-tools/content.ts",
+      "line": 81,
+      "function": "run",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.json()` runs after `fetch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/services/src/agent-tools/content.ts#L81"
+    },
+    {
+      "fingerprint": "9954719ed3d52725",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/services/src/agent-tools/content.ts",
+      "line": 178,
+      "function": "run",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.text()` runs after `fetch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/services/src/agent-tools/content.ts#L178"
+    },
+    {
+      "fingerprint": "5bac7d9aab906f38",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/services/src/agent-tools/docs.ts",
+      "line": 61,
+      "function": "run",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.json()` runs after `fetch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/services/src/agent-tools/docs.ts#L61"
+    },
+    {
+      "fingerprint": "b95b0981f92bc865",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/services/src/agent-tools/docs.ts",
+      "line": 152,
+      "function": "run",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.text()` runs after `fetch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/services/src/agent-tools/docs.ts#L152"
+    },
+    {
+      "fingerprint": "cc8ed191ffbf8b46",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/services/src/context.ts",
+      "line": 66,
+      "function": "withTransaction::<anonymous@66:24>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. the transaction `db as DrizzleClient).transaction(fn)` cannot be analyzed: its callback is not an inline function, so its body is not analyzed here No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/services/src/context.ts#L66"
+    },
+    {
+      "fingerprint": "212923a79b913806",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/services/src/context.ts",
+      "line": 105,
+      "function": "batchReads",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `db as DrizzleClient).batch(queries)` calls a database method that Midwrite does not model No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/services/src/context.ts#L105"
+    },
+    {
+      "fingerprint": "52109197eb7a773d",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/services/src/monitor/get-daily-summary.ts",
+      "line": 25,
+      "function": "fetchMonitorDailyStats",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `args.db.select({ id: monitor.id, jobType: monitor.jobType })` is not analyzed: `args.db` resembles the configured database receiver `db`, but its path is not configured; add `args.db` to `databaseReceivers` to analyze it No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/services/src/monitor/get-daily-summary.ts#L25"
+    },
+    {
+      "fingerprint": "4daab3defd2079a6",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/services/src/monitor/probe.ts",
+      "line": 119,
+      "function": "probeRegion",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.json()` runs after `fetch(endpoint, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/services/src/monitor/probe.ts#L119"
+    },
+    {
+      "fingerprint": "0955b8fc935fea46",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/services/src/monitor/trigger.ts",
+      "line": 100,
+      "function": "triggerMonitorRun",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `db.get(\u2026)` calls a database method that Midwrite does not model No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/services/src/monitor/trigger.ts#L100"
+    },
+    {
+      "fingerprint": "58c738c62a9da955",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/services/src/oauth/cimd.ts",
+      "line": 205,
+      "function": "fetchClientMetadataDocument",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `readBounded(res, CIMD_MAX_BYTES)` runs after `fetch(clientId, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/services/src/oauth/cimd.ts#L205"
+    },
+    {
+      "fingerprint": "9c57adc2a454dd21",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/services/src/oauth/refresh.ts",
+      "line": 104,
+      "function": "refreshGrant",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `load()` runs after `db.update(oauthGrant)` (via `rotate(db, grant, hash, now)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/services/src/oauth/refresh.ts#L104"
+    },
+    {
+      "fingerprint": "ac436f27eb76fc93",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/services/src/oauth/refresh.ts",
+      "line": 114,
+      "function": "refreshGrant",
+      "classification": "false-positive",
+      "notes": "The second rotate call is reached only if the first CAS update matched no rows. A successful first update returns immediately, so there is no first state change to leave half-done.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/services/src/oauth/refresh.ts#L114"
+    },
+    {
+      "fingerprint": "30e58b624118d7ce",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/services/src/oauth/session.ts",
+      "line": 121,
+      "function": "createSession",
+      "classification": "intended-risk",
+      "notes": "A URL client metadata cache upsert may persist when session creation fails. Caching the independently reusable client does not promise a successful authorization session.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/services/src/oauth/session.ts#L121"
+    },
+    {
+      "fingerprint": "6d6ada4584bf8919",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "packages/services/src/sso/sync-domains.ts",
+      "line": 136,
+      "function": "reconcileSsoDomains",
+      "classification": "intended-risk",
+      "notes": "Reconciliation mirrors domains separately and is re-run on reads; each per-domain mutation is wrapped with its audit transaction. Midwrite does not prove a missing transaction merely from an unresolved tx summary.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/services/src/sso/sync-domains.ts#L136"
+    },
+    {
+      "fingerprint": "e75072938ac33b71",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/services/src/sso/sync-domains.ts",
+      "line": 136,
+      "function": "reconcileSsoDomains",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `getWorkspaceByWorkosOrganization(tx, input.organizationId)` (via `removeSsoDomain(\u2026)`) runs after `tx.insert(workspaceSsoDomain)` (via `syncSsoDomain(\u2026)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/services/src/sso/sync-domains.ts#L136"
+    },
+    {
+      "fingerprint": "3883492a2f2fd8e1",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/services/test/helpers.ts",
+      "line": 97,
+      "function": "runRolledBack",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `tx.run(sql`select 1`)` calls a database method that Midwrite does not model No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/services/test/helpers.ts#L97"
+    },
+    {
+      "fingerprint": "9e7cd2ff19f221d8",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/tinybird/scripts/backfill_external_status_v0_to_v1.ts",
+      "line": 92,
+      "function": "fetchAllV0Rows",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.json()` runs after `fetch(url, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/tinybird/scripts/backfill_external_status_v0_to_v1.ts#L92"
+    },
+    {
+      "fingerprint": "5507044242cd861c",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/tinybird/scripts/backfill_external_status_v0_to_v1.ts",
+      "line": 199,
+      "function": "assertV1Empty",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.json()` runs after `fetch(url, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/tinybird/scripts/backfill_external_status_v0_to_v1.ts#L199"
+    },
+    {
+      "fingerprint": "2978fbe84cdab2fe",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1005",
+      "file": "packages/tinybird/scripts/backfill_external_status_v0_to_v1.ts",
+      "line": 217,
+      "function": "main",
+      "classification": "false-positive",
+      "notes": "The paired calls load fonts/recording JSON or SELECT/count results. They are reads, so a partially completed pair is not the claimed durable two-effect state.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/tinybird/scripts/backfill_external_status_v0_to_v1.ts#L217"
+    },
+    {
+      "fingerprint": "8fb3c67d656c4602",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/tinybird/scripts/backfill_external_status_v0_to_v1.ts",
+      "line": 245,
+      "function": "main",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `publishSnapshots(snapshots)` runs after `fetch(url, \u2026)` (via `assertV1Empty()`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/tinybird/scripts/backfill_external_status_v0_to_v1.ts#L245"
+    },
+    {
+      "fingerprint": "ee35e837e0eef414",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "packages/utils/src/ssrf.ts",
+      "line": 161,
+      "function": "safeFetch",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `res.body?.cancel()` runs after `fetch(target, {...init, redirect: \"manual\" })` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/utils/src/ssrf.ts#L161"
+    },
+    {
+      "fingerprint": "da2d78b36282b8f9",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "scripts/videos/src/root.tsx",
+      "line": 21,
+      "function": "json",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `(await fetch(staticFile(path))).json()` runs after `fetch(staticFile(path))` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/scripts/videos/src/root.tsx#L21"
+    },
+    {
+      "fingerprint": "635915b5b3500533",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1005",
+      "file": "scripts/videos/src/root.tsx",
+      "line": 28,
+      "function": "load",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/scripts/videos/src/root.tsx#L28"
+    },
+    {
+      "fingerprint": "c7aa10b800ece027",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1005",
+      "file": "scripts/videos/src/root.tsx",
+      "line": 32,
+      "function": "load",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/scripts/videos/src/root.tsx#L32"
+    },
+    {
+      "fingerprint": "e4593c4f5a1997a9",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1005",
+      "file": "scripts/videos/src/root.tsx",
+      "line": 36,
+      "function": "load",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/scripts/videos/src/root.tsx#L36"
+    },
+    {
+      "fingerprint": "56f4cf2a8e2b5be8",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1005",
+      "file": "scripts/videos/src/root.tsx",
+      "line": 100,
+      "function": "video::<anonymous@98:26>",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/scripts/videos/src/root.tsx#L100"
+    },
+    {
+      "fingerprint": "c14d08b61893629a",
+      "phases": [
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/api/src/router/page.ts",
+      "line": 250,
+      "function": "<anonymous@204:15>",
+      "classification": "needs-triage",
+      "notes": "The reported independent mutations exist in the source. Caller intent and recovery for this API/monitor/addon/domain transition remain unresolved; this candidate is not counted as a confirmed defect or safe behavior.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/page.ts#L250"
+    },
+    {
+      "fingerprint": "107e7d61c7700ee6",
+      "phases": [
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "packages/api/src/router/page.ts",
+      "line": 255,
+      "function": "<anonymous@204:15>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `updatePageCustomDomain(\u2026)` runs after `removeDomainFromVercelIfUnused(ctx.db, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/api/src/router/page.ts#L255"
+    },
+    {
+      "fingerprint": "d0d85d315b8a9667",
+      "phases": [
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/notifications/ms-teams/src/mock.ts",
+      "line": 73,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "A manual notification demo intentionally sends four different sample alerts. No atomic relationship between those demonstration deliveries is required.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/notifications/ms-teams/src/mock.ts#L73"
+    },
+    {
+      "fingerprint": "7ce3b35a33b3869a",
+      "phases": [
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/notifications/ms-teams/src/mock.ts",
+      "line": 84,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "A manual notification demo intentionally sends four different sample alerts. No atomic relationship between those demonstration deliveries is required.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/notifications/ms-teams/src/mock.ts#L84"
+    },
+    {
+      "fingerprint": "69a623d9b64980aa",
+      "phases": [
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "packages/notifications/ms-teams/src/mock.ts",
+      "line": 94,
+      "function": "main",
+      "classification": "intended-risk",
+      "notes": "A manual notification demo intentionally sends four different sample alerts. No atomic relationship between those demonstration deliveries is required.",
+      "sourceUrl": "https://github.com/openstatusHQ/openstatus/blob/36288495c8544d4498986be7d72c37ee7e666837/packages/notifications/ms-teams/src/mock.ts#L94"
+    }
+  ]
+}

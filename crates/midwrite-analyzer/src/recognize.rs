@@ -8,7 +8,9 @@
 //! against the supported Drizzle API or the configured external effects.
 //! Anything else is [`Classified::NotRecognized`].
 
-use oxc_ast::ast::{Argument, CallExpression, Expression, IdentifierReference};
+use oxc_ast::ast::{
+    Argument, CallExpression, Expression, IdentifierReference, ObjectPropertyKind, PropertyKind,
+};
 use oxc_semantic::Scoping;
 use oxc_span::GetSpan;
 
@@ -556,6 +558,12 @@ impl Recognizer<'_> {
             let Some(Segment::Call(call)) = segments.get(index) else {
                 continue;
             };
+            if let Some(methods) = &rule.http_methods
+                && !literal_http_method(call)
+                    .is_some_and(|method| methods.iter().any(|expected| expected == &method))
+            {
+                continue;
+            }
             // `firstArgument` narrows the rule to calls whose first argument
             // is that string literal (`triggerJob("notification", ...)`).
             if let Some(expected) = &rule.first_argument {
@@ -874,6 +882,42 @@ fn method_call<'e, 'a>(segments: &[Segment<'e, 'a>], name: &str) -> Option<&'e C
         [Segment::Property(method), Segment::Call(call)] if *method == name => Some(*call),
         _ => None,
     })
+}
+
+/// Only explicit fetch-style options establish a method. Spreads and
+/// computed keys can override it; a later literal `method` establishes it
+/// again. Request objects, aliases and implicit GETs remain unresolved.
+fn literal_http_method(call: &CallExpression<'_>) -> Option<String> {
+    if matches!(call.arguments.first(), Some(Argument::SpreadElement(_))) {
+        return None;
+    }
+    let Expression::ObjectExpression(options) = call
+        .arguments
+        .get(1)?
+        .as_expression()?
+        .get_inner_expression()
+    else {
+        return None;
+    };
+    let mut method = None;
+    for property in &options.properties {
+        match property {
+            ObjectPropertyKind::ObjectProperty(property) if !property.computed => {
+                if crate::semantic::property_key(&property.key).as_deref() == Some("method") {
+                    method = match (property.kind, property.value.get_inner_expression()) {
+                        (PropertyKind::Init, Expression::StringLiteral(literal))
+                            if !property.method =>
+                        {
+                            literal.value.as_str().map(str::to_ascii_uppercase)
+                        }
+                        _ => None,
+                    };
+                }
+            }
+            _ => method = None,
+        }
+    }
+    method
 }
 
 /// Name of the table argument: `orders` or `schema.orders`.

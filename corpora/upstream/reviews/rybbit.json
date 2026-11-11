@@ -1,0 +1,1564 @@
+{
+  "schemaVersion": 1,
+  "project": "rybbit",
+  "revision": "4288204761ed2fc801fcaa0b3bbfacd1b8cc3936",
+  "reviewer": "Codex (AI-assisted manual source review)",
+  "humanReviewed": false,
+  "runtimeExecuted": false,
+  "method": "Manual source review; source-window/recovery decisions transcribed into per-fingerprint records. Existing Kan/Dittofeed labels are identified explicitly; source-reviewed candidates with unresolved contracts remain needs-triage. MW9001 is a limitation, never a defect.",
+  "reviews": [
+    {
+      "fingerprint": "27907f02078d4188",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/analytics-script/config.ts",
+      "line": 87,
+      "function": "fetchFeatureFlags",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `response.json()` runs after `fetch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/analytics-script/config.ts#L87"
+    },
+    {
+      "fingerprint": "fd3c1b7cb95f93ee",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "server/src/analytics-script/config.ts",
+      "line": 244,
+      "function": "parseScriptConfig",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `response.json()` runs after `fetch(configUrl, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/analytics-script/config.ts#L244"
+    },
+    {
+      "fingerprint": "e331dfa4e4d68e42",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1005",
+      "file": "server/src/analytics-script/config.ts",
+      "line": 275,
+      "function": "parseScriptConfig",
+      "classification": "false-positive",
+      "notes": "The first request reads tracking configuration (GET); it cannot leave an independently committed mutation before feature-flag evaluation.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/analytics-script/config.ts#L275"
+    },
+    {
+      "fingerprint": "d95ccfd31c882b2c",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/analytics-script/tracking.ts",
+      "line": 126,
+      "function": "Tracker.refreshFeatureFlags",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `response.json()` runs after `fetch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/analytics-script/tracking.ts#L126"
+    },
+    {
+      "fingerprint": "f79e2d7ca4aa789f",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/analytics-script/tracking.ts",
+      "line": 203,
+      "function": "Tracker.sendSessionReplayBatch",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `response.json()` runs after `fetch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/analytics-script/tracking.ts#L203"
+    },
+    {
+      "fingerprint": "7c2952953fbdcb2f",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/analytics/generateCustomQuery.ts",
+      "line": 55,
+      "function": "generateCustomQuery",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `generateCustomQuery` has more than 512 execution paths; only the first 512 were analyzed No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/analytics/generateCustomQuery.ts#L55"
+    },
+    {
+      "fingerprint": "ee5dbb7af2e5cd87",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/analytics/runCustomQuery.ts",
+      "line": 21,
+      "function": "runCustomQuery",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `runCustomQuery` has more than 512 execution paths; only the first 512 were analyzed No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/analytics/runCustomQuery.ts#L21"
+    },
+    {
+      "fingerprint": "58f2ccca9cd0bf8b",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "server/src/api/analytics/users/deleteUser.ts",
+      "line": 85,
+      "function": "deleteUser",
+      "classification": "needs-triage",
+      "notes": "Profile and alias deletes are separate promises. The source exposes partial deletion on failure; whether retry/reconciliation is sufficient for this API contract remains unresolved.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/analytics/users/deleteUser.ts#L85"
+    },
+    {
+      "fingerprint": "ad2d349e36785274",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/analytics/users/getUserTraits.ts",
+      "line": 50,
+      "function": "<anonymous@47:3>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/analytics/users/getUserTraits.ts#L50"
+    },
+    {
+      "fingerprint": "ad2d349e36785274-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/analytics/users/getUserTraits.ts",
+      "line": 85,
+      "function": "<anonymous@70:3>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/analytics/users/getUserTraits.ts#L85"
+    },
+    {
+      "fingerprint": "ad2d349e36785274-3",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/analytics/users/getUserTraits.ts",
+      "line": 93,
+      "function": "<anonymous@70:3>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/analytics/users/getUserTraits.ts#L93"
+    },
+    {
+      "fingerprint": "ad2d349e36785274-4",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/analytics/users/getUserTraits.ts",
+      "line": 151,
+      "function": "<anonymous@135:3>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/analytics/users/getUserTraits.ts#L151"
+    },
+    {
+      "fingerprint": "ad2d349e36785274-5",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/analytics/users/getUserTraits.ts",
+      "line": 158,
+      "function": "<anonymous@135:3>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/analytics/users/getUserTraits.ts#L158"
+    },
+    {
+      "fingerprint": "e590ccfaf7f40353",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "server/src/api/analytics/users/identifyUser.ts",
+      "line": 71,
+      "function": "identifyUser",
+      "classification": "needs-triage",
+      "notes": "Profile upsert precedes alias upsert. The source window exists, but profile-shell independence and client retry obligations need confirmation before calling it a reportable defect.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/analytics/users/identifyUser.ts#L71"
+    },
+    {
+      "fingerprint": "ac445569fe1a6618",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/analytics/users/userScope.ts",
+      "line": 263,
+      "function": "resolveSearchScope",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/analytics/users/userScope.ts#L263"
+    },
+    {
+      "fingerprint": "4ccfb78036d3d0c3",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/activate.ts",
+      "line": 44,
+      "function": "exchangeCodeForToken",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `response.json()` runs after `fetch(tokenUrl, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/activate.ts#L44"
+    },
+    {
+      "fingerprint": "86ffaf58fb5c2131",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/activate.ts",
+      "line": 70,
+      "function": "fetchLicenseKey",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `response.json()` runs after `fetch(licenseUrl, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/activate.ts#L70"
+    },
+    {
+      "fingerprint": "151d0133a2f3f8da",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1005",
+      "file": "server/src/api/as/activate.ts",
+      "line": 145,
+      "function": "activateAppSumoLicense",
+      "classification": "false-positive",
+      "notes": "The second request reads the license key (GET); token exchange followed by a read is not the claimed two-mutation window.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/activate.ts#L145"
+    },
+    {
+      "fingerprint": "3001254dff526250",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/activate.ts",
+      "line": 155,
+      "function": "activateAppSumoLicense",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/activate.ts#L155"
+    },
+    {
+      "fingerprint": "3001254dff526250-2",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/activate.ts",
+      "line": 170,
+      "function": "activateAppSumoLicense",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/activate.ts#L170"
+    },
+    {
+      "fingerprint": "3001254dff526250-3",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/activate.ts",
+      "line": 182,
+      "function": "activateAppSumoLicense",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/activate.ts#L182"
+    },
+    {
+      "fingerprint": "97d8aabb0c79367b",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/webhook.ts",
+      "line": 150,
+      "function": "handleAppSumoWebhook",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/webhook.ts#L150"
+    },
+    {
+      "fingerprint": "68c94c879eb394a4",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/webhook.ts",
+      "line": 268,
+      "function": "handlePurchaseEvent",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/webhook.ts#L268"
+    },
+    {
+      "fingerprint": "68c94c879eb394a4-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/webhook.ts",
+      "line": 273,
+      "function": "handlePurchaseEvent",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/webhook.ts#L273"
+    },
+    {
+      "fingerprint": "7395def22d189306",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/webhook.ts",
+      "line": 306,
+      "function": "handleActivateEvent",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/webhook.ts#L306"
+    },
+    {
+      "fingerprint": "aa47fc5bf43fa7f7",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/webhook.ts",
+      "line": 337,
+      "function": "handleUpgradeEvent",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/webhook.ts#L337"
+    },
+    {
+      "fingerprint": "aa47fc5bf43fa7f7-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/webhook.ts",
+      "line": 362,
+      "function": "handleUpgradeEvent",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/webhook.ts#L362"
+    },
+    {
+      "fingerprint": "aa47fc5bf43fa7f7-3",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/webhook.ts",
+      "line": 396,
+      "function": "handleUpgradeEvent",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/webhook.ts#L396"
+    },
+    {
+      "fingerprint": "aa47fc5bf43fa7f7-4",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/webhook.ts",
+      "line": 429,
+      "function": "handleUpgradeEvent",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/webhook.ts#L429"
+    },
+    {
+      "fingerprint": "9cc0516cafec2e62",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/webhook.ts",
+      "line": 463,
+      "function": "handleDowngradeEvent",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/webhook.ts#L463"
+    },
+    {
+      "fingerprint": "9cc0516cafec2e62-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/webhook.ts",
+      "line": 488,
+      "function": "handleDowngradeEvent",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/webhook.ts#L488"
+    },
+    {
+      "fingerprint": "9cc0516cafec2e62-3",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/webhook.ts",
+      "line": 522,
+      "function": "handleDowngradeEvent",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/webhook.ts#L522"
+    },
+    {
+      "fingerprint": "9cc0516cafec2e62-4",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/webhook.ts",
+      "line": 555,
+      "function": "handleDowngradeEvent",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/webhook.ts#L555"
+    },
+    {
+      "fingerprint": "9829b334b610333b",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/webhook.ts",
+      "line": 575,
+      "function": "handleDeactivateEvent",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/webhook.ts#L575"
+    },
+    {
+      "fingerprint": "0c15e40421a2d2b8",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/webhook.ts",
+      "line": 598,
+      "function": "handleMigrateEvent",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/webhook.ts#L598"
+    },
+    {
+      "fingerprint": "e4f36dc2f1b64c32",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/experiments/createExperiment.ts",
+      "line": 77,
+      "function": "createExperiment",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `invalidateFeatureFlagDefinitions(siteId)` runs after the transaction started at 45:44 has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/experiments/createExperiment.ts#L77"
+    },
+    {
+      "fingerprint": "8159f5aed81ebf6f",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/experiments/updateExperiment.ts",
+      "line": 29,
+      "function": "updateExperiment",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `updateExperiment` has more than 512 execution paths; only the first 512 were analyzed No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/experiments/updateExperiment.ts#L29"
+    },
+    {
+      "fingerprint": "955c96807ad1412a",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/experiments/updateExperiment.ts",
+      "line": 159,
+      "function": "updateExperiment",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `invalidateFeatureFlagDefinitions(siteId)` runs after the transaction started at 120:27 has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/experiments/updateExperiment.ts#L159"
+    },
+    {
+      "fingerprint": "1fcf6fc394e0ed9b",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/featureFlags/index.ts",
+      "line": 156,
+      "function": "createFeatureFlag",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `invalidateFeatureFlagDefinitions(siteId)` runs after `db.insert(featureFlags)` has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/featureFlags/index.ts#L156"
+    },
+    {
+      "fingerprint": "1fa432a3f8b6ce07",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/featureFlags/index.ts",
+      "line": 249,
+      "function": "updateFeatureFlag",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `invalidateFeatureFlagDefinitions(siteId)` runs after the transaction started at 209:27 has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/featureFlags/index.ts#L249"
+    },
+    {
+      "fingerprint": "44f3ef858dc3421a",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/featureFlags/index.ts",
+      "line": 303,
+      "function": "deleteFeatureFlag",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `invalidateFeatureFlagDefinitions(siteId)` runs after `db.delete(featureFlags)` has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/featureFlags/index.ts#L303"
+    },
+    {
+      "fingerprint": "2857f811f4063486",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1002",
+      "file": "server/src/api/gsc/callback.ts",
+      "line": 79,
+      "function": "gscCallback",
+      "classification": "intended-risk",
+      "notes": "OAuth token exchange before database persistence is part of completing sign-in; a new authorization attempt can obtain another code. No unintended provider mutation was established.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/gsc/callback.ts#L79"
+    },
+    {
+      "fingerprint": "a0557f79a4e80883",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/gsc/callback.ts",
+      "line": 101,
+      "function": "gscCallback",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `tokenResponse.json()` runs after `fetch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/gsc/callback.ts#L101"
+    },
+    {
+      "fingerprint": "c2362e2f2a621786",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1002",
+      "file": "server/src/api/gsc/callback.ts",
+      "line": 104,
+      "function": "gscCallback",
+      "classification": "false-positive",
+      "notes": "getGSCProperties reads available properties (GET); it is not an independent remote mutation.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/gsc/callback.ts#L104"
+    },
+    {
+      "fingerprint": "cc5f7380fdb4ddc7",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1005",
+      "file": "server/src/api/gsc/callback.ts",
+      "line": 104,
+      "function": "gscCallback",
+      "classification": "false-positive",
+      "notes": "getGSCProperties reads available properties (GET); it is not an independent remote mutation.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/gsc/callback.ts#L104"
+    },
+    {
+      "fingerprint": "4a8f88777887f13a",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "server/src/api/gsc/getData.ts",
+      "line": 57,
+      "function": "getGSCData",
+      "classification": "false-positive",
+      "notes": "searchAnalytics/query is a read-only query even though its HTTP method is POST. Method filtering alone cannot fix this endpoint-semantic false positive.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/gsc/getData.ts#L57"
+    },
+    {
+      "fingerprint": "905f568a621ca576",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/gsc/getData.ts",
+      "line": 70,
+      "function": "getGSCData",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `gscResponse.text()` runs after `fetch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/gsc/getData.ts#L70"
+    },
+    {
+      "fingerprint": "5a003ad778f7d57d",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1001",
+      "file": "server/src/api/gsc/selectProperty.ts",
+      "line": 48,
+      "function": "selectGSCProperty",
+      "classification": "false-positive",
+      "notes": "getGSCProperties is read-only; pairing it with token persistence or property selection does not establish two mutations.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/gsc/selectProperty.ts#L48"
+    },
+    {
+      "fingerprint": "3cdd9e2bc5e901ca",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1002",
+      "file": "server/src/api/gsc/selectProperty.ts",
+      "line": 48,
+      "function": "selectGSCProperty",
+      "classification": "false-positive",
+      "notes": "getGSCProperties is read-only; pairing it with token persistence or property selection does not establish two mutations.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/gsc/selectProperty.ts#L48"
+    },
+    {
+      "fingerprint": "20e8ddf1054ffcd8",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "server/src/api/gsc/selectProperty.ts",
+      "line": 54,
+      "function": "selectGSCProperty",
+      "classification": "intended-risk",
+      "notes": "Token refresh and selecting a property are distinct operations; refreshed credentials can remain if property selection fails. Findings involving getGSCProperties are separately marked read-only.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/gsc/selectProperty.ts#L54"
+    },
+    {
+      "fingerprint": "127f4fb4d02561c0",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1002",
+      "file": "server/src/api/gsc/utils.ts",
+      "line": 98,
+      "function": "refreshGSCToken",
+      "classification": "needs-triage",
+      "notes": "Token issuance precedes credential persistence. A harmful lost/rotated refresh-token consequence depends on provider behavior not established by this static pass.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/gsc/utils.ts#L98"
+    },
+    {
+      "fingerprint": "e79d6c2297308870",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/gsc/utils.ts",
+      "line": 119,
+      "function": "refreshGSCToken",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `tokenResponse.json()` runs after `fetch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/gsc/utils.ts#L119"
+    },
+    {
+      "fingerprint": "a949f2dea094f495",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/gsc/utils.ts",
+      "line": 157,
+      "function": "getGSCProperties",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `response.text()` runs after `fetch(\u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/gsc/utils.ts#L157"
+    },
+    {
+      "fingerprint": "6a686b53dd4ed7e2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/sites/applySiteMove.ts",
+      "line": 92,
+      "function": "applySiteMove",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. the transaction `db.transaction(move)` cannot be analyzed: its callback is not an inline function, so its body is not analyzed here No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/sites/applySiteMove.ts#L92"
+    },
+    {
+      "fingerprint": "5d7401d9022be05f",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "server/src/api/sites/batchImportEvents.ts",
+      "line": 122,
+      "function": "batchImportEvents",
+      "classification": "intended-risk",
+      "notes": "The writes record incremental progress and then completion. An in-progress marker after a failed import is a deliberate staged status, not proof of lost imported data.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/sites/batchImportEvents.ts#L122"
+    },
+    {
+      "fingerprint": "50b02658aed8023f",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/sites/batchImportEvents.ts",
+      "line": 133,
+      "function": "batchImportEvents",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `importQuotaManager.completeImport(\u2026)` runs after `db.update(importStatus)` (via `completeImport(importId)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/sites/batchImportEvents.ts#L133"
+    },
+    {
+      "fingerprint": "5995408bd3292139",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/sites/deleteSiteImport.ts",
+      "line": 103,
+      "function": "deleteSiteImport",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `importQuotaManager.completeImport(\u2026)` runs after `db.delete(importStatus)` (via `deleteImport(importId)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/sites/deleteSiteImport.ts#L103"
+    },
+    {
+      "fingerprint": "e16c1a52047b19f0",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "server/src/api/sites/siteTransfers.ts",
+      "line": 169,
+      "function": "createSiteTransfer",
+      "classification": "intended-risk",
+      "notes": "The source catches mail failures and explicitly returns the transfer link for the sender to pass on; pending transfers are also readable separately.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/sites/siteTransfers.ts#L169"
+    },
+    {
+      "fingerprint": "f70afd7c3ee5a7f9",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/sites/siteTransfers.ts",
+      "line": 169,
+      "function": "createSiteTransfer",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `render(SiteTransferEmail(props))` (via `sendSiteTransferEmail(\u2026)`) runs after the transaction started at .corpora/upstream/rybbit-source/server/src/services/sites/withOrganizationSiteLock.ts:9:10 (via `withOrganizationSiteLock(\u2026)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/sites/siteTransfers.ts#L169"
+    },
+    {
+      "fingerprint": "5cd63e90ae5f6541",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1002",
+      "file": "server/src/api/stripe/createCheckoutSession.ts",
+      "line": 103,
+      "function": "createCheckoutSession",
+      "classification": "intended-risk",
+      "notes": "Customer creation before persistence can orphan an uncharged Stripe customer; a persisted customer is reusable when checkout creation is retried. No payment is taken merely by creating a checkout session.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/stripe/createCheckoutSession.ts#L103"
+    },
+    {
+      "fingerprint": "4c9a0d8beb929ad4",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "server/src/api/stripe/createCheckoutSession.ts",
+      "line": 119,
+      "function": "createCheckoutSession",
+      "classification": "intended-risk",
+      "notes": "Customer creation before persistence can orphan an uncharged Stripe customer; a persisted customer is reusable when checkout creation is retried. No payment is taken merely by creating a checkout session.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/stripe/createCheckoutSession.ts#L119"
+    },
+    {
+      "fingerprint": "6398cc35597ce770",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/user/createUserInOrganization.ts",
+      "line": 140,
+      "function": "createUserInOrganization",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `ctx.internalAdapter.deleteUser(createdUser.id)` runs after the transaction started at .corpora/upstream/rybbit-source/server/src/services/sites/withOrganizationSiteLock.ts:9:10 (via `withOrganizationSiteLock(\u2026)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/user/createUserInOrganization.ts#L140"
+    },
+    {
+      "fingerprint": "05efb14c8a37cd32",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/db/postgres/initPostgres.ts",
+      "line": 19,
+      "function": "initPostgres",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `initializeAppSumoTables()` runs after `db.update(user)` has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/db/postgres/initPostgres.ts#L19"
+    },
+    {
+      "fingerprint": "34a06380647a3028",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/db/postgres/initPostgres.ts",
+      "line": 34,
+      "function": "initializeAppSumoTables",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(sql`CREATE SCHEMA IF NOT EXISTS appsumo`)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/db/postgres/initPostgres.ts#L34"
+    },
+    {
+      "fingerprint": "c4c82cf92d0eac06",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/db/postgres/initPostgres.ts",
+      "line": 37,
+      "function": "initializeAppSumoTables",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/db/postgres/initPostgres.ts#L37"
+    },
+    {
+      "fingerprint": "c4c82cf92d0eac06-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/db/postgres/initPostgres.ts",
+      "line": 53,
+      "function": "initializeAppSumoTables",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/db/postgres/initPostgres.ts#L53"
+    },
+    {
+      "fingerprint": "a1e28c241d4ed443",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/index.ts",
+      "line": 193,
+      "function": "start",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `receiveUsageStateFromPrimary()` runs after `db.update(user)` (via `initPostgres()`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/index.ts#L193"
+    },
+    {
+      "fingerprint": "72512bf980f6c662",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/lib/apiKeyLimits.ts",
+      "line": 58,
+      "function": "createApiKeyWithinLimit",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/lib/apiKeyLimits.ts#L58"
+    },
+    {
+      "fingerprint": "59dd0129c5f878c7",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/lib/auth-middleware.ts",
+      "line": 263,
+      "function": "requireSitePermission::<anonymous@263:10>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `requireSitePermission::<anonymous@263:10>` has more than 512 execution paths; only the first 512 were analyzed No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/lib/auth-middleware.ts#L263"
+    },
+    {
+      "fingerprint": "e8874897b3f33a79",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "server/src/lib/auth.ts",
+      "line": 370,
+      "function": "applyInvitationSiteAccess",
+      "classification": "intended-risk",
+      "notes": "The source explicitly requires fail-closed ordering: restrict membership before inserting grants so failure leaves no access rather than unrestricted access.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/lib/auth.ts#L370"
+    },
+    {
+      "fingerprint": "7362f3267003ce18",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/lib/auth.ts",
+      "line": 523,
+      "function": "after",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `addContactToAudience(u.email, u.name)` runs after `db.update(user)` has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/lib/auth.ts#L523"
+    },
+    {
+      "fingerprint": "59f5a9d8df819d6b",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/lib/openrouter.ts",
+      "line": 132,
+      "function": "callOpenRouterWithMetadata",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `response.json()` runs after `fetch(OPENROUTER_API_URL, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/lib/openrouter.ts#L132"
+    },
+    {
+      "fingerprint": "25ce4749aef66316",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/lib/subscriptionUtils.ts",
+      "line": 129,
+      "function": "getAppSumoSubscription",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/lib/subscriptionUtils.ts#L129"
+    },
+    {
+      "fingerprint": "26ca87fa11c1d117",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/services/admin/subscriptionService.ts",
+      "line": 143,
+      "function": "fetchAppSumoLicensesForOrganizations",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/admin/subscriptionService.ts#L143"
+    },
+    {
+      "fingerprint": "9788ec12762a8547",
+      "phases": [
+        "before"
+      ],
+      "code": "MW1002",
+      "file": "server/src/services/lifecycleEmails/lifecycleEmailService.ts",
+      "line": 257,
+      "function": "LifecycleEmailService.resolvePlatform",
+      "classification": "false-positive",
+      "notes": "detectPlatform fetches a homepage without a method override; recording its detected platform after this read is not an external-mutation/database window.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/lifecycleEmails/lifecycleEmailService.ts#L257"
+    },
+    {
+      "fingerprint": "92908b124a9af0dc",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/services/lifecycleEmails/lifecycleEmailService.ts",
+      "line": 304,
+      "function": "LifecycleEmailService.sendBundle",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `build(claimed)` runs after `db.insert(lifecycleEmailLog)` has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/lifecycleEmails/lifecycleEmailService.ts#L304"
+    },
+    {
+      "fingerprint": "6ebd2dd19ac7d8d4",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "server/src/services/lifecycleEmails/lifecycleEmailService.ts",
+      "line": 309,
+      "function": "LifecycleEmailService.sendBundle",
+      "classification": "reported",
+      "notes": "The durable unique email claim is interpreted as delivery after restart; catch/rollback does not run after a process crash.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/lifecycleEmails/lifecycleEmailService.ts#L309",
+      "upstream": "https://github.com/rybbit-io/rybbit/issues/1355"
+    },
+    {
+      "fingerprint": "e3a9d1de2c91a883",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/services/lifecycleEmails/lifecycleEmailService.ts",
+      "line": 349,
+      "function": "LifecycleEmailService.processOnboarding",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `LifecycleEmailService.processOnboarding` has more than 512 execution paths; only the first 512 were analyzed No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/lifecycleEmails/lifecycleEmailService.ts#L349"
+    },
+    {
+      "fingerprint": "4a2d6afe9a2c756f",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/services/lifecycleEmails/lifecycleEmailService.ts",
+      "line": 439,
+      "function": "LifecycleEmailService.processUser",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `LifecycleEmailService.processUser` has more than 512 execution paths; only the first 512 were analyzed No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/lifecycleEmails/lifecycleEmailService.ts#L439"
+    },
+    {
+      "fingerprint": "56812f2a5513098c",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1002",
+      "file": "server/src/services/lifecycleEmails/lifecycleEmailService.ts",
+      "line": 469,
+      "function": "LifecycleEmailService.processUser",
+      "classification": "needs-triage",
+      "notes": "Later bundles require an earlier sendBundle to return false, and successful sends return early. Boolean return values, rollback, and provider response-loss cases must be correlated before asserting a second independent successful send.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/lifecycleEmails/lifecycleEmailService.ts#L469"
+    },
+    {
+      "fingerprint": "a7fe6d24d7723c54",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/services/lifecycleEmails/lifecycleEmailService.ts",
+      "line": 521,
+      "function": "LifecycleEmailService.processUser",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `unsubscribed()` runs after `db.insert(lifecycleEmailLog)` (via `this.sendBundle(\u2026)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/lifecycleEmails/lifecycleEmailService.ts#L521"
+    },
+    {
+      "fingerprint": "56812f2a5513098c-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1002",
+      "file": "server/src/services/lifecycleEmails/lifecycleEmailService.ts",
+      "line": 522,
+      "function": "LifecycleEmailService.processUser",
+      "classification": "needs-triage",
+      "notes": "Later bundles require an earlier sendBundle to return false, and successful sends return early. Boolean return values, rollback, and provider response-loss cases must be correlated before asserting a second independent successful send.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/lifecycleEmails/lifecycleEmailService.ts#L522"
+    },
+    {
+      "fingerprint": "731b2da9f11acf83",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "server/src/services/lifecycleEmails/lifecycleEmailService.ts",
+      "line": 522,
+      "function": "LifecycleEmailService.processUser",
+      "classification": "needs-triage",
+      "notes": "Later bundles require an earlier sendBundle to return false, and successful sends return early. Boolean return values, rollback, and provider response-loss cases must be correlated before asserting a second independent successful send.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/lifecycleEmails/lifecycleEmailService.ts#L522"
+    },
+    {
+      "fingerprint": "56812f2a5513098c-3",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1002",
+      "file": "server/src/services/lifecycleEmails/lifecycleEmailService.ts",
+      "line": 548,
+      "function": "LifecycleEmailService.processUser",
+      "classification": "needs-triage",
+      "notes": "Later bundles require an earlier sendBundle to return false, and successful sends return early. Boolean return values, rollback, and provider response-loss cases must be correlated before asserting a second independent successful send.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/lifecycleEmails/lifecycleEmailService.ts#L548"
+    },
+    {
+      "fingerprint": "731b2da9f11acf83-2",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "server/src/services/lifecycleEmails/lifecycleEmailService.ts",
+      "line": 548,
+      "function": "LifecycleEmailService.processUser",
+      "classification": "needs-triage",
+      "notes": "Later bundles require an earlier sendBundle to return false, and successful sends return early. Boolean return values, rollback, and provider response-loss cases must be correlated before asserting a second independent successful send.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/lifecycleEmails/lifecycleEmailService.ts#L548"
+    },
+    {
+      "fingerprint": "731b2da9f11acf83-3",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "server/src/services/lifecycleEmails/lifecycleEmailService.ts",
+      "line": 573,
+      "function": "LifecycleEmailService.processUser",
+      "classification": "needs-triage",
+      "notes": "Later bundles require an earlier sendBundle to return false, and successful sends return early. Boolean return values, rollback, and provider response-loss cases must be correlated before asserting a second independent successful send.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/lifecycleEmails/lifecycleEmailService.ts#L573"
+    },
+    {
+      "fingerprint": "5133cf33188922d3",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/services/lifecycleEmails/lifecycleEmailService.ts",
+      "line": 764,
+      "function": "LifecycleEmailService.processLifecycleEmails",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `LifecycleEmailService.processLifecycleEmails` has more than 512 execution paths; only the first 512 were analyzed No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/lifecycleEmails/lifecycleEmailService.ts#L764"
+    },
+    {
+      "fingerprint": "0be5cfde1a236b4a",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "server/src/services/lifecycleEmails/lifecycleEmailService.ts",
+      "line": 775,
+      "function": "LifecycleEmailService.processLifecycleEmails",
+      "classification": "intended-risk",
+      "notes": "The two passes process independent per-user/per-site email keys; a transaction across every user and both cron passes is not required.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/lifecycleEmails/lifecycleEmailService.ts#L775"
+    },
+    {
+      "fingerprint": "c5133d16edc2f52a",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/services/lifecycleEmails/lifecycleEmailService.ts",
+      "line": 775,
+      "function": "LifecycleEmailService.processLifecycleEmails",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `clickhouse.query(\u2026)` (via `this.processWentQuiet(now)`) runs after `db.insert(lifecycleEmailLog)` (via `this.processOnboarding(now)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/lifecycleEmails/lifecycleEmailService.ts#L775"
+    },
+    {
+      "fingerprint": "0050747789b6a382",
+      "phases": [
+        "before"
+      ],
+      "code": "MW9001",
+      "file": "server/src/services/lifecycleEmails/platformDetect.ts",
+      "line": 158,
+      "function": "fetchHomepage",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `readBody(response)` runs after `fetch(url, \u2026)` has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/lifecycleEmails/platformDetect.ts#L158"
+    },
+    {
+      "fingerprint": "96599f9bb325701e",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/services/sites/siteConfigurationLifecycle.ts",
+      "line": 520,
+      "function": "SiteConfigurationLifecycle.update",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `siteConfig.getConfig(siteId)` runs after `db.update(sites)` has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/sites/siteConfigurationLifecycle.ts#L520"
+    },
+    {
+      "fingerprint": "a43867ef22346a49",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/services/sites/siteConfigurationLifecycle.ts",
+      "line": 552,
+      "function": "SiteConfigurationLifecycle.deleteExpired",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `this.deleteReplayData(siteId)` runs inside the transaction started at 542:12, before it commits; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/sites/siteConfigurationLifecycle.ts#L552"
+    },
+    {
+      "fingerprint": "4a435fcd8d845ccc",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/services/sites/siteConfigurationLifecycle.ts",
+      "line": 592,
+      "function": "SiteConfigurationLifecycle.delete",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `this.deleteReplayData(siteId)` runs inside the transaction started at 589:11, before it commits; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/sites/siteConfigurationLifecycle.ts#L592"
+    },
+    {
+      "fingerprint": "2fda281629b76bcc",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/services/sites/withOrganizationSiteLock.ts",
+      "line": 10,
+      "function": "withOrganizationSiteLock",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `tx.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/sites/withOrganizationSiteLock.ts#L10"
+    },
+    {
+      "fingerprint": "960160823622cc6b",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "server/src/services/tracker/identifyService.ts",
+      "line": 127,
+      "function": "handleIdentify",
+      "classification": "intended-risk",
+      "notes": "Profile shells, alias updates, and trait upserts have separate caught failures in the source. It explicitly accepts best-effort ingestion of these components.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/tracker/identifyService.ts#L127"
+    },
+    {
+      "fingerprint": "3073d0542dfcc3db",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "server/src/services/tracker/identifyService.ts",
+      "line": 136,
+      "function": "handleIdentify",
+      "classification": "intended-risk",
+      "notes": "Profile shells, alias updates, and trait upserts have separate caught failures in the source. It explicitly accepts best-effort ingestion of these components.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/tracker/identifyService.ts#L136"
+    },
+    {
+      "fingerprint": "472c97d92ad5f7cb",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "server/src/services/tracker/identifyService.ts",
+      "line": 162,
+      "function": "handleIdentify",
+      "classification": "intended-risk",
+      "notes": "Profile shells, alias updates, and trait upserts have separate caught failures in the source. It explicitly accepts best-effort ingestion of these components.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/tracker/identifyService.ts#L162"
+    },
+    {
+      "fingerprint": "cb2cf42abcb6210e",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "server/src/services/trialGrace/trialGraceEmails.ts",
+      "line": 135,
+      "function": "TrialGraceEmails.sendDue",
+      "classification": "reported",
+      "notes": "The owner/stage claim commits before sending and an existing key prevents subsequent delivery after restart.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/trialGrace/trialGraceEmails.ts#L135",
+      "upstream": "https://github.com/rybbit-io/rybbit/issues/1355"
+    },
+    {
+      "fingerprint": "35e6203e5c2e2b5f",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1002",
+      "file": "server/src/services/trialGrace/trialGraceEmails.ts",
+      "line": 135,
+      "function": "TrialGraceEmails.sendDue",
+      "classification": "intended-risk",
+      "notes": "The later delete releases a failed claim; the stable Resend idempotency key protects retries. The separate crash-before-send window is reported.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/trialGrace/trialGraceEmails.ts#L135"
+    },
+    {
+      "fingerprint": "3507492e8a437b7b",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/services/trialGrace/trialGraceEmails.ts",
+      "line": 135,
+      "function": "TrialGraceEmails.sendDue",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `render(TrialGraceEmail(props))` (via `sendTrialGraceEmail(\u2026)`) runs after `db.insert(lifecycleEmailLog)` has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/trialGrace/trialGraceEmails.ts#L135"
+    },
+    {
+      "fingerprint": "5625c07e1c4717e6",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "server/src/services/trialGrace/trialGraceEmails.ts",
+      "line": 154,
+      "function": "TrialGraceEmails.sendDue",
+      "classification": "intended-risk",
+      "notes": "The later delete releases a failed claim; the stable Resend idempotency key protects retries. The separate crash-before-send window is reported.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/trialGrace/trialGraceEmails.ts#L154"
+    },
+    {
+      "fingerprint": "9bd64b0ce66a8bdd",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/services/usageService.ts",
+      "line": 129,
+      "function": "UsageService.initializeUsageCheckCron::<anonymous@129:9>",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `UsageService.initializeUsageCheckCron::<anonymous@129:9>` has more than 512 execution paths; only the first 512 were analyzed No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/usageService.ts#L129"
+    },
+    {
+      "fingerprint": "9766d2468237b69e",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/services/usageService.ts",
+      "line": 356,
+      "function": "UsageService.updateOrganizationsMonthlyUsage",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `UsageService.updateOrganizationsMonthlyUsage` has more than 512 execution paths; only the first 512 were analyzed No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/usageService.ts#L356"
+    },
+    {
+      "fingerprint": "5a9434a00760f029",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "server/src/services/usageService.ts",
+      "line": 480,
+      "function": "UsageService.updateOrganizationsMonthlyUsage",
+      "classification": "reported",
+      "notes": "Notification flags are persisted before sending; a caught rejection does not restore them, so a later cron skips the missing limit notification.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/usageService.ts#L480",
+      "upstream": "https://github.com/rybbit-io/rybbit/issues/1355"
+    },
+    {
+      "fingerprint": "4dd5d94e91e80605",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/services/usageService.ts",
+      "line": 480,
+      "function": "UsageService.updateOrganizationsMonthlyUsage",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `render(LimitExceededEmail(usage))` (via `sendLimitExceededEmail(ownerEmail, usageEmail)`) runs after `db.update(organization)` has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/usageService.ts#L480"
+    },
+    {
+      "fingerprint": "9b27c34a039630ca",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1001",
+      "file": "server/src/services/usageService.ts",
+      "line": 502,
+      "function": "UsageService.updateOrganizationsMonthlyUsage",
+      "classification": "reported",
+      "notes": "Notification flags are persisted before sending; a caught rejection does not restore them, so a later cron skips the missing limit notification.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/usageService.ts#L502",
+      "upstream": "https://github.com/rybbit-io/rybbit/issues/1355"
+    },
+    {
+      "fingerprint": "e84f652a4c22889a",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1005",
+      "file": "server/src/services/usageService.ts",
+      "line": 502,
+      "function": "UsageService.updateOrganizationsMonthlyUsage",
+      "classification": "false-positive",
+      "notes": "Approaching-limit and exceeded-limit email branches are exclusive: sendApproaching is only set when !isOverLimit, while exceeded mail requires isOverLimit.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/services/usageService.ts#L502"
+    },
+    {
+      "fingerprint": "14b357b3478104f4",
+      "phases": [
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/activate.ts",
+      "line": 145,
+      "function": "activateAppSumoLicense",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `fetchLicenseKey(tokenData.accessToken)` runs after `fetch(tokenUrl, \u2026)` (via `exchangeCodeForToken(code)`) has been performed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/activate.ts#L145"
+    },
+    {
+      "fingerprint": "e94b019922756de1",
+      "phases": [
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/activate.ts",
+      "line": 155,
+      "function": "activateAppSumoLicense",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/activate.ts#L155"
+    },
+    {
+      "fingerprint": "e94b019922756de1-2",
+      "phases": [
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/activate.ts",
+      "line": 170,
+      "function": "activateAppSumoLicense",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/activate.ts#L170"
+    },
+    {
+      "fingerprint": "e94b019922756de1-3",
+      "phases": [
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/as/activate.ts",
+      "line": 182,
+      "function": "activateAppSumoLicense",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. raw SQL `db.execute(\u2026)` is not analyzed; any writes it performs are not considered No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/as/activate.ts#L182"
+    },
+    {
+      "fingerprint": "b43c8dc15f9db0d9",
+      "phases": [
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "server/src/api/gsc/selectProperty.ts",
+      "line": 48,
+      "function": "selectGSCProperty",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `getGSCProperties(accessToken, req.log)` runs after `db.update(gscConnections)` (via `refreshGSCToken(numericSiteId, req.log)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/rybbit-io/rybbit/blob/4288204761ed2fc801fcaa0b3bbfacd1b8cc3936/server/src/api/gsc/selectProperty.ts#L48"
+    }
+  ]
+}

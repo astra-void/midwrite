@@ -3,7 +3,10 @@
 The corpus is a set of real TypeScript/Drizzle/PostgreSQL applications that
 Midwrite analyzes **statically only**. It measures recognition, coverage,
 regressions and performance on code nobody wrote for Midwrite. It is not
-a source of confirmed defects.
+a source of confirmed defects. A later, separate
+[upstream source-review campaign](upstream-review.md) reports four potential
+bugs with source-level failure sequences; those reports are not runtime
+confirmation or independent human review and do not revise these scores.
 
 Precision and recall with a dev / held-out split are measured by
 [`scripts/eval.py`](evaluation-harness.md).
@@ -50,7 +53,8 @@ path modes × json, sarif, text, trace (144 outputs).
   appears in Rust code.
 * No threshold may be tuned for the corpus. A corpus result is never
   claimed as a defect of the project without independent review (none has
-  been performed); maintainers have not been contacted.
+  been performed). No maintainers were contacted for those corpus scores;
+  later [upstream reports](upstream-review.md) are recorded separately.
 
 ## What the corpus has shown
 

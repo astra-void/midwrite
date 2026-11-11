@@ -1,0 +1,7 @@
+{
+  "repository": "kanbn/kan",
+  "title": "Checkout webhook retry skips missing subscription after workspace creation commits",
+  "bodyFile": "reports/upstream/issues/kan-checkout-retry.md",
+  "status": "reported",
+  "url": "https://github.com/kanbn/kan/issues/697"
+}

@@ -1,0 +1,7 @@
+{
+  "repository": "vercel/chatbot",
+  "title": "Chat deletion can permanently remove messages before returning a failure",
+  "bodyFile": "reports/upstream/issues/chatbot-partial-delete.md",
+  "status": "reported",
+  "url": "https://github.com/vercel/chatbot/issues/1567"
+}

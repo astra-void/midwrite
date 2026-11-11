@@ -1,0 +1,185 @@
+{
+  "schemaVersion": 1,
+  "project": "chatbot",
+  "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+  "reviewer": "Codex (AI-assisted manual source review)",
+  "humanReviewed": false,
+  "runtimeExecuted": false,
+  "method": "Manual source review; source-window/recovery decisions transcribed into per-fingerprint records. Existing Kan/Dittofeed labels are identified explicitly; source-reviewed candidates with unresolved contracts remain needs-triage. MW9001 is a limitation, never a defect.",
+  "reviews": [
+    {
+      "fingerprint": "d43aa7c0c3f987b1",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "app/(auth)/actions.ts",
+      "line": 70,
+      "function": "register",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `signIn(\u2026)` runs after `db.insert(user)` (via `createUser(validatedData.email, validatedData.password)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/vercel/chatbot/blob/a8989b522fa3672a2ae52f053105e40993b36ca1/app/(auth)/actions.ts#L70"
+    },
+    {
+      "fingerprint": "18bb4c9bbedb7614",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "app/(chat)/api/chat/route.ts",
+      "line": 183,
+      "function": "POST",
+      "classification": "intended-risk",
+      "notes": "The route first creates an empty chat and then stores its first message. An empty chat after a failed request is recoverable by sending a message to the existing chat; unlike deletion, existing contents are not destroyed.",
+      "sourceUrl": "https://github.com/vercel/chatbot/blob/a8989b522fa3672a2ae52f053105e40993b36ca1/app/(chat)/api/chat/route.ts#L183"
+    },
+    {
+      "fingerprint": "fa9bf74f1e271793",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "app/(chat)/api/chat/route.ts",
+      "line": 198,
+      "function": "POST",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `getCapabilities()` runs after `db.insert(message)` (via `saveMessages(\u2026)`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/vercel/chatbot/blob/a8989b522fa3672a2ae52f053105e40993b36ca1/app/(chat)/api/chat/route.ts#L198"
+    },
+    {
+      "fingerprint": "d02bf28271e64d63",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW9001",
+      "file": "app/(chat)/api/chat/route.ts",
+      "line": 415,
+      "function": "consumeSseStream",
+      "classification": "analysis-limitation",
+      "notes": "Coverage notice, not a bug claim. `streamContext.createNewResumableStream(\u2026)` runs after `db.insert(stream)` (via `createStreamId({ chatId: id, streamId })`) has committed; Midwrite does not know whether it has side effects of its own No safety or upstream defect is inferred from it.",
+      "sourceUrl": "https://github.com/vercel/chatbot/blob/a8989b522fa3672a2ae52f053105e40993b36ca1/app/(chat)/api/chat/route.ts#L415"
+    },
+    {
+      "fingerprint": "0b1079d4fd42cc3d",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "lib/db/queries.ts",
+      "line": 102,
+      "function": "deleteChatById",
+      "classification": "reported",
+      "notes": "Independent related deletes can remove messages/votes while leaving a visible chat after a later failure; both entry points are covered by the upstream report.",
+      "sourceUrl": "https://github.com/vercel/chatbot/blob/a8989b522fa3672a2ae52f053105e40993b36ca1/lib/db/queries.ts#L102",
+      "upstream": "https://github.com/vercel/chatbot/issues/1567"
+    },
+    {
+      "fingerprint": "dfc41826d68bd3f7",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "lib/db/queries.ts",
+      "line": 103,
+      "function": "deleteChatById",
+      "classification": "reported",
+      "notes": "Independent related deletes can remove messages/votes while leaving a visible chat after a later failure; both entry points are covered by the upstream report.",
+      "sourceUrl": "https://github.com/vercel/chatbot/blob/a8989b522fa3672a2ae52f053105e40993b36ca1/lib/db/queries.ts#L103",
+      "upstream": "https://github.com/vercel/chatbot/issues/1567"
+    },
+    {
+      "fingerprint": "1cadd856980ea0a8",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "lib/db/queries.ts",
+      "line": 105,
+      "function": "deleteChatById",
+      "classification": "reported",
+      "notes": "Independent related deletes can remove messages/votes while leaving a visible chat after a later failure; both entry points are covered by the upstream report.",
+      "sourceUrl": "https://github.com/vercel/chatbot/blob/a8989b522fa3672a2ae52f053105e40993b36ca1/lib/db/queries.ts#L105",
+      "upstream": "https://github.com/vercel/chatbot/issues/1567"
+    },
+    {
+      "fingerprint": "6fe108756793e714",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "lib/db/queries.ts",
+      "line": 129,
+      "function": "deleteAllChatsByUserId",
+      "classification": "reported",
+      "notes": "Independent related deletes can remove messages/votes while leaving a visible chat after a later failure; both entry points are covered by the upstream report.",
+      "sourceUrl": "https://github.com/vercel/chatbot/blob/a8989b522fa3672a2ae52f053105e40993b36ca1/lib/db/queries.ts#L129",
+      "upstream": "https://github.com/vercel/chatbot/issues/1567"
+    },
+    {
+      "fingerprint": "28aab429504f1982",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "lib/db/queries.ts",
+      "line": 130,
+      "function": "deleteAllChatsByUserId",
+      "classification": "reported",
+      "notes": "Independent related deletes can remove messages/votes while leaving a visible chat after a later failure; both entry points are covered by the upstream report.",
+      "sourceUrl": "https://github.com/vercel/chatbot/blob/a8989b522fa3672a2ae52f053105e40993b36ca1/lib/db/queries.ts#L130",
+      "upstream": "https://github.com/vercel/chatbot/issues/1567"
+    },
+    {
+      "fingerprint": "b9063b7c112cc613",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "lib/db/queries.ts",
+      "line": 132,
+      "function": "deleteAllChatsByUserId",
+      "classification": "reported",
+      "notes": "Independent related deletes can remove messages/votes while leaving a visible chat after a later failure; both entry points are covered by the upstream report.",
+      "sourceUrl": "https://github.com/vercel/chatbot/blob/a8989b522fa3672a2ae52f053105e40993b36ca1/lib/db/queries.ts#L132",
+      "upstream": "https://github.com/vercel/chatbot/issues/1567"
+    },
+    {
+      "fingerprint": "87a998cc22946267",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "lib/db/queries.ts",
+      "line": 422,
+      "function": "deleteDocumentsByIdAfterTimestamp",
+      "classification": "needs-triage",
+      "notes": "Related cleanup writes commit independently. The upstream chat-deletion report also flags document/message cleanup as related work; caller expectations for these cleanup operations need confirmation.",
+      "sourceUrl": "https://github.com/vercel/chatbot/blob/a8989b522fa3672a2ae52f053105e40993b36ca1/lib/db/queries.ts#L422"
+    },
+    {
+      "fingerprint": "45d2b688605a76f7",
+      "phases": [
+        "before",
+        "after"
+      ],
+      "code": "MW1004",
+      "file": "lib/db/queries.ts",
+      "line": 492,
+      "function": "deleteMessagesByChatIdAfterTimestamp",
+      "classification": "needs-triage",
+      "notes": "Related cleanup writes commit independently. The upstream chat-deletion report also flags document/message cleanup as related work; caller expectations for these cleanup operations need confirmation.",
+      "sourceUrl": "https://github.com/vercel/chatbot/blob/a8989b522fa3672a2ae52f053105e40993b36ca1/lib/db/queries.ts#L492"
+    }
+  ]
+}

@@ -42,6 +42,30 @@ their own `extraction` section ([model-check](../user-guide/model-check.md#scena
 
 A sample with several receivers: [`fixtures/midwrite.json`](../../fixtures/midwrite.json).
 
+## Narrowing HTTP effects
+
+A broad `fetch` rule also matches read-only downloads and metadata lookups.
+Use `httpMethods` to restrict a fetch-style rule to explicit methods:
+
+```json
+{ "function": "fetch", "category": "http-request", "httpMethods": ["POST", "PUT", "PATCH", "DELETE"] }
+```
+
+The field is optional and requires `category: "http-request"` and a nonempty
+list of uppercase method names. It matches only a string-literal `method`
+in the second argument's object literal. Request method strings are normalized
+to uppercase. A later spread, computed key, getter, or dynamic method invalidates
+the match; a later explicit literal `method` establishes it again.
+
+Unmatched calls remain unknown, rather than being declared pure. They may
+produce MW9001 around recognized effects. This includes implicit GETs,
+`Request` objects without explicit options, and options passed through variables
+or helpers. Configure known mutating helpers separately when their implementation
+passes options dynamically. A later unrestricted rule still matches those calls.
+Methods alone do not prove mutation: a POST used for a read-only query can still
+be a false positive, and a GET endpoint that mutates state needs its own rule.
+Existing rules without `httpMethods` retain their behavior.
+
 ## Recovery declarations
 
 Declarations are **assertions you make**; Midwrite never infers or

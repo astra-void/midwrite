@@ -1,0 +1,999 @@
+{
+  "schemaVersion": 1,
+  "tool": {
+    "name": "midwrite",
+    "version": "0.1.0"
+  },
+  "config": "corpora/upstream/configs/chatbot.json",
+  "summary": {
+    "filesDiscovered": 154,
+    "filesAnalyzed": 154,
+    "filesFailed": 0,
+    "functionsAnalyzed": 1180,
+    "diagnostics": {
+      "error": 0,
+      "warning": 0,
+      "info": 12
+    },
+    "analysis": {
+      "functionsWithEffects": 55,
+      "truncatedFunctions": 0,
+      "prunedPaths": 7,
+      "mergedPaths": 15,
+      "sameFileCalls": 80,
+      "crossFileCallsResolved": 52,
+      "crossFileCallsUnresolved": 20,
+      "packageCalls": 12,
+      "callsSummarized": 116
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "MW9001",
+      "severity": "info",
+      "kind": "analysisLimitation",
+      "title": "analysis incomplete: unsupported or unknown effect semantics",
+      "message": "`signIn(…)` runs after `db.insert(user)` (via `createUser(validatedData.email, validatedData.password)`) has committed; Midwrite does not know whether it has side effects of its own",
+      "location": {
+        "file": ".corpora/upstream/chatbot/app/(auth)/actions.ts",
+        "line": 70,
+        "column": 11,
+        "endLine": 74,
+        "endColumn": 7
+      },
+      "function": "register",
+      "confidence": "low",
+      "reproduced": false,
+      "effects": [
+        {
+          "role": "unanalyzed",
+          "label": "signIn(…)",
+          "description": "unknown effect (unrecognized call)",
+          "location": {
+            "file": ".corpora/upstream/chatbot/app/(auth)/actions.ts",
+            "line": 70,
+            "column": 11,
+            "endLine": 74,
+            "endColumn": 7
+          }
+        },
+        {
+          "role": "context",
+          "label": "db.insert(user)",
+          "description": "database insert on `user` (commits on its own), inside `createUser`",
+          "location": {
+            "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+            "line": 51,
+            "column": 18,
+            "endLine": 51,
+            "endColumn": 33
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "createUser(validatedData.email, validatedData.password)",
+          "description": "call of `createUser`, declared in .corpora/upstream/chatbot/lib/db/queries.ts:47:8; the operations inside it are taken from its summary",
+          "location": {
+            "file": ".corpora/upstream/chatbot/app/(auth)/actions.ts",
+            "line": 69,
+            "column": 11,
+            "endLine": 69,
+            "endColumn": 66
+          }
+        }
+      ],
+      "failureSequence": [
+        "1. `db.insert(user)` (.corpora/upstream/chatbot/lib/db/queries.ts:51:18, in `createUser`, reached through `createUser(validatedData.email, validatedData.password)` at 69:11) commits immediately: it is not inside a recognized transaction.",
+        "2. `signIn(…)` (70:11) runs; its effects are unknown.",
+        "3. If `signIn(…)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "pathConditions": [],
+      "evidence": [
+        "`signIn(…)` matches no `databaseReceivers` or `externalEffects` entry (`signIn` is imported from \"./auth\" (.corpora/upstream/chatbot/app/(auth)/auth.ts), but .corpora/upstream/chatbot/app/(auth)/auth.ts has no export named `signIn`).",
+        "`db.insert(user)` (database insert on `user`): `db` — created by `drizzle(...)` from `drizzle-orm` in this file; `db` is initialized by `drizzle(...)` from \"drizzle-orm/postgres-js\".",
+        "`db.insert(user)` (.corpora/upstream/chatbot/lib/db/queries.ts:51:18) is taken from the summary of `createUser`, declared in .corpora/upstream/chatbot/lib/db/queries.ts:47:8, reached through `createUser(validatedData.email, validatedData.password)` at 69:11; `createUser` performs it only on some paths through it."
+      ],
+      "mitigation": "If the operation performs a side effect, describe it in `midwrite.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "pathCertainty": "unknown",
+      "evidenceStrength": "unknown",
+      "fingerprint": "d43aa7c0c3f987b1"
+    },
+    {
+      "code": "MW1004",
+      "severity": "info",
+      "kind": "potentialHazard",
+      "title": "independent database commits",
+      "message": "`db.insert(chat)` (via `saveChat(…)`) and `db.insert(message)` (via `saveMessages(…)`) commit independently; a failure in between persists only the first change",
+      "location": {
+        "file": ".corpora/upstream/chatbot/app/(chat)/api/chat/route.ts",
+        "line": 183,
+        "column": 13,
+        "endLine": 194,
+        "endColumn": 9
+      },
+      "function": "POST",
+      "confidence": "medium",
+      "reproduced": false,
+      "effects": [
+        {
+          "role": "completedFirst",
+          "label": "db.insert(chat)",
+          "description": "database insert on `chat` (commits on its own), inside `saveChat`",
+          "location": {
+            "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+            "line": 85,
+            "column": 18,
+            "endLine": 85,
+            "endColumn": 33
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "saveChat(…)",
+          "description": "call of `saveChat`, declared in .corpora/upstream/chatbot/lib/db/queries.ts:73:8; the operations inside it are taken from its summary",
+          "location": {
+            "file": ".corpora/upstream/chatbot/app/(chat)/api/chat/route.ts",
+            "line": 126,
+            "column": 13,
+            "endLine": 131,
+            "endColumn": 9
+          }
+        },
+        {
+          "role": "notYetPerformed",
+          "label": "db.insert(message)",
+          "description": "database insert on `message` (commits on its own), inside `saveMessages`",
+          "location": {
+            "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+            "line": 233,
+            "column": 18,
+            "endLine": 233,
+            "endColumn": 36
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "saveMessages(…)",
+          "description": "call of `saveMessages`, declared in .corpora/upstream/chatbot/lib/db/queries.ts:231:8; the operations inside it are taken from its summary",
+          "location": {
+            "file": ".corpora/upstream/chatbot/app/(chat)/api/chat/route.ts",
+            "line": 183,
+            "column": 13,
+            "endLine": 194,
+            "endColumn": 9
+          }
+        }
+      ],
+      "failureSequence": [
+        "1. `db.insert(chat)` (.corpora/upstream/chatbot/lib/db/queries.ts:85:18, in `saveChat`, reached through `saveChat(…)` at 126:13) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.insert(chat)` (via `saveChat(…)`) and before `db.insert(message)` (via `saveMessages(…)`) completes.",
+        "3. `db.insert(message)` (via `saveMessages(…)`) never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "pathConditions": [
+        {
+          "description": "if `message?.role === \"user\"` takes the `then` path",
+          "location": {
+            "file": ".corpora/upstream/chatbot/app/(chat)/api/chat/route.ts",
+            "line": 182,
+            "column": 5,
+            "endLine": 195,
+            "endColumn": 6
+          }
+        }
+      ],
+      "evidence": [
+        "`db.insert(chat)` (database insert on `chat`): `db` — created by `drizzle(...)` from `drizzle-orm` in this file; `db` is initialized by `drizzle(...)` from \"drizzle-orm/postgres-js\".",
+        "`db.insert(chat)` (.corpora/upstream/chatbot/lib/db/queries.ts:85:18) is taken from the summary of `saveChat`, declared in .corpora/upstream/chatbot/lib/db/queries.ts:73:8, reached through `saveChat(…)` at 126:13; `saveChat` performs it only on some paths through it.",
+        "`db.insert(message)` (database insert on `message`): `db` — created by `drizzle(...)` from `drizzle-orm` in this file; `db` is initialized by `drizzle(...)` from \"drizzle-orm/postgres-js\".",
+        "`db.insert(message)` (.corpora/upstream/chatbot/lib/db/queries.ts:233:18) is taken from the summary of `saveMessages`, declared in .corpora/upstream/chatbot/lib/db/queries.ts:231:8, reached through `saveMessages(…)` at 183:13; `saveMessages` performs it only on some paths through it."
+      ],
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "limitations": [
+        "The sequence depends on 1 branch decision(s) between the two operations (see pathConditions). Midwrite only rules out paths whose conditions are simple tests of the same unchanging variable that contradict each other; other conditions are assumed to be satisfiable together.",
+        "`db.insert(chat)` comes from the summary of `saveChat` (called at 126:13), which performs it only on some of its paths.",
+        "The operations run inside a try block whose catch handler (at .corpora/upstream/chatbot/lib/db/queries.ts:92:5) may compensate for some failures; Midwrite does not verify compensation, and a process crash bypasses catch handlers.",
+        "`db.insert(message)` comes from the summary of `saveMessages` (called at 183:13), which performs it only on some of its paths.",
+        "The operations run inside a try block whose catch handler (at .corpora/upstream/chatbot/lib/db/queries.ts:234:5) may compensate for some failures; Midwrite does not verify compensation, and a process crash bypasses catch handlers.",
+        "Midwrite does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "pathCertainty": "conditional",
+      "evidenceStrength": "provenance",
+      "fingerprint": "18bb4c9bbedb7614",
+      "relationship": {
+        "status": "notComparable",
+        "shared": []
+      },
+      "valueRelation": {
+        "status": "unknown"
+      }
+    },
+    {
+      "code": "MW9001",
+      "severity": "info",
+      "kind": "analysisLimitation",
+      "title": "analysis incomplete: unsupported or unknown effect semantics",
+      "message": "`getCapabilities()` runs after `db.insert(message)` (via `saveMessages(…)`) has committed; Midwrite does not know whether it has side effects of its own",
+      "location": {
+        "file": ".corpora/upstream/chatbot/app/(chat)/api/chat/route.ts",
+        "line": 198,
+        "column": 37,
+        "endLine": 198,
+        "endColumn": 54
+      },
+      "function": "POST",
+      "confidence": "low",
+      "reproduced": false,
+      "effects": [
+        {
+          "role": "unanalyzed",
+          "label": "getCapabilities()",
+          "description": "unknown effect (unrecognized call)",
+          "location": {
+            "file": ".corpora/upstream/chatbot/app/(chat)/api/chat/route.ts",
+            "line": 198,
+            "column": 37,
+            "endLine": 198,
+            "endColumn": 54
+          }
+        },
+        {
+          "role": "context",
+          "label": "db.insert(message)",
+          "description": "database insert on `message` (commits on its own), inside `saveMessages`",
+          "location": {
+            "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+            "line": 233,
+            "column": 18,
+            "endLine": 233,
+            "endColumn": 36
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "saveMessages(…)",
+          "description": "call of `saveMessages`, declared in .corpora/upstream/chatbot/lib/db/queries.ts:231:8; the operations inside it are taken from its summary",
+          "location": {
+            "file": ".corpora/upstream/chatbot/app/(chat)/api/chat/route.ts",
+            "line": 183,
+            "column": 13,
+            "endLine": 194,
+            "endColumn": 9
+          }
+        }
+      ],
+      "failureSequence": [
+        "1. `db.insert(message)` (.corpora/upstream/chatbot/lib/db/queries.ts:233:18, in `saveMessages`, reached through `saveMessages(…)` at 183:13) commits immediately: it is not inside a recognized transaction.",
+        "2. `getCapabilities()` (198:37) runs; its effects are unknown.",
+        "3. If `getCapabilities()` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "pathConditions": [],
+      "evidence": [
+        "`getCapabilities()` matches no `databaseReceivers` or `externalEffects` entry (`getCapabilities` is declared in .corpora/upstream/chatbot/lib/ai/models.ts at 66:8, but it performs no recognized database operation or configured external effect, so its summary is not used; it is not proven inert: calls `chatModels.map(…)`, whose target is not known).",
+        "`db.insert(message)` (database insert on `message`): `db` — created by `drizzle(...)` from `drizzle-orm` in this file; `db` is initialized by `drizzle(...)` from \"drizzle-orm/postgres-js\".",
+        "`db.insert(message)` (.corpora/upstream/chatbot/lib/db/queries.ts:233:18) is taken from the summary of `saveMessages`, declared in .corpora/upstream/chatbot/lib/db/queries.ts:231:8, reached through `saveMessages(…)` at 183:13; `saveMessages` performs it only on some paths through it."
+      ],
+      "mitigation": "If the operation performs a side effect, describe it in `midwrite.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "limitations": [
+        "These other calls in the same function (or in the same inlined call) are also not analyzed and are reported once, here: `convertToModelMessages(uiMessages)` (203:33).",
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "pathCertainty": "unknown",
+      "evidenceStrength": "unknown",
+      "fingerprint": "fa9bf74f1e271793"
+    },
+    {
+      "code": "MW9001",
+      "severity": "info",
+      "kind": "analysisLimitation",
+      "title": "analysis incomplete: unsupported or unknown effect semantics",
+      "message": "`streamContext.createNewResumableStream(…)` runs after `db.insert(stream)` (via `createStreamId({ chatId: id, streamId })`) has committed; Midwrite does not know whether it has side effects of its own",
+      "location": {
+        "file": ".corpora/upstream/chatbot/app/(chat)/api/chat/route.ts",
+        "line": 415,
+        "column": 19,
+        "endLine": 418,
+        "endColumn": 14
+      },
+      "function": "consumeSseStream",
+      "confidence": "low",
+      "reproduced": false,
+      "effects": [
+        {
+          "role": "unanalyzed",
+          "label": "streamContext.createNewResumableStream(…)",
+          "description": "unknown effect (unrecognized call)",
+          "location": {
+            "file": ".corpora/upstream/chatbot/app/(chat)/api/chat/route.ts",
+            "line": 415,
+            "column": 19,
+            "endLine": 418,
+            "endColumn": 14
+          }
+        },
+        {
+          "role": "context",
+          "label": "db.insert(stream)",
+          "description": "database insert on `stream` (commits on its own), inside `createStreamId`",
+          "location": {
+            "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+            "line": 570,
+            "column": 11,
+            "endLine": 571,
+            "endColumn": 22
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "createStreamId({ chatId: id, streamId })",
+          "description": "call of `createStreamId`, declared in .corpora/upstream/chatbot/lib/db/queries.ts:562:8; the operations inside it are taken from its summary",
+          "location": {
+            "file": ".corpora/upstream/chatbot/app/(chat)/api/chat/route.ts",
+            "line": 414,
+            "column": 19,
+            "endLine": 414,
+            "endColumn": 59
+          }
+        }
+      ],
+      "failureSequence": [
+        "1. `db.insert(stream)` (.corpora/upstream/chatbot/lib/db/queries.ts:570:11, in `createStreamId`, reached through `createStreamId({ chatId: id, streamId })` at 414:19) commits immediately: it is not inside a recognized transaction.",
+        "2. `streamContext.createNewResumableStream(…)` (415:19) runs; its effects are unknown.",
+        "3. If `streamContext.createNewResumableStream(…)` performs an independent side effect, a failure before it completes leaves the earlier effect without it."
+      ],
+      "pathConditions": [],
+      "evidence": [
+        "`streamContext.createNewResumableStream(…)` matches no `databaseReceivers` or `externalEffects` entry (no configuration entry or supported API matches it).",
+        "`db.insert(stream)` (database insert on `stream`): `db` — created by `drizzle(...)` from `drizzle-orm` in this file; `db` is initialized by `drizzle(...)` from \"drizzle-orm/postgres-js\".",
+        "`db.insert(stream)` (.corpora/upstream/chatbot/lib/db/queries.ts:570:11) is taken from the summary of `createStreamId`, declared in .corpora/upstream/chatbot/lib/db/queries.ts:562:8, reached through `createStreamId({ chatId: id, streamId })` at 414:19; `createStreamId` performs it only on some paths through it."
+      ],
+      "mitigation": "If the operation performs a side effect, describe it in `midwrite.json` (`databaseReceivers` or `externalEffects`) so that it can be analyzed; otherwise no action is needed.",
+      "limitations": [
+        "This is not a finding. It marks code the analysis did not understand, so that silence is not mistaken for safety."
+      ],
+      "pathCertainty": "unknown",
+      "evidenceStrength": "unknown",
+      "fingerprint": "d02bf28271e64d63"
+    },
+    {
+      "code": "MW1004",
+      "severity": "info",
+      "kind": "potentialHazard",
+      "title": "independent database commits",
+      "message": "`db.delete(vote)` and `db.delete(message)` commit independently; a failure in between persists only the first change",
+      "location": {
+        "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+        "line": 102,
+        "column": 11,
+        "endLine": 102,
+        "endColumn": 29
+      },
+      "function": "deleteChatById",
+      "confidence": "high",
+      "reproduced": false,
+      "effects": [
+        {
+          "role": "completedFirst",
+          "label": "db.delete(vote)",
+          "description": "database delete on `vote` (commits on its own)",
+          "location": {
+            "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+            "line": 101,
+            "column": 11,
+            "endLine": 101,
+            "endColumn": 26
+          }
+        },
+        {
+          "role": "notYetPerformed",
+          "label": "db.delete(message)",
+          "description": "database delete on `message` (commits on its own)",
+          "location": {
+            "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+            "line": 102,
+            "column": 11,
+            "endLine": 102,
+            "endColumn": 29
+          }
+        }
+      ],
+      "failureSequence": [
+        "1. `db.delete(vote)` (101:11) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.delete(vote)` and before `db.delete(message)` completes.",
+        "3. `db.delete(message)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "pathConditions": [],
+      "evidence": [
+        "`db.delete(vote)` (database delete on `vote`): `db` — created by `drizzle(...)` from `drizzle-orm` in this file; `db` is initialized by `drizzle(...)` from \"drizzle-orm/postgres-js\".",
+        "`db.delete(message)` (database delete on `message`): `db` — created by `drizzle(...)` from `drizzle-orm` in this file; `db` is initialized by `drizzle(...)` from \"drizzle-orm/postgres-js\"."
+      ],
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "limitations": [
+        "The operations run inside a try block whose catch handler (at 110:5) may compensate for some failures; Midwrite does not verify compensation, and a process crash bypasses catch handlers.",
+        "Midwrite does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "pathCertainty": "straightLine",
+      "evidenceStrength": "provenance",
+      "fingerprint": "0b1079d4fd42cc3d",
+      "relationship": {
+        "status": "sharedArguments",
+        "shared": [
+          "id"
+        ]
+      },
+      "valueRelation": {
+        "status": "possiblyRelated",
+        "shared": [
+          {
+            "kind": "sameValue",
+            "first": "param#0.id",
+            "second": "param#0.id",
+            "exact": false
+          }
+        ]
+      }
+    },
+    {
+      "code": "MW1004",
+      "severity": "info",
+      "kind": "potentialHazard",
+      "title": "independent database commits",
+      "message": "`db.delete(message)` and `db.delete(stream)` commit independently; a failure in between persists only the first change",
+      "location": {
+        "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+        "line": 103,
+        "column": 11,
+        "endLine": 103,
+        "endColumn": 28
+      },
+      "function": "deleteChatById",
+      "confidence": "high",
+      "reproduced": false,
+      "effects": [
+        {
+          "role": "completedFirst",
+          "label": "db.delete(message)",
+          "description": "database delete on `message` (commits on its own)",
+          "location": {
+            "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+            "line": 102,
+            "column": 11,
+            "endLine": 102,
+            "endColumn": 29
+          }
+        },
+        {
+          "role": "notYetPerformed",
+          "label": "db.delete(stream)",
+          "description": "database delete on `stream` (commits on its own)",
+          "location": {
+            "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+            "line": 103,
+            "column": 11,
+            "endLine": 103,
+            "endColumn": 28
+          }
+        }
+      ],
+      "failureSequence": [
+        "1. `db.delete(message)` (102:11) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.delete(message)` and before `db.delete(stream)` completes.",
+        "3. `db.delete(stream)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "pathConditions": [],
+      "evidence": [
+        "`db.delete(message)` (database delete on `message`): `db` — created by `drizzle(...)` from `drizzle-orm` in this file; `db` is initialized by `drizzle(...)` from \"drizzle-orm/postgres-js\".",
+        "`db.delete(stream)` (database delete on `stream`): `db` — created by `drizzle(...)` from `drizzle-orm` in this file; `db` is initialized by `drizzle(...)` from \"drizzle-orm/postgres-js\"."
+      ],
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "limitations": [
+        "The operations run inside a try block whose catch handler (at 110:5) may compensate for some failures; Midwrite does not verify compensation, and a process crash bypasses catch handlers.",
+        "Midwrite does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "pathCertainty": "straightLine",
+      "evidenceStrength": "provenance",
+      "fingerprint": "dfc41826d68bd3f7",
+      "relationship": {
+        "status": "sharedArguments",
+        "shared": [
+          "id"
+        ]
+      },
+      "valueRelation": {
+        "status": "possiblyRelated",
+        "shared": [
+          {
+            "kind": "sameValue",
+            "first": "param#0.id",
+            "second": "param#0.id",
+            "exact": false
+          }
+        ]
+      }
+    },
+    {
+      "code": "MW1004",
+      "severity": "info",
+      "kind": "potentialHazard",
+      "title": "independent database commits",
+      "message": "`db.delete(stream)` and `db.delete(chat)` commit independently; a failure in between persists only the first change",
+      "location": {
+        "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+        "line": 105,
+        "column": 34,
+        "endLine": 106,
+        "endColumn": 20
+      },
+      "function": "deleteChatById",
+      "confidence": "high",
+      "reproduced": false,
+      "effects": [
+        {
+          "role": "completedFirst",
+          "label": "db.delete(stream)",
+          "description": "database delete on `stream` (commits on its own)",
+          "location": {
+            "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+            "line": 103,
+            "column": 11,
+            "endLine": 103,
+            "endColumn": 28
+          }
+        },
+        {
+          "role": "notYetPerformed",
+          "label": "db.delete(chat)",
+          "description": "database delete on `chat` (commits on its own)",
+          "location": {
+            "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+            "line": 105,
+            "column": 34,
+            "endLine": 106,
+            "endColumn": 20
+          }
+        }
+      ],
+      "failureSequence": [
+        "1. `db.delete(stream)` (103:11) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.delete(stream)` and before `db.delete(chat)` completes.",
+        "3. `db.delete(chat)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "pathConditions": [],
+      "evidence": [
+        "`db.delete(stream)` (database delete on `stream`): `db` — created by `drizzle(...)` from `drizzle-orm` in this file; `db` is initialized by `drizzle(...)` from \"drizzle-orm/postgres-js\".",
+        "`db.delete(chat)` (database delete on `chat`): `db` — created by `drizzle(...)` from `drizzle-orm` in this file; `db` is initialized by `drizzle(...)` from \"drizzle-orm/postgres-js\"."
+      ],
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "limitations": [
+        "The operations run inside a try block whose catch handler (at 110:5) may compensate for some failures; Midwrite does not verify compensation, and a process crash bypasses catch handlers.",
+        "Midwrite does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "pathCertainty": "straightLine",
+      "evidenceStrength": "provenance",
+      "fingerprint": "1cadd856980ea0a8",
+      "relationship": {
+        "status": "sharedArguments",
+        "shared": [
+          "id"
+        ]
+      },
+      "valueRelation": {
+        "status": "possiblyRelated",
+        "shared": [
+          {
+            "kind": "sameValue",
+            "first": "param#0.id",
+            "second": "param#0.id",
+            "exact": false
+          }
+        ]
+      }
+    },
+    {
+      "code": "MW1004",
+      "severity": "info",
+      "kind": "potentialHazard",
+      "title": "independent database commits",
+      "message": "`db.delete(vote)` and `db.delete(message)` commit independently; a failure in between persists only the first change",
+      "location": {
+        "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+        "line": 129,
+        "column": 11,
+        "endLine": 129,
+        "endColumn": 29
+      },
+      "function": "deleteAllChatsByUserId",
+      "confidence": "high",
+      "reproduced": false,
+      "effects": [
+        {
+          "role": "completedFirst",
+          "label": "db.delete(vote)",
+          "description": "database delete on `vote` (commits on its own)",
+          "location": {
+            "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+            "line": 128,
+            "column": 11,
+            "endLine": 128,
+            "endColumn": 26
+          }
+        },
+        {
+          "role": "notYetPerformed",
+          "label": "db.delete(message)",
+          "description": "database delete on `message` (commits on its own)",
+          "location": {
+            "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+            "line": 129,
+            "column": 11,
+            "endLine": 129,
+            "endColumn": 29
+          }
+        }
+      ],
+      "failureSequence": [
+        "1. `db.delete(vote)` (128:11) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.delete(vote)` and before `db.delete(message)` completes.",
+        "3. `db.delete(message)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "pathConditions": [],
+      "evidence": [
+        "`db.delete(vote)` (database delete on `vote`): `db` — created by `drizzle(...)` from `drizzle-orm` in this file; `db` is initialized by `drizzle(...)` from \"drizzle-orm/postgres-js\".",
+        "`db.delete(message)` (database delete on `message`): `db` — created by `drizzle(...)` from `drizzle-orm` in this file; `db` is initialized by `drizzle(...)` from \"drizzle-orm/postgres-js\"."
+      ],
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "limitations": [
+        "The operations run inside a try block whose catch handler (at 138:5) may compensate for some failures; Midwrite does not verify compensation, and a process crash bypasses catch handlers.",
+        "Midwrite does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "pathCertainty": "straightLine",
+      "evidenceStrength": "provenance",
+      "fingerprint": "6fe108756793e714",
+      "relationship": {
+        "status": "sharedArguments",
+        "shared": [
+          "chatIds"
+        ]
+      },
+      "valueRelation": {
+        "status": "possiblyRelated",
+        "shared": [
+          {
+            "kind": "sameValue",
+            "first": "opaque#2",
+            "second": "opaque#2",
+            "exact": false
+          }
+        ]
+      }
+    },
+    {
+      "code": "MW1004",
+      "severity": "info",
+      "kind": "potentialHazard",
+      "title": "independent database commits",
+      "message": "`db.delete(message)` and `db.delete(stream)` commit independently; a failure in between persists only the first change",
+      "location": {
+        "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+        "line": 130,
+        "column": 11,
+        "endLine": 130,
+        "endColumn": 28
+      },
+      "function": "deleteAllChatsByUserId",
+      "confidence": "high",
+      "reproduced": false,
+      "effects": [
+        {
+          "role": "completedFirst",
+          "label": "db.delete(message)",
+          "description": "database delete on `message` (commits on its own)",
+          "location": {
+            "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+            "line": 129,
+            "column": 11,
+            "endLine": 129,
+            "endColumn": 29
+          }
+        },
+        {
+          "role": "notYetPerformed",
+          "label": "db.delete(stream)",
+          "description": "database delete on `stream` (commits on its own)",
+          "location": {
+            "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+            "line": 130,
+            "column": 11,
+            "endLine": 130,
+            "endColumn": 28
+          }
+        }
+      ],
+      "failureSequence": [
+        "1. `db.delete(message)` (129:11) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.delete(message)` and before `db.delete(stream)` completes.",
+        "3. `db.delete(stream)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "pathConditions": [],
+      "evidence": [
+        "`db.delete(message)` (database delete on `message`): `db` — created by `drizzle(...)` from `drizzle-orm` in this file; `db` is initialized by `drizzle(...)` from \"drizzle-orm/postgres-js\".",
+        "`db.delete(stream)` (database delete on `stream`): `db` — created by `drizzle(...)` from `drizzle-orm` in this file; `db` is initialized by `drizzle(...)` from \"drizzle-orm/postgres-js\"."
+      ],
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "limitations": [
+        "The operations run inside a try block whose catch handler (at 138:5) may compensate for some failures; Midwrite does not verify compensation, and a process crash bypasses catch handlers.",
+        "Midwrite does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "pathCertainty": "straightLine",
+      "evidenceStrength": "provenance",
+      "fingerprint": "28aab429504f1982",
+      "relationship": {
+        "status": "sharedArguments",
+        "shared": [
+          "chatIds"
+        ]
+      },
+      "valueRelation": {
+        "status": "possiblyRelated",
+        "shared": [
+          {
+            "kind": "sameValue",
+            "first": "opaque#2",
+            "second": "opaque#2",
+            "exact": false
+          }
+        ]
+      }
+    },
+    {
+      "code": "MW1004",
+      "severity": "info",
+      "kind": "potentialHazard",
+      "title": "independent database commits",
+      "message": "`db.delete(stream)` and `db.delete(chat)` commit independently; a failure in between persists only the first change",
+      "location": {
+        "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+        "line": 132,
+        "column": 32,
+        "endLine": 133,
+        "endColumn": 20
+      },
+      "function": "deleteAllChatsByUserId",
+      "confidence": "high",
+      "reproduced": false,
+      "effects": [
+        {
+          "role": "completedFirst",
+          "label": "db.delete(stream)",
+          "description": "database delete on `stream` (commits on its own)",
+          "location": {
+            "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+            "line": 130,
+            "column": 11,
+            "endLine": 130,
+            "endColumn": 28
+          }
+        },
+        {
+          "role": "notYetPerformed",
+          "label": "db.delete(chat)",
+          "description": "database delete on `chat` (commits on its own)",
+          "location": {
+            "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+            "line": 132,
+            "column": 32,
+            "endLine": 133,
+            "endColumn": 20
+          }
+        }
+      ],
+      "failureSequence": [
+        "1. `db.delete(stream)` (130:11) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.delete(stream)` and before `db.delete(chat)` completes.",
+        "3. `db.delete(chat)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "pathConditions": [],
+      "evidence": [
+        "`db.delete(stream)` (database delete on `stream`): `db` — created by `drizzle(...)` from `drizzle-orm` in this file; `db` is initialized by `drizzle(...)` from \"drizzle-orm/postgres-js\".",
+        "`db.delete(chat)` (database delete on `chat`): `db` — created by `drizzle(...)` from `drizzle-orm` in this file; `db` is initialized by `drizzle(...)` from \"drizzle-orm/postgres-js\"."
+      ],
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "limitations": [
+        "The operations run inside a try block whose catch handler (at 138:5) may compensate for some failures; Midwrite does not verify compensation, and a process crash bypasses catch handlers.",
+        "Midwrite does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "pathCertainty": "straightLine",
+      "evidenceStrength": "provenance",
+      "fingerprint": "b9063b7c112cc613",
+      "relationship": {
+        "status": "noSharedArgument",
+        "shared": []
+      },
+      "valueRelation": {
+        "status": "noRelationEstablished"
+      }
+    },
+    {
+      "code": "MW1004",
+      "severity": "info",
+      "kind": "potentialHazard",
+      "title": "independent database commits",
+      "message": "`db.delete(suggestion)` and `db.delete(document)` commit independently; a failure in between persists only the first change",
+      "location": {
+        "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+        "line": 422,
+        "column": 18,
+        "endLine": 423,
+        "endColumn": 24
+      },
+      "function": "deleteDocumentsByIdAfterTimestamp",
+      "confidence": "high",
+      "reproduced": false,
+      "effects": [
+        {
+          "role": "completedFirst",
+          "label": "db.delete(suggestion)",
+          "description": "database delete on `suggestion` (commits on its own)",
+          "location": {
+            "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+            "line": 413,
+            "column": 11,
+            "endLine": 414,
+            "endColumn": 26
+          }
+        },
+        {
+          "role": "notYetPerformed",
+          "label": "db.delete(document)",
+          "description": "database delete on `document` (commits on its own)",
+          "location": {
+            "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+            "line": 422,
+            "column": 18,
+            "endLine": 423,
+            "endColumn": 24
+          }
+        }
+      ],
+      "failureSequence": [
+        "1. `db.delete(suggestion)` (413:11) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.delete(suggestion)` and before `db.delete(document)` completes.",
+        "3. `db.delete(document)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "pathConditions": [],
+      "evidence": [
+        "`db.delete(suggestion)` (database delete on `suggestion`): `db` — created by `drizzle(...)` from `drizzle-orm` in this file; `db` is initialized by `drizzle(...)` from \"drizzle-orm/postgres-js\".",
+        "`db.delete(document)` (database delete on `document`): `db` — created by `drizzle(...)` from `drizzle-orm` in this file; `db` is initialized by `drizzle(...)` from \"drizzle-orm/postgres-js\"."
+      ],
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "limitations": [
+        "The operations run inside a try block whose catch handler (at 426:5) may compensate for some failures; Midwrite does not verify compensation, and a process crash bypasses catch handlers.",
+        "Midwrite does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "pathCertainty": "straightLine",
+      "evidenceStrength": "provenance",
+      "fingerprint": "87a998cc22946267",
+      "relationship": {
+        "status": "sharedArguments",
+        "shared": [
+          "id",
+          "timestamp"
+        ]
+      },
+      "valueRelation": {
+        "status": "possiblyRelated",
+        "shared": [
+          {
+            "kind": "sameValue",
+            "first": "param#0.id",
+            "second": "param#0.id",
+            "exact": false
+          },
+          {
+            "kind": "sameValue",
+            "first": "param#0.timestamp",
+            "second": "param#0.timestamp",
+            "exact": false
+          }
+        ]
+      }
+    },
+    {
+      "code": "MW1004",
+      "severity": "info",
+      "kind": "potentialHazard",
+      "title": "independent database commits",
+      "message": "`db.delete(vote)` and `db.delete(message)` commit independently; a failure in between persists only the first change",
+      "location": {
+        "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+        "line": 492,
+        "column": 20,
+        "endLine": 493,
+        "endColumn": 25
+      },
+      "function": "deleteMessagesByChatIdAfterTimestamp",
+      "confidence": "high",
+      "reproduced": false,
+      "effects": [
+        {
+          "role": "completedFirst",
+          "label": "db.delete(vote)",
+          "description": "database delete on `vote` (commits on its own)",
+          "location": {
+            "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+            "line": 486,
+            "column": 13,
+            "endLine": 487,
+            "endColumn": 22
+          }
+        },
+        {
+          "role": "notYetPerformed",
+          "label": "db.delete(message)",
+          "description": "database delete on `message` (commits on its own)",
+          "location": {
+            "file": ".corpora/upstream/chatbot/lib/db/queries.ts",
+            "line": 492,
+            "column": 20,
+            "endLine": 493,
+            "endColumn": 25
+          }
+        }
+      ],
+      "failureSequence": [
+        "1. `db.delete(vote)` (486:13) commits immediately: it is not inside a recognized transaction.",
+        "2. A failure occurs after `db.delete(vote)` and before `db.delete(message)` completes.",
+        "3. `db.delete(message)` never commits.",
+        "4. Result: only some of the database changes are persisted."
+      ],
+      "pathConditions": [],
+      "evidence": [
+        "`db.delete(vote)` (database delete on `vote`): `db` — created by `drizzle(...)` from `drizzle-orm` in this file; `db` is initialized by `drizzle(...)` from \"drizzle-orm/postgres-js\".",
+        "`db.delete(message)` (database delete on `message`): `db` — created by `drizzle(...)` from `drizzle-orm` in this file; `db` is initialized by `drizzle(...)` from \"drizzle-orm/postgres-js\"."
+      ],
+      "mitigation": "Perform the writes inside one `db.transaction(async (tx) => ...)` and issue every write on the transaction handle `tx`, not on `db`.",
+      "limitations": [
+        "The operations run inside a try block whose catch handler (at 498:5) may compensate for some failures; Midwrite does not verify compensation, and a process crash bypasses catch handlers.",
+        "Midwrite does not know the application's invariants or what code outside this function does; a retry, reconciliation job, or idempotent consumer elsewhere may already repair this state."
+      ],
+      "pathCertainty": "straightLine",
+      "evidenceStrength": "provenance",
+      "fingerprint": "45d2b688605a76f7",
+      "relationship": {
+        "status": "sharedArguments",
+        "shared": [
+          "chatId",
+          "messageIds"
+        ]
+      },
+      "valueRelation": {
+        "status": "possiblyRelated",
+        "shared": [
+          {
+            "kind": "sameValue",
+            "first": "opaque#4",
+            "second": "opaque#4",
+            "exact": false
+          },
+          {
+            "kind": "sameValue",
+            "first": "param#0.chatId",
+            "second": "param#0.chatId",
+            "exact": false
+          }
+        ]
+      }
+    }
+  ],
+  "failures": []
+}

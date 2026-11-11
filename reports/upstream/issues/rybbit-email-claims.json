@@ -1,0 +1,7 @@
+{
+  "repository": "rybbit-io/rybbit",
+  "title": "Crash after claiming an email can permanently suppress lifecycle and trial-grace delivery",
+  "bodyFile": "reports/upstream/issues/rybbit-email-claims.md",
+  "status": "reported",
+  "url": "https://github.com/rybbit-io/rybbit/issues/1355"
+}

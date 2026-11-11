@@ -58,6 +58,12 @@ any row.
 | 4 | human review workflow | Phase 4 | — | 0 human reviews; review packets for 12 midday findings prepared | — | unreviewed | `reports/phase4/review/` |
 | 8 | review packets | Phase 8 | — | 10 blind review packets for first-party recovery findings, unreviewed | — | unreviewed | `reports/phase8/review-packets/` |
 
+The separate [2026-11-11 upstream review](../development/upstream-review.md)
+scanned five backends, retained a record for every diagnostic, removed twenty
+read-related false positives with an opt-in HTTP-method filter, and opened
+four upstream issues. These are AI source reviews, not runtime reproduction,
+maintainer confirmation, or a new precision/recall score.
+
 ## 2. Candidate-discovery accuracy
 
 `midwrite discover`, scored against labeled entries. "Model prediction"

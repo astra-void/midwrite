@@ -1,0 +1,26 @@
+{
+  "databaseReceivers": ["db", "tx", "ctx.db"],
+  "transactionMethods": ["transaction"],
+  "externalEffects": [
+    { "function": "sendEmail", "category": "email", "importedFrom": "@kan/email" },
+    { "function": "sendMentionEmails", "category": "email", "importedFrom": "../utils/notifications" },
+    { "receiver": "ctx.auth.api", "method": "signInMagicLink", "category": "email" },
+    { "receiver": "subscriber.subscribers", "method": "create", "category": "message-publish" },
+    { "receiver": "subscriber.workflows", "method": "trigger", "category": "message-publish" },
+    { "function": "sendWebhooksForWorkspace", "category": "http-request", "importedFrom": "../utils/webhook" },
+    { "function": "sendWebhookToUrl", "category": "http-request", "importedFrom": "../utils/webhook" },
+    { "function": "updateSubscriptionSeats", "category": "payment", "importedFrom": "@kan/stripe" },
+    { "receiver": "stripe.subscriptions", "method": "update", "category": "payment" },
+    { "receiver": "stripe.checkout.sessions", "method": "create", "category": "payment" },
+    { "receiver": "stripe.billingPortal.sessions", "method": "create", "category": "payment" },
+    { "function": "deleteObject", "category": "file-write", "importedFrom": "@kan/shared/utils" },
+    { "receiver": "client", "method": "send", "category": "file-write" },
+    { "receiver": "upload", "method": "done", "category": "file-write" }
+  ],
+  "exclude": [
+    "**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "__tests__",
+    "packages/api/integration-tests/**", "packages/e2e/**", "packages/db/migrations/**",
+    "drizzle.config.ts", "vitest.config.ts", "playwright.config.ts",
+    "packages/email/.react-email/**", "turbo/generators/**", "tooling/**", "apps/docs/**", "*.d.ts", "dist", ".next"
+  ]
+}
