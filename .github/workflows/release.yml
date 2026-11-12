@@ -1,11 +1,21 @@
-# Release archives for a version tag (v*). Builds and tests on each platform,
-# packages with scripts/package-release.sh and attaches the archives and
-# checksums to a DRAFT release that a maintainer reviews and publishes by
-# hand. Nothing is published to a package registry.
+# Release binaries for a version tag (v*), or on demand (workflow_dispatch).
 #
-# A successful tagged run establishes support for a release target.
-# Until a tagged run has succeeded on a platform, that platform is not a
-# supported release target; see docs/reference/security.md.
+# One job per platform builds the binary that ships, both as a release
+# archive (attached to a DRAFT release that a maintainer reviews and
+# publishes by hand) and as the bare binary for the npm packages (assembled
+# and published from these artifacts with scripts/npm-cli.py). Nothing is
+# published to a package registry from here.
+#
+# * macOS and Linux run the full test suite first. Linux ships static musl
+#   binaries, so they run on any distribution; the tests themselves run on
+#   the runner's host target.
+# * Windows has static analysis only (built without the `replay` feature)
+#   and a statically linked C runtime, so it needs no Visual C++
+#   Redistributable. The full suite needs PostgreSQL, bubblewrap and Unix
+#   sockets, so Windows binaries get the smoke test only.
+#
+# Every shipped binary is smoke-tested on its own OS. A successful tagged run
+# establishes support for a release target; see docs/reference/security.md.
 name: release
 
 on:
@@ -28,50 +38,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: macos-15, target: aarch64-apple-darwin }
-          - { os: macos-15-intel, target: x86_64-apple-darwin }
-          - { os: ubuntu-24.04, target: x86_64-unknown-linux-gnu }
-          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu }
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - name: Prepare Linux replay runtime
-        if: runner.os == 'Linux'
-        run: scripts/setup-ci-linux-runtime.sh
-      - name: Build first-party fixtures
-        run: scripts/setup-ci-fixtures.sh
-      - run: cargo test --workspace --locked
-      - run: scripts/package-release.sh ${{ matrix.target }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: midwrite-${{ matrix.target }}
-          path: |
-            target/package/*.tar.gz
-            target/package/*.sha256
-
-  # Binaries for the npm packages (`midwrite` and @midwrite/cli-*). Linux
-  # builds are static musl so they run on any distribution; Windows has no
-  # runtime replay (built without the `replay` feature). Each binary is
-  # smoke-tested on its own OS. The packages are assembled and published
-  # from these artifacts with scripts/npm-cli.py; nothing is published here.
-  npm-binaries:
-    name: npm binary ${{ matrix.npm }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { os: macos-15, target: aarch64-apple-darwin, npm: darwin-arm64 }
-          - { os: macos-15-intel, target: x86_64-apple-darwin, npm: darwin-x64 }
-          - { os: ubuntu-24.04, target: x86_64-unknown-linux-musl, npm: linux-x64 }
-          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl, npm: linux-arm64 }
-          - { os: windows-latest, target: x86_64-pc-windows-msvc, npm: win32-x64, features: --no-default-features, rustflags: -C target-feature=+crt-static }
-          - { os: windows-11-arm, target: aarch64-pc-windows-msvc, npm: win32-arm64, features: --no-default-features, rustflags: -C target-feature=+crt-static }
+          - { os: macos-15, target: aarch64-apple-darwin, npm: darwin-arm64, full: true }
+          - { os: macos-15-intel, target: x86_64-apple-darwin, npm: darwin-x64, full: true }
+          - { os: ubuntu-24.04, target: x86_64-unknown-linux-musl, npm: linux-x64, full: true }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl, npm: linux-arm64, full: true }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, npm: win32-x64, full: false }
+          - { os: windows-11-arm, target: aarch64-pc-windows-msvc, npm: win32-arm64, full: false }
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -81,15 +53,34 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+
+      # Full test suite (macOS, Linux).
+      - uses: actions/setup-node@v4
+        if: matrix.full
+        with:
+          node-version: "22"
+      - name: Prepare Linux replay runtime
+        if: matrix.full && runner.os == 'Linux'
+        run: scripts/setup-ci-linux-runtime.sh
+      - name: Build first-party fixtures
+        if: matrix.full
+        run: scripts/setup-ci-fixtures.sh
+      - name: Test
+        if: matrix.full
+        run: cargo test --workspace --locked
+
+      # Build the shipped binary and its release archive.
       - name: Install musl tools
         if: contains(matrix.target, 'musl')
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools
-      # Windows: link the C runtime statically, so the binary does not need
-      # the Visual C++ Redistributable (the Windows counterpart of the static
-      # musl builds).
-      - run: cargo build --release --locked --target ${{ matrix.target }} -p midwrite-cli --bin midwrite ${{ matrix.features }}
+      - name: Package (macOS, Linux)
+        if: runner.os != 'Windows'
+        run: scripts/package-release.sh ${{ matrix.target }}
+      - name: Build (Windows, static analysis only)
+        if: runner.os == 'Windows'
+        run: cargo build --release --locked --target ${{ matrix.target }} -p midwrite-cli --bin midwrite --no-default-features
         env:
-          RUSTFLAGS: ${{ matrix.rustflags }}
+          RUSTFLAGS: -C target-feature=+crt-static
       - name: Check that the Windows binary needs no VC++ runtime DLL
         if: runner.os == 'Windows'
         shell: pwsh
@@ -99,6 +90,19 @@ jobs:
           $deps = & $dumpbin.FullName /dependents "target\${{ matrix.target }}\release\midwrite.exe" | Out-String
           Write-Output $deps
           if ($deps -match '(?i)vcruntime|msvcp|api-ms-win-crt') { throw 'midwrite.exe depends on the VC++ runtime' }
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.*)"' | Select-Object -First 1).Matches[0].Groups[1].Value
+          $name = "midwrite-$version-${{ matrix.target }}"
+          $stage = "target\package\$name"
+          New-Item -ItemType Directory -Force $stage | Out-Null
+          Copy-Item "target\${{ matrix.target }}\release\midwrite.exe", README.md, LICENSE-MIT, LICENSE-APACHE $stage
+          Compress-Archive -Path $stage -DestinationPath "target\package\$name.zip" -Force
+          $hash = (Get-FileHash "target\package\$name.zip" -Algorithm SHA256).Hash.ToLower()
+          Set-Content -NoNewline -Path "target\package\$name.zip.sha256" -Value "$hash  $name.zip`n"
+
       - name: Smoke test
         run: |
           exe="target/${{ matrix.target }}/release/midwrite"
@@ -110,11 +114,19 @@ jobs:
           set -e
           test "$code" -eq 1
           python3 -c "import json; d = json.load(open('check.json')); assert d['diagnostics'], 'no diagnostics'"
-          mkdir -p dist && cp "$exe" dist/
+          mkdir -p npm-bin && cp "$exe" npm-bin/
       - uses: actions/upload-artifact@v4
         with:
-          name: midwrite-npm-${{ matrix.npm }}
-          path: dist/*
+          name: midwrite-${{ matrix.target }}
+          path: |
+            target/package/*.tar.gz
+            target/package/*.zip
+            target/package/*.sha256
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-${{ matrix.npm }}
+          path: npm-bin/*
           if-no-files-found: error
 
   draft-release:
@@ -124,6 +136,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
+          pattern: midwrite-*
           path: dist
           merge-multiple: true
       - name: Create a draft release (published manually)
