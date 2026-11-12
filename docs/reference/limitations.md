@@ -36,8 +36,13 @@ remain unsupported.
 ([configuration](configuration.md#factory-receivers-and-resolved-results)).
 Neither proves application invariants, library behavior, or the absence of
 callers outside the analyzed source. Unrelated but harmless writes can
-still be reported, and correlations through database-returned rows wrapped
-in result-library transformations are not generally understood.
+still be reported. The bounded [returned-row pass](../architecture/returned-row-facts.md)
+can carry schema-backed string-column identities through source helpers
+and known Result transformations. Missing schemas, custom decoders,
+undefined assignments, escaped/mutated rows, unrecognized transformations
+and exhausted budgets do not prove a guard unreachable. Runtime triggers,
+custom driver parsers and monkeypatching of library APIs are outside this
+source-level relation.
 
 ## What any result means
 

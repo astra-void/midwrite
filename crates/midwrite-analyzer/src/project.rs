@@ -307,6 +307,7 @@ pub(crate) fn analyze(
 
     // 1. Lower every file on its own (in parallel; results keep file order).
     let mut modules: Vec<LoweredModule> = Vec::new();
+    let mut source_snapshots: Vec<std::sync::Arc<str>> = Vec::new();
     let mut paths: Vec<PathBuf> = Vec::new();
     let mut names: Vec<String> = Vec::new();
     let mut failures = Vec::new();
@@ -321,23 +322,28 @@ pub(crate) fn analyze(
         |(file, sdk): (&PathBuf, &crate::sdk::ImportedClients)| {
             let display = name_of(file);
             read(file).and_then(|source| {
-                analyzer
+                let source: std::sync::Arc<str> = source.into();
+                let module = analyzer
                     .lower_module(&display, &source, Some(sdk))
-                    .map_err(|failure| parse_failure(display.clone(), failure))
+                    .map_err(|failure| parse_failure(display.clone(), failure))?;
+                Ok((module, source))
             })
         },
     );
     for (file, lowered) in files.iter().zip(lowered_files) {
         let display = name_of(file);
         match lowered {
-            Ok(module) => {
+            Ok((module, source)) => {
                 modules.push(module);
+                source_snapshots.push(source);
                 paths.push(absolute(file));
                 names.push(display);
             }
             Err(failure) => failures.push(failure),
         }
     }
+    crate::row_flow::refine(analyzer.config(), &paths, &source_snapshots, &mut modules);
+    drop(source_snapshots);
     let lowered_at = Instant::now();
     let heap_lowered = probe();
 

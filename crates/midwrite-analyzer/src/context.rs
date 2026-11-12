@@ -157,6 +157,11 @@ impl ProjectContext {
         context
     }
 
+    /// Reuse the exact source bytes already lowered in this analysis run.
+    pub(crate) fn seed_sources(&self, sources: impl IntoIterator<Item = (PathBuf, Arc<str>)>) {
+        self.sources.lock().expect("sources lock").extend(sources);
+    }
+
     pub fn index_of(&self, abs: &Path) -> Option<usize> {
         self.by_path.get(abs).copied()
     }

@@ -53,6 +53,7 @@ pub mod packages;
 mod project;
 mod recognize;
 mod resolve;
+mod row_flow;
 pub mod schema;
 mod sdk;
 mod semantic;
