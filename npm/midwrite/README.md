@@ -56,6 +56,7 @@ the native binary for your system:
 | Linux arm64 (static, musl) | `@midwrite/cli-linux-arm64` |
 | Linux x64 (static, musl) | `@midwrite/cli-linux-x64` |
 | Windows x64 (static analysis only) | `@midwrite/cli-win32-x64` |
+| Windows arm64 (static analysis only) | `@midwrite/cli-win32-arm64` |
 
 Installing with `--omit=optional` skips the binary, and the launcher
 then exits with an error. On other platforms, build from source.

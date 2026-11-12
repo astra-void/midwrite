@@ -15,6 +15,7 @@ const PLATFORMS = {
   "linux arm64": "@midwrite/cli-linux-arm64",
   "linux x64": "@midwrite/cli-linux-x64",
   "win32 x64": "@midwrite/cli-win32-x64",
+  "win32 arm64": "@midwrite/cli-win32-arm64",
 };
 
 function binaryPath() {

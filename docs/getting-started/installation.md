@@ -2,7 +2,7 @@
 
 Midwrite is a Rust workspace. The CLI is on npm as `midwrite`, with
 prebuilt binaries for macOS (arm64, x64), Linux (arm64, x64, static
-musl) and Windows x64 (static analysis only); `npm install --save-dev
+musl) and Windows (x64, arm64; static analysis only); `npm install --save-dev
 midwrite`. On other platforms, build it from
 source. The replay harness client is published on npm as
 `@midwrite/replay`; generated harnesses vendor their own copy.

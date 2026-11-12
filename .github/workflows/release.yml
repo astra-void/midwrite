@@ -71,6 +71,7 @@ jobs:
           - { os: ubuntu-24.04, target: x86_64-unknown-linux-musl, npm: linux-x64 }
           - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl, npm: linux-arm64 }
           - { os: windows-latest, target: x86_64-pc-windows-msvc, npm: win32-x64, features: --no-default-features, rustflags: -C target-feature=+crt-static }
+          - { os: windows-11-arm, target: aarch64-pc-windows-msvc, npm: win32-arm64, features: --no-default-features, rustflags: -C target-feature=+crt-static }
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -94,7 +95,7 @@ jobs:
         shell: pwsh
         run: |
           $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
-          $dumpbin = Get-ChildItem "$vs\VC\Tools\MSVC" -Recurse -Filter dumpbin.exe | Where-Object FullName -like '*Hostx64\x64*' | Select-Object -First 1
+          $dumpbin = Get-ChildItem "$vs\VC\Tools\MSVC" -Recurse -Filter dumpbin.exe | Select-Object -First 1
           $deps = & $dumpbin.FullName /dependents "target\${{ matrix.target }}\release\midwrite.exe" | Out-String
           Write-Output $deps
           if ($deps -match '(?i)vcruntime|msvcp|api-ms-win-crt') { throw 'midwrite.exe depends on the VC++ runtime' }

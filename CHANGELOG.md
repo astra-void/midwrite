@@ -40,7 +40,7 @@ release can and cannot do, with the measured precision and recall.
   JSON and SARIF output.
 - The CLI on npm as `midwrite`, a launcher that installs one prebuilt
   binary package (`@midwrite/cli-darwin-arm64`, `-darwin-x64`,
-  `-linux-arm64`, `-linux-x64`, `-win32-x64`; Linux builds are static musl,
+  `-linux-arm64`, `-linux-x64`, `-win32-x64`, `-win32-arm64`; Linux builds are static musl,
   the Windows build has static analysis only).
 - `@midwrite/replay` on npm: the dependency-free replay harness client
   (checkpoints, `pg` adapter, event log, source worker) for Node.js and
