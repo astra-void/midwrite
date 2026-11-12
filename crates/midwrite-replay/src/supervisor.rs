@@ -122,7 +122,15 @@ fn reap(child: &mut Child, deadline: Instant) -> (ExitStatus, bool) {
 /// environment. Returns how many were found, and the ones that survived
 /// SIGKILL.
 fn sweep(token: &str) -> (usize, Vec<i32>) {
-    let found = processes_with_token(token);
+    // Processes of the group were just sent SIGKILL; give them (and a PID
+    // namespace being torn down) a moment to disappear, so that only
+    // processes that really left the group are counted.
+    let grace = Instant::now() + Duration::from_millis(500);
+    let mut found = processes_with_token(token);
+    while !found.is_empty() && Instant::now() < grace {
+        std::thread::sleep(Duration::from_millis(20));
+        found = processes_with_token(token);
+    }
     for pid in &found {
         // SAFETY: kill(2); the pid was just read with this execution's token.
         unsafe {
@@ -382,7 +390,8 @@ pub fn execute(
     let (status, reaped_by_deadline) = reap(&mut child, deadline);
     execution.timed_out |= reaped_by_deadline;
     let (escaped, survived) = sweep(&token);
-    if escaped > 0 && execution.problem.is_none() {
+    // A timed-out run is already inconclusive, and its reason says so.
+    if escaped > 0 && execution.problem.is_none() && !execution.timed_out {
         execution.problem = Some(if survived.is_empty() {
             format!(
                 "{escaped} process(es) started by the harness left its process group and were still running after it; they were killed, but may have changed the database after the scenario ended"
