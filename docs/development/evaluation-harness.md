@@ -1038,5 +1038,21 @@ unchanged (30/32, gate PASS). Midday analysis time is unchanged (0.5 s).
 **Inventoried, not fixed:** effects in callbacks a builtin defers
 (`setTimeout(cb)`, `queueMicrotask(cb)`) and in promise continuations
 (`p.then(cb)`) are not placed on any path; the call itself is a modeled
-builtin, so not even an MW9001 note marks them.
+builtin, so not even an MW9001 note marks them. Deferred timer callbacks
+stay out by design ("never part of the current sequence",
+`fixtures/safe/deferred_callback.ts`).
+
+**Tried and not shipped: promise continuations (2026-11-13).** Lowering an
+awaited `p.then(cb)` as `p` then `cb`, `p.catch(cb)` as `try { p } catch
+{ cb }` and `p.finally(cb)` as `try { p } finally { cb }`, with an inline
+`cb` lowered in place, added 4 dev findings (held-out unchanged). A
+separate blind labeler classified them as 1 true-positive (kan
+`card.ts:620`, through a rethrowing `.catch`) and 3 false positives, all
+midday code reached through `.catch(() => {})`: an infeasible path after
+an early return (`bot/runtime.ts:194`), mutually exclusive branches
+(`customers.ts:102`) and a best-effort `lastSeenAt` write with nothing
+depending on it (`bot/runtime.ts:214`). Dev hazard precision would go from
+387/405 to 388/409, so it was not shipped. Skipping only empty `.catch`
+handlers would keep the true positive and drop the three, but their causes
+are not the handler, so that rule would be fitted to these labels.
 
