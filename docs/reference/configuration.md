@@ -103,6 +103,10 @@ in its expanded body uses the same parameter and every observed invocation
 passes a transaction for that parameter. Unobserved entry points, mixed
 root/transaction arguments, forwarded function values and unmatched call
 facts prevent refinement. The default remains conservative for libraries.
+Without `closedWorld`, the same refinement applies only to module-private
+helpers: functions that are not exported and whose binding is used only as
+the callee of direct calls in their own module (never passed, stored,
+aliased or returned). No code outside the analyzed project can call them.
 
 An OpenTelemetry tracer obtained from `trace.getTracer(...)` has a built-in
 `startActiveSpan(...)` invocation contract when its package provenance is established:

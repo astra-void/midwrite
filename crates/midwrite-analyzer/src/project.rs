@@ -423,11 +423,8 @@ pub(crate) fn analyze(
     let solve_start = Instant::now();
     let (solved, solve_stats) = solve(&facts, &names_of);
     let solve_time = solve_start.elapsed();
-    let mut atomic_helpers = if analyzer.config().closed_world {
-        transaction_only_helpers(&modules, &calls, &facts)
-    } else {
-        BTreeSet::new()
-    };
+    let mut atomic_helpers =
+        transaction_only_helpers(&modules, &calls, &facts, analyzer.config().closed_world);
     drop(facts);
     drop(linker);
     // Lowering-only data is not needed past linking.
@@ -705,17 +702,27 @@ fn parallel_map<T: Send, R: Send>(items: Vec<T>, f: impl Fn(T) -> R + Sync) -> V
 /// Calls that were not lowered (e.g. unawaited calls), forwarded function
 /// values and unobserved entry points prevent refinement. Expanded nested
 /// calls are rechecked before applying the refinement.
+/// Helpers whose every call passes a transaction for the one parameter all
+/// their writes use: their independent-commit findings are dropped. With
+/// `closedWorld`, any such function; without it, only module-private
+/// helpers (not exported, only ever called directly), whose callers are
+/// all in the analyzed project by construction.
 fn transaction_only_helpers(
     modules: &[LoweredModule],
     calls: &[Vec<LocalCall>],
     facts: &[FunctionFacts],
+    closed_world: bool,
 ) -> BTreeSet<usize> {
     let mut atomic = BTreeSet::new();
     let mut index = 0;
     for module in modules {
-        for function in &module.functions {
+        for (local, function) in module.functions.iter().enumerate() {
             let current = index;
             index += 1;
+            let private_calls = module.private_helpers.get(&local).copied();
+            if !closed_world && private_calls.is_none() {
+                continue;
+            }
             let Some(parameter) = one_parameter_writes(function) else {
                 continue;
             };
@@ -734,9 +741,17 @@ fn transaction_only_helpers(
                 .flat_map(|f| &f.calls)
                 .flat_map(|c| &c.args)
                 .any(|a| *a == midwrite_core::absint::summary::ArgFact::Function(current));
+            // Every invocation is observed: with `closedWorld`, as call facts
+            // (which are kept for every body then); for a private helper, as
+            // one linked call site per direct-call reference to its binding.
+            let complete = if closed_world {
+                fact_count == incoming.len()
+            } else {
+                private_calls == Some(incoming.len())
+            };
             if !escapes
                 && !incoming.is_empty()
-                && fact_count == incoming.len()
+                && complete
                 && incoming.iter().all(|call| {
                     matches!(
                         call.arguments

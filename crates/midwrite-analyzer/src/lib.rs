@@ -129,7 +129,31 @@ pub(crate) struct LoweredModule {
     pub index: HashMap<u32, usize>,
     pub classes: HashMap<u32, ClassInfo>,
     pub exports: ModuleExports,
+    /// Functions (by index) that no other module can call: not exported,
+    /// and every reference to their binding is the callee of a direct call
+    /// in this module (never passed, stored, returned or re-exported). All
+    /// of their callers are therefore in the analyzed project.
+    /// By index, with the number of those direct calls.
+    pub private_helpers: BTreeMap<usize, usize>,
     pub stats: ValueStats,
+}
+
+/// The references that are the callee of a direct call (`helper(...)`).
+fn direct_callee_references(
+    program: &oxc_ast::ast::Program<'_>,
+) -> std::collections::HashSet<oxc_syntax::reference::ReferenceId> {
+    struct Callees(std::collections::HashSet<oxc_syntax::reference::ReferenceId>);
+    impl<'a> Visit<'a> for Callees {
+        fn visit_call_expression(&mut self, call: &oxc_ast::ast::CallExpression<'a>) {
+            if let oxc_ast::ast::Expression::Identifier(ident) = &call.callee {
+                self.0.insert(ident.reference_id());
+            }
+            oxc_ast_visit::walk::walk_call_expression(self, call);
+        }
+    }
+    let mut callees = Callees(std::collections::HashSet::new());
+    callees.visit_program(program);
+    callees.0
 }
 
 impl LoweredModule {
@@ -502,6 +526,28 @@ impl Analyzer {
             };
             exports.named.entry(name).or_default().push(entry);
         }
+        let exported: std::collections::BTreeSet<usize> = exports
+            .named
+            .values()
+            .flatten()
+            .flat_map(|entry| match entry {
+                ExportEntry::Function(i) => vec![*i],
+                ExportEntry::Object(methods) => methods.values().copied().collect(),
+                _ => Vec::new(),
+            })
+            .collect();
+        let callees = direct_callee_references(&parsed.program);
+        let private_helpers = table
+            .local_functions()
+            .filter_map(|(symbol, start)| {
+                let function = *index.get(&start)?;
+                let references = semantic.scoping().get_resolved_reference_ids(symbol);
+                (!exported.contains(&function)
+                    && !references.is_empty()
+                    && references.iter().all(|r| callees.contains(r)))
+                .then_some((function, references.len()))
+            })
+            .collect();
         Ok(LoweredModule {
             suppressions,
             functions,
@@ -511,6 +557,7 @@ impl Analyzer {
             index,
             classes: table.classes().clone(),
             exports,
+            private_helpers,
             stats,
         })
     }

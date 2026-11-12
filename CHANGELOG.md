@@ -25,6 +25,14 @@ output formats.
   passes. The README shows this scoring next to the historical pre-tuning
   one and keeps the two apart.
 
+### Fixed
+
+- A module-private helper (not exported, only ever called directly) whose
+  every call passes a transaction handle is no longer reported as
+  independent commits, without needing `closedWorld`. This removes one dev
+  false positive (midday `createSystemCategoriesForTeam`); held-out results
+  are unchanged.
+
 ### Security
 
 - `replay` harness processes now get the same per-process limits (CPU

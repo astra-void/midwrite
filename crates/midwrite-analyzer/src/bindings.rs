@@ -368,6 +368,13 @@ impl SymbolTable {
         self.functions.get(&symbol).copied()
     }
 
+    /// Every binding of a function of this module, with its start offset.
+    pub fn local_functions(&self) -> impl Iterator<Item = (SymbolId, u32)> + '_ {
+        self.functions
+            .iter()
+            .map(|(symbol, start)| (*symbol, *start))
+    }
+
     /// How `symbol` was imported, if it is an import binding.
     pub fn import(&self, symbol: SymbolId) -> Option<&ImportBinding> {
         self.imports.get(&symbol)

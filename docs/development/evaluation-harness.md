@@ -908,3 +908,54 @@ nextjs-billing's true positive outside the audit.
   approval) and next-saas-stripe-starter KP02 (a retry converges). Neither
   label was changed.
 * All labels are AI-only, with no human review (DEV-162).
+
+## Module-private transaction helpers (2026-11-12, DEV-166)
+
+Record: [`reports/eval/2026-11-12-private-transaction-helpers.json`](../../reports/eval/2026-11-12-private-transaction-helpers.json).
+The DEV-166 targets were taken only from dev-set misses and false
+positives, never from held-out ones.
+
+**Fixed.** midday's `createSystemCategoriesForTeam`
+(`packages/db/src/queries/teams.ts:227`) is a module-private helper whose
+only caller passes the transaction handle. It was reported as two
+independent commits because the transaction-only refinement needed
+`closedWorld`, which midday does not set. That opt-in guards against
+callers outside the project, and no such caller exists for a function
+that is not exported and whose binding is only ever called directly in its
+own module. Such helpers are now refined without `closedWorld`. The
+fixture `fixtures/projects/private_transaction_helper` keeps exported,
+escaping, mixed-caller and aliased helpers reported.
+
+| development set (all five) | hazards | hazard precision | bug precision | recall |
+| --- | ---: | --- | --- | --- |
+| before | 410 | 383/402 (95.27%) | 163/402 | 152/168 |
+| after | 409 | 383/401 (95.51%) | 163/401 | 152/168 |
+
+The only changed finding is that false positive. Held-out findings are
+unchanged (30/32, gate PASS).
+
+**Tried and not shipped: SDK clients stored on `this`.** midday's
+KP02 (`send-invoice-email.ts`) sends email through
+`notifications.create`, whose `Notifications` class holds an
+`EmailService` in a private field, which holds a Resend client in another.
+Recognizing clients assigned to instance fields, dispatching
+`this.field.m()` on a field that always holds one project class, and
+modelling private members (`#x`) recovered KP02 but added 12 findings. A
+separate blind labeler classified them as 5 intended-risk and 7
+false-positive, none true-positive. Four of the false positives come from
+`options?.sendEmail ?? false` with no options argument (no email is
+sent), which value analysis does not prune; three report the single-send
+branch that runs only with attachments. That would lower dev precision,
+so the change was set aside until optional-chaining and nullish defaults
+on parameters prune callee branches.
+
+**Inventoried limits (not fixed):**
+
+* zero's KP02–KP05: `db` is a Cloudflare Durable Object RPC stub
+  (`scopedRpc<DbRpcDO>`) whose methods forward to a second Durable Object
+  that runs Drizzle. Its methods are reported as unmodelled database
+  methods (MW9001).
+* A method called on an inline construction, `await new C().m()`, is not
+  dispatched, although `const c = new C(); await c.m()` is.
+* `options?.x ?? default` on a parameter does not decide callee branches,
+  even for an explicit `{ x: false }` argument.
