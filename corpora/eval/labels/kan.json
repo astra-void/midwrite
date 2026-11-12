@@ -1355,6 +1355,22 @@
     "packages/db/src/repository/integration.repo.ts:85-103: updateAccessTokenIfCurrent writes only accessToken and compares the current stored value in the WHERE condition.",
     "packages/api/src/routers/import.ts:244-263: the migration is awaited before the independent imports-row insert."
    ]
+  },
+  {
+   "date": "2026-11-12",
+   "by": "AI agent (Claude), blind source-only review separate from analyzer tuning; did not see knownPositives, existing labels or reports",
+   "humanReviewed": false,
+   "type": "independent-recheck",
+   "findingId": "221cf564aa4c6cea",
+   "classification": "intended-risk",
+   "agrees": true,
+   "reason": "Blind re-check of the same-day false-positive -> intended-risk correction, which was made by the session that tuned the analyzer. The separate labeler, given only the diagnostic and the pinned source, independently chose intended-risk: the token re-encryption commit really happens before the import row insert, is a compare-and-set upgrade that decryptTrelloToken reads in both formats, and is skipped on a re-run. Still AI-only; a human reviewer should confirm.",
+   "evidence": [
+    "packages/api/src/routers/import.ts:49",
+    "packages/db/src/repository/integration.repo.ts:94-103",
+    "packages/api/src/utils/trello-token.ts:11-14",
+    "packages/api/src/routers/import.ts:260"
+   ]
   }
  ],
  "reviewQueue": [

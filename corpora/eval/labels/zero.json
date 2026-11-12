@@ -394,9 +394,59 @@
    "function": "decideAction",
    "classification": "intended-risk",
    "notes": "The window is real: the action is claimed as 'running' (assistant.ts:233-249), the mail is sent (253), and only then is it marked 'completed' (254-259). A crash in between leaves the action stuck in 'running' and nothing sweeps it. The comment at 231-232 accepts this on purpose (it is never retried automatically because duplicate mail is worse than an error), and the catch at 261-271 marks it failed and tells the user to check their mailbox. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 returned-builder change.)"
+  },
+  {
+   "findingId": "9e7e1a21e4ccf383",
+   "code": "MW1005",
+   "file": "apps/server/src/routes/agent/index.ts",
+   "line": 732,
+   "function": "ZeroDriver.runMailboxHistory::<anonymous@731:38>",
+   "classification": "intended-risk",
+   "notes": "If the KV timestamp write fails after the Gmail watch call, the catch schedules another renewal in an hour (agent/index.ts:1026-1028). If it is lost to a crash, the scheduled cron treats a missing or stale gmail_sub_age as expired and re-subscribes the connection (main.ts:1040-1062). watchMailbox is safe to call again."
+  },
+  {
+   "findingId": "281b04c90321109c",
+   "code": "MW1004",
+   "file": "apps/server/src/routes/assistant.ts",
+   "line": 262,
+   "function": "decideAction",
+   "classification": "intended-risk",
+   "notes": "The first write is an atomic claim (pending to running), and the 'failed' write comes only after the mail tool throws. A source comment explains why a stuck 'running' state is accepted: a timeout after sending stays indeterminate and is never retried automatically because duplicate mail is worse (assistant.ts:231-232)."
+  },
+  {
+   "findingId": "9ff88f0280e46089",
+   "code": "MW1004",
+   "file": "apps/server/src/routes/assistant.ts",
+   "line": 503,
+   "function": "<anonymous@345:25>",
+   "classification": "intended-risk",
+   "notes": "An inserted, unclaimed action is the designed 'pending' state: it expires after 15 minutes (assistant.ts:488) and can be approved through the action URL (:504-506). A re-run is idempotent: the id is a deterministic digest including traceId (:447-456), the insert uses onConflictDoNothing (:490), and the row is re-read before decideAction (:493-503)."
+  },
+  {
+   "findingId": "f6f2acbf43e9c978",
+   "code": "MW1005",
+   "file": "apps/server/src/trpc/routes/mail.ts",
+   "line": 173,
+   "function": "<anonymous@113:12>",
+   "classification": "intended-risk",
+   "notes": "Within one thread the label change comes before the KV delete (mail.ts:193-194), so the reported order is between two different threads. A thread whose snooze key survives keeps its expired wakeAt and is unsnoozed on next access or by the scheduled sweep (main.ts:996-1031). Per-thread errors are caught (mail.ts:195-198)."
   }
  ],
- "corrections": [],
+ "corrections": [
+  {
+   "date": "2026-11-12",
+   "by": "AI agent (Claude), blind source-only review separate from analyzer tuning; did not see knownPositives, existing labels or reports",
+   "humanReviewed": false,
+   "type": "new-findings-reviewed",
+   "findings": [
+    "9e7e1a21e4ccf383",
+    "281b04c90321109c",
+    "9ff88f0280e46089",
+    "f6f2acbf43e9c978"
+   ],
+   "reason": "Labeled findings first exposed by the effect-coverage commit b96f446 (not present in reports/eval/2026-11-12-label-corrections.json). Existing classifications were not changed. Source-only AI review, not human review or runtime confirmation."
+  }
+ ],
  "reviewQueue": [
   {
    "knownPositive": "zero-KP09",

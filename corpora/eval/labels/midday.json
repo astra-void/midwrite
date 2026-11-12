@@ -1081,9 +1081,119 @@
    "function": "run",
    "classification": "intended-risk",
    "notes": "onboarding.ts:33-49: if the task stops after resend.contacts.create, the trigger.dev default retry (trigger.config.ts maxAttempts 3) re-runs. Re-creating the contact is harmless (the Resend SDK returns errors rather than throwing), and the welcome email is then sent. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "650275870a6e4706",
+   "code": "MW1005",
+   "file": "apps/api/src/rest/routers/webhooks/inbox/index.ts",
+   "line": 337,
+   "function": "<anonymous@141:3>",
+   "classification": "true-positive",
+   "notes": "If enqueueing the process-attachment job fails after the uploads succeed, the handler only logs and returns a 500 (index.ts:365). The vault file is then left with no inbox processing, and nothing in the code cleans it up or reconciles it. Any redelivery by the email provider would upload a new copy, because file names get a random nanoid suffix (utils.ts:52-57), so the first file stays orphaned."
+  },
+  {
+   "findingId": "80b1862b1b1cc200",
+   "code": "MW1005",
+   "file": "apps/api/src/rest/routers/webhooks/inbox/index.ts",
+   "line": 337,
+   "function": "<anonymous@141:3>",
+   "classification": "intended-risk",
+   "notes": "The inbox_new notification is explicitly fire-and-forget: a comment calls it a non-critical side effect, and a .catch only logs the failure (utils.ts:163-185). Losing it after the uploads is an accepted, best-effort outcome."
+  },
+  {
+   "findingId": "c43144bbed8b741c",
+   "code": "MW1005",
+   "file": "apps/api/src/trpc/routers/invoice-recurring.ts",
+   "line": 560,
+   "function": "<anonymous@500:15>",
+   "classification": "intended-risk",
+   "notes": "The delete path removes each job separately after the transaction commits, so a failure can leave some delayed jobs in the queue. A comment documents this ordering (invoice-recurring.ts:557). The transaction has already reset the invoices to draft (:548), and ScheduleInvoiceProcessor skips any invoice whose status is no longer 'scheduled' (schedule-invoice.ts:35-41), so leftover jobs do nothing when they fire."
+  },
+  {
+   "findingId": "c43144bbed8b741c-2",
+   "code": "MW1005",
+   "file": "apps/api/src/trpc/routers/invoice-recurring.ts",
+   "line": 630,
+   "function": "<anonymous@571:15>",
+   "classification": "intended-risk",
+   "notes": "The pause path has the same pattern: invoices are reverted to draft inside the transaction (:618), then jobs are removed one by one with a comment explaining the order (:627-632). The worker's status check (schedule-invoice.ts:35-41) turns any job left behind into a no-op."
+  },
+  {
+   "findingId": "3b74ca15611c4770",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/inbox/batch-process-matching.ts",
+   "line": 46,
+   "function": "BatchProcessMatchingProcessor.process",
+   "classification": "false-positive",
+   "notes": "The delete on transactionAttachments only runs when status === 'deleted' (inbox.ts:1086-1100). On this path, updateInbox is only ever called with 'analyzing', 'pending' or 'suggested_match' (inbox-matching.ts:118-130, 161-165, 177-181, 211-215), and triggerMatchingNotification never calls it. The second operation therefore never happens here."
+  },
+  {
+   "findingId": "dc5ad0d481bf0d62",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/inbox/batch-process-matching.ts",
+   "line": 46,
+   "function": "BatchProcessMatchingProcessor.process",
+   "classification": "false-positive",
+   "notes": "The delete on transactionMatchSuggestions (inbox.ts:1133) is inside the same status === 'deleted' branch (inbox.ts:1086). The batch-matching path never passes that status (inbox-matching.ts:118-130, 161-215), so this path cannot happen."
+  },
+  {
+   "findingId": "a3d512ea943bb6ce",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/inbox/batch-process-matching.ts",
+   "line": 46,
+   "function": "BatchProcessMatchingProcessor.process",
+   "classification": "intended-risk",
+   "notes": "The first write sets the transient status 'analyzing' (inbox-matching.ts:161), and a later write moves it to pending or suggested_match. A catch commented 'Best-effort recovery: avoid leaving items stuck in analyzing' resets the item to pending (:196-216), and unmatched pending items are retried when new transactions arrive (:175-176). Each batch element is an independent item (allSettled, batch-process-matching.ts:45)."
+  },
+  {
+   "findingId": "c91031799bc285ba",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/transactions/enrich-transaction.ts",
+   "line": 64,
+   "function": "EnrichTransactionProcessor.process",
+   "classification": "intended-risk",
+   "notes": "markTransactionsAsEnriched runs once per batch of 50, so a crash between batches leaves some transactions marked and others not. A re-run is idempotent: getTransactionsForEnrichment only selects rows with enrichmentCompleted = false (transaction-enrichment.ts:58). The processor also marks failed batches as completed on purpose (enrich-transaction.ts:209-217)."
+  },
+  {
+   "findingId": "6106c370cb63f14d",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/user-invites.ts",
+   "line": 300,
+   "function": "createTeamInvites",
+   "classification": "true-positive",
+   "notes": "Invites are inserted one by one in parallel (user-invites.ts:298-339). If one insert fails, Promise.all rejects, so the router never triggers invite-team-members (team.ts:356-363) and the invites already inserted get no email. Retrying does not repair this: validateInvites skips those addresses as 'already_invited' (user-invites.ts:265-268), and no resend path was found."
+  },
+  {
+   "findingId": "71aabdf5657244c6",
+   "code": "MW1002",
+   "file": "packages/jobs/src/tasks/inbox/batch-process-matching.ts",
+   "line": 34,
+   "function": "run",
+   "classification": "intended-risk",
+   "notes": "Within one inbox item the database updates commit before that item's notification (batch-process-matching.ts:36 then :42); the reported order exists only between different items. The notification is best-effort: its catch is commented 'Don't throw - notifications shouldn't break the matching process' (inbox-matching-notifications.ts:109-115). Unprocessed items keep their state and are retried (inbox-matching.ts:197-216)."
   }
  ],
- "corrections": [],
+ "corrections": [
+  {
+   "date": "2026-11-12",
+   "by": "AI agent (Claude), blind source-only review separate from analyzer tuning; did not see knownPositives, existing labels or reports",
+   "humanReviewed": false,
+   "type": "new-findings-reviewed",
+   "findings": [
+    "650275870a6e4706",
+    "80b1862b1b1cc200",
+    "c43144bbed8b741c",
+    "c43144bbed8b741c-2",
+    "3b74ca15611c4770",
+    "dc5ad0d481bf0d62",
+    "a3d512ea943bb6ce",
+    "c91031799bc285ba",
+    "6106c370cb63f14d",
+    "71aabdf5657244c6"
+   ],
+   "reason": "Labeled findings first exposed by the effect-coverage commit b96f446 (not present in reports/eval/2026-11-12-label-corrections.json). Existing classifications were not changed. Source-only AI review, not human review or runtime confirmation."
+  }
+ ],
  "reviewQueue": [
   {
    "knownPositive": "midday-KP03",

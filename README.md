@@ -108,10 +108,12 @@ How much to trust these numbers:
 
 * **There is no independent held-out set right now.** After that scoring,
   the three projects were moved to the dev set and the analyzer was tuned
-  on their misses and false positives. On those same projects it now scores
-  98% (165/168) of windows real and 51% (86/168) likely bugs. That is a
-  tuned result and says little about your code. New held-out projects have
-  to be audited and frozen before there is a fresh estimate.
+  on their misses and false positives. On those same projects 99% (165/166)
+  of reported windows are real by the analyzer's own change, 100% only after
+  one label correction no separate reviewer has checked, and 52% (86/166)
+  are unhandled bugs. That is a tuned result and says little about your
+  code. New held-out projects have to be audited and frozen before there
+  is a fresh estimate.
 * **Every label was written by AI agents, not by people.** The agents that
   labeled findings were separate from the ones that audited the code, but
   no human has reviewed the labels yet.

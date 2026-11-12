@@ -490,3 +490,66 @@ unawaited promises, generators, formatting and constant-object aliases.
 The refinement uses the source bytes already lowered and cancels the proof
 when supported semantics or its fixed budgets are insufficient.
 
+### Reading the 100% figures
+
+The table above is correct arithmetic, but it overstates what changed and
+what is known. Quote these figures with it:
+
+* **Analyzer change alone: 165/166 (99.40%).** Of the three removed false
+  positives, the analyzer removed two (Dittofeed). The third (Kan
+  `221cf564aa4c6cea`) left the false-positive count because its label was
+  corrected, not because the output changed. The correction fits the
+  taxonomy (MW1004 claims a window between two commits, and both commits
+  happen), but it was made the same day by the AI session that tuned the
+  analyzer, and was edited in place rather than re-labeled by a separate
+  agent through `reviewQueue`. Its evidence also shows the partial state is
+  harmless, not that the application accepted it on purpose, which is what
+  `intended-risk` means. A separate labeler, given only the diagnostic and
+  the pinned source (no labels, reports or prior notes), then chose
+  `intended-risk` independently; the agreement is recorded in Kan's
+  `corrections` as an `independent-recheck`. Both are AI judgments, so
+  report both numbers until a human confirms it.
+* **Audited recall: 54/54.** 17 of the 71 recall positives are true-positive
+  findings outside the audit (Kan 3 of 33, Dittofeed 14 of 30). They enter
+  the denominator only because Midwrite reported them, so they are found
+  by construction. Only the 54 audited positives measure misses.
+* **Sample size.** Wilson 95% intervals: hazard precision 166/166 is
+  [97.7%, 100%] (165/166: [96.7%, 99.9%]), audited recall 54/54 is
+  [93.4%, 100%], bug precision 86/166 is [44.3%, 59.3%]. Counting the three
+  unclear findings as false positives gives 166/169 (98.22%).
+* **Severity does not rank bug likelihood.** Bug precision by code: MW1001
+  (warning) 10/27 (37%), MW1002 (warning) 6/13 (46%), MW1004 (info) 60/94
+  (64%), MW1005 (info) 10/32 (31%). Warnings as a whole are 16/40 (40%),
+  info 70/126 (56%). The intervals overlap, so this is not evidence that
+  info is more often a bug, but there is none that warnings are.
+* **The "dev" set in the record is three of the five dev projects.** The
+  report's `sets.dev` covers only Kan, Dittofeed and vercel-chatbot.
+  Scoring all five development projects with the same working tree:
+
+| development set (all five) | hazards | unlabeled | unclear | hazard precision | bug precision | recall |
+| --- | ---: | ---: | ---: | --- | --- | --- |
+| midday | 232 | 121 | 6 | 94/105 (89.52%) | 29/105 (27.62%) | 36/46 (78.26%) |
+| kan | 97 | 0 | 0 | 97/97 (100%) | 51/97 (52.58%) | 33/33 (100%) |
+| dittofeed | 59 | 0 | 3 | 56/56 (100%) | 24/56 (42.86%) | 30/30 (100%) |
+| zero | 30 | 0 | 0 | 20/30 (66.67%) | 2/30 (6.67%) | 4/10 (40.00%) |
+| vercel-chatbot | 13 | 0 | 0 | 13/13 (100%) | 11/13 (84.62%) | 8/8 (100%) |
+| **all dev** | **431** | **121** | **9** | **280/301 (93.02%)** | **117/301 (38.87%)** | **111/127 (87.40%)** |
+
+  Record: [full dev scoring](../../reports/eval/2026-11-12-full-dev-labels.json).
+  Audited recall across all five is 78/94 (midday 20/30, zero 4/10); the
+  other 33 positives are true-positive findings outside the audit. The 121
+  unlabeled midday findings are the long-standing unsampled remainder.
+
+  The returned-row change does not alter midday or zero: their finding IDs
+  are identical with a build of the previous commit. Since the
+  label-corrections record earlier the same day, however, midday went from
+  222 to 232 findings and zero from 26 to 30, introduced by the
+  effect-coverage commit `b96f446`, the only analyzer change between the
+  two records. A separate blind labeler (no labels, reports or known
+  positives) reviewed those 14: 2 true-positive, 10 intended-risk and 2
+  false-positive. The false positives are midday
+  `batch-process-matching.ts:46` deletes that `updateInbox` performs only
+  for `status: "deleted"`, which the batch-matching path never passes, so
+  `b96f446` added two false positives on midday. The labels and reasons are
+  in the midday and zero `corrections`.
+
