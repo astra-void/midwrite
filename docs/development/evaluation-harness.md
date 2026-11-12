@@ -934,6 +934,14 @@ escaping, mixed-caller and aliased helpers reported.
 The only changed finding is that false positive. Held-out findings are
 unchanged (30/32, gate PASS).
 
+**Fixed: methods called on an inline construction.** `await new
+C().m()` was not dispatched, although `const c = new C(); await c.m()` was
+(and the supported-patterns reference lists both): the receiver was
+evaluated before its `new` expression had been lowered, so its instance
+was unknown. The construction is now lowered first, once. No dev or
+held-out finding changes; `a_method_called_on_an_inline_construction_is_dispatched_once`
+covers it.
+
 **Tried and not shipped: SDK clients stored on `this`.** midday's
 KP02 (`send-invoice-email.ts`) sends email through
 `notifications.create`, whose `Notifications` class holds an
@@ -955,7 +963,5 @@ on parameters prune callee branches.
   (`scopedRpc<DbRpcDO>`) whose methods forward to a second Durable Object
   that runs Drizzle. Its methods are reported as unmodelled database
   methods (MW9001).
-* A method called on an inline construction, `await new C().m()`, is not
-  dispatched, although `const c = new C(); await c.m()` is.
 * `options?.x ?? default` on a parameter does not decide callee branches,
   even for an explicit `{ x: false }` argument.

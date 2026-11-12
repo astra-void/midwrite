@@ -440,6 +440,7 @@ pub(crate) fn lower_function(
         argument_placeholders: Vec::new(),
         read_results: HashSet::new(),
         imported_classes: HashMap::new(),
+        early_news: std::collections::HashSet::new(),
         span,
         joined_collections: joins.symbols,
         joined_maps: HashSet::new(),
@@ -604,6 +605,9 @@ pub(crate) struct Lowerer<'c> {
     read_results: HashSet<u32>,
     /// Classes of instance objects created from imported classes.
     imported_classes: HashMap<u32, ClassRef>,
+    /// `new` expressions lowered early as a method call's receiver, to be
+    /// skipped when the walk reaches them.
+    early_news: std::collections::HashSet<u32>,
     /// The function's span (closures inside it are its own).
     span: Span,
 }
@@ -1612,6 +1616,15 @@ impl<'a> Lowerer<'_> {
                 if resolve_reference(self.recognizer.scoping, ident).is_none() =>
             {
                 None
+            }
+            // `new C().m()`: the construction runs first; lower it now so
+            // that its instance is known for dispatch, and only once.
+            Expression::NewExpression(new) => {
+                if !self.call_values.contains_key(&new.span.start) {
+                    self.visit_new_expression(new);
+                    self.early_news.insert(new.span.start);
+                }
+                Some(self.eval(&member.object))
             }
             object => Some(self.eval(object)),
         }
@@ -2929,6 +2942,10 @@ impl<'a> Visit<'a> for Lowerer<'_> {
     }
 
     fn visit_new_expression(&mut self, it: &NewExpression<'a>) {
+        // Already lowered as the receiver of a method call (`new C().m()`).
+        if self.early_news.remove(&it.span.start) {
+            return;
+        }
         walk::walk_new_expression(self, it);
         let mut values = Vec::with_capacity(it.arguments.len());
         for argument in &it.arguments {

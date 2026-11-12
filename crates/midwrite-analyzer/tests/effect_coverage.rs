@@ -225,3 +225,44 @@ fn tracing_callback_preserves_captures_returns_and_following_code() {
     );
     assert!(hazards(&lookalike, "fake").is_empty());
 }
+
+#[test]
+fn a_method_called_on_an_inline_construction_is_dispatched_once() {
+    // DEV-166: `new C().m()` dispatches like `const c = new C(); c.m()`.
+    let source = r#"
+        class Repo {
+            constructor(tag: string) {}
+            async save(id: string) { await db.insert(orders).values({ id }); }
+        }
+        export async function inline(id: string) {
+            await new Repo("a").save(id);
+            await queue.publish("saved", { id });
+        }
+        export async function argument(id: string) {
+            await new Repo(await queue.publish("first", { id })).save(id);
+        }
+    "#;
+    let diagnostics = analyze(Config::default(), source);
+    assert_eq!(
+        hazards(&diagnostics, "inline"),
+        ["MW1001"],
+        "{diagnostics:#?}"
+    );
+    // The construction (and the effect in its argument) is lowered once.
+    assert_eq!(
+        hazards(&diagnostics, "argument"),
+        ["MW1002"],
+        "{diagnostics:#?}"
+    );
+    let ir = Analyzer::new(Config::default())
+        .analyze_source("case.ts", source)
+        .unwrap()
+        .ir;
+    let argument = ir.functions.iter().find(|f| f.name == "argument").unwrap();
+    let publishes = argument
+        .effects()
+        .iter()
+        .filter(|e| matches!(e.kind, midwrite_core::ir::EffectKind::External { .. }))
+        .count();
+    assert_eq!(publishes, 1, "{}", argument.to_text());
+}
