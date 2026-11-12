@@ -804,6 +804,44 @@
    "function": "resumeWorkspace",
    "classification": "true-positive",
    "notes": "Audited dittofeed-KP13: resumeWorkspace marks the workspace Active before restoring cold events, without a shared atomic boundary. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "4b0058e6a225b154",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/broadcasts/activities.ts",
+   "line": 196,
+   "function": "sendMessagesWithSender",
+   "classification": "true-positive",
+   "notes": "Every user in the page is sent a message via sender(messageVariant) (activities.ts:360). The delivery events are published afterwards with submitBatch (activities.ts:413). If submitBatch fails or the worker dies in between, the messages are out but no delivery records exist. The sendMessages activity is retried up to broadcastSendMessagesMaxAttempts (broadcastWorkflowV2.ts:154-160), and the only duplicate guard, getUnmessagedUsers/searchDeliveries (activities.ts:161-191), depends on exactly those unwritten delivery events, so the retry resends. Sending has no idempotency key (no idempotency handling anywhere in backend-lib)."
+  },
+  {
+   "findingId": "49ef56958f468f57",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/computedProperties/computePropertiesIncremental.ts",
+   "line": 3753,
+   "function": "processRows",
+   "classification": "intended-risk",
+   "notes": "processRowsInner signals the HubSpot workflow first (signalWithStart, computePropertiesIncremental.ts:3704; signalUtils.ts:17-40) and records the processed assignments in ClickHouse afterwards (insertProcessedComputedProperties, :3746). So a failure between them really does leave the signal sent but the assignment unrecorded. The design is at-least-once: the assignment stays unprocessed and is re-signalled on the next activity run. The consumer, hubspotUserWorkflow (hubspotUserWorkflow.ts:73-135), drops stale updates by userPropertyVersion/segmentVersion, and the pushed values are set-style HubSpot updates, so re-delivery converges."
+  },
+  {
+   "findingId": "3686e505c1385892",
+   "code": "MW1004",
+   "file": "packages/backend-lib/src/computedProperties/computePropertiesWorkflow/activities/computeProperties.ts",
+   "line": 132,
+   "function": "computePropertiesIncremental::<anonymous@115:63>",
+   "classification": "intended-risk",
+   "crossRecord": true,
+   "notes": "computeState and computeAssignments each commit their own computed_property_period bookmark through createPeriods (periods.ts:264), keyed by step (ComputeState at computePropertiesIncremental.ts:3177, ComputeAssignments at :3582). If computeAssignments fails, only the ComputeState bookmark advances. This is a deliberate per-step checkpoint design: each step reads only its own step's last period (getPeriodsByComputedPropertyId at :3071-3073 and :3265-3267), so the next run of computeAssignments resumes from its own older bookmark and covers the gap. The activity rethrows (computeProperties.ts:134-143), so the run is retried or rerun."
+  },
+  {
+   "findingId": "9b4b0ac33d181043",
+   "code": "MW1004",
+   "file": "packages/backend-lib/src/computedProperties/computePropertiesWorkflow/activities/computeProperties.ts",
+   "line": 133,
+   "function": "computePropertiesIncremental::<anonymous@115:63>",
+   "classification": "intended-risk",
+   "crossRecord": true,
+   "notes": "computeAssignments commits its ComputeAssignments period (computePropertiesIncremental.ts:3576-3583, periods.ts:264), and processAssignments later commits a separate ProcessAssignments period (:4283-4290). These are independent rows tracked per step. If processAssignments fails, its bookmark stays put (it is read per step at :4147-4149), so the next run reprocesses from there. Unprocessed assignments are also tracked separately in the ClickHouse processed table, so the pipeline converges by design."
   }
  ],
  "corrections": [
