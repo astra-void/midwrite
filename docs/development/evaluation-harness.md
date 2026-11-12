@@ -553,3 +553,73 @@ what is known. Quote these figures with it:
   `b96f446` added two false positives on midday. The labels and reasons are
   in the midday and zero `corrections`.
 
+## Literal arguments decide callee branches (2026-11-12)
+
+Records: [scoring after](../../reports/eval/2026-11-12-literal-arguments.json),
+[finding-ID comparison](../../reports/eval/2026-11-12-literal-arguments-comparison.json).
+This is development tuning on dev projects only, with no held-out set. A
+separate blind labeler classified midday `3b74ca15611c4770` and
+`dc5ad0d481bf0d62` (`batch-process-matching.ts:46`) as false positives.
+Both came from the effect-coverage change (`b96f446`). Each pairs an inbox
+write with a delete that `updateInbox` runs only under
+`if (data.status === "deleted")`, after
+`const { id, teamId, ...data } = params`. On that path every call passes
+the literal `"analyzing"`, `"pending"` or `"suggested_match"`.
+
+Before this change, literal arguments never pruned callee branches. Now a
+fact on a parameter snapshot is an input of the function's summary:
+a parameter, a binding destructured from one, or a property of the rest
+object of one
+([value analysis](../architecture/value-analysis.md#path-facts-and-loops)).
+Each call records the literal properties of its object arguments before
+they escape. When the summary is instantiated, an arm whose fact
+contradicts the literal becomes infeasible for that call. There are no
+finding, file or project rules. Regression:
+`fixtures/projects/literal_argument_branch`. That fixture covers decided
+literals, an unknown status, a missing status, `"deleted"`, a forwarding
+helper, a helper that rewrites the status before forwarding and a
+parameter that escapes before it is destructured.
+
+Full dev set, rebased onto the returned-row and blind-label commits.
+Before is [full dev scoring](../../reports/eval/2026-11-12-full-dev-labels.json),
+where the blind labeler had already classified both targets as false
+positives; after differs only by this change.
+
+| project | hazards before → after | unlabeled | unclear | hazard precision | bug precision | recall |
+| --- | --- | --- | --- | --- | --- | --- |
+| midday | 232 → 217 | 121 → 109 | 6 → 5 | 94/105 → 94/103 | 29/105 → 29/103 | 36/46 → 36/46 |
+| kan | 97 → 97 | 0 → 0 | 0 → 0 | 97/97 → 97/97 | 51/97 → 51/97 | 33/33 → 33/33 |
+| dittofeed | 59 → 59 | 0 → 0 | 3 → 3 | 56/56 → 56/56 | 24/56 → 24/56 | 30/30 → 30/30 |
+| zero | 30 → 30 | 0 → 0 | 0 → 0 | 20/30 → 20/30 | 2/30 → 2/30 | 4/10 → 4/10 |
+| vercel-chatbot | 13 → 13 | 0 → 0 | 0 → 0 | 13/13 → 13/13 | 11/13 → 11/13 | 8/8 → 8/8 |
+| **dev** | **431 → 416** | **121 → 109** | **9 → 8** | **280/301 → 280/299** | **117/301 → 117/299** | **111/127 → 111/127** |
+
+Kan, Dittofeed, Zero and Chatbot have identical finding IDs before and
+after. Midday does not: 17 finding IDs disappear and 2 appear, so the
+fix is broader than the two targets.
+
+* All 17 removed findings are MW1004 and come from the same mechanism. Sixteen pair
+  a write with the `transactionAttachments` or
+  `transactionMatchSuggestions` delete in `updateInbox`. They are reached
+  through calls with literal statuses (`"processing"`, `"analyzing"`,
+  `"pending"`, `"other"`), in batch matching, bidirectional matching, the
+  upload processors, bot inbox upload and `calculateInboxSuggestions`.
+  The other one, `b900e23c8134a906` (`upcoming-notification.ts:228`),
+  pairs with a `platformIdentities` update. Only the `type === "match"` arm of
+  `sendToProviders` reaches it, and this call passes
+  `"recurring_invoice_upcoming"`. One removed finding,
+  `41b76f15d5a434ea-2`, was labeled `unclear`, and the two targets were
+  labeled false-positive; none was labeled true positive or intended
+  risk. Hazard precision rises only by the two removed false positives
+  (280/301 → 280/299); recall does not move.
+* Pruning brings `run` (jobs `batch-process-matching.ts:34`) and
+  `BatchProcessMatchingProcessor.process` with its callback under the
+  512-path limit (four MW9001 notes fewer). The bidirectional-matching `run` stays
+  truncated, but a different set of 512 paths is now analyzed. This exposes `f7562c7236a52276` (MW1004, jobs
+  `batch-process-matching.ts:34`, inbox update and inbox update; the
+  worker twin `a3d512ea943bb6ce` was already reported) and
+  `53f4da3bbb577624` (MW1002, jobs
+  `match-transactions-bidirectional.ts:104`, the phase-1 match
+  notification before a phase-2 inbox update). Both are unlabeled. Under
+  the label rules they go to a separate blind labeler, not the session
+  that made the change.

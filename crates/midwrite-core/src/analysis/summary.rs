@@ -103,6 +103,13 @@ pub struct LocalCall {
     pub values: Vec<AbsValue>,
     /// Abstract value of the receiver (`this` inside the callee).
     pub receiver: Option<AbsValue>,
+    /// The arguments as the callee receives them, by position: primitive
+    /// literals, parameters of the caller and object literals as closed
+    /// records of those (anything else unknown). Unlike [`Self::values`],
+    /// taken before the call can change the objects it is passed. Used
+    /// only to decide the callee's facts on its
+    /// [`FunctionIr::fact_inputs`]. Empty when not computed.
+    pub entry_values: Vec<AbsValue>,
     /// The `CallResult` site that stands for this call's result in the
     /// caller's abstract values.
     pub result: Option<u64>,
@@ -131,6 +138,7 @@ impl LocalCall {
             parameter: None,
             values: Vec::new(),
             receiver: None,
+            entry_values: Vec::new(),
             result: None,
             binding: None,
             binding_members: false,
@@ -419,6 +427,9 @@ struct Ids {
     next_effect: u32,
     next_call: u32,
     transactions: Vec<TransactionInfo>,
+    /// Fact inputs of instantiated callees that are still inputs of the
+    /// function being expanded (a parameter forwarded to the callee).
+    fact_inputs: Vec<(String, AbsValue)>,
     /// A call was left unsummarized because of the depth bound.
     cut: bool,
     /// A call was left unsummarized because it is recursive: the expansion
@@ -524,6 +535,7 @@ impl<'a> Inliner<'a> {
             // Proven SDK callbacks can already contain lexical call scopes.
             next_call,
             transactions: original.transactions.clone(),
+            fact_inputs: Vec::new(),
             cut: false,
             recursive: false,
             needed: 0,
@@ -547,6 +559,12 @@ impl<'a> Inliner<'a> {
             transactions: ids.transactions,
             body,
             returns: original.returns.clone(),
+            fact_inputs: original
+                .fact_inputs
+                .iter()
+                .map(|(variable, value)| (variable.clone(), value.clone()))
+                .chain(std::mem::take(&mut ids.fact_inputs))
+                .collect(),
         };
         if !ids.call_results.is_empty() {
             substitute_call_results(&mut function, &ids.call_results);
@@ -1061,8 +1079,19 @@ impl<'a> Inliner<'a> {
             frame: u64::from(call.0) + 1,
             values: &site_info.values,
             receiver: site_info.receiver.as_ref(),
+            entry_values: &site_info.entry_values,
+            fact_inputs: &callee.fact_inputs,
             effect_ids,
         };
+        // A callee input that is an input of the caller too (a forwarded
+        // parameter) is decided where the caller is called.
+        for (variable, value) in &callee.fact_inputs {
+            let value = remap.entry_value(value);
+            if is_parameter_path(&value) {
+                ids.fact_inputs
+                    .push((format!("{}{variable}", remap.variables), value));
+            }
+        }
         ids.next_call += 1 + summary.calls;
         for info in &callee.transactions {
             let (parent, parent_parameter) = match (info.parent, info.parent_parameter) {
@@ -1143,6 +1172,14 @@ fn frame_atom(
         })),
         _ => None,
     }
+}
+
+/// Whether `value` is one parameter or a property path of one
+/// (`param#1.status`): an input a caller can decide.
+fn is_parameter_path(value: &AbsValue) -> bool {
+    value
+        .single()
+        .is_some_and(|atom| matches!(atom.root(), Atom::Param { .. }))
 }
 
 /// Callee effect id → id in the caller: `base` plus the effect's position
@@ -1235,6 +1272,10 @@ struct Remap<'a> {
     frame: u64,
     values: &'a [AbsValue],
     receiver: Option<&'a AbsValue>,
+    /// [`LocalCall::entry_values`] of the call.
+    entry_values: &'a [AbsValue],
+    /// [`FunctionIr::fact_inputs`] of the callee.
+    fact_inputs: &'a std::collections::BTreeMap<String, AbsValue>,
     /// Callee effect id → id in the caller.
     effect_ids: EffectIds<'a>,
 }
@@ -1275,9 +1316,50 @@ impl Remap<'_> {
         })
     }
 
+    /// A callee input value (over its parameters) as this call passes it.
+    fn entry_value(&self, value: &AbsValue) -> AbsValue {
+        value.substitute(&|atom| match atom {
+            Atom::Param { index } => Some(
+                self.entry_values
+                    .get(*index as usize)
+                    .cloned()
+                    .unwrap_or_else(AbsValue::top),
+            ),
+            Atom::Lit { .. } | Atom::Field { .. } | Atom::Record { .. } => None,
+            _ => Some(AbsValue::top()),
+        })
+    }
+
+    /// Whether this call passes a literal for the input `fact` is about
+    /// that contradicts it: the arm (or exit) can never be taken here.
+    fn decided_never(&self, fact: &Fact) -> bool {
+        let Some(input) = fact.variable().and_then(|v| self.fact_inputs.get(v)) else {
+            return false;
+        };
+        let Some(Atom::Lit { value }) = self.entry_value(input).single().cloned() else {
+            return false;
+        };
+        let passed = Fact::Equals {
+            variable: fact.variable().unwrap_or_default().to_owned(),
+            literal: value,
+        };
+        passed.contradicts(fact)
+    }
+
+    /// A callee arm fact in the caller.
+    fn arm_fact(&self, fact: &Fact) -> Fact {
+        if self.decided_never(fact) {
+            return Fact::Never;
+        }
+        fact.renamed(|variable| format!("{}{variable}", self.variables))
+    }
+
     /// A callee fact in the caller: `$ret…` facts concern the caller's
     /// binding of the result; everything else is the callee's own.
     fn fact(&self, fact: &Fact) -> Fact {
+        if self.decided_never(fact) {
+            return Fact::Never;
+        }
         fact.renamed(
             |variable| match (self.binding, variable.strip_prefix(RETURN_VARIABLE)) {
                 (Some(binding), Some(rest))
@@ -1401,11 +1483,7 @@ impl Remap<'_> {
             .map(|arm| Arm {
                 label: arm.label.clone(),
                 body: self.nodes(&arm.body, next_effect),
-                facts: arm
-                    .facts
-                    .iter()
-                    .map(|fact| fact.renamed(|variable| format!("{}{variable}", self.variables)))
-                    .collect(),
+                facts: arm.facts.iter().map(|fact| self.arm_fact(fact)).collect(),
             })
             .collect()
     }

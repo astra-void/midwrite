@@ -221,7 +221,31 @@ The path walker of `ARCHITECTURE.md` gains facts from values:
   has no accessors (an object literal of this function, a record, a
   database row, an analyzed call's result). Objects from parameters or
   unknown calls are excluded: a getter could change between reads;
-* **return facts** of callees, as above.
+* **return facts** of callees, as above;
+* **input facts**: a fact variable whose value is a snapshot of a
+  parameter path is an input of the function (`FunctionIr::fact_inputs`):
+  a parameter never reassigned (`status#4` = `param#2`), a binding
+  destructured from one (`const { status } = params`), or a property of
+  the rest object of one (`data#7.status` = `param#1.status` for
+  `const { id, teamId, ...data } = params`, unless `status` is one of the
+  keys taken out). The destructured parameter must have no reference
+  other than property reads and that destructuring; the rest object no
+  reference other than property reads and the payload of a Drizzle-shaped
+  write (`.update(t).set(data)`, `.insert(t).values(data)`). Each call
+  records its arguments as the callee receives them
+  (`LocalCall::entry_values`, taken before the call marks objects it
+  passes as escaped: primitive literals, the caller's parameter paths,
+  closed object-literal records of those). On instantiation, an arm or
+  exit fact on an input whose argument is a literal that contradicts it
+  becomes `Never`, so that arm is infeasible for that call only. An input
+  the caller forwards from its own parameters becomes an input of the
+  caller's expansion and is decided one call further out, provided that
+  parameter still holds what the caller received: a destructuring
+  pattern, or a binding never reassigned, written through or
+  method-called, whose only reference other than property reads and write
+  payloads is the forwarding call. A property the
+  argument does not list stays undecided (prototype properties are not
+  modeled).
 
 Facts remain literal (in)equality, truthiness and object-ness, compared
 pairwise; there is no constraint solver. When leaving an inlined call,

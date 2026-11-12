@@ -142,6 +142,7 @@ impl Builder {
             transactions: self.transactions,
             body,
             returns: None,
+            fact_inputs: Default::default(),
         }
     }
 }

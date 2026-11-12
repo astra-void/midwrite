@@ -143,7 +143,9 @@ impl<'a> Lowerer<'_> {
             if let Some(initializer) = &param.initializer {
                 value.join(&self.eval(initializer));
             }
+            self.binding_snapshot = true;
             self.bind_pattern(&param.pattern, value);
+            self.binding_snapshot = false;
         }
         if let Some(rest) = &params.rest {
             self.bind_pattern(&rest.rest.argument, AbsValue::top());
@@ -156,18 +158,41 @@ impl<'a> Lowerer<'_> {
         match pattern {
             BindingPattern::BindingIdentifier(id) => {
                 if let Some(symbol) = id.symbol_id.get() {
+                    if self.binding_snapshot && is_parameter_path(&value) {
+                        self.param_snapshots.insert(symbol, value.clone());
+                    }
                     self.vs.env_mut().set(key(symbol), value);
                 }
             }
             BindingPattern::ObjectPattern(object) => {
+                let mut taken = Some(Vec::new());
                 for property in &object.properties {
                     let part = match property.key.static_name().filter(|_| !property.computed) {
-                        Some(name) => self.vs.heap.read(&value, &name.display().to_string()),
-                        None => AbsValue::top(),
+                        Some(name) => {
+                            let name = name.display().to_string();
+                            if let Some(taken) = &mut taken {
+                                taken.push(name.clone());
+                            }
+                            self.vs.heap.read(&value, &name)
+                        }
+                        None => {
+                            taken = None;
+                            AbsValue::top()
+                        }
                     };
                     self.bind_pattern(&property.value, part);
                 }
                 if let Some(rest) = &object.rest {
+                    // `...data` of a parameter snapshot: which keys it lacks
+                    // is known only when every destructured key is static.
+                    if self.binding_snapshot
+                        && is_parameter_path(&value)
+                        && let Some(taken) = taken
+                        && let BindingPattern::BindingIdentifier(id) = &rest.argument
+                        && let Some(symbol) = id.symbol_id.get()
+                    {
+                        self.rest_snapshots.insert(symbol, (value.clone(), taken));
+                    }
                     self.bind_pattern(&rest.argument, AbsValue::top());
                 }
             }
@@ -558,4 +583,12 @@ impl<'a> Lowerer<'_> {
             _ => {}
         }
     }
+}
+
+/// Whether `value` is one parameter or a property path of one
+/// (`param#1.status`).
+fn is_parameter_path(value: &AbsValue) -> bool {
+    value
+        .single()
+        .is_some_and(|atom| matches!(atom.root(), Atom::Param { .. }))
 }

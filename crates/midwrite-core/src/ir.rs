@@ -74,6 +74,15 @@ pub struct FunctionIr {
     /// when the frontend did not compute values.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub returns: Option<Box<AbsValue>>,
+    /// Fact variables whose value is a snapshot of an input taken when the
+    /// function starts or destructures a parameter (`status#4` for a
+    /// parameter `status`, `data#7.status` for the rest object of
+    /// `const { id, ...data } = params`), as an abstract value over the
+    /// parameters (`param#i`, `param#i.p`). When a call passes a literal for
+    /// that input, the facts on the variable that contradict it are
+    /// infeasible in that call. Not serialized: IR dumps keep their shape.
+    #[serde(skip)]
+    pub fact_inputs: std::collections::BTreeMap<String, AbsValue>,
 }
 
 impl FunctionIr {

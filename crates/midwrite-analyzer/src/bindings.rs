@@ -100,6 +100,10 @@ pub(crate) struct SymbolTable {
     member_reads: HashMap<SymbolId, usize>,
     /// Bindings whose methods are called (`x.p()`): the call may change them.
     member_called: HashSet<SymbolId>,
+    /// References of each binding that are the payload of a Drizzle-shaped
+    /// write (`.update(t).set(x)`, `.insert(t).values(x)`), which reads the
+    /// object's properties and never changes them.
+    payload_reads: HashMap<SymbolId, usize>,
     /// Bindings assigned from inside a function nested in the one that
     /// declares them: a call may change them at any time.
     captured_writes: HashSet<SymbolId>,
@@ -328,6 +332,20 @@ impl SymbolTable {
         total > 0
             && !self.member_called.contains(&symbol)
             && self.member_reads.get(&symbol).copied().unwrap_or(0) == total
+    }
+
+    /// The references of `symbol` that are neither property reads nor
+    /// payloads of a Drizzle-shaped write, or `None` when its properties may
+    /// change (it is method-called or written through). A binding with no
+    /// such reference keeps the property values it was initialized with.
+    pub fn other_references(&self, symbol: SymbolId, scoping: &Scoping) -> Option<usize> {
+        if self.member_called.contains(&symbol) {
+            return None;
+        }
+        let total = scoping.get_resolved_reference_ids(symbol).len();
+        let reads = self.member_reads.get(&symbol).copied().unwrap_or(0)
+            + self.payload_reads.get(&symbol).copied().unwrap_or(0);
+        total.checked_sub(reads)
     }
 
     /// Whether `symbol` is assigned from a nested function.
@@ -663,6 +681,9 @@ impl<'a> Visit<'a> for Collector<'_> {
     }
 
     fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
+        if let Some(symbol) = drizzle_payload(it).and_then(|i| resolve_reference(self.scoping, i)) {
+            *self.table.payload_reads.entry(symbol).or_default() += 1;
+        }
         if let Some(member) = it.callee.get_inner_expression().as_member_expression()
             && let Expression::Identifier(ident) = member.object().get_inner_expression()
         {
@@ -1147,5 +1168,30 @@ pub(crate) fn resolve(
         name,
         origin: Origin::Local,
         aliases,
+    }
+}
+
+/// The identifier passed as the whole payload of a Drizzle-shaped write:
+/// `x` in `.update(t).set(x)` or `.insert(t).values(x)`.
+fn drizzle_payload<'b, 'a>(call: &'b CallExpression<'a>) -> Option<&'b IdentifierReference<'a>> {
+    let Expression::StaticMemberExpression(member) = call.callee.get_inner_expression() else {
+        return None;
+    };
+    let Expression::CallExpression(builder) = member.object.get_inner_expression() else {
+        return None;
+    };
+    let Expression::StaticMemberExpression(start) = builder.callee.get_inner_expression() else {
+        return None;
+    };
+    let shaped = matches!(
+        (start.property.name.as_str(), member.property.name.as_str()),
+        ("update", "set") | ("insert", "values")
+    );
+    match call.arguments.as_slice() {
+        [argument] if shaped => match argument.as_expression()?.get_inner_expression() {
+            Expression::Identifier(ident) => Some(ident),
+            _ => None,
+        },
+        _ => None,
     }
 }

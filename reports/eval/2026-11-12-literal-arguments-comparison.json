@@ -1,0 +1,223 @@
+{
+ "kind": "finding-id-comparison",
+ "before": {
+  "binary": {
+   "path": "target/release/midwrite (main e789dd0)",
+   "sha256": "b8d057c43822ea76573e0267cd3a618c6f2d7872bfa43e4e4778788411d5d733"
+  },
+  "runAtUtc": "2026-11-12T02:25:55Z",
+  "record": "reports/eval/2026-11-12-full-dev-labels.json"
+ },
+ "after": {
+  "binary": {
+   "sha256": "384105e738781ee9b8474bf3caa008647a396a316de371f34f27442b5ffd5175"
+  },
+  "runAtUtc": "2026-11-12T03:36:14Z",
+  "record": "reports/eval/2026-11-12-literal-arguments.json"
+ },
+ "projects": {
+  "midday": {
+   "before": 232,
+   "after": 217,
+   "removed": [
+    {
+     "findingId": "3b74ca15611c4770",
+     "code": "MW1004",
+     "severity": "info",
+     "file": "apps/worker/src/processors/inbox/batch-process-matching.ts",
+     "line": 46,
+     "function": "BatchProcessMatchingProcessor.process",
+     "classification": "false-positive"
+    },
+    {
+     "findingId": "dc5ad0d481bf0d62",
+     "code": "MW1004",
+     "severity": "info",
+     "file": "apps/worker/src/processors/inbox/batch-process-matching.ts",
+     "line": 46,
+     "function": "BatchProcessMatchingProcessor.process",
+     "classification": "false-positive"
+    },
+    {
+     "findingId": "ee30546fc74edebc",
+     "code": "MW1004",
+     "severity": "info",
+     "file": "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts",
+     "line": 229,
+     "function": "MatchTransactionsBidirectionalProcessor.process",
+     "classification": null
+    },
+    {
+     "findingId": "c2b5815bff6458be",
+     "code": "MW1004",
+     "severity": "info",
+     "file": "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts",
+     "line": 229,
+     "function": "MatchTransactionsBidirectionalProcessor.process",
+     "classification": null
+    },
+    {
+     "findingId": "698789580be3ea72",
+     "code": "MW1004",
+     "severity": "info",
+     "file": "apps/worker/src/processors/inbox/process-attachment.ts",
+     "line": 507,
+     "function": "ProcessAttachmentProcessor.process",
+     "classification": null
+    },
+    {
+     "findingId": "71d513c71b8653a8",
+     "code": "MW1004",
+     "severity": "info",
+     "file": "apps/worker/src/processors/inbox/process-attachment.ts",
+     "line": 507,
+     "function": "ProcessAttachmentProcessor.process",
+     "classification": null
+    },
+    {
+     "findingId": "10ef242b309c280e",
+     "code": "MW1004",
+     "severity": "info",
+     "file": "apps/worker/src/processors/inbox/slack-upload.ts",
+     "line": 575,
+     "function": "SlackUploadProcessor.process",
+     "classification": null
+    },
+    {
+     "findingId": "861d5e6f1baf4674",
+     "code": "MW1004",
+     "severity": "info",
+     "file": "apps/worker/src/processors/inbox/slack-upload.ts",
+     "line": 575,
+     "function": "SlackUploadProcessor.process",
+     "classification": null
+    },
+    {
+     "findingId": "b900e23c8134a906",
+     "code": "MW1004",
+     "severity": "info",
+     "file": "apps/worker/src/processors/invoices/upcoming-notification.ts",
+     "line": 228,
+     "function": "InvoiceUpcomingNotificationProcessor.process",
+     "classification": null
+    },
+    {
+     "findingId": "0b2413d17787323b",
+     "code": "MW1004",
+     "severity": "info",
+     "file": "packages/bot/src/inbox-upload.ts",
+     "line": 279,
+     "function": "processInboxUpload",
+     "classification": null
+    },
+    {
+     "findingId": "398369a15d235a27",
+     "code": "MW1004",
+     "severity": "info",
+     "file": "packages/bot/src/inbox-upload.ts",
+     "line": 279,
+     "function": "processInboxUpload",
+     "classification": null
+    },
+    {
+     "findingId": "41b76f15d5a434ea",
+     "code": "MW1004",
+     "severity": "info",
+     "file": "packages/db/src/queries/inbox-matching.ts",
+     "line": 177,
+     "function": "calculateInboxSuggestions",
+     "classification": null
+    },
+    {
+     "findingId": "e06269ca1ccc2006",
+     "code": "MW1004",
+     "severity": "info",
+     "file": "packages/db/src/queries/inbox-matching.ts",
+     "line": 177,
+     "function": "calculateInboxSuggestions",
+     "classification": null
+    },
+    {
+     "findingId": "41b76f15d5a434ea-2",
+     "code": "MW1004",
+     "severity": "info",
+     "file": "packages/db/src/queries/inbox-matching.ts",
+     "line": 211,
+     "function": "calculateInboxSuggestions",
+     "classification": "unclear"
+    },
+    {
+     "findingId": "e06269ca1ccc2006-2",
+     "code": "MW1004",
+     "severity": "info",
+     "file": "packages/db/src/queries/inbox-matching.ts",
+     "line": 211,
+     "function": "calculateInboxSuggestions",
+     "classification": null
+    },
+    {
+     "findingId": "5bb512335cf623e5",
+     "code": "MW1004",
+     "severity": "info",
+     "file": "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts",
+     "line": 210,
+     "function": "run",
+     "classification": null
+    },
+    {
+     "findingId": "e210973bdbc392c1",
+     "code": "MW1004",
+     "severity": "info",
+     "file": "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts",
+     "line": 210,
+     "function": "run",
+     "classification": null
+    }
+   ],
+   "added": [
+    {
+     "findingId": "f7562c7236a52276",
+     "code": "MW1004",
+     "severity": "info",
+     "file": "packages/jobs/src/tasks/inbox/batch-process-matching.ts",
+     "line": 34,
+     "function": "run",
+     "classification": null
+    },
+    {
+     "findingId": "53f4da3bbb577624",
+     "code": "MW1002",
+     "severity": "warning",
+     "file": "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts",
+     "line": 104,
+     "function": "run",
+     "classification": null
+    }
+   ]
+  },
+  "kan": {
+   "before": 97,
+   "after": 97,
+   "removed": [],
+   "added": []
+  },
+  "dittofeed": {
+   "before": 59,
+   "after": 59,
+   "removed": [],
+   "added": []
+  },
+  "zero": {
+   "before": 30,
+   "after": 30,
+   "removed": [],
+   "added": []
+  },
+  "vercel-chatbot": {
+   "before": 13,
+   "after": 13,
+   "removed": [],
+   "added": []
+  }
+ }
+}

@@ -239,6 +239,9 @@ pub(crate) struct LocalCallSite {
     /// Abstract values of the arguments (functions by start offset).
     pub values: Vec<AbsValue>,
     pub receiver: Option<AbsValue>,
+    /// The arguments as the callee receives them
+    /// (`LocalCall::entry_values`).
+    pub entry_values: Vec<AbsValue>,
     /// The `CallResult` site of this call's value.
     pub result: Option<u64>,
     /// The caller's binding of the result (a fact variable), and whether
@@ -424,6 +427,13 @@ pub(crate) fn lower_function(
         joined_collections: joins.symbols,
         joined_maps: HashSet::new(),
         joined_bindings: HashSet::new(),
+        param_snapshots: HashMap::new(),
+        rest_snapshots: HashMap::new(),
+        binding_snapshot: false,
+        stable_params: params
+            .map(|params| stable_parameters(params, recognizer))
+            .unwrap_or_default(),
+        fact_inputs: std::cell::RefCell::new(std::collections::BTreeMap::new()),
     };
     if is_generator {
         lowerer
@@ -456,6 +466,7 @@ pub(crate) fn lower_function(
             transactions: lowerer.transactions,
             body: lowerer.out,
             returns,
+            fact_inputs: lowerer.fact_inputs.into_inner(),
         },
         consumed: lowerer.consumed,
         local_calls: lowerer.local_calls,
@@ -522,6 +533,20 @@ pub(crate) struct Lowerer<'c> {
     joined_collections: HashSet<oxc_syntax::symbol::SymbolId>,
     joined_maps: HashSet<u32>,
     joined_bindings: HashSet<oxc_syntax::symbol::SymbolId>,
+    /// Bindings that hold a snapshot of a parameter or of a property path
+    /// of one, taken where the function starts or destructures it, with
+    /// that value (`param#1.status`).
+    pub(crate) param_snapshots: HashMap<oxc_syntax::symbol::SymbolId, AbsValue>,
+    /// Rest objects of destructured parameters (`const { id, ...data } =
+    /// params`): the destructured value and the keys left out of the rest.
+    pub(crate) rest_snapshots: HashMap<oxc_syntax::symbol::SymbolId, (AbsValue, Vec<String>)>,
+    /// Set while binding a pattern whose value is read from a parameter
+    /// that nothing changes before (see [`Self::snapshot_source`]).
+    pub(crate) binding_snapshot: bool,
+    /// Parameters a call may pass on as inputs (`stable_parameters`).
+    stable_params: HashSet<u32>,
+    /// [`FunctionIr::fact_inputs`] of the facts recorded so far.
+    fact_inputs: std::cell::RefCell<std::collections::BTreeMap<String, AbsValue>>,
     next_inline_call: u32,
     transactions: Vec<TransactionInfo>,
     next_effect: u32,
@@ -891,7 +916,9 @@ impl<'a> Lowerer<'_> {
             self.visit_expression(init);
             self.pending_result = saved;
             let value = self.eval(init);
+            self.binding_snapshot = self.snapshot_source(init);
             self.bind_pattern(&declarator.id, value);
+            self.binding_snapshot = false;
             // `const q = db.update(t).set(v)` binds an unexecuted builder that
             // a later `await q` executes.
             if let BindingPattern::BindingIdentifier(id) = &declarator.id
@@ -1227,6 +1254,11 @@ impl<'a> Lowerer<'_> {
             }
         }
         let builtin = resolved.is_none() && self.builtin_of(call, receiver.as_ref()).is_some();
+        // Before `note_call` marks the objects passed as escaped.
+        let entry_values: Vec<AbsValue> = values
+            .iter()
+            .map(|v| entry_shape(&self.vs.heap.export(v), &self.stable_params))
+            .collect();
         self.note_call(call, resolved.as_ref(), &values, receiver.as_ref());
         let Some(consumer) = consumer else {
             return self.opaque();
@@ -1277,6 +1309,7 @@ impl<'a> Lowerer<'_> {
             arguments,
             values: exported,
             receiver,
+            entry_values,
             result: Some(site),
             binding,
             immediate: resolved.immediate,
@@ -2131,6 +2164,7 @@ impl<'a> Lowerer<'_> {
                 arguments: Vec::new(),
                 values: vec![AbsValue::top()],
                 receiver: None,
+                entry_values: Vec::new(),
                 result: Some(site),
                 binding: None,
                 immediate: false,
@@ -2205,6 +2239,23 @@ impl<'a> Lowerer<'_> {
         }
     }
 
+    /// Whether destructuring `init` snapshots a parameter that nothing
+    /// changes first: a parameter binding (or a binding of a property path
+    /// of one) never reassigned, never written through or method-called,
+    /// whose only reference other than property reads and database write
+    /// payloads is this one.
+    fn snapshot_source(&self, init: &Expression<'a>) -> bool {
+        let Expression::Identifier(ident) = init.get_inner_expression() else {
+            return false;
+        };
+        let scoping = self.recognizer.scoping;
+        resolve_reference(scoping, ident).is_some_and(|symbol| {
+            self.param_snapshots.contains_key(&symbol)
+                && !scoping.symbol_is_mutated(symbol)
+                && self.recognizer.table.other_references(symbol, scoping) == Some(1)
+        })
+    }
+
     /// The variable an expression names, if it is an identifier whose value
     /// cannot change within the function: declared in this file, never
     /// assigned after its declaration, and not an import (imports are live
@@ -2233,6 +2284,26 @@ impl<'a> Lowerer<'_> {
         };
         let scoping = self.recognizer.scoping;
         let symbol = resolve_reference(scoping, object)?;
+        // The rest object of a destructured parameter is a fresh plain
+        // object: its properties are those of the parameter when it was
+        // destructured, except the keys taken out. Besides property reads
+        // it may be the payload of a database write, which only reads it.
+        if let Some((source, excluded)) = self.rest_snapshots.get(&symbol) {
+            let name = member.property.name.as_str();
+            if excluded.iter().any(|key| key == name)
+                || self.recognizer.table.other_references(symbol, scoping) != Some(0)
+            {
+                return None;
+            }
+            let Variable::Free(base) = self.variable(object)? else {
+                return None;
+            };
+            let variable = format!("{base}.{name}");
+            self.fact_inputs
+                .borrow_mut()
+                .insert(variable.clone(), source.field(name));
+            return Some(Variable::Free(variable));
+        }
         if !self.recognizer.table.member_stable(symbol, scoping) {
             return None;
         }
@@ -2337,11 +2408,13 @@ impl<'a> Lowerer<'_> {
         if let Some(Atom::Lit { value }) = self.eval_ident(ident).single() {
             return Some(Variable::Constant(value.clone()));
         }
-        Some(Variable::Free(format!(
-            "{}#{}",
-            ident.name.as_str(),
-            symbol.index()
-        )))
+        let variable = format!("{}#{}", ident.name.as_str(), symbol.index());
+        if let Some(input) = self.param_snapshots.get(&symbol) {
+            self.fact_inputs
+                .borrow_mut()
+                .insert(variable.clone(), input.clone());
+        }
+        Some(Variable::Free(variable))
     }
 
     /// `await Promise.all([a, b, ...])`: the elements run concurrently.
@@ -2989,6 +3062,64 @@ fn never_unless(possible: bool) -> Vec<Fact> {
 
 /// Facts implied by `variable == literal` (`strict`: `===`) holding
 /// (`equal`) or not.
+/// An exported argument value as the callee sees it on entry
+/// (`LocalCall::entry_values`): primitive literals and parameter paths,
+/// and closed records of those; everything else unknown. Function and
+/// class atoms are dropped, so the value needs no renumbering when linked.
+/// A parameter path is kept only for parameters in `stable` (what they
+/// held on entry, see [`stable_parameters`]).
+fn entry_shape(value: &AbsValue, stable: &HashSet<u32>) -> AbsValue {
+    match value.single() {
+        Some(Atom::Lit { .. }) => value.clone(),
+        Some(atom) => match atom.root() {
+            Atom::Param { index } if stable.contains(index) => value.clone(),
+            Atom::Record { .. } => entry_record(atom, stable),
+            _ => AbsValue::top(),
+        },
+        None => AbsValue::top(),
+    }
+}
+
+fn entry_record(atom: &Atom, stable: &HashSet<u32>) -> AbsValue {
+    match atom {
+        Atom::Record { props, open: false } => AbsValue::atom(Atom::Record {
+            props: props
+                .iter()
+                .map(|(key, value)| (key.clone(), entry_shape(value, stable)))
+                .collect(),
+            open: false,
+        }),
+        _ => AbsValue::top(),
+    }
+}
+
+/// Parameters whose value at a call is still what the function received:
+/// a destructuring pattern (its parts are bound on entry), or a binding
+/// never reassigned, never written through or method-called, with at most
+/// one reference other than property reads and database write payloads
+/// (the call that forwards it).
+fn stable_parameters(params: &FormalParameters<'_>, recognizer: &Recognizer<'_>) -> HashSet<u32> {
+    let scoping = recognizer.scoping;
+    let mut out = HashSet::new();
+    for (index, param) in params.items.iter().enumerate() {
+        let stable = match &param.pattern {
+            BindingPattern::BindingIdentifier(id) => id.symbol_id.get().is_some_and(|symbol| {
+                !scoping.symbol_is_mutated(symbol)
+                    && recognizer
+                        .table
+                        .other_references(symbol, scoping)
+                        .is_some_and(|n| n <= 1)
+            }),
+            BindingPattern::ObjectPattern(_) | BindingPattern::ArrayPattern(_) => true,
+            BindingPattern::AssignmentPattern(_) => false,
+        };
+        if stable {
+            out.insert(u32::try_from(index).unwrap_or(u32::MAX));
+        }
+    }
+    out
+}
+
 fn comparison_facts(variable: Variable, literal: Literal, strict: bool, equal: bool) -> Vec<Fact> {
     let name = match variable {
         Variable::Free(name) => name,

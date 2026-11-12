@@ -900,3 +900,62 @@ fn return_facts_of_nested_calls_never_merge_away_feasible_paths() {
         ["MW1004"]
     );
 }
+
+/// A literal property of an object argument decides the callee's branch on
+/// the rest object it destructures (`const { id, teamId, ...data } =
+/// params; if (data.status === "deleted")`), also through a helper that
+/// forwards the parameter; an unknown, missing or `"deleted"` status, a
+/// parameter handed to other code first, or a forwarded parameter written
+/// through before it is forwarded, keeps the branch.
+#[test]
+fn literal_arguments_decide_callee_branches_on_destructured_parameters() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/projects/literal_argument_branch");
+    let dir = std::fs::canonicalize(dir).expect("fixture exists");
+    let config = Config::load(&dir.join("../../midwrite.json")).expect("fixture config");
+    let analysis = Analyzer::new(config)
+        .analyze_project(std::slice::from_ref(&dir))
+        .expect("project exists");
+    let diagnostics: Vec<&Diagnostic> =
+        analysis.files.iter().flat_map(|f| &f.diagnostics).collect();
+    let pairs = |function: &str| -> Vec<&'static str> {
+        let mut out: Vec<&'static str> = diagnostics
+            .iter()
+            .filter(|d| d.function == function && d.code.as_str() == "MW1004")
+            .map(|d| {
+                if d.message.contains("database.delete(attachments)") {
+                    "delete"
+                } else if d.message.contains("database.update(inbox)") {
+                    "update"
+                } else {
+                    "other"
+                }
+            })
+            .collect();
+        out.sort_unstable();
+        out
+    };
+    for function in [
+        "markAnalyzing",
+        "markPending",
+        "markPendingViaForward",
+        "archiveOnly",
+    ] {
+        assert_eq!(pairs(function), ["update"], "{function}: {diagnostics:#?}");
+    }
+    for function in [
+        "setStatus",
+        "touch",
+        "markAnalyzingAfterAudit",
+        "markPendingViaRewrite",
+    ] {
+        assert_eq!(
+            pairs(function),
+            ["delete", "update"],
+            "{function}: {diagnostics:#?}"
+        );
+    }
+    for function in ["remove", "removeViaForward", "archiveAndPurge"] {
+        assert_eq!(pairs(function), ["delete"], "{function}: {diagnostics:#?}");
+    }
+}
