@@ -430,6 +430,76 @@
    "function": "<anonymous@113:12>",
    "classification": "intended-risk",
    "notes": "Within one thread the label change comes before the KV delete (mail.ts:193-194), so the reported order is between two different threads. A thread whose snooze key survives keeps its expired wakeAt and is unsnoozed on next access or by the scheduled sweep (main.ts:996-1031). Per-thread errors are caught (mail.ts:195-198)."
+  },
+  {
+   "findingId": "6de9e53f57bb2edf",
+   "code": "MW1005",
+   "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+   "line": 120,
+   "function": "GoogleSubscriptionFactory.setupPubSubTopic",
+   "classification": "false-positive",
+   "notes": "The completed first effect is the OAuth token exchange at google-subscription.factory.ts:70, reached through resourceExists (line 107), which is only a GET lookup of the topic (line 119). Neither request leaves external state that the later topic PUT (line 120) would need to complete.",
+   "fpCause": "first effect is a token fetch / read-only lookup"
+  },
+  {
+   "findingId": "60fface403ab2ac2",
+   "code": "MW1005",
+   "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+   "line": 120,
+   "function": "GoogleSubscriptionFactory.setupPubSubTopic",
+   "classification": "false-positive",
+   "notes": "The first effect is the OAuth token POST at google-subscription.factory.ts:70, reached through resourceExists, a GET existence check (lines 106-111, 119). Stopping before the topic PUT at line 97/120 leaves nothing partial: the token is only cached in memory.",
+   "fpCause": "first effect is a token fetch / read-only lookup"
+  },
+  {
+   "findingId": "41cd6bd1955037a7",
+   "code": "MW1005",
+   "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+   "line": 157,
+   "function": "GoogleSubscriptionFactory.setTopicIamPolicy",
+   "classification": "false-positive",
+   "notes": "The first effect is the access-token fetch (google-subscription.factory.ts:70) made during the getIamPolicy read at line 139. Both are reads, and the IAM policy is changed only by the setIamPolicy call at line 157.",
+   "fpCause": "first effect is a token fetch / read-only lookup"
+  },
+  {
+   "findingId": "d8a04c789e318a5a",
+   "code": "MW1005",
+   "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+   "line": 157,
+   "function": "GoogleSubscriptionFactory.setTopicIamPolicy",
+   "classification": "false-positive",
+   "notes": "The first effect is the token fetch (google-subscription.factory.ts:70) made during the getIamPolicy GET at line 139, so it is a read with no lasting state. If the run stops before setIamPolicy (lines 97/157), the policy is simply unchanged, not half-applied.",
+   "fpCause": "first effect is a token fetch / read-only lookup"
+  },
+  {
+   "findingId": "7348a713f7f97fa9",
+   "code": "MW1005",
+   "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+   "line": 190,
+   "function": "GoogleSubscriptionFactory.createPubSubSubscription",
+   "classification": "false-positive",
+   "notes": "The first effect is the token fetch (google-subscription.factory.ts:70) made during resourceExists(url) at line 189, a GET existence check on the subscription. Nothing external changes until the PUT or modifyPushConfig request at line 190.",
+   "fpCause": "first effect is a token fetch / read-only lookup"
+  },
+  {
+   "findingId": "07ac7cc64c3409cc",
+   "code": "MW1005",
+   "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+   "line": 190,
+   "function": "GoogleSubscriptionFactory.createPubSubSubscription",
+   "classification": "false-positive",
+   "notes": "The first effect is an OAuth token fetch (line 70) made during a GET existence check (resourceExists, line 189). If the run stops before the subscription create or modify at lines 97/190, no external resource is left half-done.",
+   "fpCause": "first effect is a token fetch / read-only lookup"
+  },
+  {
+   "findingId": "3a582c35f3710521",
+   "code": "MW1005",
+   "file": "apps/server/src/lib/factories/google-subscription.factory.ts",
+   "line": 290,
+   "function": "GoogleSubscriptionFactory.subscribe",
+   "classification": "intended-risk",
+   "notes": "A failure after setupPubSubTopic (google-subscription.factory.ts:287, topic plus IAM) and before createPubSubSubscription (line 290) leaves a topic with no push subscription. It is recovered: gmail_sub_age is written only on success (line 300), the scheduled job requeues connections with no key (main.ts:1040-1050, and brain.ts:11 says failures are retried by the scheduled renewal), and subscribe re-runs idempotently (resourceExists checks, IAM set merge, modifyPushConfig).",
+   "crossRecord": true
   }
  ],
  "corrections": [
