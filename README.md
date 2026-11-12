@@ -87,8 +87,10 @@ When Midwrite reports a window, the window almost always exists. Whether it
 is a bug is a separate question, and the answer is "no" more often than
 "yes".
 
-On three held-out projects that the analyzer was never tuned against
-(Kan, Dittofeed, vercel/chatbot), Midwrite reported 127 hazards:
+The best estimate of how it behaves on code it has never seen is the last
+scoring of three projects (Kan, Dittofeed, vercel/chatbot) that were still
+held out on 2026-11-12. The analyzer had not been tuned against them at
+that point, and Midwrite reported 127 hazards:
 
 | | count | share |
 | --- | ---: | ---: |
@@ -104,25 +106,36 @@ them (see [configuration](docs/reference/configuration.md#recovery-declarations)
 
 How much to trust these numbers:
 
-* **Every label was written by AI agents (Claude), not by people.** The
-  agents that labeled findings were separate from the ones that audited the
-  code, but no human has reviewed the labels yet.
-* The 0.9 precision gate passed only after a set change. The first scoring
-  was 0.89, and one project that scored 0.60 was moved to the dev set so its
-  false positives could be fixed. The details are in the
-  [evaluation harness](docs/development/evaluation-harness.md).
-* On the dev projects, which the rules were tuned on, it was lower: 84%.
+* **There is no independent held-out set right now.** After that scoring,
+  the three projects were moved to the dev set and the analyzer was tuned
+  on their misses and false positives. On those same projects it now scores
+  98% (165/168) of windows real and 51% (86/168) likely bugs. That is a
+  tuned result and says little about your code. New held-out projects have
+  to be audited and frozen before there is a fresh estimate.
+* **Every label was written by AI agents, not by people.** The agents that
+  labeled findings were separate from the ones that audited the code, but
+  no human has reviewed the labels yet.
+* The 0.9 precision gate passed only after an earlier set change. The first
+  scoring was 0.89, and one project that scored 0.60 was moved to the dev
+  set so its false positives could be fixed.
+* On the dev projects, which the rules were tuned on before 2026-11-12, it
+  was lower: 84%.
+
+The details are in the [evaluation harness](docs/development/evaluation-harness.md).
 
 ## What it misses
 
 Recall is the weak side. Expect Midwrite to stay silent about real
 problems.
 
-* On the held-out projects it found **49 of 61** known windows (80%). That
-  denominator comes from capped AI audits of code that already uses the
-  supported stack, so the real miss rate on your code is likely higher.
-* Where effects go through helpers it can't follow, recall drops. On
+* In the last held-out scoring it found **49 of 61** known windows (80%).
+  That denominator comes from capped AI audits of code that already uses
+  the supported stack, so the real miss rate on your code is likely higher.
+* Where effects went through helpers it couldn't follow, recall dropped. On
   Dittofeed (ClickHouse and Temporal behind helpers) it found **11 of 20**.
+  After tuning on these projects it finds all 71 known windows there. That
+  shows the specific gaps were fixed, not that recall is now complete on
+  other code.
 * Anything outside the supported stack below is **not seen at all**.
 
 Common reasons it stays silent:
@@ -146,7 +159,7 @@ says so with `MW9001` instead of guessing. The full list is in
 | --- | --- |
 | Language | TypeScript (`.ts`, `.tsx`, `.mts`, `.cts`), parsed with [Oxc](https://oxc.rs) |
 | Database | **Drizzle ORM on PostgreSQL** only: writes, reads, `db.transaction(...)`, savepoints |
-| External effects | What you list in `midwrite.json`, plus built-in rules for Stripe, Resend, BullMQ, Redis (ioredis, redis, Upstash), Supabase storage and auth admin, S3, Polar, Nodemailer, SendGrid, Twilio, Vercel Blob |
+| External effects | What you list in `midwrite.json`, plus built-in rules for Stripe, Resend, BullMQ, Redis (ioredis, redis, Upstash), Supabase storage and auth admin, S3 (including multipart uploads), ClickHouse inserts, Polar, Nodemailer, SendGrid, Twilio, Vercel Blob |
 | Code structure | Functions in the same file and in imported files (relative imports, `tsconfig` `paths`, workspace packages), classes with known receivers, object services, callbacks passed to analyzed functions |
 | Platforms | Built and tested on macOS arm64 and Linux aarch64. Linux and macOS x86_64 are expected to work but have not been run. Windows is not supported. |
 

@@ -23,11 +23,15 @@ release can and cannot do, with the measured precision and recall.
 - Drizzle ORM on PostgreSQL: writes, reads, transactions, savepoints and
   writes that bypass their enclosing transaction.
 - Configured external effects, and built-in rules for common SDK clients
-  (Stripe, Resend, BullMQ, Redis, Supabase storage and auth admin, S3,
-  Polar, Nodemailer, SendGrid, Twilio, Vercel Blob), matched by provenance
-  rather than by name.
+  (Stripe, Resend, BullMQ, Redis, Supabase storage and auth admin, S3
+  including multipart `Upload`, ClickHouse `insert`, Polar, Nodemailer,
+  SendGrid, Twilio, Vercel Blob), matched by provenance rather than by name.
 - Opt-in `externalEffects[].httpMethods` to keep read-only `fetch` calls
   from matching an HTTP write rule.
+- Configuration for zero-argument factory receivers (`"getAnalytics()"`),
+  asserted `resolvedResult` values of configured operations, and an opt-in
+  `closedWorld` assumption for helpers that are only called with a
+  transaction.
 - Cross-module call summaries: relative imports, `tsconfig` `paths`,
   workspace packages, classes with known receivers, object services and
   callbacks.
@@ -38,9 +42,12 @@ release can and cannot do, with the measured precision and recall.
   project-owned harness only with `--allow-execution`), `init-replay`,
   `report`, `model-check`, `discover` and `schema`.
 - An evaluation harness with separate dev and held-out project sets
-  (`scripts/eval.py`). On held-out projects: hazard precision 96%
-  (122/127), bug precision 45% (57/127), recall 80% (49/61). All labels are
-  AI-written and have not been reviewed by people.
+  (`scripts/eval.py`). The last held-out scoring, before any tuning on those
+  projects, measured hazard precision 96% (122/127), bug precision 45%
+  (57/127) and recall 80% (49/61). Those projects have since moved to dev
+  and the analyzer was tuned on them, so there is currently no independent
+  held-out set. All labels are AI-written and have not been reviewed by
+  people.
 
 ### Known limitations
 
