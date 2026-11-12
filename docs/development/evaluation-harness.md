@@ -19,13 +19,15 @@ still scored by `scripts/eval-sets.py`. This harness scores static
 | project | set | revision | why |
 | --- | --- | --- | --- |
 | midday | dev | `51587319` | the project the rules were developed against |
-| kan (kanbn/kan) | held-out | `1cc2f332` | tRPC + repositories, email, webhooks, Stripe, S3 |
-| dittofeed | held-out | `91277939` | Postgres through `db()`, Temporal, ClickHouse, Kafka |
+| kan (kanbn/kan) | dev (since 2026-11-12) | `1cc2f332` | tRPC + repositories, email, webhooks, Stripe, S3 |
+| dittofeed | dev (since 2026-11-12) | `91277939` | Postgres through `db()`, Temporal, ClickHouse, Kafka |
 | zero (Mail-0/Zero) | dev (held-out until 2026-11-06) | `36132735` | Workers + Durable Objects, Gmail APIs, queues, R2/KV |
-| vercel-chatbot (vercel/chatbot) | held-out (since 2026-11-06) | `a8989b52` | Next.js AI chat: queries in `lib/db/queries.ts`, Vercel Blob, Redis streams and rate limit |
+| vercel-chatbot (vercel/chatbot) | dev (since 2026-11-12) | `a8989b52` | Next.js AI chat: queries in `lib/db/queries.ts`, Vercel Blob, Redis streams and rate limit |
 
-Reserve: empty; add a project before the next held-out project moves to
-dev. Every project uses Drizzle + PostgreSQL. The first
+Reserve: empty. All former held-out projects moved to dev before the
+2026-11-12 coverage fixes below; there is currently no independent held-out
+score. New independent projects must be audited and frozen before the
+held-out gate can be measured again. Every project uses Drizzle + PostgreSQL. The first
 proposed candidates (cal.com, dub, documenso, formbricks) use Prisma, which
 Midwrite does not analyze.
 
@@ -307,4 +309,133 @@ Record: [`reports/eval/2026-11-06-dev148-sdk-builtins.json`](../../reports/eval/
 
 Stage-1 gate: still PASS. Recall denominators grow when a new finding is a
 true positive outside the audit (midday 12 → 14).
+
+## Source-grounded label corrections (2026-11-12)
+
+Record: [`reports/eval/2026-11-12-label-corrections.json`](../../reports/eval/2026-11-12-label-corrections.json).
+Scored with a debug build of the current working tree. This corrects the
+evaluation labels; it does not improve analyzer coverage. No analyzer,
+configuration, finding classification or recall-matching rule changed.
+
+At Dittofeed's pinned revision `91277939`, two label problems were checked
+against the source and corrected in `corpora/eval/labels/dittofeed.json`:
+
+* KP01–KP03 pair provider delivery with `submitTrack` / `submitBatch`.
+  These helpers reach `insertUserEvents`, which writes to Kafka or
+  ClickHouse, rather than a modeled PostgreSQL commit. Their pattern was
+  corrected from B (MW1002) to E (MW1005). KP01 now matches the existing
+  MW1005 finding; KP02 and KP03 remain missed. The strict pattern/code
+  matching rule remains in place so an unrelated hazard in the same
+  function cannot satisfy the audit. KP01's auditor/labeler disagreement
+  about whether the risk is intended is retained in `reviewQueue`.
+* KP04 assumed a crash between changing a journey from Paused to Running
+  and starting its restart workflow. `upsertJourney` returns the updated
+  row from `UPDATE ... RETURNING` (`journeys.ts:1083–1141`), but the restart
+  guard requires that returned row to still be Paused while the requested
+  status is Running (`1183–1198`). The restart branch is unreachable, so
+  this is not an interrupted partial-write window. KP04 was removed from
+  the active known positives; its full original entry and the source
+  evidence are preserved in `corrections`. The existing false-positive
+  finding on this branch remains false-positive. A possible application
+  logic bug in an unreachable branch is outside this evaluation.
+
+Dittofeed was refrozen with this reason, preserving the previous input
+hashes. Other projects' frozen inputs were unchanged. Labels and these
+corrections remain AI-reviewed, without independent human validation.
+
+| project / set | hazard precision | recall | FP | FN |
+| --- | --- | --- | ---: | ---: |
+| kan | 87/91 (95.60%) | 31/33 (93.94%) | 4 | 2 |
+| dittofeed | 24/25 (96.00%) | 11/20 (55.00%) | 1 | 9 |
+| vercel-chatbot | 11/11 (100%) | 7/8 (87.50%) | 0 | 1 |
+| **held-out** | **122/127 (96.06%)** | **49/61 (80.33%)** | **5** | **12** |
+| dev | 102/121 (84.30%) | 38/54 (70.37%) | 19 | 16 |
+
+Before these label corrections, the same analyzer produced held-out
+recall 48/62 (77.42%), FP 5 and FN 14. The two fewer misses come from
+recognizing an already-detected window and removing an invalid positive,
+not from fixing analyzer misses. Dev still has 121 unlabeled and 6 unclear
+findings, excluded from precision. Stage-1 gate: PASS. The evaluation
+suite's 12 tests pass, including pattern/code, file/span and false-positive
+exclusion checks.
+
+## Effect coverage fixes and remaining false positives (2026-11-12)
+
+Records: [current scoring](../../reports/eval/2026-11-12-effect-coverage.json),
+[comparison with the corrected baseline](../../reports/eval/2026-11-12-effect-coverage-comparison.json).
+This comparison uses the same pinned Kan, Dittofeed and Chatbot sources.
+They were moved to dev **before** these results drove changes. Previous
+frozen inputs remain archived under `retired` in `FROZEN.json`.
+
+All 12 original misses are detected. Three original false-positive
+diagnostics disappear: Kan's S3 health probes, the invitation's
+success/failure branch and its transaction-only board-member helper.
+Two original false positives remain. Recognizing more operations also
+exposes an additional false-positive diagnostic on the existing unreachable
+Dittofeed restart branch; these were not suppressed or relabeled to raise
+precision.
+
+| development comparison | hazards | hazard precision | recall | FP | FN | unclear |
+| --- | ---: | --- | --- | ---: | ---: | ---: |
+| kan | 97 | 96/97 (98.97%) | 33/33 (100%) | 1 | 0 | 0 |
+| dittofeed | 61 | 56/58 (96.55%) | 30/30 (100%) | 2 | 0 | 3 |
+| vercel-chatbot | 13 | 13/13 (100%) | 8/8 (100%) | 0 | 0 | 0 |
+| **same three projects** | **171** | **165/168 (98.21%)** | **71/71 (100%)** | **3** | **0** | **3** |
+
+The before numbers were FP 5, FN 12, precision 122/127 (96.06%) and
+recall 49/61 (80.33%). Ten newly exposed true-positive findings outside
+the audit increase the recall denominator to 71. All 54 audited positives
+are also found (54/54). Fifty new diagnostics were reviewed by Codex from
+source, without blind or independent human review; three provider/error
+semantics cases remain unclear and are excluded from precision. No finding
+is unlabeled on these three projects. This is a tuned development result,
+not a held-out generalization score or runtime confirmation.
+
+The implementation changes address these causes:
+
+* Preserve synchronous promise-forwarding calls, and retain the laziness
+  of builders forwarded through them. Retain a builder argument when the
+  callee demonstrably awaits it, even when the wrapper's own effects are
+  unknown because of logging.
+* Connect single-use `const` promise collections to `Promise.all`; sample
+  a second invocation for branching inline callbacks, with separate call
+  frames. This exposes the mixed update/insert message batch.
+* Recognize AWS multipart `Upload.done`, ClickHouse `insert`, configured
+  local functions and import aliases, and configured zero-argument factory
+  receivers. Kan's broad `client.send` rule was removed so S3 command
+  provenance distinguishes writes from health probes.
+* Resolve workspace emitted exports to analyzed source using declared
+  TypeScript `outDir` and `rootDir` (or composite project's default root).
+  Missing build output alone no longer hides the template write.
+* Model an inline OpenTelemetry `startActiveSpan` callback in its lexical
+  frame, preserving captures and local returns. Cache only eight callback
+  contexts per callee; analyze excess contexts without caching instead of
+  dropping their effects. Specialized callback hazards are reported at the
+  caller that supplied the callback, without duplicating intrinsic hazards
+  through unrelated outer calls.
+* Kan opts into `closedWorld`: all observed calls to the board-member
+  helper pass `tx`, and its expanded body writes only through that same
+  parameter. Open-world, mixed-handle, escaping or unobserved helpers keep
+  their conservative standalone analysis.
+* Kan's invitation rule declares `resolvedResult: {"status": true}` from
+  the [pinned Better Auth 1.4.6 implementation](https://github.com/better-auth/better-auth/blob/v1.4.6/packages/better-auth/src/plugins/magic-link/index.ts#L217-L227).
+  It prunes only the unreachable falsy-status arm after successful
+  resolution. The real insert-before-email crash window remains reported.
+
+Remaining false-positive causes:
+
+* Kan `import.ts:260`: token re-encryption and import creation are separate
+  real writes, but their partial state is harmless and the tasks are
+  semantically independent. The analyzer does not infer this application
+  invariant from cryptographic transformations.
+* Dittofeed `journeys.ts:1194` and `:1236`: the updated status travels
+  through `UPDATE RETURNING`, a result wrapper and result transformations.
+  The analyzer still cannot establish that the Running/Paused restart
+  guard is contradictory. One operation pair now produces MW1001 and the
+  previous pair still produces MW1005. Both remain labeled false-positive.
+
+The CI evaluation job scores development projects while the held-out set
+is empty and explicitly says that no held-out gate was measured. If new
+held-out projects are added, the unchanged precision threshold and
+`--gate` checks apply again. `--gate` itself still fails on an empty set.
 

@@ -755,6 +755,10 @@ pub struct CallScope {
     /// the call is resolved, not unknown.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub inert: bool,
+    /// The enclosing caller supplied callback arguments used to specialize
+    /// this call. Internal analysis metadata, not part of the report format.
+    #[serde(skip)]
+    pub callback_context: bool,
 }
 
 /// A two-or-more-way choice (`if`, `?:`, `&&`, `||`, `??`).

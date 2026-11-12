@@ -144,9 +144,10 @@ At each call the inliner (`inline_calls_with`):
 the remaining depth only when the expansion depends on it: only
 function-valued arguments for parameters the callee may run enter the key;
 constants and handles are substituted on copy. At most 8 callback contexts
-are expanded per callee (`MAX_SPECIALIZATIONS`); beyond that the callee is
-expanded without callbacks (its parameter calls stay unknown) and the event
-is counted.
+are cached per callee (`MAX_SPECIALIZATIONS`); additional contexts are
+expanded without caching. The depth bound and recursion guard still apply.
+The specialization-limit counter records cache bypasses, rather than
+discarded callback effects. Cache occupancy must not change coverage.
 
 **Return facts.** A function's literal returns state `$ret === lit`;
 object-literal returns state `$ret` is an object and `$ret.p === lit`. When

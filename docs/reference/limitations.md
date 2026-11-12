@@ -24,6 +24,21 @@ Broad HTTP-effect rules can flag read-only network requests. The optional
 fetch-style methods; unresolved options remain unknown, and a POST query may
 still be read-only.
 
+Joined collections have a bounded source model: a single-use `const`
+initialized by `map`/`flatMap` and awaited with `Promise.all` is connected
+to its callbacks. Branching inline callbacks can be sampled for a second
+element to expose mixed update/insert batches; this does not enumerate all
+elements or completion orders. Ordinary loops remain bounded to zero or
+one iteration. Captured transaction handles in arbitrary array callbacks
+remain unsupported.
+
+`closedWorld` and `resolvedResult` are explicit configuration assumptions
+([configuration](configuration.md#factory-receivers-and-resolved-results)).
+Neither proves application invariants, library behavior, or the absence of
+callers outside the analyzed source. Unrelated but harmless writes can
+still be reported, and correlations through database-returned rows wrapped
+in result-library transformations are not generally understood.
+
 ## What any result means
 
 * Inline suppressions apply to all findings of one rule on the targeted

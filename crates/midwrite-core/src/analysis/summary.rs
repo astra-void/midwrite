@@ -46,7 +46,8 @@
 //! expansion is therefore `(callee, remaining depth, callbacks)`, where
 //! `callbacks` lists only function-valued arguments for parameters the
 //! callee may run; at most [`MAX_SPECIALIZATIONS`] distinct contexts are
-//! expanded per callee.
+//! cached per callee. Additional contexts are expanded without caching;
+//! cache capacity must not decide whether a callback's effects exist.
 //!
 //! **Argument effects.** Operations in an argument expression that only run
 //! because the callee awaits that parameter (a lazy query builder, an
@@ -71,7 +72,7 @@ use super::AnalysisOptions;
 use super::detect::{Point, replay};
 use super::paths::{self, Event};
 
-/// Most distinct callback contexts expanded per callee.
+/// Most distinct callback contexts cached per callee.
 pub const MAX_SPECIALIZATIONS: usize = 8;
 
 /// The fact variable that stands for a function's returned value in its
@@ -183,8 +184,7 @@ pub struct InlineStats {
     pub callbacks: usize,
     /// Expansions computed for a non-empty callback context.
     pub specializations: usize,
-    /// Calls expanded without their callbacks because the callee already
-    /// had too many contexts.
+    /// Callback contexts expanded without caching because the cache is full.
     pub specialization_limit: usize,
     /// Argument placeholder effects kept (the callee awaits the parameter)
     /// and dropped.
@@ -387,7 +387,7 @@ struct Inliner<'a> {
     /// callback context). Each is the expansion at every remaining depth
     /// from its `needed` depth on.
     canonical: HashMap<CanonicalKey, Rc<Summary>>,
-    /// Distinct non-empty callback contexts expanded per callee.
+    /// Distinct non-empty callback contexts retained in the cache per callee.
     contexts: HashMap<usize, HashSet<Vec<(u32, usize)>>>,
     stats: InlineStats,
     /// Per expansion in progress (innermost last): call sites it
@@ -508,6 +508,12 @@ impl<'a> Inliner<'a> {
                     .map(move |(parameter, effect)| (*effect, (call.effect, *parameter)))
             })
             .collect();
+        let mut next_call = 0;
+        visit(&original.body, &mut |node| {
+            if let Node::Call(call) = node {
+                next_call = next_call.max(call.call.0 + 1);
+            }
+        });
         let mut ids = Ids {
             next_effect: original
                 .effects()
@@ -515,8 +521,8 @@ impl<'a> Inliner<'a> {
                 .map(|effect| effect.id.0 + 1)
                 .max()
                 .unwrap_or(0),
-            // Functions are lowered without calls; every call here is new.
-            next_call: 0,
+            // Proven SDK callbacks can already contain lexical call scopes.
+            next_call,
             transactions: original.transactions.clone(),
             cut: false,
             recursive: false,
@@ -554,19 +560,19 @@ impl<'a> Inliner<'a> {
         }
     }
 
-    /// The summary of `index` for a call `depth` levels from the bound, or
-    /// `None` when the callee already has too many callback contexts.
+    /// The summary of `index` for a call `depth` levels from the bound.
+    /// Depth and recursion bound expansion; cache capacity only bounds reuse.
     fn summary(
         &mut self,
         index: usize,
         stack: &mut Vec<usize>,
         depth: usize,
         context: &Context,
-    ) -> Option<Rc<Summary>> {
+    ) -> Rc<Summary> {
         let key = (index, depth, context.key());
         if let Some(summary) = self.memo.get(&key) {
             self.stats.reused += 1;
-            return Some(Rc::clone(summary));
+            return Rc::clone(summary);
         }
         if let Some(summary) = self.canonical.get(&(index, key.2.clone()))
             && summary.expanded.needed <= depth
@@ -575,17 +581,19 @@ impl<'a> Inliner<'a> {
             self.stats.canonical_reuses += 1;
             let summary = Rc::clone(summary);
             self.replay(key, &summary);
-            return Some(summary);
+            return summary;
         }
+        let mut cache_context = true;
         if !context.callbacks.is_empty() {
             let seen = self.contexts.entry(index).or_default();
             if !seen.contains(&key.2) {
                 if seen.len() >= MAX_SPECIALIZATIONS {
                     self.stats.specialization_limit += 1;
-                    return None;
+                    cache_context = false;
+                } else {
+                    seen.insert(key.2.clone());
+                    self.stats.specializations += 1;
                 }
-                seen.insert(key.2.clone());
-                self.stats.specializations += 1;
             }
         }
         self.stats.expansions += 1;
@@ -613,7 +621,7 @@ impl<'a> Inliner<'a> {
             positions,
             calls,
         });
-        if !summary.expanded.recursive {
+        if cache_context && !summary.expanded.recursive {
             if !summary.expanded.exact {
                 self.canonical
                     .entry((index, key.2.clone()))
@@ -621,7 +629,7 @@ impl<'a> Inliner<'a> {
             }
             self.memo.insert(key, Rc::clone(&summary));
         }
-        Some(summary)
+        summary
     }
 
     /// A depth-canonical reuse for the exact `key`: the exact-key memo
@@ -873,17 +881,8 @@ impl<'a> Inliner<'a> {
                 self.options.max_call_depth
             )
         } else {
-            // Past the specialization limit, the callee is expanded without
-            // callbacks: the calls of its parameters stay unknown (the
-            // Phase 4 behavior), its other operations are kept.
-            let (summary, used) = match self.summary(index, stack, depth - 1, &callee_context) {
-                Some(summary) => (summary, callee_context.key()),
-                None => (
-                    self.summary(index, stack, depth - 1, &Context::default())
-                        .expect("the context-free expansion is never limited"),
-                    Vec::new(),
-                ),
-            };
+            let summary = self.summary(index, stack, depth - 1, &callee_context);
+            let used = callee_context.key();
             if let Some(top) = self.requests.last_mut() {
                 top.push((index, used));
             }
@@ -912,7 +911,15 @@ impl<'a> Inliner<'a> {
                 )
             } else {
                 let saved = (ids.next_effect, ids.next_call, ids.transactions.len());
-                let call = self.instantiate(caller, index, &summary, effect, site, ids);
+                let call = self.instantiate(
+                    caller,
+                    index,
+                    &summary,
+                    effect,
+                    site,
+                    ids,
+                    !callee_context.callbacks.is_empty(),
+                );
                 if has_recognized_nodes(&call.body) {
                     self.count_summarized();
                     if effect.execution == Execution::Concurrent {
@@ -932,7 +939,12 @@ impl<'a> Inliner<'a> {
                 )
             }
         };
-        not_summarized(self, Some(reason))
+        // Awaiting a parameter is source evidence independent of whether
+        // the wrapper's own effects can be summarized (for example a query
+        // helper with logging in its catch handler).
+        let mut outcome = not_summarized(self, Some(reason));
+        outcome.awaited = awaited;
+        outcome
     }
 
     /// An empty call scope for a call of an inert callee.
@@ -984,6 +996,7 @@ impl<'a> Inliner<'a> {
                 body: Vec::new(),
                 resolution: site.resolution.clone().map(Box::new),
                 inert: true,
+                callback_context: false,
             })),
             awaited,
         }
@@ -991,6 +1004,7 @@ impl<'a> Inliner<'a> {
 
     /// Copy the summary of `index` into the function being expanded, at the
     /// call `call_effect`, with fresh identifiers and the call's arguments.
+    #[allow(clippy::too_many_arguments)]
     fn instantiate(
         &self,
         caller: usize,
@@ -999,6 +1013,7 @@ impl<'a> Inliner<'a> {
         call_effect: &Effect,
         site_info: &LocalCall,
         ids: &mut Ids,
+        callback_context: bool,
     ) -> CallScope {
         let callee = &summary.expanded.function;
         let certain = &summary.certain;
@@ -1092,6 +1107,7 @@ impl<'a> Inliner<'a> {
             body: remap.nodes(&callee.body, &mut ids.next_effect),
             resolution,
             inert: false,
+            callback_context,
         }
     }
 }
@@ -1354,7 +1370,7 @@ impl Remap<'_> {
     fn execution(&self, execution: Execution) -> Execution {
         // The call is consumed, so a builder the callee returns runs.
         let execution = match execution {
-            Execution::ReturnedLazy => Execution::Returned,
+            Execution::ReturnedLazy if self.outer != Execution::ReturnedLazy => Execution::Returned,
             other => other,
         };
         match self.outer {
@@ -1450,6 +1466,7 @@ impl Remap<'_> {
                 body: self.nodes(&call.body, next_effect),
                 resolution: call.resolution.clone(),
                 inert: call.inert,
+                callback_context: call.callback_context,
             }),
             Node::Exit(exit) => Node::Exit(Exit {
                 transaction: exit.transaction.map(|id| self.transaction(id)),
@@ -1601,6 +1618,7 @@ fn with_bodies(node: &Node, f: &mut dyn FnMut(&[Node]) -> Vec<Node>) -> Node {
             body: f(&call.body),
             resolution: call.resolution.clone(),
             inert: call.inert,
+            callback_context: call.callback_context,
         }),
     }
 }
@@ -1624,7 +1642,7 @@ fn bodies(node: &Node) -> Vec<&[Node]> {
 }
 
 /// Visit every node of `nodes`, recursively.
-fn visit(nodes: &[Node], f: &mut dyn FnMut(&Node)) {
+pub(super) fn visit(nodes: &[Node], f: &mut dyn FnMut(&Node)) {
     for node in nodes {
         f(node);
         for body in bodies(node) {

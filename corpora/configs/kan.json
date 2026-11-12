@@ -1,10 +1,11 @@
 {
+  "closedWorld": true,
   "databaseReceivers": ["db", "tx", "ctx.db"],
   "transactionMethods": ["transaction"],
   "externalEffects": [
     { "function": "sendEmail", "category": "email", "importedFrom": "@kan/email" },
     { "function": "sendMentionEmails", "category": "email", "importedFrom": "../utils/notifications" },
-    { "receiver": "ctx.auth.api", "method": "signInMagicLink", "category": "email" },
+    { "receiver": "ctx.auth.api", "method": "signInMagicLink", "category": "email", "resolvedResult": { "status": true } },
     { "receiver": "subscriber.subscribers", "method": "create", "category": "message-publish" },
     { "receiver": "subscriber.workflows", "method": "trigger", "category": "message-publish" },
     { "function": "sendWebhooksForWorkspace", "category": "http-request", "importedFrom": "../utils/webhook" },
@@ -14,7 +15,6 @@
     { "receiver": "stripe.checkout.sessions", "method": "create", "category": "payment" },
     { "receiver": "stripe.billingPortal.sessions", "method": "create", "category": "payment" },
     { "function": "deleteObject", "category": "file-write", "importedFrom": "@kan/shared/utils" },
-    { "receiver": "client", "method": "send", "category": "file-write" },
     { "receiver": "upload", "method": "done", "category": "file-write" }
   ],
   "exclude": [

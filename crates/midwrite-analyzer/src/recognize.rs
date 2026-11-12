@@ -85,6 +85,7 @@ pub(crate) enum Classified<'e, 'a> {
         recognition: Recognition,
         label: String,
         calls: Vec<&'e CallExpression<'a>>,
+        resolved_result: Option<serde_json::Value>,
     },
     /// `Promise.all([...])` and friends.
     Concurrent {
@@ -599,10 +600,13 @@ impl Recognizer<'_> {
                 continue;
             }
             let receiver = receiver_text(root, &segments[..length]);
-            let detail = format!(
+            let mut detail = format!(
                 "matches externalEffects entry `{rule}`; {}",
                 root_detail(resolved, &receiver, path)
             );
+            if let Some(result) = &rule.resolved_result {
+                detail.push_str(&format!("; declared resolvedResult {result} (an asserted API contract; rejected executions are not constrained)"));
+            }
             return Some(Classified::External {
                 category: rule.category,
                 best_effort: rule.is_best_effort(),
@@ -614,6 +618,7 @@ impl Recognizer<'_> {
                 },
                 label: self.label(root.start(), call),
                 calls: calls(segments),
+                resolved_result: rule.resolved_result.clone(),
             });
         }
         None
@@ -671,6 +676,7 @@ impl Recognizer<'_> {
             },
             label: self.label(root.start(), call),
             calls: calls(segments),
+            resolved_result: None,
         })
     }
 
@@ -812,13 +818,20 @@ fn match_path(
                 Origin::Unresolved | Origin::Import(_) | Origin::Local => true,
                 Origin::CallResult { .. } => !call,
                 // The function a configured call names may be declared here.
-                Origin::Contrary(what) => call && what.contains("function"),
+                Origin::Contrary(what) => {
+                    what.contains("function")
+                        && (call
+                            || (properties.is_empty()
+                                && matches!(chain.segments.first(), Some(Segment::Call(_)))))
+                }
                 _ => false,
             };
             let module_ok = imported_from.is_none_or(|module| {
                 matches!(&resolved.origin, Origin::Import(import) if import.module == module)
             });
-            first != THIS && resolved.name == first && origin_ok && module_ok
+            let name_matches = resolved.name == first
+                || (matches!(resolved.origin, Origin::Import(_)) && resolved.written == first);
+            first != THIS && name_matches && origin_ok && module_ok
         }
         (Root::Identifier(_), None) => false,
     };

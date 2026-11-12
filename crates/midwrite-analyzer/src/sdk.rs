@@ -35,6 +35,9 @@ pub(crate) enum Client {
     Polar,
     Mailer,
     S3,
+    S3Upload,
+    ClickHouse,
+    Tracer,
     Twilio,
     SendGrid,
 }
@@ -52,6 +55,9 @@ impl Client {
             Self::Polar => "a Polar client (`@polar-sh/sdk`)",
             Self::Mailer => "a nodemailer transport (`nodemailer`)",
             Self::S3 => "an AWS S3 client (`@aws-sdk/client-s3`)",
+            Self::S3Upload => "an AWS multipart upload (`@aws-sdk/lib-storage`)",
+            Self::ClickHouse => "a ClickHouse client (`@clickhouse/client`)",
+            Self::Tracer => "an OpenTelemetry tracer (`@opentelemetry/api`)",
             Self::Twilio => "a Twilio client (`twilio`)",
             Self::SendGrid => "the SendGrid mail client (`@sendgrid/mail`)",
         }
@@ -105,6 +111,17 @@ pub(crate) fn imported(module: &str, name: Option<&str>) -> Option<Imported> {
         ("nodemailer", Some("createTransport")) => Factory(Mailer),
         ("nodemailer", Some("Transporter")) => Type(Mailer),
         ("@aws-sdk/client-s3", Some("S3Client" | "S3")) => Class(S3),
+        ("@aws-sdk/lib-storage", Some("Upload")) => Class(S3Upload),
+        ("@clickhouse/client" | "@clickhouse/client-web", Some("createClient")) => {
+            Factory(ClickHouse)
+        }
+        ("@clickhouse/client" | "@clickhouse/client-web", Some("ClickHouseClient")) => {
+            Type(ClickHouse)
+        }
+        ("@opentelemetry/api", Some("trace")) => Module {
+            method: "getTracer",
+            client: Tracer,
+        },
         ("twilio", None) => Factory(Twilio),
         ("twilio", Some("Twilio")) => Class(Twilio),
         ("@sendgrid/mail", None) => Instance(SendGrid),
@@ -342,6 +359,13 @@ pub(crate) fn effect(client: Client, steps: &[Step<'_>]) -> Option<ExternalCateg
             }
         }
         Client::Mailer => (props?.is_empty() && method == "sendMail").then_some(Email),
+        // https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/Package/-aws-sdk-lib-storage/
+        Client::S3Upload => (props?.is_empty() && method == "done").then_some(FileWrite),
+        // `query`/`ping` remain reads/unknown. `command` permits arbitrary
+        // SQL, so it needs an explicit configuration rule for its semantics.
+        // https://github.com/ClickHouse/clickhouse-js
+        Client::ClickHouse => (props?.is_empty() && method == "insert").then_some(Other),
+        Client::Tracer => None,
         Client::S3 => {
             if !props?.is_empty() {
                 return None;

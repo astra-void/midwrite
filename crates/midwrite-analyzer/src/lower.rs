@@ -143,7 +143,7 @@ pub(crate) struct FactTable {
 }
 
 impl FactTable {
-    pub fn compact(&mut self, facts: BodyFacts) -> CompactFacts {
+    pub fn compact(&mut self, facts: BodyFacts, preserve_calls: bool) -> CompactFacts {
         // A body that refutes inertness by itself is not inert whatever its
         // callees are; its calls matter only when they pass one of its
         // parameters on (parameter use propagates to its callers).
@@ -151,7 +151,11 @@ impl FactTable {
         let calls = facts
             .calls
             .into_iter()
-            .filter(|call| !refuted || call.args.iter().any(|a| matches!(a, FactArg::Param(_))))
+            .filter(|call| {
+                preserve_calls
+                    || !refuted
+                    || call.args.iter().any(|a| matches!(a, FactArg::Param(_)))
+            })
             .map(|call| {
                 let target = match self.target_index.get(&call.target) {
                     Some(index) => *index,
@@ -293,6 +297,7 @@ fn may_fall_through(body: Body<'_, '_>) -> bool {
 /// What [`Lowerer::checkpoint`] saves.
 struct Checkpoint {
     next_effect: u32,
+    next_inline_call: u32,
     transactions: usize,
     local_calls: usize,
     consumed: usize,
@@ -332,6 +337,47 @@ pub(crate) fn lower_function(
     params: Option<&FormalParameters<'_>>,
     body: Body<'_, '_>,
 ) -> Lowered {
+    // A single-use collection joined by Promise.all cannot have escaped or
+    // been mutated between construction and its join. Keep its callbacks
+    // connected instead of treating the identifier as an opaque promise.
+    struct Joins<'s> {
+        scoping: &'s oxc_semantic::Scoping,
+        symbols: HashSet<oxc_syntax::symbol::SymbolId>,
+    }
+    impl<'a> Visit<'a> for Joins<'_> {
+        fn visit_await_expression(&mut self, it: &AwaitExpression<'a>) {
+            if let Expression::CallExpression(call) = it.argument.get_inner_expression()
+                && let Expression::StaticMemberExpression(member) =
+                    call.callee.get_inner_expression()
+                && member.property.name == "all"
+                && let Expression::Identifier(root) = member.object.get_inner_expression()
+                && root.name == "Promise"
+                && resolve_reference(self.scoping, root).is_none()
+                && let Some(Expression::Identifier(collection)) =
+                    call.arguments.first().and_then(Argument::as_expression)
+                && let Some(symbol) = resolve_reference(self.scoping, collection)
+                && !self.scoping.symbol_is_mutated(symbol)
+                && self.scoping.get_resolved_references(symbol).count() == 1
+            {
+                self.symbols.insert(symbol);
+            }
+            walk::walk_await_expression(self, it);
+        }
+        fn visit_function(&mut self, _: &Function<'a>, _: ScopeFlags) {}
+        fn visit_arrow_function_expression(&mut self, _: &ArrowFunctionExpression<'a>) {}
+    }
+    let mut joins = Joins {
+        scoping: recognizer.scoping,
+        symbols: HashSet::new(),
+    };
+    match body {
+        Body::Statements(statements) => {
+            for statement in statements {
+                joins.visit_statement(statement);
+            }
+        }
+        Body::Arrow(body) => joins.visit_arrow_function_body(body),
+    }
     let mut locals = LocalBindings::default();
     if let Some(params) = params {
         for (index, param) in params.items.iter().enumerate() {
@@ -367,6 +413,7 @@ pub(crate) fn lower_function(
         this_class,
         callback_depth: 0,
         next_site: 0,
+        next_inline_call: 0,
         next_opaque: 0,
         stats: ValueStats::default(),
         dry_runs: 0,
@@ -374,6 +421,9 @@ pub(crate) fn lower_function(
         read_results: HashSet::new(),
         imported_classes: HashMap::new(),
         span,
+        joined_collections: joins.symbols,
+        joined_maps: HashSet::new(),
+        joined_bindings: HashSet::new(),
     };
     if is_generator {
         lowerer
@@ -458,7 +508,10 @@ impl Consumer {
     /// by the callee's summary: the caller waits for it to finish (or, for
     /// concurrent elements, starts it together with others).
     fn summarizes_local_calls(self) -> bool {
-        matches!(self, Self::Await | Self::AsyncReturn | Self::Concurrent)
+        matches!(
+            self,
+            Self::Await | Self::AsyncReturn | Self::SyncReturn | Self::Concurrent
+        )
     }
 }
 
@@ -466,6 +519,10 @@ pub(crate) struct Lowerer<'c> {
     pub(crate) recognizer: &'c Recognizer<'c>,
     lines: &'c LineIndex<'c>,
     locals: LocalBindings,
+    joined_collections: HashSet<oxc_syntax::symbol::SymbolId>,
+    joined_maps: HashSet<u32>,
+    joined_bindings: HashSet<oxc_syntax::symbol::SymbolId>,
+    next_inline_call: u32,
     transactions: Vec<TransactionInfo>,
     next_effect: u32,
     /// Nodes of the block currently being lowered.
@@ -810,6 +867,16 @@ impl<'a> Lowerer<'_> {
                 self.bind_pattern(&declarator.id, AbsValue::lit(Literal::Undefined));
                 continue;
             };
+            if declaration.kind.is_const()
+                && let BindingPattern::BindingIdentifier(id) = &declarator.id
+                && let Some(symbol) = id.symbol_id.get()
+                && self.joined_collections.contains(&symbol)
+                && let Expression::CallExpression(call) = init.get_inner_expression()
+                && self.array_callback_target(call).is_some()
+            {
+                self.joined_maps.insert(call.span.start);
+                self.joined_bindings.insert(symbol);
+            }
             // `const result = await db.transaction(cb)`: the callback's
             // returned values tell what `result` holds afterwards.
             let saved = self.pending_result.take();
@@ -1050,6 +1117,7 @@ impl<'a> Lowerer<'_> {
                 recognition,
                 label,
                 calls,
+                resolved_result,
             } => {
                 self.arguments(&calls);
                 self.facts
@@ -1069,9 +1137,20 @@ impl<'a> Lowerer<'_> {
                     references,
                     Some(provenance),
                 );
-                AbsValue::atom(Atom::EffectResult {
-                    effect: self.next_effect - 1,
-                })
+                resolved_result
+                    .as_ref()
+                    .filter(|_| {
+                        matches!(
+                            consumer,
+                            Some(Consumer::Await | Consumer::AsyncReturn | Consumer::Concurrent)
+                        )
+                    })
+                    .map(declared_result)
+                    .unwrap_or_else(|| {
+                        AbsValue::atom(Atom::EffectResult {
+                            effect: self.next_effect - 1,
+                        })
+                    })
             }
             Classified::Concurrent { call: combinator }
                 if consumer.is_some_and(Consumer::awaits) =>
@@ -1089,6 +1168,15 @@ impl<'a> Lowerer<'_> {
     /// A call that is not a recognized operation: maybe a resolved function,
     /// method or callback, a modeled builtin, or unknown.
     fn plain_call(&mut self, call: &CallExpression<'a>, consumer: Option<Consumer>) -> AbsValue {
+        if consumer.is_some_and(Consumer::summarizes_local_calls)
+            && self.tracing_callback(call, consumer.unwrap().execution())
+        {
+            return self.opaque();
+        }
+        if self.joined_maps.contains(&call.span.start) {
+            self.array_callback(call, Execution::Concurrent, false);
+            return self.opaque();
+        }
         // `xs.forEach(fn)`, or `xs.map(fn)` whose result is not awaited:
         // the callback runs once per element and the method does not wait
         // for the promises it returns.
@@ -1154,7 +1242,11 @@ impl<'a> Lowerer<'_> {
                 "no configuration entry or supported API matches it".to_owned(),
                 label,
                 call.span,
-                consumer.execution(),
+                if consumer == Consumer::SyncReturn {
+                    Execution::ReturnedLazy
+                } else {
+                    consumer.execution()
+                },
             );
             if consumer == Consumer::Argument {
                 self.argument_placeholders
@@ -1191,6 +1283,80 @@ impl<'a> Lowerer<'_> {
             argument_effects,
         });
         AbsValue::atom(Atom::CallResult { site })
+    }
+
+    /// OpenTelemetry invokes the last argument of startActiveSpan in the
+    /// active context and returns its result. Inline an inline callback so
+    /// captured parameters remain in their enclosing frame. Other methods
+    /// and lookalike objects remain unknown.
+    fn tracing_callback(&mut self, call: &CallExpression<'a>, execution: Execution) -> bool {
+        let Expression::StaticMemberExpression(member) = call.callee.get_inner_expression() else {
+            return false;
+        };
+        let Expression::Identifier(receiver) = member.object.get_inner_expression() else {
+            return false;
+        };
+        if member.property.name != "startActiveSpan"
+            || resolve_reference(self.recognizer.scoping, receiver)
+                .and_then(|s| self.recognizer.table.sdk_client(s))
+                != Some(crate::sdk::Client::Tracer)
+        {
+            return false;
+        }
+        let Some(callback) = call
+            .arguments
+            .last()
+            .and_then(Argument::as_expression)
+            .map(Expression::get_inner_expression)
+        else {
+            return false;
+        };
+        let (body, params, is_async, span) = match callback {
+            Expression::ArrowFunctionExpression(f) => {
+                (Body::Arrow(&f.body), &f.params, f.r#async, f.span)
+            }
+            Expression::FunctionExpression(f) => {
+                let Some(body) = &f.body else {
+                    return false;
+                };
+                (
+                    Body::Statements(&body.statements),
+                    &f.params,
+                    f.r#async,
+                    f.span,
+                )
+            }
+            _ => return false,
+        };
+        for argument in call.arguments.iter().take(call.arguments.len() - 1) {
+            self.visit_argument(argument);
+        }
+        for param in &params.items {
+            self.havoc_pattern(&param.pattern);
+        }
+        let saved_async = std::mem::replace(&mut self.is_async, is_async);
+        let saved_binding = self.return_binding.take();
+        self.callback_depth += 1;
+        let nodes = self.collect(|this| this.body(body));
+        self.callback_depth -= 1;
+        self.return_binding = saved_binding;
+        self.is_async = saved_async;
+        self.consumed.push(span.start);
+        let id = midwrite_core::ir::CallId(self.next_inline_call);
+        self.next_inline_call += 1;
+        self.out.push(Node::Call(midwrite_core::ir::CallScope {
+            call: id,
+            callee: "<OpenTelemetry callback>".into(),
+            label: self.recognizer.call_label(call).into(),
+            location: self.location(call.span),
+            callee_location: self.location(span),
+            execution,
+            body: nodes,
+            resolution: None,
+            inert: false,
+            callback_context: false,
+        }));
+        true
     }
 
     /// The function a plain call `f(...)` names (a function declared in this
@@ -1728,6 +1894,7 @@ impl<'a> Lowerer<'_> {
     fn checkpoint(&self) -> Checkpoint {
         Checkpoint {
             next_effect: self.next_effect,
+            next_inline_call: self.next_inline_call,
             transactions: self.transactions.len(),
             local_calls: self.local_calls.len(),
             consumed: self.consumed.len(),
@@ -1739,6 +1906,7 @@ impl<'a> Lowerer<'_> {
 
     fn restore(&mut self, checkpoint: Checkpoint) {
         self.next_effect = checkpoint.next_effect;
+        self.next_inline_call = checkpoint.next_inline_call;
         self.transactions.truncate(checkpoint.transactions);
         self.local_calls.truncate(checkpoint.local_calls);
         self.consumed.truncate(checkpoint.consumed);
@@ -1912,7 +2080,41 @@ impl<'a> Lowerer<'_> {
                 40
             )
         );
-        let body = self.collect(|this| {
+        let mut body = self.callback_invocation(
+            target.clone(),
+            callback,
+            effect_label.clone(),
+            execution,
+            placeholder,
+        );
+        // Different elements can take different branches of an async
+        // callback. A single representative invocation cannot expose a
+        // partial batch containing both an update and an insert.
+        if execution == Execution::Concurrent && alternative_callback_paths(call) {
+            let again =
+                self.callback_invocation(target, callback, effect_label, execution, placeholder);
+            body.push(Node::Loop(Loop {
+                kind: LoopKind::Callback,
+                header: "another element of the joined collection".to_owned(),
+                location: self.location(call.span),
+                runs_at_least_once: false,
+                body: again,
+            }));
+        }
+        self.push_loop(LoopKind::Callback, call.span, callback, false, body);
+        let value = self.opaque();
+        self.call_values.insert(call.span.start, value);
+    }
+
+    fn callback_invocation(
+        &mut self,
+        target: CallTarget,
+        callback: Span,
+        effect_label: String,
+        execution: Execution,
+        placeholder: bool,
+    ) -> Vec<Node> {
+        self.collect(|this| {
             this.push_unknown(
                 UnknownReason::UnrecognizedCall,
                 "no configuration entry or supported API matches it".to_owned(),
@@ -1934,10 +2136,7 @@ impl<'a> Lowerer<'_> {
                 immediate: false,
                 argument_effects: Vec::new(),
             });
-        });
-        self.push_loop(LoopKind::Callback, call.span, callback, false, body);
-        let value = self.opaque();
-        self.call_values.insert(call.span.start, value);
+        })
     }
 
     // --- Branch facts ----------------------------------------------------
@@ -2135,6 +2334,9 @@ impl<'a> Lowerer<'_> {
         {
             return None;
         }
+        if let Some(Atom::Lit { value }) = self.eval_ident(ident).single() {
+            return Some(Variable::Constant(value.clone()));
+        }
         Some(Variable::Free(format!(
             "{}#{}",
             ident.name.as_str(),
@@ -2144,6 +2346,13 @@ impl<'a> Lowerer<'_> {
 
     /// `await Promise.all([a, b, ...])`: the elements run concurrently.
     fn concurrent(&mut self, call: &CallExpression<'a>) {
+        if let Some(Expression::Identifier(collection)) =
+            call.arguments.first().and_then(Argument::as_expression)
+            && resolve_reference(self.recognizer.scoping, collection)
+                .is_some_and(|symbol| self.joined_bindings.contains(&symbol))
+        {
+            return;
+        }
         let array = match call.arguments.first() {
             Some(Argument::ArrayExpression(array)) => array,
             // `Promise.all(xs.map(fn))`: the callback runs once per element,
@@ -2817,6 +3026,83 @@ fn comparison_facts(variable: Variable, literal: Literal, strict: bool, equal: b
 }
 
 /// Unwind a call expression that is not wrapped in an [`Expression`].
+fn declared_result(value: &serde_json::Value) -> AbsValue {
+    match value {
+        serde_json::Value::Bool(v) => AbsValue::lit(Literal::Boolean(*v)),
+        serde_json::Value::String(v) => AbsValue::lit(Literal::String(v.clone())),
+        serde_json::Value::Number(v) => {
+            v.as_f64()
+                .filter(|v| v.is_finite())
+                .map_or_else(AbsValue::top, |v| {
+                    AbsValue::lit(Literal::Number(if v == 0.0 {
+                        "0".to_owned()
+                    } else {
+                        v.to_string()
+                    }))
+                })
+        }
+        serde_json::Value::Null => AbsValue::lit(Literal::Null),
+        serde_json::Value::Object(fields) => AbsValue::atom(Atom::Record {
+            props: fields
+                .iter()
+                .map(|(name, value)| (name.clone().into_boxed_str(), declared_result(value)))
+                .collect(),
+            open: true,
+        }),
+        serde_json::Value::Array(_) => AbsValue::top(),
+    }
+}
+
+fn alternative_callback_paths(call: &CallExpression<'_>) -> bool {
+    if let Expression::StaticMemberExpression(member) = call.callee.get_inner_expression()
+        && let Expression::ArrayExpression(array) = member.object.get_inner_expression()
+        && array.elements.len() <= 1
+        && !array
+            .elements
+            .iter()
+            .any(|e| matches!(e, ArrayExpressionElement::SpreadElement(_)))
+    {
+        return false;
+    }
+    struct Paths {
+        branches: usize,
+        awaits: usize,
+    }
+    impl<'a> Visit<'a> for Paths {
+        fn visit_if_statement(&mut self, it: &oxc_ast::ast::IfStatement<'a>) {
+            self.branches += 1;
+            walk::walk_if_statement(self, it);
+        }
+        fn visit_await_expression(&mut self, it: &AwaitExpression<'a>) {
+            self.awaits += 1;
+            walk::walk_await_expression(self, it);
+        }
+        fn visit_function(&mut self, _: &Function<'a>, _: ScopeFlags) {}
+        fn visit_arrow_function_expression(&mut self, _: &ArrowFunctionExpression<'a>) {}
+    }
+    let mut paths = Paths {
+        branches: 0,
+        awaits: 0,
+    };
+    match call
+        .arguments
+        .first()
+        .and_then(Argument::as_expression)
+        .map(Expression::get_inner_expression)
+    {
+        Some(Expression::ArrowFunctionExpression(callback)) => {
+            paths.visit_arrow_function_body(&callback.body)
+        }
+        Some(Expression::FunctionExpression(callback)) => {
+            if let Some(body) = &callback.body {
+                paths.visit_function_body(body);
+            }
+        }
+        _ => return false,
+    }
+    paths.branches > 0 && paths.awaits > 1
+}
+
 fn unwind_call<'e, 'a>(call: &'e CallExpression<'a>) -> crate::recognize::Chain<'e, 'a> {
     let mut chain = unwind(&call.callee);
     chain.segments.push(crate::recognize::Segment::Call(call));

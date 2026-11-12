@@ -163,7 +163,9 @@ impl<'c> FunctionFinder<'c> {
         }
         local_calls.shrink_to_fit();
         self.local_calls.push(local_calls);
-        let facts = self.table.compact(lowered.facts);
+        let facts = self
+            .table
+            .compact(lowered.facts, self.recognizer.config.closed_world);
         self.facts.push(facts);
         self.stats.add(&lowered.stats);
         self.enclosing.push(name);

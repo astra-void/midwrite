@@ -384,7 +384,7 @@ fn analyze_source_does_not_follow_imports() {
 
 fn project(name: &str, files: &[(&str, &str)]) -> PathBuf {
     let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
-        .join("phase2")
+        .join("transactions")
         .join(name);
     let _ = std::fs::remove_dir_all(&root);
     for (path, text) in files {

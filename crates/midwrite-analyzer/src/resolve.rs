@@ -53,6 +53,9 @@ const JS_TO_TS: [(&str, &[&str]); 4] = [
 #[derive(Clone, Debug, Default)]
 struct PathOptions {
     base_url: Option<PathBuf>,
+    out_dir: Option<PathBuf>,
+    root_dir: Option<PathBuf>,
+    composite: bool,
     /// `(pattern, targets)`; targets are absolute patterns.
     paths: Vec<(String, Vec<String>)>,
 }
@@ -164,9 +167,25 @@ impl Resolver {
         };
         let mut tried = Vec::new();
         for target in &targets {
-            match self.candidates(&normalize(&package.directory.join(target)), specifier) {
+            let emitted = normalize(&package.directory.join(target));
+            match self.candidates(&emitted, specifier) {
                 Resolution::NotFound(_) => tried.push(target.clone()),
                 found => return found,
+            }
+            // Follow an emitted export back to analyzed TypeScript only
+            // when the package's compiler configuration declares the map.
+            // Never guess that a directory named "dist" means "src".
+            if let Some(options) = load_options(&package.directory.join("tsconfig.json"), 0)
+                && let Some(out_dir) = options.out_dir
+                && let Some(root_dir) = options
+                    .root_dir
+                    .or_else(|| options.composite.then(|| package.directory.clone()))
+                && let Ok(relative) = emitted.strip_prefix(&out_dir)
+            {
+                match self.candidates(&normalize(&root_dir.join(relative)), specifier) {
+                    Resolution::NotFound(_) => {}
+                    found => return found,
+                }
             }
         }
         Resolution::NotFound(if targets.is_empty() {
@@ -413,6 +432,18 @@ fn load_options(path: &Path, depth: usize) -> Option<PathOptions> {
         _ => PathOptions::default(),
     };
     let compiler = json.get("compilerOptions");
+    if let Some(Value::String(out)) = compiler.and_then(|c| c.get("outDir")) {
+        options.out_dir = Some(normalize(&directory.join(out)));
+    }
+    if let Some(Value::String(root)) = compiler.and_then(|c| c.get("rootDir")) {
+        options.root_dir = Some(normalize(&directory.join(root)));
+    }
+    if let Some(composite) = compiler
+        .and_then(|c| c.get("composite"))
+        .and_then(Value::as_bool)
+    {
+        options.composite = composite;
+    }
     if let Some(Value::String(base_url)) = compiler.and_then(|c| c.get("baseUrl")) {
         options.base_url = Some(normalize(&directory.join(base_url)));
     }

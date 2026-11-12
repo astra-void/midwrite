@@ -1,0 +1,1774 @@
+{
+  "schemaVersion": 1,
+  "kind": "midwrite.eval-report",
+  "binary": {
+    "path": "target/debug/midwrite",
+    "sha256": "d9c33096d6a0572415e8452bdb9ce453a3a7984f8e70a5800e00003f7d7616ea"
+  },
+  "runAtUtc": "2026-11-11T23:57:41Z",
+  "projects": [
+    {
+      "hazardFindings": 97,
+      "bySeverity": {
+        "error": 0,
+        "warning": 20,
+        "info": 77
+      },
+      "analysisLimitations": 38,
+      "filesAnalyzed": 374,
+      "filesFailed": 0,
+      "labels": {
+        "true-positive": 51,
+        "intended-risk": 45,
+        "false-positive": 1,
+        "unclear": 0
+      },
+      "unlabeled": 0,
+      "staleLabels": 3,
+      "recall": {
+        "found": 33,
+        "positives": 33,
+        "knownPositivesFound": [
+          "kan-KP01",
+          "kan-KP02",
+          "kan-KP03",
+          "kan-KP04",
+          "kan-KP05",
+          "kan-KP06",
+          "kan-KP07",
+          "kan-KP08",
+          "kan-KP09",
+          "kan-KP10",
+          "kan-KP11",
+          "kan-KP12",
+          "kan-KP13",
+          "kan-KP14",
+          "kan-KP15",
+          "kan-KP16",
+          "kan-KP17",
+          "kan-KP18",
+          "kan-KP19",
+          "kan-KP20",
+          "kan-KP21",
+          "kan-KP22",
+          "kan-KP23",
+          "kan-KP24",
+          "kan-KP25",
+          "kan-KP26",
+          "kan-KP27",
+          "kan-KP28",
+          "kan-KP29",
+          "kan-KP30"
+        ],
+        "knownPositivesMissed": [],
+        "truePositiveFindingsOutsideAudit": 3
+      },
+      "findings": [
+        {
+          "findingId": "fc8e3137f578c39f",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/web/src/pages/api/partner/link.ts",
+          "line": 72,
+          "function": "<anonymous@11:18>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "11727d753731af8a",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/web/src/pages/api/partner/webhook.ts",
+          "line": 97,
+          "function": "createAndLinkSlots",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "83e6e8979513e69f",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/web/src/pages/api/partner/webhook.ts",
+          "line": 239,
+          "function": "<anonymous@162:3>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "ee20e6cef0de95c6",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/web/src/pages/api/partner/webhook.ts",
+          "line": 253,
+          "function": "<anonymous@162:3>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "574be59f041f0e7e",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/web/src/pages/api/partner/webhook.ts",
+          "line": 298,
+          "function": "<anonymous@162:3>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "0d73861bb07f90db",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/web/src/pages/api/partner/webhook.ts",
+          "line": 307,
+          "function": "<anonymous@162:3>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "9303f5935fcd8c8a",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/web/src/pages/api/partner/webhook.ts",
+          "line": 321,
+          "function": "<anonymous@162:3>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "e34fc613ab846935",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/web/src/pages/api/partner/webhook.ts",
+          "line": 322,
+          "function": "<anonymous@162:3>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "eac4104f4246ba9f",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "apps/web/src/pages/api/stripe/create_checkout_session.ts",
+          "line": 128,
+          "function": "<anonymous@34:18>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "6ee9f5e8e12c956e",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/web/src/pages/api/stripe/webhook.ts",
+          "line": 87,
+          "function": "handler",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "a6167931ff4f7a4f",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "apps/web/src/pages/api/upload/attachment.ts",
+          "line": 117,
+          "function": "<anonymous@26:18>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "cf42f524fe973291",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "apps/web/src/pages/api/upload/attachment.ts",
+          "line": 134,
+          "function": "<anonymous@26:18>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "e97c1ea6b8fd1f96",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "apps/web/src/pages/api/upload/avatar.ts",
+          "line": 108,
+          "function": "<anonymous@42:18>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "4ba9500a2c1bebf3",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/attachment.ts",
+          "line": 163,
+          "function": "<anonymous@120:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "8f773f96f0e3c73b",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "packages/api/src/routers/attachment.ts",
+          "line": 217,
+          "function": "<anonymous@186:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "5b1328df1cb0659c",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/attachment.ts",
+          "line": 231,
+          "function": "<anonymous@186:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "623752443af18459",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/board.ts",
+          "line": 455,
+          "function": "<anonymous@324:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "e15677f88318801e",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/board.ts",
+          "line": 467,
+          "function": "<anonymous@324:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "1e88fa694a105567",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/board.ts",
+          "line": 560,
+          "function": "<anonymous@499:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "ef326c071561f14c",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/board.ts",
+          "line": 633,
+          "function": "<anonymous@593:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "b3a0e6ad69e38a28",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/board.ts",
+          "line": 646,
+          "function": "<anonymous@593:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "64db27528678e6b9",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/board.ts",
+          "line": 666,
+          "function": "<anonymous@593:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "00e70c8a05c55833",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 170,
+          "function": "<anonymous@65:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "a972bb4d76abaed8",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 188,
+          "function": "<anonymous@65:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "1c0d0247455aa96b",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 198,
+          "function": "<anonymous@65:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "76fd8d56ba9154f5",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 216,
+          "function": "<anonymous@65:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "efe231dc51dc29a4",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 220,
+          "function": "<anonymous@65:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "e24ecbaa6677cfa2",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 230,
+          "function": "<anonymous@65:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "fcee4cb30562793e",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 230,
+          "function": "<anonymous@65:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "525bc113eff4cfe2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 320,
+          "function": "<anonymous@276:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "dc5ff6bf22a815b0",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 328,
+          "function": "<anonymous@276:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "6c6714abe7ad5583",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 413,
+          "function": "<anonymous@358:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "dc5ff6bf22a815b0-2",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 422,
+          "function": "<anonymous@358:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "28720c179a81f5d9",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 506,
+          "function": "<anonymous@450:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "72e1f92da880447e",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 585,
+          "function": "<anonymous@533:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "70962660562eb46a",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 705,
+          "function": "<anonymous@646:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "a6dd833e6d36a4b5",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 737,
+          "function": "<anonymous@646:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "0dce9f26cd07d904",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1156,
+          "function": "<anonymous@1001:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "51bd400fa87835c3",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1156,
+          "function": "<anonymous@1001:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "5f561af2c2c65260",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1216,
+          "function": "<anonymous@1001:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "ff9412e36f3c6c1c",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1230,
+          "function": "<anonymous@1001:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "78277bcac011ef8a",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1268,
+          "function": "<anonymous@1001:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "fcee4cb30562793e-2",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1268,
+          "function": "<anonymous@1001:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "e14cd29b85203f8a",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1361,
+          "function": "<anonymous@1317:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "a411348f9bb97476",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1369,
+          "function": "<anonymous@1317:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "00e70c8a05c55833-2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1538,
+          "function": "<anonymous@1425:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "a972bb4d76abaed8-2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1545,
+          "function": "<anonymous@1425:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "1c0d0247455aa96b-2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1567,
+          "function": "<anonymous@1425:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "76fd8d56ba9154f5-2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/card.ts",
+          "line": 1577,
+          "function": "<anonymous@1425:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "574d26df36466e83",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/checklist.ts",
+          "line": 80,
+          "function": "<anonymous@42:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "2e776a600861d4f3",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/checklist.ts",
+          "line": 149,
+          "function": "<anonymous@107:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "876cae278c0401ad",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/checklist.ts",
+          "line": 207,
+          "function": "<anonymous@172:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "aaa5953e28442f6d",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/checklist.ts",
+          "line": 219,
+          "function": "<anonymous@172:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "8a186d41466c0e3f",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/checklist.ts",
+          "line": 289,
+          "function": "<anonymous@246:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "584fec210e8fb65c",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/checklist.ts",
+          "line": 372,
+          "function": "<anonymous@318:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "aa77749a5c8f2ba2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/checklist.ts",
+          "line": 387,
+          "function": "<anonymous@318:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "7e69fdcc68e8fa4f",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/checklist.ts",
+          "line": 399,
+          "function": "<anonymous@318:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "0db6f37613e964d9",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/checklist.ts",
+          "line": 464,
+          "function": "<anonymous@423:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "221cf564aa4c6cea",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 260,
+          "function": "<anonymous@229:17>",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "f322f5de643c442a",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 349,
+          "function": "importSingleBoard",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "b0f7b6257b9c45b2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 361,
+          "function": "importSingleBoard",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "77134ebef6b28627",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 382,
+          "function": "importSingleBoard",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "2aadc5212a97547b",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 406,
+          "function": "importSingleBoard",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "5384ab5884bd761e",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 455,
+          "function": "importSingleBoard",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "f9dbd0f549717e01",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 496,
+          "function": "importSingleBoard",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "2eac1a17a1dcaebd",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 526,
+          "function": "importSingleBoard",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "98bdc7ad064dc6fa",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 537,
+          "function": "<anonymous@229:17>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "0e29b03de652f57f",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 561,
+          "function": "<anonymous@229:17>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "e7279a8f270f9e27",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 828,
+          "function": "<anonymous@703:17>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "fb030db6cfd6e550",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 864,
+          "function": "<anonymous@703:17>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "3fab7d8350e68da7",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 909,
+          "function": "<anonymous@703:17>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "9df7042816167f8d",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 964,
+          "function": "<anonymous@703:17>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "d14229dfabacfa00",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 974,
+          "function": "<anonymous@703:17>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "00ce53d502483ca3",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 995,
+          "function": "<anonymous@703:17>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "274dc589fee7e643",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/import.ts",
+          "line": 1005,
+          "function": "<anonymous@703:17>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "b63998286466d6b0",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/label.ts",
+          "line": 234,
+          "function": "<anonymous@206:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "6f8a3777a760fd58",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/list.ts",
+          "line": 138,
+          "function": "<anonymous@91:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "c35d95ac6b593467",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/list.ts",
+          "line": 156,
+          "function": "<anonymous@91:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "c096c4b19cd52888",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "packages/api/src/routers/member.ts",
+          "line": 109,
+          "function": "<anonymous@49:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "fe86fd1f794c0235",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/api/src/routers/member.ts",
+          "line": 189,
+          "function": "<anonymous@49:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "aa43fc62e27d8451",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/api/src/routers/member.ts",
+          "line": 295,
+          "function": "<anonymous@232:15>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "2e7b9be756f75c99",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/member.ts",
+          "line": 486,
+          "function": "<anonymous@427:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "c096c4b19cd52888-2",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "packages/api/src/routers/member.ts",
+          "line": 704,
+          "function": "<anonymous@627:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "1b49bb4b6c55bd06",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/workspace.ts",
+          "line": 385,
+          "function": "<anonymous@300:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "d715bbc8fb44e8e5",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/workspace.ts",
+          "line": 388,
+          "function": "<anonymous@300:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "3d2b766463edeb37",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/routers/workspace.ts",
+          "line": 555,
+          "function": "<anonymous@520:15>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "45a682b82c7d5a80",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/api/src/utils/notifications.ts",
+          "line": 112,
+          "function": "sendMentionEmails",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "d44dfa3f0820589f",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "packages/api/src/utils/notifications.ts",
+          "line": 120,
+          "function": "sendMentionEmails::<anonymous@112:27>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "ef9ae70aa67571b1",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/utils/workspace.ts",
+          "line": 35,
+          "function": "cancelWorkspaceAccess",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "2c382d9a94c97b87",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "packages/auth/src/hooks.ts",
+          "line": 76,
+          "function": "after",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "75762e7727b4fcef",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/auth/src/hooks.ts",
+          "line": 106,
+          "function": "after",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "52fb1382d21b06d9",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/auth/src/hooks.ts",
+          "line": 130,
+          "function": "after",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "5e383e079218cb24",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/auth/src/plugins.ts",
+          "line": 60,
+          "function": "cancelWorkspaceAccess",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "747591607038c6a8",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/auth/src/plugins.ts",
+          "line": 141,
+          "function": "onSubscriptionComplete",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "7c36034f5768f35e",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/repository/permission.repo.ts",
+          "line": 405,
+          "function": "createRole",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "59473a530cb514aa",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/repository/workspace.repo.ts",
+          "line": 104,
+          "function": "create",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "524eca09c0497add",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/db/src/repository/workspace.repo.ts",
+          "line": 117,
+          "function": "create",
+          "classification": "true-positive"
+        }
+      ],
+      "name": "kan",
+      "set": "dev",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazardPrecision": {
+        "value": 0.9896907216494846,
+        "num": 96,
+        "den": 97
+      },
+      "bugPrecision": {
+        "value": 0.5257731958762887,
+        "num": 51,
+        "den": 97
+      },
+      "recallRatio": {
+        "value": 1.0,
+        "num": 33,
+        "den": 33
+      }
+    },
+    {
+      "hazardFindings": 61,
+      "bySeverity": {
+        "error": 0,
+        "warning": 20,
+        "info": 41
+      },
+      "analysisLimitations": 41,
+      "filesAnalyzed": 594,
+      "filesFailed": 1,
+      "labels": {
+        "true-positive": 24,
+        "intended-risk": 32,
+        "false-positive": 2,
+        "unclear": 3
+      },
+      "unlabeled": 0,
+      "staleLabels": 3,
+      "recall": {
+        "found": 30,
+        "positives": 30,
+        "knownPositivesFound": [
+          "dittofeed-KP01",
+          "dittofeed-KP02",
+          "dittofeed-KP03",
+          "dittofeed-KP05",
+          "dittofeed-KP06",
+          "dittofeed-KP07",
+          "dittofeed-KP08",
+          "dittofeed-KP09",
+          "dittofeed-KP10",
+          "dittofeed-KP11",
+          "dittofeed-KP12",
+          "dittofeed-KP13",
+          "dittofeed-KP14",
+          "dittofeed-KP15",
+          "dittofeed-KP16",
+          "dittofeed-KP17"
+        ],
+        "knownPositivesMissed": [],
+        "truePositiveFindingsOutsideAudit": 14
+      },
+      "findings": [
+        {
+          "findingId": "dd1501c6bd61005e",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/api/src/controllers/contentController.ts",
+          "line": 286,
+          "function": "contentController::<anonymous@246:5>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "5bcebdfd1952237c",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/api/src/controllers/segmentsController.ts",
+          "line": 442,
+          "function": "segmentsController::<anonymous@289:5>",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "03647486b6c2e0eb",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/apps.ts",
+          "line": 65,
+          "function": "submitTrackWithTriggers",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "0004381ff177b014",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/apps.ts",
+          "line": 118,
+          "function": "submitBatchWithTriggers",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "d86c358cb871d77d",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/bootstrap.ts",
+          "line": 135,
+          "function": "bootstrapPostgres",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "7323fd6e3fa25fbe",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/bootstrap.ts",
+          "line": 135,
+          "function": "bootstrapPostgres",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "c03554c3fe7ca3b8",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/backend-lib/src/bootstrap.ts",
+          "line": 247,
+          "function": "bootstrapPostgres",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "ee0048cc65517329",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/backend-lib/src/bootstrap.ts",
+          "line": 279,
+          "function": "bootstrapPostgres",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "58e962b9abd7a794",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/backend-lib/src/bootstrap.ts",
+          "line": 286,
+          "function": "bootstrapPostgres",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "f146afc56bc88e37",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/bootstrap.ts",
+          "line": 505,
+          "function": "bootstrapWorkspace",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "f937b45cb972bc5a",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/broadcasts.ts",
+          "line": 364,
+          "function": "triggerBroadcast",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "8af63194255c32d4",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/broadcasts/activities.ts",
+          "line": 413,
+          "function": "sendMessagesWithSender::<anonymous@196:48>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "0d3c4b2d21a3bc3f",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/computedProperties/computePropertiesIncremental.ts",
+          "line": 3683,
+          "function": "processRowsInner",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "641d7d73ce314294",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/computedProperties/computePropertiesIncremental.ts",
+          "line": 3746,
+          "function": "processRowsInner",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "1789fad002a075f2",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/computedProperties/computePropertiesWorkflow/lifecycle.ts",
+          "line": 371,
+          "function": "resetComputePropertiesWorkflows",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "b91995ef0c98df9a",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/computedProperties/computePropertiesWorkflow/lifecycle.ts",
+          "line": 371,
+          "function": "resetComputePropertiesWorkflows",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "a4a880f65a586c00",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/features.ts",
+          "line": 179,
+          "function": "removeFeatures",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "9f8483db635fdba6",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/integrations/hubspot/activities.ts",
+          "line": 170,
+          "function": "refreshToken",
+          "classification": "unclear"
+        },
+        {
+          "findingId": "3b62eaf4c168a13e",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/backend-lib/src/integrations/hubspot/activities.ts",
+          "line": 232,
+          "function": "refreshToken",
+          "classification": "unclear"
+        },
+        {
+          "findingId": "44476238f5f66c9d",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/integrations/hubspot/activities.ts",
+          "line": 797,
+          "function": "updateHubspotEmails",
+          "classification": "unclear"
+        },
+        {
+          "findingId": "ed4a3babab01f114",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/journeys.ts",
+          "line": 1194,
+          "function": "upsertJourney",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "068753260a2b6e61",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/journeys.ts",
+          "line": 1236,
+          "function": "upsertJourney",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "29694cf677dd7e5d",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/journeys.ts",
+          "line": 1236,
+          "function": "upsertJourney",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "b862be2651212aee",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/journeys/recordNodeProcessed.ts",
+          "line": 51,
+          "function": "recordNodeProcessed",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "0a33bc81d8b3fa98",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/journeys/userWorkflow/activities.ts",
+          "line": 325,
+          "function": "sendMessageWithSender",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "ece472399ebf7efb",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/journeys/userWorkflow/activities.ts",
+          "line": 385,
+          "function": "sendMessageWithSender::<anonymous@325:56>",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "c42feb08bb6a5b43",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/messaging.ts",
+          "line": 1198,
+          "function": "sendEmail",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "f4f00bf8f5777d95",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/messaging.ts",
+          "line": 1285,
+          "function": "sendEmail",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "cd318b2c2f1a14f4",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/messaging.ts",
+          "line": 1363,
+          "function": "sendEmail",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "0669c992ac579abe",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/messaging.ts",
+          "line": 1444,
+          "function": "sendEmail",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "6951a63d3fb7b3f6",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/messaging.ts",
+          "line": 1526,
+          "function": "sendEmail",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "d23493bf85bbff7c",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/messaging.ts",
+          "line": 1613,
+          "function": "sendEmail",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "873730a2491cfacf",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/messaging.ts",
+          "line": 1709,
+          "function": "sendEmail",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "0dc9dd28f65b47a7",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/messaging.ts",
+          "line": 2837,
+          "function": "batchMessageUsers",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "985208f60c8a5189",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/backend-lib/src/requestContext.ts",
+          "line": 337,
+          "function": "getMultiTenantRequestContext",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "9ce210754461e404",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/backend-lib/src/requestContext.ts",
+          "line": 353,
+          "function": "getMultiTenantRequestContext",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "30284db5b21e9bd0",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/backend-lib/src/requestContext.ts",
+          "line": 427,
+          "function": "getRequestContext",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "df60c7205bfb3d64",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/segments.ts",
+          "line": 1178,
+          "function": "deleteSegment",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "25ef4b1f2152bce2",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/segments/manualSegment/activities.ts",
+          "line": 255,
+          "function": "appendToManualSegment",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "9b8b8efa9d181686",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/segments/manualSegment/activities.ts",
+          "line": 359,
+          "function": "replaceManualSegment",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "4c333a182f17b3b6",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/segments/manualSegment/activities.ts",
+          "line": 386,
+          "function": "replaceManualSegment",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "a9c5210acd781bfd",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/segments/manualSegment/activities.ts",
+          "line": 386,
+          "function": "replaceManualSegment",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "db634001a0e83a12",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/subscriptionGroups.ts",
+          "line": 782,
+          "function": "updateUserSubscriptions",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "2f0eb517a64e6bd4",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/userProperties.ts",
+          "line": 1004,
+          "function": "deleteUserProperty",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "44fe5767e6c8b5ca",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/userPropertyIndices.ts",
+          "line": 161,
+          "function": "upsertUserPropertyIndex",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "99198abe94024c73",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/userPropertyIndices.ts",
+          "line": 171,
+          "function": "upsertUserPropertyIndex",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "ca3df0fc226b0b55",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/userPropertyIndices.ts",
+          "line": 180,
+          "function": "upsertUserPropertyIndex",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "0d484f0e0917eaf3",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/userPropertyIndices.ts",
+          "line": 226,
+          "function": "deleteUserPropertyIndex",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "2412ed6bd93ce3ec",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/userPropertyIndices.ts",
+          "line": 232,
+          "function": "deleteUserPropertyIndex",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "c9d67292f4501f0c",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/users.ts",
+          "line": 1532,
+          "function": "deleteUsers",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "9d1e0d68fc836ba7",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/backend-lib/src/users.ts",
+          "line": 1547,
+          "function": "deleteUsers",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "7a610782bf4c96b1",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/users.ts",
+          "line": 1596,
+          "function": "deleteAllUsers",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "96905e8612ed72ce",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "packages/backend-lib/src/users.ts",
+          "line": 1606,
+          "function": "deleteAllUsers",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "d6013f22d54df0bb",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/workspaces.ts",
+          "line": 59,
+          "function": "coldStoreWorkspaceEvents",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "d6013f22d54df0bb-2",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/workspaces.ts",
+          "line": 69,
+          "function": "coldStoreWorkspaceEvents",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "1128bf3043b4e960",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/workspaces.ts",
+          "line": 114,
+          "function": "restoreWorkspaceEvents",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "b11d1aeec8c028a3",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/workspaces.ts",
+          "line": 174,
+          "function": "tombstoneWorkspace",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "0bebe8faf04a1c3d",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/workspaces.ts",
+          "line": 250,
+          "function": "activateTombstonedWorkspace",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "c5231eb8137cb921",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/workspaces.ts",
+          "line": 270,
+          "function": "pauseWorkspace",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "1c385fd8b09fbecd",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/workspaces.ts",
+          "line": 292,
+          "function": "resumeWorkspace",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "04965312c322a397",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/dashboard/src/lib/oauth.ts",
+          "line": 321,
+          "function": "handleOauthCallback",
+          "classification": "true-positive"
+        }
+      ],
+      "name": "dittofeed",
+      "set": "dev",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazardPrecision": {
+        "value": 0.9655172413793104,
+        "num": 56,
+        "den": 58
+      },
+      "bugPrecision": {
+        "value": 0.41379310344827586,
+        "num": 24,
+        "den": 58
+      },
+      "recallRatio": {
+        "value": 1.0,
+        "num": 30,
+        "den": 30
+      }
+    },
+    {
+      "hazardFindings": 13,
+      "bySeverity": {
+        "error": 0,
+        "warning": 2,
+        "info": 11
+      },
+      "analysisLimitations": 3,
+      "filesAnalyzed": 141,
+      "filesFailed": 0,
+      "labels": {
+        "true-positive": 11,
+        "intended-risk": 2,
+        "false-positive": 0,
+        "unclear": 0
+      },
+      "unlabeled": 0,
+      "staleLabels": 0,
+      "recall": {
+        "found": 8,
+        "positives": 8,
+        "knownPositivesFound": [
+          "vercel-chatbot-KP01",
+          "vercel-chatbot-KP02",
+          "vercel-chatbot-KP03",
+          "vercel-chatbot-KP04",
+          "vercel-chatbot-KP05",
+          "vercel-chatbot-KP06",
+          "vercel-chatbot-KP07",
+          "vercel-chatbot-KP08"
+        ],
+        "knownPositivesMissed": [],
+        "truePositiveFindingsOutsideAudit": 0
+      },
+      "findings": [
+        {
+          "findingId": "98be7ef3c8958ebb",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "app/(chat)/api/chat/route.ts",
+          "line": 101,
+          "function": "POST",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "90b81a346055ada7",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "app/(chat)/api/chat/route.ts",
+          "line": 183,
+          "function": "POST",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "01c931ad11655434",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "app/(chat)/api/chat/route.ts",
+          "line": 352,
+          "function": "onEnd",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "907a84b237552744",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "app/(chat)/api/chat/route.ts",
+          "line": 352,
+          "function": "onEnd",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "00989cb619160167",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "app/(chat)/api/chat/route.ts",
+          "line": 415,
+          "function": "consumeSseStream",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "792a95b112f665d8",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "lib/db/queries.ts",
+          "line": 102,
+          "function": "deleteChatById",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "4dadd85b0fd6b43e",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "lib/db/queries.ts",
+          "line": 103,
+          "function": "deleteChatById",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "5b4a2af38f30fe3f",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "lib/db/queries.ts",
+          "line": 105,
+          "function": "deleteChatById",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "470b67d1ef70d529",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "lib/db/queries.ts",
+          "line": 129,
+          "function": "deleteAllChatsByUserId",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "d3bff0d90655b36b",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "lib/db/queries.ts",
+          "line": 130,
+          "function": "deleteAllChatsByUserId",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "be92cc71e5cbda3c",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "lib/db/queries.ts",
+          "line": 132,
+          "function": "deleteAllChatsByUserId",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "434057130492cb86",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "lib/db/queries.ts",
+          "line": 422,
+          "function": "deleteDocumentsByIdAfterTimestamp",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "4973a09bcadd7d32",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "lib/db/queries.ts",
+          "line": 492,
+          "function": "deleteMessagesByChatIdAfterTimestamp",
+          "classification": "true-positive"
+        }
+      ],
+      "name": "vercel-chatbot",
+      "set": "dev",
+      "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+      "hazardPrecision": {
+        "value": 1.0,
+        "num": 13,
+        "den": 13
+      },
+      "bugPrecision": {
+        "value": 0.8461538461538461,
+        "num": 11,
+        "den": 13
+      },
+      "recallRatio": {
+        "value": 1.0,
+        "num": 8,
+        "den": 8
+      }
+    }
+  ],
+  "sets": {
+    "dev": {
+      "hazardFindings": 171,
+      "labels": {
+        "true-positive": 86,
+        "intended-risk": 79,
+        "false-positive": 3,
+        "unclear": 3
+      },
+      "unlabeled": 0,
+      "hazardPrecision": {
+        "value": 0.9821428571428571,
+        "num": 165,
+        "den": 168
+      },
+      "bugPrecision": {
+        "value": 0.5119047619047619,
+        "num": 86,
+        "den": 168
+      },
+      "recall": {
+        "value": 1.0,
+        "num": 71,
+        "den": 71
+      },
+      "projectsWithoutAudit": []
+    }
+  },
+  "gate": null
+}

@@ -57,6 +57,11 @@ pub struct Config {
     /// first. `false` turns the built-ins off.
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub builtin_effects: bool,
+    /// The analyzed project contains all callers. Use observed transaction
+    /// arguments to avoid treating transaction-only helpers as root DB calls.
+    /// Leave false for libraries or projects with external/dynamic callers.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub closed_world: bool,
 }
 
 fn default_true() -> bool {
@@ -77,6 +82,7 @@ impl Default for Config {
             external_effects: default_external_effects(),
             exclude: Vec::new(),
             recovery_contracts: Vec::new(),
+            closed_world: false,
             builtin_effects: true,
         }
     }
@@ -101,6 +107,7 @@ fn default_external_effects() -> Vec<ExternalEffectRule> {
         http_methods: None,
         best_effort: false,
         recovery: None,
+        resolved_result: None,
     }]
 }
 
@@ -188,6 +195,11 @@ pub struct ExternalEffectRule {
     /// `"recovery": "bestEffort"`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recovery: Option<Recovery>,
+    /// Declared result after successful resolution, as primitive JSON or a
+    /// record of primitives. Does not constrain thrown/rejected executions.
+    /// This is an explicit API contract, not an inferred recovery guarantee.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_result: Option<serde_json::Value>,
 }
 
 impl ExternalEffectRule {
@@ -311,11 +323,23 @@ impl Config {
             }
         }
         for (index, rule) in self.external_effects.iter().enumerate() {
+            if let Some(result) = &rule.resolved_result {
+                let primitive = |v: &serde_json::Value| !v.is_object() && !v.is_array();
+                if !primitive(result)
+                    && !result
+                        .as_object()
+                        .is_some_and(|fields| fields.len() <= 16 && fields.values().all(primitive))
+                {
+                    return Err(format!(
+                        "externalEffects[{index}]: resolvedResult must be a primitive or a record of at most 16 primitive properties"
+                    ));
+                }
+            }
             match rule.target() {
                 Some(ExternalTarget::Method { receiver, method }) => {
-                    if !is_receiver_path(receiver) {
+                    if !is_receiver_path(receiver.strip_suffix("()").unwrap_or(receiver)) {
                         return Err(format!(
-                            "externalEffects[{index}]: receiver `{receiver}` must be an identifier or a dotted path of identifiers (optionally starting with `this`)"
+                            "externalEffects[{index}]: receiver `{receiver}` must be an identifier or a dotted path of identifiers (optionally starting with `this`, or ending with a zero-argument call `()` )"
                         ));
                     }
                     if !is_identifier(method) || method == THIS {

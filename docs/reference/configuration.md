@@ -39,6 +39,7 @@ their own `extraction` section ([model-check](../user-guide/model-check.md#scena
 | `exclude` | `[]` | glob patterns skipped when a directory is scanned (with `/`: relative to the scanned directory; without: each file and directory name) |
 | `recoveryContracts[]` | `[]` | function-level recovery mechanisms, below |
 | `builtinEffects` | `true` | recognize writes of well-known SDK clients without an `externalEffects` entry (below); `false` turns them off |
+| `closedWorld` | `false` | project analysis may use observed transaction arguments to refine standalone helpers; enable only when all callers are analyzed and there are no external or dynamic callers |
 
 ## Built-in SDK effects
 
@@ -56,6 +57,8 @@ are tried first.
 | `@polar-sh/sdk` | `new Polar()` | `<resource>.create/update/delete/revoke` (payment) |
 | `nodemailer` | `createTransport()` | `sendMail` (email) |
 | `@aws-sdk/client-s3` | `new S3Client()` | `send(new XCommand(...))` except `Get*`/`Head*`/`List*`/`Select*`, and v2-style `putObject`/`deleteObject`/… (file-write) |
+| `@aws-sdk/lib-storage` | `new Upload()` | `done()` (file-write) |
+| `@clickhouse/client`, `@clickhouse/client-web` | `createClient()`, `ClickHouseClient` | `insert()` (other); arbitrary SQL through `command`/`exec` requires an explicit rule |
 | `twilio` | `twilio()`, `new Twilio()` | `messages.create`, `calls.create` (other) |
 | `@sendgrid/mail` | default export | `send`, `sendMultiple` (email) |
 | `@vercel/blob` | — | `put`, `del`, `copy` (file-write) |
@@ -71,6 +74,43 @@ never matches. Recognition evidence says `built-in rule`, and its strength
 is the same as an `importedFrom` configuration match.
 
 A sample with several receivers: [`fixtures/midwrite.json`](../../fixtures/midwrite.json).
+
+## Factory receivers and resolved results
+
+An external receiver can end in a zero-argument call, just like a database
+receiver: `{"receiver":"getAnalytics()","method":"insert","category":"other"}`.
+Calls with arguments do not match that receiver. Explicit function rules
+also match local declarations and imported aliases; `importedFrom` still
+checks the exact import specifier.
+
+`resolvedResult` declares the value returned when a configured operation
+resolves successfully. It accepts primitive JSON values or a record of up
+to 16 primitive properties. For example:
+
+```json
+{"receiver":"mailer","method":"send","category":"email","resolvedResult":{"status":true}}
+```
+
+After awaiting this operation, `const { status } = ...; if (!status)` has
+an unreachable failure arm. A crash between an earlier database commit and
+the operation remains a hazard. Rejections and throws are not constrained.
+This is an asserted API contract, recorded in recognition evidence; it is
+not independently verified and must be supported by the API version in use.
+
+`closedWorld` is a separate, opt-in project assumption. A helper's
+independent-commit findings are omitted only when every recognized write
+in its expanded body uses the same parameter and every observed invocation
+passes a transaction for that parameter. Unobserved entry points, mixed
+root/transaction arguments, forwarded function values and unmatched call
+facts prevent refinement. The default remains conservative for libraries.
+
+An OpenTelemetry tracer obtained from `trace.getTracer(...)` has a built-in
+`startActiveSpan(...)` invocation contract when its package provenance is established:
+an inline callback runs in its lexical frame, and its local `return` does
+not return from the enclosing function. The API's [documented invocation
+and return behavior](https://open-telemetry.github.io/opentelemetry-js/interfaces/_opentelemetry_api._opentelemetry_api.Tracer.html)
+is the basis; tracing itself is not treated as a consistency effect. The
+callback's returned value is currently unknown to the value analysis.
 
 ## Narrowing HTTP effects
 

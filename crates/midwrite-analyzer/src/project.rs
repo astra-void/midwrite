@@ -18,7 +18,7 @@ use midwrite_core::analysis::{
     InlineStats, LocalCall, ProjectFiles, TraceOutcome, analyze_function_in, inline_calls_with,
     resolve_parameters, trace_function_in,
 };
-use midwrite_core::ir::{EffectKind, FileIr, FunctionIr};
+use midwrite_core::ir::{DbHandle, EffectKind, FileIr, FunctionIr};
 use midwrite_core::location::{FileId, Sources};
 use midwrite_core::report::{AnalysisCounts, FileFailure, Report, order_findings};
 use midwrite_core::trace::{FailureTrace, SkippedFinding, TraceReport};
@@ -417,6 +417,11 @@ pub(crate) fn analyze(
     let solve_start = Instant::now();
     let (solved, solve_stats) = solve(&facts, &names_of);
     let solve_time = solve_start.elapsed();
+    let mut atomic_helpers = if analyzer.config().closed_world {
+        transaction_only_helpers(&modules, &calls, &facts)
+    } else {
+        BTreeSet::new()
+    };
     drop(facts);
     drop(linker);
     // Lowering-only data is not needed past linking.
@@ -452,6 +457,9 @@ pub(crate) fn analyze(
         Some(&solved),
         options,
     );
+    // Recheck expanded bodies: a nested helper may write on a different
+    // handle. Only a single transaction parameter may own every write.
+    atomic_helpers.retain(|index| one_parameter_writes(&functions[*index]).is_some());
     drop(solved);
     counts.calls_summarized = inline.summarized;
     let inlined_at = Instant::now();
@@ -477,7 +485,7 @@ pub(crate) fn analyze(
         };
         let mut counts = AnalysisCounts::default();
         let mut pairs = Vec::new();
-        for function in &file_functions {
+        for (local, function) in file_functions.iter().enumerate() {
             if resolve_parameters(function).has_recognized_effects() {
                 counts.functions_with_effects += 1;
             }
@@ -490,12 +498,17 @@ pub(crate) fn analyze(
             counts.pruned_paths += result.pruned;
             counts.merged_paths += result.merged;
             let mut outcomes = outcomes.into_iter();
-            pairs.extend(
-                result
-                    .diagnostics
-                    .into_iter()
-                    .map(|diagnostic| (diagnostic, outcomes.next())),
-            );
+            pairs.extend(result.diagnostics.into_iter().filter_map(|diagnostic| {
+                let outcome = outcomes.next();
+                if atomic_helpers.contains(&(offsets[module_index] + local))
+                    && diagnostic.code
+                        == midwrite_core::diagnostic::DiagnosticCode::IndependentDbCommits
+                {
+                    None
+                } else {
+                    Some((diagnostic, outcome))
+                }
+            }));
         }
         let contracts = &analyzer.config().recovery_contracts;
         if !contracts.is_empty() {
@@ -681,9 +694,81 @@ fn parallel_map<T: Send, R: Send>(items: Vec<T>, f: impl Fn(T) -> R + Sync) -> V
     results.into_iter().map(|(_, result)| result).collect()
 }
 
-/// Rewrite the project-wide file ids in `functions` (declared in file `own`)
-/// to a per-file table: the file's own id becomes `None`, every other file
-/// an index into the returned list.
+/// A narrow closed-world proof: every recognized write of the helper uses
+/// one parameter, and every observed call passes a transaction for it.
+/// Calls that were not lowered (e.g. unawaited calls), forwarded function
+/// values and unobserved entry points prevent refinement. Expanded nested
+/// calls are rechecked before applying the refinement.
+fn transaction_only_helpers(
+    modules: &[LoweredModule],
+    calls: &[Vec<LocalCall>],
+    facts: &[FunctionFacts],
+) -> BTreeSet<usize> {
+    let mut atomic = BTreeSet::new();
+    let mut index = 0;
+    for module in modules {
+        for function in &module.functions {
+            let current = index;
+            index += 1;
+            let Some(parameter) = one_parameter_writes(function) else {
+                continue;
+            };
+            let incoming: Vec<_> = calls
+                .iter()
+                .flatten()
+                .filter(|c| c.callee == Some(current))
+                .collect();
+            let fact_count = facts
+                .iter()
+                .flat_map(|f| &f.calls)
+                .filter(|c| c.callee == current)
+                .count();
+            let escapes = facts
+                .iter()
+                .flat_map(|f| &f.calls)
+                .flat_map(|c| &c.args)
+                .any(|a| *a == midwrite_core::absint::summary::ArgFact::Function(current));
+            if !escapes
+                && !incoming.is_empty()
+                && fact_count == incoming.len()
+                && incoming.iter().all(|call| {
+                    matches!(
+                        call.arguments
+                            .get(parameter as usize)
+                            .and_then(Option::as_ref)
+                            .map(|a| &a.handle),
+                        Some(DbHandle::Transaction { .. })
+                    )
+                })
+            {
+                atomic.insert(current);
+            }
+        }
+    }
+    atomic
+}
+
+fn one_parameter_writes(function: &FunctionIr) -> Option<u32> {
+    if !function.transactions.is_empty() {
+        return None;
+    }
+    let mut parameter = None;
+    for effect in function.effects() {
+        match &effect.kind {
+            EffectKind::External { .. } => return None,
+            EffectKind::DatabaseWrite { handle, .. } => match handle {
+                DbHandle::Parameter { index, .. } if parameter.is_none_or(|p| p == *index) => {
+                    parameter = Some(*index)
+                }
+                _ => return None,
+            },
+            _ => {}
+        }
+    }
+    parameter
+}
+
+/// Rewrite project-wide file ids to the per-file source table.
 fn compact_sources(functions: &mut [FunctionIr], own: FileId, names: &[String]) -> Vec<String> {
     let mut referenced: BTreeSet<u32> = BTreeSet::new();
     for function in functions.iter_mut() {

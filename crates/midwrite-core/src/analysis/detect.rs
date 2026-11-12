@@ -18,7 +18,7 @@
 //! call is left to the callee's own analysis, and an operation the callee
 //! performs only on some of its paths lowers confidence.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::diagnostic::{Confidence, DiagnosticCode, PathCertainty, Policy};
 use crate::ir::{
@@ -62,6 +62,24 @@ pub(crate) enum Point<'ir> {
 }
 
 impl<'ir> Point<'ir> {
+    /// A callback supplied by the caller is absent from the callee's own
+    /// context-free analysis; its hazards must be reported at this caller.
+    fn uses_callback(&self) -> bool {
+        let callback = |occurrence: &Occurrence<'_>| {
+            occurrence.effect.summary.as_ref().is_some_and(|origin| {
+                origin.calls.iter().any(|site| {
+                    matches!(
+                        site.resolution.as_deref(),
+                        Some(crate::ir::CallResolution::Callback { .. })
+                    )
+                })
+            })
+        };
+        match self {
+            Self::Commit { writes, .. } => writes.iter().any(callback),
+            Self::External { occurrence, .. } => callback(occurrence),
+        }
+    }
     pub fn at(&self) -> usize {
         match self {
             Self::Commit { at, .. } => *at,
@@ -196,6 +214,14 @@ pub(crate) fn detect<'ir>(
 ) -> Vec<Finding<'ir>> {
     let has_recognized = function.has_recognized_effects();
     let executions = transaction_executions(function);
+    let mut callback_calls = BTreeSet::new();
+    super::summary::visit(&function.body, &mut |node| {
+        if let crate::ir::Node::Call(call) = node
+            && call.callback_context
+        {
+            callback_calls.insert(call.call);
+        }
+    });
     let mut best: BTreeMap<Key, (Rank, Finding<'ir>)> = BTreeMap::new();
     // Every relevant unknown operation of each group, in order.
     let mut grouped_unknowns: BTreeMap<Key, Vec<&'ir Effect>> = BTreeMap::new();
@@ -233,7 +259,11 @@ pub(crate) fn detect<'ir>(
                 }
             };
             let call = first.call(function);
-            if call.is_some() && call == second.call(function) {
+            if call.is_some()
+                && call == second.call(function)
+                && !(call.is_some_and(|id| callback_calls.contains(&id))
+                    && (first.uses_callback() || second.uses_callback()))
+            {
                 // Both happen inside one inlined call: the callee's own
                 // analysis reports this pair.
                 continue;

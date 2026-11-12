@@ -53,6 +53,7 @@
     {"function":"submitBatchWithTriggers","category":"message-publish"},
     {"function":"trackInternalEvents","category":"message-publish"},
     {"function":"chCommand","category":"other"},
+    {"receiver":"clickhouseClient()","method":"insert","category":"other"},
     {"function":"insertSegmentAssignments","category":"other"},
     {"function":"insertUserPropertyAssignments","category":"other"},
     {"function":"insertProcessedComputedProperties","category":"other"},
