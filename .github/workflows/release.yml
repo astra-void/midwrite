@@ -2,9 +2,9 @@
 #
 # One job per platform builds the binary that ships, both as a release
 # archive (attached to a DRAFT release that a maintainer reviews and
-# publishes by hand) and as the bare binary for the npm packages (assembled
-# and published from these artifacts with scripts/npm-cli.py). Nothing is
-# published to a package registry from here.
+# publishes by hand) and as the bare binary for the npm packages (npm/midwrite
+# and one @midwrite/cli-<os>-<cpu> package per platform, published by hand).
+# Nothing is published to a package registry from here.
 #
 # * macOS and Linux run the full test suite first. Linux ships static musl
 #   binaries, so they run on any distribution; the tests themselves run on
