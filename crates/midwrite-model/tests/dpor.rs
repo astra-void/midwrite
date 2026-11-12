@@ -11,7 +11,7 @@
 
 mod common;
 
-use common::por_workloads::{dpor_model, phase9_workloads, seeds, targeted_workloads};
+use common::por_workloads::{dpor_model, in_flight_workloads, seeds, targeted_workloads};
 use common::scenarios_gen::random_scenario;
 use common::*;
 use midwrite_model::explore::{
@@ -124,7 +124,7 @@ fn targeted_workloads_keep_every_terminal_state() {
 fn in_flight_and_pool_workloads_keep_every_terminal_state() {
     let mut report = String::new();
     let mut failed = Vec::new();
-    for (label, model) in phase9_workloads() {
+    for (label, model) in in_flight_workloads() {
         assert_eq!(dpor_inapplicable(&model), None, "{label}");
         match std::panic::catch_unwind(|| compare(&label, &model)) {
             Ok(Some((f, s, d))) => report.push_str(&format!(

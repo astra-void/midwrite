@@ -18,7 +18,7 @@
 mod common;
 
 use common::por_diff::{Alg, discrepancy, full, run};
-use common::por_workloads::{dpor_model, phase9_workloads, targeted_workloads};
+use common::por_workloads::{dpor_model, in_flight_workloads, targeted_workloads};
 use midwrite_model::explore::SdporConfig;
 use midwrite_model::footprint::{Access, mutation};
 use midwrite_model::model::Model;
@@ -28,7 +28,7 @@ fn corpus() -> Vec<(String, Model)> {
         .into_iter()
         .map(|(l, m)| (l.to_owned(), m))
         .collect();
-    out.extend(phase9_workloads());
+    out.extend(in_flight_workloads());
     // Fewer random seeds in a debug build (each mutant runs seven searches).
     let random = if cfg!(debug_assertions) { 25 } else { 60 };
     for seed in 1..=random {
@@ -37,16 +37,16 @@ fn corpus() -> Vec<(String, Model)> {
     out
 }
 
-/// The Phase 9 search as the new explorer expresses it: last race only, no
-/// enabling rule. (The classic search itself now handles every race.)
-const PHASE9_LIKE: SdporConfig = SdporConfig {
+/// A deliberately incomplete search: last race only, no enabling rule.
+/// The classic search itself handles every race.
+const LAST_RACE_WITHOUT_ENABLING: SdporConfig = SdporConfig {
     no_enabling_edges: true,
     defects: midwrite_model::explore::DEFECT_LAST_RACE_ONLY,
     ..SdporConfig::STATELESS
 };
 
 const ALGS: [Alg; 7] = [
-    Alg::Sdpor(PHASE9_LIKE),
+    Alg::Sdpor(LAST_RACE_WITHOUT_ENABLING),
     Alg::Sleep,
     Alg::Classic,
     Alg::Sdpor(SdporConfig::STATEFUL),

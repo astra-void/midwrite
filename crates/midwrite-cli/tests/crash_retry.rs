@@ -401,7 +401,7 @@ fn a_worker_killed_while_waiting_for_a_lock_is_rolled_back_by_postgresql() {
     );
 }
 
-/// A copy of a Phase 8 scenario with absolute paths, edited by `edit`.
+/// A copy of a crash/retry scenario with absolute paths, edited by `edit`.
 fn edited(name: &str, tag: &str, edit: impl FnOnce(&mut Value)) -> (PathBuf, PathBuf) {
     let mut doc: Value =
         serde_json::from_str(&std::fs::read_to_string(scenario(name)).unwrap()).unwrap();
@@ -793,10 +793,10 @@ fn the_postgres_js_adapter_refuses_unverified_versions() {
     );
 }
 
-/// The extracted Phase 8 models (static only): crashes, retries,
+/// The extracted crash/retry models (static only): crashes, retries,
 /// at-least-once redelivery, external effects under a deduplication
 /// contract, lock waits, generated ids.
-fn phase8_models() -> Vec<(String, midwrite_model::model::Model)> {
+fn crash_retry_models() -> Vec<(String, midwrite_model::model::Model)> {
     let mut out = Vec::new();
     let dir = repo().join("fixtures/scenarios/crash-retry");
     let mut names: Vec<_> = std::fs::read_dir(&dir)
@@ -838,7 +838,7 @@ fn reduction_reaches_every_state_of_the_full_search_with_crashes_retries_and_eff
         )
     };
     let mut compared = 0;
-    for (name, model) in phase8_models() {
+    for (name, model) in crash_retry_models() {
         let full = run(&model, false);
         let reduced = run(&model, true);
         if full.truncation.resource_limit() || reduced.truncation.resource_limit() {
@@ -874,7 +874,7 @@ fn the_html_report_escapes_crash_recovery_and_schema_fields() {
     let json = std::fs::read_to_string(
         repo().join("fixtures/reports/model-check/checkout-crash-after-charge.json"),
     )
-    .expect("the committed Phase 8 report");
+    .expect("the committed crash/retry report");
     let mut report: midwrite_model::report::ModelCheckReport = serde_json::from_str(&json).unwrap();
     let evil = "<script>alert(1)</script><img src=x onerror=alert(2)>\"'";
     let sv = report.source_verification.as_mut().unwrap();

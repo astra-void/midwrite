@@ -362,11 +362,11 @@ fn upsert_workloads() {
 }
 
 // ---------------------------------------------------------------------
-// Phase 14 Track D
+// Drizzle statement and value workloads
 // ---------------------------------------------------------------------
 
 #[path = "support/drizzle_workloads.rs"]
-mod phase14_workloads;
+mod drizzle_workloads;
 
 /// The lockstep matrix with the one difference the model states
 /// for SERIALIZABLE (`ssi_granularity_differences_only_go_one_way`):
@@ -374,7 +374,7 @@ mod phase14_workloads;
 /// abort with 40001 where the model's logical dependency graph has no
 /// cycle. Exactly that disagreement, at SERIALIZABLE only, is counted
 /// separately; every other disagreement fails the test.
-fn run_matrix_phase14(configs: Vec<(String, Model)>, max_runs: usize) {
+fn run_matrix_allowing_stricter_ssi(configs: Vec<(String, Model)>, max_runs: usize) {
     let Some(mut env) = env_or_skip() else { return };
     eprintln!("PostgreSQL: {}", env.version());
     let mut bad = Vec::new();
@@ -463,14 +463,14 @@ fn run_matrix_phase14(configs: Vec<(String, Model)>, max_runs: usize) {
 fn multi_row_insert_workloads() {
     let mut configs = Vec::new();
     for iso in ["read-committed", "repeatable-read", "serializable"] {
-        for (label, a, b) in phase14_workloads::insert_workloads() {
+        for (label, a, b) in drizzle_workloads::insert_workloads() {
             configs.push((
                 format!("multi-row/{label}/{iso}"),
-                phase14_workloads::insert_pair(iso, a, b),
+                drizzle_workloads::insert_pair(iso, a, b),
             ));
         }
     }
-    run_matrix_phase14(configs, 20_000);
+    run_matrix_allowing_stricter_ssi(configs, 20_000);
 }
 
 /// `IN` lists with NULLs (Drizzle `inArray`/`notInArray`, empty lists),
@@ -479,14 +479,14 @@ fn multi_row_insert_workloads() {
 fn predicate_null_workloads() {
     let mut configs = Vec::new();
     for iso in ["read-committed", "repeatable-read", "serializable"] {
-        for (label, a, b) in phase14_workloads::predicate_workloads() {
+        for (label, a, b) in drizzle_workloads::predicate_workloads() {
             configs.push((
                 format!("predicates/{label}/{iso}"),
-                phase14_workloads::predicate_pair(iso, a, b),
+                drizzle_workloads::predicate_pair(iso, a, b),
             ));
         }
     }
-    run_matrix_phase14(configs, 20_000);
+    run_matrix_allowing_stricter_ssi(configs, 20_000);
 }
 
 /// Clock readings (`now()`, `new Date()`, `$onUpdate`), explicit time values
@@ -495,12 +495,12 @@ fn predicate_null_workloads() {
 fn timestamp_and_json_workloads() {
     let mut configs = Vec::new();
     for iso in ["read-committed", "repeatable-read", "serializable"] {
-        for (label, a, b) in phase14_workloads::value_workloads() {
+        for (label, a, b) in drizzle_workloads::value_workloads() {
             configs.push((
                 format!("values/{label}/{iso}"),
-                phase14_workloads::value_pair(iso, a, b),
+                drizzle_workloads::value_pair(iso, a, b),
             ));
         }
     }
-    run_matrix_phase14(configs, 20_000);
+    run_matrix_allowing_stricter_ssi(configs, 20_000);
 }

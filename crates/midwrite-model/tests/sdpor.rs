@@ -12,7 +12,7 @@
 
 mod common;
 
-use common::por_workloads::{dpor_model, phase9_workloads, seeds, targeted_workloads};
+use common::por_workloads::{dpor_model, in_flight_workloads, seeds, targeted_workloads};
 use midwrite_model::explore::{
     ExploreOptions, ExploreResult, SdporConfig, dpor_inapplicable, explore_dpor, explore_sdpor,
     explore_with,
@@ -136,10 +136,10 @@ fn targeted_workloads_keep_every_terminal_state() {
 }
 
 #[test]
-fn phase9_and_pool_workloads_keep_every_terminal_state() {
+fn in_flight_and_pool_workloads_keep_every_terminal_state() {
     let mut report = String::new();
     let mut failed = Vec::new();
-    for (label, model) in phase9_workloads() {
+    for (label, model) in in_flight_workloads() {
         assert_eq!(dpor_inapplicable(&model), None, "{label}");
         match std::panic::catch_unwind(|| compare(&label, &model, true)) {
             Ok(Some(row)) => {

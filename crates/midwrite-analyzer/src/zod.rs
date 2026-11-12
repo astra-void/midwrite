@@ -876,7 +876,7 @@ mod tests {
     }
 
     #[test]
-    fn phase16_constructs_are_read_with_their_version() {
+    fn extended_schemas_are_read_with_their_version() {
         assert_eq!(
             schema_in(
                 "z.strictObject({ id: z.uuid(), role: z.enum(['a', 'b']).default('a'), note: z.string().nullish() })",

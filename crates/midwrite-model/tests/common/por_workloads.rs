@@ -1,6 +1,6 @@
 //! Workloads shared by the reduction differential tests (classic DPOR,
-//! source-set DPOR): the targeted Phase 6-9 workloads, the Phase 9 scenario
-//! files plus pool workloads, and the seeded random scenarios.
+//! source-set DPOR): targeted concurrency workloads, in-flight scenario
+//! files plus pool workloads, and seeded random scenarios.
 #![allow(dead_code)]
 
 use super::scenarios_gen::random_scenario;
@@ -55,10 +55,10 @@ pub fn targeted_workloads() -> Vec<(&'static str, Model)> {
         .collect()
 }
 
-/// The Phase 9 model scenarios (`fixtures/model/in-flight`) and
+/// The in-flight model scenarios (`fixtures/model/in-flight`) and
 /// three tasks of one process, pooled and unpooled, with crashes and an
 /// in-flight COMMIT.
-pub fn phase9_workloads() -> Vec<(String, Model)> {
+pub fn in_flight_workloads() -> Vec<(String, Model)> {
     let dir =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/model/in-flight");
     let mut scenarios: Vec<(String, Value)> = std::fs::read_dir(&dir)

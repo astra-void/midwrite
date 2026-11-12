@@ -2,8 +2,7 @@
 //! (`docs/architecture/loops-and-errors.md`, `docs/architecture/source-extraction.md`).
 //! Active only with JavaScript value semantics
 //! ([`ExtractRequest::js_values`](midwrite_model::provider::ExtractRequest));
-//! without them the Phase 7–15 lowering (loops refused, caught errors
-//! opaque) is unchanged.
+//! without them counter loops are refused and caught errors stay opaque.
 //!
 //! **Loops.** `for (init; test; update)`, `while (test)` and
 //! `do ... while (test)` are unrolled into the existing `Let`/`JumpIf`/`Jump`
@@ -31,8 +30,8 @@
 //!   [`MAX_UNROLL_PRODUCT`] iterations: the loop is an unsupported operation.
 //! * `UNSUPPORTED`: a loop form outside the subset (`var` or destructuring in
 //!   a `for` head, `for...in`, `for await`).
-//! * `COMPLETED`: `for...of` over an array literal or a list value (Phase 7 /
-//!   Phase 14 lowering, every element visited).
+//! * `COMPLETED`: `for...of` over an array literal or a list value
+//!   (every element visited).
 //!
 //! **Caught errors.** A `catch (e)` whose body uses `e` other than in `throw
 //! e` binds the error object the application would see, when the failure's
@@ -83,27 +82,36 @@ pub const CAUGHT_PREFIX: &str = "caught-errors: ";
 /// The prefix of the request-body assumptions.
 pub const REQUEST_PREFIX: &str = "request: ";
 
-/// Phase 16 lowering state.
+/// Counter facts and the budget shared by nested loop unrollings.
 #[derive(Default)]
-pub(super) struct Phase16 {
+pub(super) struct LoopState {
     /// Locals every assignment lowered so far set to the same integer
     /// (`None`: assigned something else, or different integers).
     const_ints: HashMap<String, Option<i64>>,
     /// The product of the iteration counts of the loops being unrolled (0:
     /// none).
     unroll_product: usize,
+}
+
+/// Error inspection and the project's cached driver error shape.
+#[derive(Default)]
+pub(super) struct CaughtErrorState {
     /// `try` blocks being lowered whose handler inspects the caught error.
     pub(super) inspecting: u32,
     /// A handler inspecting a caught error was lowered (`throw x` of a local
     /// then keeps the thrown value).
     pub(super) caught_seen: bool,
-    /// Request parameters whose body was read.
-    bodies_read: HashSet<String>,
     /// The project's caught-error shape, computed once.
-    caught_shape: Option<CaughtErrors>,
+    shape: Option<CaughtErrors>,
 }
 
-impl Phase16 {
+/// Request bodies consumed while lowering an entry.
+#[derive(Default)]
+pub(super) struct RequestState {
+    bodies_read: HashSet<String>,
+}
+
+impl LoopState {
     /// Record an assignment `local = expr` in source order.
     pub(super) fn note_let(&mut self, local: &str, expr: &Expr) {
         let value = match expr {
@@ -282,7 +290,7 @@ impl Lowerer<'_> {
         self.unknown_op(m, span, why.to_owned());
     }
 
-    /// The classification of a `for...of` (Phase 7/14 lowering).
+    /// The classification of a fully traversed `for...of`.
     pub(super) fn for_of_completed(&mut self, m: &Module<'_>, span: Span, what: &str) {
         if !self.js() {
             return;
@@ -296,7 +304,7 @@ impl Lowerer<'_> {
     fn unroll(&mut self, m: &Module<'_>, lp: Loop<'_, '_>) {
         let what = lp.kind.text();
         let at = self.src(m, lp.span).label();
-        let outer = self.p16.unroll_product;
+        let outer = self.loops.unroll_product;
         let plan = self.plan(m, &lp);
         let iterations = match &plan {
             Ok(p) => p.max.min(MAX_UNROLL),
@@ -324,7 +332,7 @@ impl Lowerer<'_> {
         self.frame_mut()
             .breaks
             .push((Vec::new(), Some(Vec::new()), tries));
-        self.p16.unroll_product = product;
+        self.loops.unroll_product = product;
         let mut exits = Vec::new();
         let mut unknown_test = None;
         for k in 0..iterations {
@@ -440,7 +448,7 @@ impl Lowerer<'_> {
         for jump in breaks.into_iter().chain(exits) {
             self.patch(jump, end);
         }
-        self.p16.unroll_product = outer;
+        self.loops.unroll_product = outer;
         self.assume(classification);
     }
 
@@ -520,7 +528,7 @@ impl Lowerer<'_> {
                 "the bound `{counter}` is compared with is not a known integer constant"
             ));
         };
-        let Some(Some(start)) = self.p16.const_ints.get(&local).copied() else {
+        let Some(Some(start)) = self.loops.const_ints.get(&local).copied() else {
             return Err(format!(
                 "the value of `{counter}` when the loop starts is not a known integer constant"
             ));
@@ -659,7 +667,7 @@ impl Lowerer<'_> {
                 self.static_int(m, &u.argument).and_then(i64::checked_neg)
             }
             Expression::Identifier(id) => match self.lookup(id.name.as_str()) {
-                Some(Binding::Local(local)) => self.p16.const_ints.get(&local).copied().flatten(),
+                Some(Binding::Local(local)) => self.loops.const_ints.get(&local).copied().flatten(),
                 Some(_) => None,
                 None => match module_constant(m, id.name.as_str()) {
                     Some(Expr::Lit(Value::Int(n))) => Some(n),
@@ -813,7 +821,7 @@ impl Lowerer<'_> {
     /// postgres-js transaction through postgres-js's `begin` (the driver's
     /// `PostgresError` itself). Other versions or drivers: not verified.
     pub(super) fn caught_shape(&mut self, m: &Module<'_>) -> CaughtErrors {
-        if let Some(shape) = self.p16.caught_shape {
+        if let Some(shape) = self.caught_errors.shape {
             return shape;
         }
         let deps = nearest_dependencies(&m.abs, &self.root);
@@ -866,7 +874,7 @@ impl Lowerer<'_> {
         self.assume(format!(
             "{CAUGHT_PREFIX}{text}; only the SQLSTATE `code` of a database error and the `name`/`message` of a `throw new Error(\"...\")` are modeled, the error of any other failure (a lost connection, another `throw`) has no known property"
         ));
-        self.p16.caught_shape = Some(shape);
+        self.caught_errors.shape = Some(shape);
         shape
     }
 
@@ -885,14 +893,14 @@ impl Lowerer<'_> {
                     self.emit(m, s.span, Op::Rethrow { local });
                     return true;
                 }
-                Some(Binding::Local(local)) if self.p16.caught_seen => {
+                Some(Binding::Local(local)) if self.caught_errors.caught_seen => {
                     self.emit(m, s.span, Op::Rethrow { local });
                     return true;
                 }
                 _ => {}
             }
         }
-        if self.p16.inspecting == 0 {
+        if self.caught_errors.inspecting == 0 {
             return false;
         }
         let Some((ctor, message)) = self.builtin_error(m, &s.argument) else {
@@ -1076,7 +1084,7 @@ impl Lowerer<'_> {
                     format!("`{name}.json()` is used without `await`"),
                 ));
             }
-            if !self.p16.bodies_read.insert(local.clone()) {
+            if !self.requests.bodies_read.insert(local.clone()) {
                 return Some(self.unknown_op(
                     m,
                     call.span,

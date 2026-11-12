@@ -176,16 +176,16 @@ pub const PROTOTYPE_KEYS: &[&str] = &[
 ];
 
 impl Schema {
-    /// Whether the schema uses only the Phase 14 subset (lowered as
-    /// explicit steps by the extractor, unchanged).
-    pub fn is_phase14(&self) -> bool {
+    /// Whether the extractor can validate this schema with explicit IR steps.
+    /// Formats, integer checks, arrays and wrappers require the checked parser.
+    pub fn supports_explicit_lowering(&self) -> bool {
         match self {
             Self::Str(checks) => checks
                 .iter()
                 .all(|c| !matches!(c, StrCheck::Uuid | StrCheck::Email | StrCheck::Regex { .. })),
             Self::Num(checks) => !checks.contains(&NumCheck::Int),
             Self::Bool | Self::Literal(_) | Self::Enum(_) => true,
-            Self::Object(fields) => fields.iter().all(|(_, s)| s.is_phase14()),
+            Self::Object(fields) => fields.iter().all(|(_, s)| s.supports_explicit_lowering()),
             _ => false,
         }
     }

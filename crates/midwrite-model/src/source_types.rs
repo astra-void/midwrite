@@ -1,4 +1,4 @@
-//! Serializable types of Phase 7 source-level verification and extraction
+//! Serializable types of source-level verification and extraction
 //! reports (always compiled; the verification itself needs the `postgres`
 //! feature, see `source_verify`).
 
@@ -94,7 +94,7 @@ pub struct RunSummary {
     /// with the model (absent when the schedule has none of them).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recovery_agrees: Option<bool>,
-    /// Phase 8, recovery probes only: the run followed the model's
+    /// Recovery probes only: the run followed the model's
     /// recovery schedule, everything agreed, and the invariant HOLDS on the
     /// observed state.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -361,7 +361,7 @@ pub struct SourceVerification {
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub isolation: String,
     pub note: String,
-    /// Phase 8 evidence classification (absent for Phase 7 runs, whose
+    /// Recovery evidence classification (absent for concurrency-only runs, whose
     /// `status` keeps its meaning): `ORIGINAL_CODE_CRASH_REPRODUCED`,
     /// `ORIGINAL_CODE_RECOVERY_REPRODUCED` (a probe with a crash or retry),
     /// `ORIGINAL_CODE_INVARIANT_HELD` (a probe without one), `INCONCLUSIVE`,
@@ -435,24 +435,22 @@ pub struct ExtractionReport {
 }
 
 impl SourceVerification {
-    /// Whether any Phase 9 field is present (the report is then schema 4).
-    pub fn has_phase9_fields(&self) -> bool {
-        !self.wire_log.is_empty()
+    /// The oldest model-check report schema that can represent this evidence.
+    /// The version follows the fields present, independently of the tool version.
+    pub fn required_report_schema_version(&self) -> u32 {
+        if self.recovery.as_ref().is_some_and(|r| !r.losses.is_empty()) {
+            return 5;
+        }
+        if !self.wire_log.is_empty()
             || self.stuck.is_some()
             || !self.shared_processes.is_empty()
             || self.recovery.as_ref().is_some_and(|r| {
                 !r.completions.is_empty() || r.crashes.iter().any(|c| c.in_flight.is_some())
             })
-    }
-
-    /// Whether any Phase 10 field is present (the report is then schema 5).
-    pub fn has_phase10_fields(&self) -> bool {
-        self.recovery.as_ref().is_some_and(|r| !r.losses.is_empty())
-    }
-
-    /// Whether any Phase 8 field is present (the report is then schema 3).
-    pub fn has_phase8_fields(&self) -> bool {
-        !self.evidence.is_empty()
+        {
+            return 4;
+        }
+        if !self.evidence.is_empty()
             || !self.probe_schedule.is_empty()
             || self.recovery.is_some()
             || self.schema_fidelity.is_some()
@@ -462,5 +460,9 @@ impl SourceVerification {
                 .runs
                 .iter()
                 .any(|r| r.recovery_agrees.is_some() || r.recovery_reproduced.is_some())
+        {
+            return 3;
+        }
+        2
     }
 }

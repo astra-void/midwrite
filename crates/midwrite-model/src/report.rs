@@ -135,11 +135,11 @@ pub struct ExplorationInfo {
     /// What the stuck states are (absent when there are none).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stuck: Vec<String>,
-    /// Phase 9 (`--profile-storage`): where the memory of the visited-state
+    /// `--profile-storage`: where the memory of the visited-state
     /// structures goes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub storage: Option<crate::explore::StorageProfile>,
-    /// Phase 10 (`source-dpor` only): what the reduction did.
+    /// `source-dpor` only: what the reduction did.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reduction_metrics: Option<ReductionMetrics>,
 }
@@ -288,18 +288,18 @@ pub struct ModelCheckReport {
     pub diagnostics: Vec<ModelDiagnostic>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timing: Option<Timing>,
-    /// Phase 7 (report schema 2): extraction reports of actors selected by
+    /// Report schema 2: extraction reports of actors selected by
     /// a source selector.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extraction: Vec<crate::source_types::ExtractionReport>,
-    /// Phase 7 (report schema 2): the original-code verification.
+    /// Report schema 2: the original-code verification.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_verification: Option<crate::source_types::SourceVerification>,
-    /// Phase 8 (report schema 3): the facts behind every table read from
+    /// Report schema 3: the facts behind every table read from
     /// the application's Drizzle schema, each with its origin.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub schema_facts: Vec<crate::schema_facts::TableFacts>,
-    /// Phase 9 (report schema 4): what the application could and could not
+    /// Report schema 4: what the application could and could not
     /// know at each lost acknowledgment of the counterexample, with the
     /// other physical world replayed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -326,7 +326,7 @@ pub struct CheckOptions {
     pub scenario_file: Option<String>,
     pub source_revision: Option<String>,
     pub tool_version: String,
-    /// What the scenario loader learned (extraction reports, Phase 7).
+    /// What the scenario loader learned (actor extraction reports).
     pub load: crate::scenario::LoadReport,
     /// Run the counterexample against the original code.
     pub source: Option<SourceOptions>,
@@ -894,7 +894,7 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
             },
         )
     } else if use_dpor && std::env::var_os("MIDWRITE_DPOR_PROFILE").is_some() {
-        // Phase 10 profiling hook: the classic search with its side tables.
+        // DPOR profiling hook: the classic search with its side tables.
         let (r, prof) = crate::explore::explore_dpor_profiled(model, &explore_opts);
         eprintln!(
             "dpor-profile {}",
@@ -1141,11 +1141,7 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
     };
     ModelCheckReport {
         kind: REPORT_KIND.into(),
-        schema_version: if source_dpor.is_some()
-            || source_verification
-                .as_ref()
-                .is_some_and(crate::source_types::SourceVerification::has_phase10_fields)
-        {
+        schema_version: (if source_dpor.is_some() {
             5
         } else if epistemic.is_some()
             || model.bounds.max_in_flight > 0
@@ -1154,22 +1150,19 @@ pub fn check(model: &Model, opts: &CheckOptions) -> ModelCheckReport {
             || use_dpor
             || opts.profile_storage
             || !result.stuck.is_empty()
-            || source_verification
-                .as_ref()
-                .is_some_and(crate::source_types::SourceVerification::has_phase9_fields)
         {
             4
-        } else if !opts.load.schema.is_empty()
-            || source_verification
-                .as_ref()
-                .is_some_and(crate::source_types::SourceVerification::has_phase8_fields)
-        {
+        } else if !opts.load.schema.is_empty() {
             3
-        } else if extraction.is_empty() && source_verification.is_none() {
+        } else if extraction.is_empty() {
             REPORT_SCHEMA_VERSION
         } else {
             2
-        },
+        })
+        .max(source_verification.as_ref().map_or(
+            REPORT_SCHEMA_VERSION,
+            crate::source_types::SourceVerification::required_report_schema_version,
+        )),
         model_version: MODEL_VERSION.into(),
         tool: ToolInfo {
             name: "midwrite".into(),

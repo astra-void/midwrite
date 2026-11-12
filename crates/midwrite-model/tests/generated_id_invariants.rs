@@ -519,7 +519,7 @@ fn bindings_actors_and_generators_are_validated() {
 // ---------------------------------------------------------------------
 
 #[test]
-fn phase_16_formulas_round_trip_without_default_fields() {
+fn generated_id_formulas_round_trip_without_default_fields() {
     let doc = json!({ "forEachActor": { "function": "f", "assert": { "and": [
         { "generatedBy": { "value": { "returned": { "path": "id" } }, "by": "self", "generator": "call" } },
         { "generatedBy": { "value": { "field": "x" }, "by": { "actor": "A" }, "generator": { "column": "t.c" } } },

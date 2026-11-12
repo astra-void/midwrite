@@ -5,7 +5,7 @@
 mod common;
 
 use common::adversarial::generate;
-use common::por_workloads::{dpor_model, phase9_workloads, targeted_workloads};
+use common::por_workloads::{dpor_model, in_flight_workloads, targeted_workloads};
 use midwrite_model::audit::{ViolationKind, audit};
 use midwrite_model::footprint::{Access, mutation};
 use midwrite_model::model::Model;
@@ -17,7 +17,7 @@ fn corpus() -> Vec<(String, Model)> {
         .into_iter()
         .map(|(l, m)| (l.to_owned(), m))
         .collect();
-    out.extend(phase9_workloads());
+    out.extend(in_flight_workloads());
     for seed in 1..=90 {
         let g = generate(seed);
         let model = midwrite_model::scenario::load_str(

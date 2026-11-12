@@ -243,7 +243,9 @@ impl ActorProvider for TsActorProvider {
             pending_scopes: None,
             const_decl: false,
             pred_helpers: HashMap::new(),
-            p16: Default::default(),
+            loops: Default::default(),
+            caught_errors: Default::default(),
+            requests: Default::default(),
         };
         for error in lowerer.prov.errors.clone() {
             lowerer.assume(format!("declared replica factory not applied: {error}"));
@@ -1405,8 +1407,12 @@ struct Lowerer<'r> {
     /// Imported functions already examined as predicate helpers
     /// (module, export) → whether their body is `return <predicate>`.
     pred_helpers: HashMap<(PathBuf, String), bool>,
-    /// Loop unrolling, caught errors and request state.
-    p16: loops::Phase16,
+    /// Counter facts and nested unrolling budget.
+    loops: loops::LoopState,
+    /// Inspected error scopes and the cached driver error shape.
+    caught_errors: loops::CaughtErrorState,
+    /// Body consumption for modeled request parameters.
+    requests: loops::RequestState,
 }
 
 struct ChainStep<'a, 'b> {
@@ -1478,7 +1484,7 @@ impl<'r> Lowerer<'r> {
 
     fn emit(&mut self, module: &Module<'_>, span: Span, op: Op) -> (usize, usize) {
         if let Op::Let { local, expr } = &op {
-            self.p16.note_let(local, expr);
+            self.loops.note_let(local, expr);
         }
         let step = Step {
             op,
@@ -2264,9 +2270,9 @@ impl<'r> Lowerer<'r> {
             });
         let caught = inspected.then(|| self.tmp("caught"));
         let shape = if inspected {
-            self.p16.caught_seen = true;
+            self.caught_errors.caught_seen = true;
             Some(self.caught_shape(m))
-        } else if self.p16.inspecting > 0 && rethrow.is_some() {
+        } else if self.caught_errors.inspecting > 0 && rethrow.is_some() {
             // A `finally` inside an inspected block re-throws the error
             // object unchanged.
             Some(self.caught_shape(m))
@@ -2285,13 +2291,13 @@ impl<'r> Lowerer<'r> {
         self.frame_mut().tries += 1;
         self.frame_mut().scopes.push(HashMap::new());
         if inspected {
-            self.p16.inspecting += 1;
+            self.caught_errors.inspecting += 1;
         }
         for statement in &t.block.body {
             self.statement(m, statement);
         }
         if inspected {
-            self.p16.inspecting -= 1;
+            self.caught_errors.inspecting -= 1;
         }
         self.frame_mut().scopes.pop();
         self.frame_mut().tries -= 1;
@@ -3723,12 +3729,13 @@ impl<'r> Lowerer<'r> {
             && let Some(schema) = self.zod_schema(m, &member.object)
         {
             let safe = member.property.name == "safeParse";
-            // The Phase 14 subset keeps its explicit lowering
+            // Schemas supported by explicit IR steps keep that lowering
             // (zod 3 semantics, verified identical in zod 4 by the
             // differential matrix) unless the schema was built with zod 4;
             // everything else is validated with the version's semantics.
             let schema = schema.and_then(|v| {
-                if v.schema.is_phase14() && v.version != Ok(crate::zod::Version::V4) {
+                if v.schema.supports_explicit_lowering() && v.version != Ok(crate::zod::Version::V4)
+                {
                     // The object type test needs the version (zod 4 takes a
                     // Map or Set for an object): unknown → both.
                     let version = v.version.unwrap_or(crate::zod::Version::Either);
@@ -3739,11 +3746,11 @@ impl<'r> Lowerer<'r> {
                 Ok((false, version, v.schema))
             });
             return match schema {
-                Ok((phase14, version, schema)) => {
+                Ok((explicit_lowering, version, schema)) => {
                     match call.arguments.first().and_then(|a| a.as_expression()) {
                         Some(input) if call.arguments.len() == 1 => {
                             let input = self.expr(m, input, TOP);
-                            match phase14 {
+                            match explicit_lowering {
                                 true => self.zod_parse(m, call.span, version, &schema, input, safe),
                                 false => self
                                     .zod_parse_checked(m, call.span, version, &schema, input, safe),
@@ -4850,7 +4857,7 @@ impl<'r> Lowerer<'r> {
                         StrCheck::Uuid | StrCheck::Email | StrCheck::Regex { .. } => require(
                             self,
                             Expr::Unknown(
-                                "a zod string format outside the Phase 14 lowering".to_owned(),
+                                "a zod string format requiring the checked parser".to_owned(),
                             ),
                         ),
                     }
@@ -4869,7 +4876,7 @@ impl<'r> Lowerer<'r> {
                             require(
                                 self,
                                 Expr::Unknown(
-                                    "zod 4 `.int()` outside the Phase 14 lowering".to_owned(),
+                                    "zod 4 `.int()` requiring the checked parser".to_owned(),
                                 ),
                             );
                             continue;
@@ -4937,7 +4944,7 @@ impl<'r> Lowerer<'r> {
             _ => {
                 require(
                     self,
-                    Expr::Unknown("a zod schema outside the Phase 14 lowering".to_owned()),
+                    Expr::Unknown("a zod schema requiring the checked parser".to_owned()),
                 );
                 value
             }

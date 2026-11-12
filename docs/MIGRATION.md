@@ -55,3 +55,17 @@ behavior they cover ([testing](development/testing.md)).
 
 Identifiers that are part of a wire format or of a frozen evaluation set
 were not renamed by this reorganization.
+
+## Feature-based code
+
+Extractor state is grouped by behavior: loop unrolling (`LoopState`),
+caught errors (`CaughtErrorState`) and request-body consumption
+(`RequestState`). Zod schemas expose `supports_explicit_lowering` to select
+explicit validation steps or the checked parser. These names describe the
+supported operations rather than the development phase that added them.
+
+`SourceVerification::required_report_schema_version` returns the oldest
+model-check report schema that can represent the evidence present. Report
+generation combines that requirement with the model's own requirement by
+taking the higher version. Existing JSON field names and schema versions
+are preserved.

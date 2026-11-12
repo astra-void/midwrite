@@ -4012,7 +4012,7 @@ mod tests {
     }
 
     #[test]
-    fn phase14_shared_uses_need_an_annotation_and_needles_become_elements() {
+    fn shared_uses_need_an_annotation_and_needles_become_elements() {
         let params = vec!["input".to_owned()];
         let roles = prop(Expr::local("input"), "roles");
         let ops = vec![vec![test(Expr::not(call(
@@ -4052,7 +4052,7 @@ mod tests {
     }
 
     #[test]
-    fn phase14_string_only_and_array_only_uses_decide_and_conflicts_are_refused() {
+    fn string_only_and_array_only_uses_decide_and_conflicts_are_refused() {
         let params = vec!["name".to_owned(), "tags".to_owned()];
         let ops = vec![vec![
             Op::Let {
@@ -4093,7 +4093,7 @@ mod tests {
     }
 
     #[test]
-    fn phase14_loops_type_their_list_and_object_elements_are_refused() {
+    fn loops_type_their_list_and_object_elements_are_refused() {
         // `for (const item of items) { item.id }`: a snapshot local, an
         // element local, a property of the element.
         let params = vec!["items".to_owned()];

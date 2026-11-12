@@ -150,13 +150,13 @@ pub struct ExtractRequest {
     pub contract: Option<InvocationContract>,
     /// Model reads through a replicated database (`withReplicas`)
     /// as replica reads ([`crate::ir::Conn::Replica`]). When false such
-    /// reads stay unknown operations, as before Phase 13.
+    /// reads stay unknown operations.
     pub replicas: bool,
     /// Project functions declared to build a replicated database.
     pub replica_factories: Vec<ReplicaFactoryBinding>,
     /// Emit [`crate::ir::Op::ReturnValue`] before the main task's
     /// returns (requested when an invariant reads return values; otherwise
-    /// the extracted code is the Phase 12 code).
+    /// returns do not emit a value operation).
     pub return_values: bool,
     /// Lower with JavaScript value semantics (scenario feature
     /// `js-values`): `undefined` distinct from `null` (missing properties,
@@ -164,8 +164,8 @@ pub struct ExtractRequest {
     /// literals, `+` with a string operand, string methods), arrays (literals,
     /// indexing, `.length`, `includes`/`indexOf`/`join`, pure-callback
     /// `map`/`filter`/`find`/..., destructuring, `for...of`), `Map` and `Set`
-    /// (`docs/concepts/value-semantics.md`). When false the extracted code is
-    /// the Phase 13 code: `undefined` is `null` and these forms stay unknown.
+    /// (`docs/concepts/value-semantics.md`). When false, `undefined` is
+    /// `null` and these forms stay unknown.
     pub js_values: bool,
 }
 

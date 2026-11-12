@@ -13,7 +13,7 @@
 //! * a project whose zod version cannot be determined (both runtimes are
 //!   the oracle: the model must refuse wherever they differ);
 //! * zod 3.25.76 imported as `zod/v4` (an early zod 4 implementation): the
-//!   model must refuse every schema outside the Phase 14 subset.
+//!   model must refuse every schema outside the explicit validation subset.
 //!
 //! The runtime is the oracle: expected outcomes are never written by hand.
 //! The test is skipped (with a message) when Node.js or the zod directories
@@ -73,7 +73,7 @@ fn skip_or_fail(why: &str) {
     if std::env::var("MIDWRITE_REQUIRE_ZOD").as_deref() == Ok("1") {
         panic!("MIDWRITE_REQUIRE_ZOD=1 but the zod differential cannot run: {why}");
     }
-    eprintln!("SKIPPED phase16 zod differential: {why} (set MIDWRITE_REQUIRE_ZOD=1 to require it)");
+    eprintln!("SKIPPED zod differential: {why} (set MIDWRITE_REQUIRE_ZOD=1 to require it)");
 }
 
 #[derive(Clone, Debug)]
@@ -435,7 +435,7 @@ fn zod_parse_matches_the_pinned_runtimes() {
         ));
     }
 
-    // `zod/v4` of zod 3.25: only the Phase 14 subset is modeled.
+    // `zod/v4` of zod 3.25: only the explicit validation subset is modeled.
     {
         let mine: Vec<&Case> = all.iter().filter(|c| c.apis.contains(&4)).collect();
         let root = app("zod3-v4", Some("3.25.76"), "zod/v4", &mine);
@@ -462,7 +462,7 @@ fn zod_parse_matches_the_pinned_runtimes() {
         ));
     }
 
-    eprintln!("phase16 zod differential:");
+    eprintln!("zod differential:");
     for (label, compared, agreed) in &per_runtime {
         eprintln!("  {label}: {compared} comparisons, {agreed} agreements");
     }
@@ -543,7 +543,7 @@ fn synthesized_inputs_satisfy_the_pinned_runtimes() {
                 },
                 _ => None,
             });
-            // Phase 14 subset schemas of zod 3 keep their explicit lowering.
+            // explicit validation subset schemas of zod 3 keep their explicit lowering.
             let Some(desc) = desc else {
                 assert_eq!(
                     version,
@@ -592,6 +592,6 @@ fn synthesized_inputs_satisfy_the_pinned_runtimes() {
         }
     }
     let _ = std::fs::remove_dir_all(&dir);
-    eprintln!("phase16 zod: {checked} synthesized inputs accepted by the pinned runtimes");
+    eprintln!("zod: {checked} synthesized inputs accepted by the pinned runtimes");
     assert!(checked > 40);
 }
