@@ -894,8 +894,8 @@
    "file": "packages/api/src/routers/import.ts",
    "line": 260,
    "function": "<anonymous@229:17>",
-   "classification": "false-positive",
-   "notes": "import.ts:50 getTrelloTokenForUser only lazily re-encrypts the stored token, an idempotent migration unrelated to the imports row at :260."
+   "classification": "intended-risk",
+   "notes": "The two independent commits really occur: getTrelloTokenForUser conditionally rewrites integrations.accessToken before importRepo.create inserts the imports row. The rewrite preserves the decoded credential, uses the versioned encryption prefix and a compare-and-set update, and is intentionally independent of whether the import starts. Its partial state is harmless, so this is intended-risk under the hazard-precision taxonomy, not a nonexistent write/window. Keep the diagnostic; it is not a confirmed bug. (2026-11-12 Codex AI source re-review requested by user; not independently human-validated.)"
   },
   {
    "findingId": "f322f5de643c442a",
@@ -1330,6 +1330,31 @@
     "45a682b82c7d5a80"
    ],
    "reason": "Reviewed newly exposed findings after source-analysis coverage fixes on the development set. Existing finding classifications were retained. Source-only AI review, not blind review or runtime confirmation; uncertain provider/error semantics remain unclear."
+  },
+  {
+   "date": "2026-11-12",
+   "by": "Codex AI source re-review requested by user",
+   "humanReviewed": false,
+   "type": "finding-classification-correction",
+   "findingId": "221cf564aa4c6cea",
+   "previous": {
+    "findingId": "221cf564aa4c6cea",
+    "code": "MW1004",
+    "file": "packages/api/src/routers/import.ts",
+    "line": 260,
+    "function": "<anonymous@229:17>",
+    "classification": "false-positive",
+    "notes": "import.ts:50 getTrelloTokenForUser only lazily re-encrypts the stored token, an idempotent migration unrelated to the imports row at :260."
+   },
+   "classification": "intended-risk",
+   "reason": "The prior note established semantic independence and harmlessness, not the absence of a write or failure window. False-positive means the claimed partial state is not real; here the encryption migration commits even when the later import does not. Correct the label to intended-risk while retaining the diagnostic. Do not add an independence heuristic that would suppress real multi-table hazards.",
+   "evidence": [
+    "Pinned Kan revision 1cc2f332131d736c5e262654bd279e3beb95c93d.",
+    "packages/api/src/routers/import.ts:37-63: getTrelloTokenForUser decrypts the existing credential, conditionally upgrades storage, and returns the same decoded credential.",
+    "packages/api/src/utils/trello-token.ts:3-16: the prefix distinguishes encrypted storage; the legacy case returns the original token before re-encryption.",
+    "packages/db/src/repository/integration.repo.ts:85-103: updateAccessTokenIfCurrent writes only accessToken and compares the current stored value in the WHERE condition.",
+    "packages/api/src/routers/import.ts:244-263: the migration is awaited before the independent imports-row insert."
+   ]
   }
  ],
  "reviewQueue": [

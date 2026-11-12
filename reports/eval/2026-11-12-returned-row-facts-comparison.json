@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "kind": "midwrite.returned-row-facts-comparison",
+  "date": "2026-11-12",
+  "before": "reports/eval/2026-11-12-effect-coverage.json",
+  "after": "reports/eval/2026-11-12-returned-row-facts.json",
+  "projects": [
+    {
+      "project": "kan",
+      "set": "dev",
+      "before": {
+        "hazards": 97,
+        "FP": 1,
+        "FN": 0
+      },
+      "after": {
+        "hazards": 97,
+        "FP": 0,
+        "FN": 0,
+        "unclear": 0,
+        "unlabeled": 0
+      },
+      "removedDiagnostics": [],
+      "classificationCorrections": [
+        {
+          "findingId": "221cf564aa4c6cea",
+          "before": "false-positive",
+          "after": "intended-risk",
+          "stillReported": true
+        }
+      ],
+      "allPreviouslyTruePositiveFindingsRetained": true
+    },
+    {
+      "project": "dittofeed",
+      "set": "dev",
+      "before": {
+        "hazards": 61,
+        "FP": 2,
+        "FN": 0
+      },
+      "after": {
+        "hazards": 59,
+        "FP": 0,
+        "FN": 0,
+        "unclear": 3,
+        "unlabeled": 0
+      },
+      "removedDiagnostics": [
+        {
+          "findingId": "ed4a3babab01f114",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "packages/backend-lib/src/journeys.ts",
+          "line": 1194,
+          "function": "upsertJourney",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "29694cf677dd7e5d",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "packages/backend-lib/src/journeys.ts",
+          "line": 1236,
+          "function": "upsertJourney",
+          "classification": "false-positive"
+        }
+      ],
+      "classificationCorrections": [],
+      "allPreviouslyTruePositiveFindingsRetained": true
+    },
+    {
+      "project": "vercel-chatbot",
+      "set": "dev",
+      "before": {
+        "hazards": 13,
+        "FP": 0,
+        "FN": 0
+      },
+      "after": {
+        "hazards": 13,
+        "FP": 0,
+        "FN": 0,
+        "unclear": 0,
+        "unlabeled": 0
+      },
+      "removedDiagnostics": [],
+      "classificationCorrections": [],
+      "allPreviouslyTruePositiveFindingsRetained": true
+    }
+  ],
+  "notes": [
+    "Two false-positive diagnostics are removed by schema-backed row lineage through actual source helpers and Result transformations. The real commit-to-recompute finding is retained.",
+    "Kan maintenance/import commits remain reported; source re-review corrects false-positive to intended-risk under the existing window-existence taxonomy. The prior label and rationale remain in corrections.",
+    "All prior true-positive fingerprints and the recall denominator remain unchanged. No new finding is unlabeled; three unclear findings remain excluded from precision.",
+    "This is a tuned development comparison. No independent held-out score or runtime corpus confirmation is claimed."
+  ]
+}

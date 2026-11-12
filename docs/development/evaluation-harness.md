@@ -439,3 +439,54 @@ is empty and explicitly says that no held-out gate was measured. If new
 held-out projects are added, the unchanged precision threshold and
 `--gate` checks apply again. `--gate` itself still fails on an empty set.
 
+## Returned-row facts and taxonomy correction (2026-11-12)
+
+This supersedes the remaining-FP list in the effect-coverage record above.
+Records: [scoring](../../reports/eval/2026-11-12-returned-row-facts.json),
+[comparison](../../reports/eval/2026-11-12-returned-row-facts-comparison.json).
+The same three projects remain development inputs.
+
+Two Dittofeed findings (`ed4a3babab01f114`, `29694cf677dd7e5d`) disappear
+because the analyzer now derives the returned row's status through the
+actual source helper and Result transformations. It resolves the schema's
+namespace/destructuring alias, verifies the PostgreSQL enum column, and
+establishes that a compatible defined Running assignment returns Running.
+The subsequent Running/Paused restart conjunction is contradictory. Both
+the commit-to-restart and restart-to-recompute diagnostics disappear;
+the real commit-to-recompute finding `068753260a2b6e61` remains. No finding
+IDs, file exclusions or per-project guard rules were added to the detector.
+Details and boundaries: [returned-row facts](../architecture/returned-row-facts.md).
+
+Kan `221cf564aa4c6cea` remains reported. Its previous false-positive note
+already established harmlessness and semantic independence, not the
+absence of a write. Token re-encryption really commits before the import
+row insert, preserving the decoded credential with a compare-and-set
+storage upgrade. Under the established taxonomy this is `intended-risk`:
+a real, accepted window. Its classification was corrected, with the full
+previous entry and source evidence retained in `corrections`. This is a
+label correction, not an analyzer suppression or a confirmed bug fix.
+The independent-maintenance fixture ensures such windows stay reported.
+
+| development comparison | hazards | hazard precision | recall | FP | FN | unclear |
+| --- | ---: | --- | --- | ---: | ---: | ---: |
+| kan | 97 | 97/97 (100%) | 33/33 (100%) | 0 | 0 | 0 |
+| dittofeed | 59 | 56/56 (100%) | 30/30 (100%) | 0 | 0 | 3 |
+| vercel-chatbot | 13 | 13/13 (100%) | 8/8 (100%) | 0 | 0 | 0 |
+| **same three projects** | **169** | **166/166 (100%)** | **71/71 (100%)** | **0** | **0** | **3** |
+
+All 86 previously true-positive findings remain. No new finding is
+unlabeled. The three unclear cases are still excluded from precision;
+true-positive plus intended-risk windows form its numerator. Bug precision
+remains a separate 86/166 (51.81%). All 54 audited positives are found;
+the expanded recall denominator is unchanged at 71. The result is tuned
+development performance with AI-only source labels, not an independent
+held-out result or runtime confirmation.
+
+The regression suite tests the real post-commit publication alongside the
+removed contradiction, previous-row snapshots, undefined assignments,
+numeric-to-text coercion, custom codecs, missing schemas, mutations,
+escapes, captured writes, mutable input re-reads, repeated helper calls,
+unawaited promises, generators, formatting and constant-object aliases.
+The refinement uses the source bytes already lowered and cancels the proof
+when supported semantics or its fixed budgets are insufficient.
+
