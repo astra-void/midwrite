@@ -1,0 +1,148 @@
+{
+ "$comment": "Held-out evaluation labels (scripts/eval.py). knownPositives come from a code audit by an AI agent (Claude) that read only the project's source at the pinned revision: it did not run Midwrite and did not see its output. findings are classified afterwards, finding by finding, with the Phase 2 classes. No independent human review has been performed; an AI agent checking another AI agent's results is not independent human validation. Corrections go in `corrections` with a reason, never by editing a label to raise a score.",
+ "schemaVersion": 1,
+ "kind": "midwrite.eval-labels",
+ "project": "nextjs-billing",
+ "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+ "set": "held-out",
+ "labeling": {
+  "knownPositives": {
+   "by": "AI agent (Claude), source-only audit",
+   "date": "2026-11-12",
+   "humanReviewed": false,
+   "scope": "unhandled half-written-state windows in server code; the audit was capped at 30 entries, highest confidence first, so the list is a sample when the project has more"
+  },
+  "findings": {
+   "by": "AI agent (Claude), finding-by-finding source review, separate from the auditor; did not see knownPositives",
+   "date": "2026-11-12",
+   "humanReviewed": false
+  }
+ },
+ "knownPositives": [
+  {
+   "id": "nextjs-billing-KP01",
+   "file": "src/app/actions.ts",
+   "function": "syncPlans",
+   "functionStartLine": 157,
+   "functionEndLine": 253,
+   "pattern": "D",
+   "dbAccess": "drizzle neon-http, no transaction; one autocommitted db.insert(plans).onConflictDoUpdate per variant inside the for...of loop (via nested helper _addVariant)",
+   "firstEffect": "_addVariant(...) at line 233 -> db.insert(plans).values(variant).onConflictDoUpdate at line 166 for an earlier variant",
+   "secondEffect": "_addVariant(...) at line 233 -> db.insert(plans)...onConflictDoUpdate at line 166 for a later variant (getProduct at line 200 and listPrices at line 203 run in between and throw via the SDK onError hook in configureLemonSqueezy)",
+   "consequence": "A crash, timeout or Lemon Squeezy API error mid-loop leaves the plan table holding only some of the store's subscription variants. The only caller (src/components/dashboard/billing/plans/plans.tsx:34) runs syncPlans only when the plan table is empty, so the partial write disarms the sync trigger: the missing plans are never synced, are never shown or purchasable, and subscription webhooks for those variants are recorded as 'Plan with variantId ... not found' (src/lib/webhook.ts:88-89) so the subscription row is never created. Nothing repairs it.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "nextjs-billing-KP02",
+   "file": "src/app/api/webhook/route.ts",
+   "function": "POST",
+   "functionStartLine": 5,
+   "functionEndLine": 55,
+   "pattern": "D",
+   "dbAccess": "drizzle neon-http, no transaction; storeWebhookEvent autocommits the webhookEvent insert, processWebhookEvent later autocommits the subscription upsert and the processed=true update as separate statements",
+   "firstEffect": "storeWebhookEvent(...) at line 47 -> db.insert(webhookEvents) processed=false at src/lib/webhook.ts:31",
+   "secondEffect": "processWebhookEvent(...) at line 49 -> db.insert(subscriptions).onConflictDoUpdate at src/lib/webhook.ts:126 and db.update(webhookEvents).set({processed: true}) at src/lib/webhook.ts:144",
+   "consequence": "A crash/timeout, or a getPrice failure (the SDK onError hook throws) after the event row is stored leaves a webhookEvent row with processed=false and the subscription not upserted. No code ever re-reads or replays unprocessed events. Lemon Squeezy redelivers the failed webhook, but storeWebhookEvent gives each delivery a fresh random id, so the original row stays processed=false forever (a stored but never-processed event). The subscription change is applied only if a redelivery succeeds; once the retries are used up it is lost even though the payload is stored.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "nextjs-billing-KP03",
+   "file": "src/lib/webhook.ts",
+   "function": "processWebhookEvent",
+   "functionStartLine": 48,
+   "functionEndLine": 152,
+   "pattern": "D",
+   "dbAccess": "drizzle neon-http, no transaction; subscription upsert and webhookEvent processed-flag update are separate autocommitted statements",
+   "firstEffect": "db.insert(subscriptions).values(updateData).onConflictDoUpdate at line 126",
+   "secondEffect": "db.update(webhookEvents).set({ processed: true, processingError }) at line 144",
+   "consequence": "A crash between the two leaves the subscription row already updated while its webhookEvent record still says processed=false. Lemon Squeezy's redelivery re-applies the idempotent upsert under a new event row (fresh random id), so the original row is never marked processed. The event log therefore permanently misreports an applied event as pending, and nothing reconciles it.",
+   "confidence": "low",
+   "source": "independent audit"
+  }
+ ],
+ "findings": [
+  {
+   "findingId": "7619089948932cea",
+   "code": "MW1002",
+   "file": "src/app/actions.ts",
+   "line": 334,
+   "function": "cancelSub",
+   "classification": "intended-risk",
+   "notes": "The window is real: cancelSubscription (actions.ts:334) commits the cancellation at Lemon Squeezy, and a crash or DB error before the update at actions.ts:342-349 leaves the row showing the old status (the catch at :350 only rethrows). setupWebhook subscribes to subscription_updated (actions.ts:140-144), and processWebhookEvent upserts the row by lemonSqueezyId with status, statusFormatted and endsAt from the provider payload (webhook.ts:111-114, 126-129), so it rewrites every field this action writes. The leftover state is repaired by the provider's webhook. This relies on Lemon Squeezy emitting subscription_updated on cancellation, which the source cannot show."
+  },
+  {
+   "findingId": "20260b839ea7a0ec",
+   "code": "MW1002",
+   "file": "src/app/actions.ts",
+   "line": 377,
+   "function": "pauseUserSubscription",
+   "classification": "true-positive",
+   "notes": "updateSubscription(id, {pause:{mode:'void'}}) at actions.ts:377 pauses billing at Lemon Squeezy before the DB update at actions.ts:385-393 sets isPaused, and a failure in between leaves isPaused=false. The webhook upsert does not repair this: it hard-codes isPaused: false (webhook.ts:117), so subscription_updated can reconcile status/statusFormatted/endsAt but never isPaused. isPaused drives the UI: actions-dropdown.tsx:52/67 keeps offering 'Pause payments' and never shows 'Unpause payments', and status.tsx:24 relies on it. Nothing else in the app restores the flag. (The webhook overwriting isPaused with false is a separate defect on the normal path too.)"
+  },
+  {
+   "findingId": "f0f7b851368b8e17",
+   "code": "MW1002",
+   "file": "src/app/actions.ts",
+   "line": 421,
+   "function": "unpauseUserSubscription",
+   "classification": "intended-risk",
+   "notes": "updateSubscription(id, {pause:null}) at actions.ts:421 resumes billing before the DB update at actions.ts:425-433. A failure in between leaves isPaused=true and the old status. The subscription_updated webhook (registered at actions.ts:140-144) upserts status, statusFormatted and endsAt, and writes isPaused: false (webhook.ts:111-117, 126-129). That is exactly the value this action would have written (pause !== null is false), so redelivery covers every field the action writes. This relies on Lemon Squeezy sending subscription_updated on unpause."
+  },
+  {
+   "findingId": "c114c4a1140e26fc",
+   "code": "MW1002",
+   "file": "src/app/actions.ts",
+   "line": 471,
+   "function": "changePlan",
+   "classification": "intended-risk",
+   "notes": "updateSubscription(..., {variantId}) at actions.ts:471 switches the plan at Lemon Squeezy before the DB update of planId/price/endsAt at actions.ts:477-484, so a failure in between leaves the old plan in the row. processWebhookEvent resolves planId from the payload's variant_id (webhook.ts:83-86, 121), fetches price via getPrice (webhook.ts:96-104, 116) and writes endsAt (webhook.ts:114), upserting by lemonSqueezyId (webhook.ts:126-129). That covers all three fields the action writes, so the subscription_updated webhook registered at actions.ts:140-144 reconciles the row."
+  },
+  {
+   "findingId": "b6cf38aa870df5cb",
+   "code": "MW1004",
+   "file": "src/app/api/webhook/route.ts",
+   "line": 49,
+   "function": "POST",
+   "classification": "intended-risk",
+   "notes": "storeWebhookEvent commits a webhookEvent row with processed=false (webhook.ts:31-40) before processWebhookEvent upserts the subscription (webhook.ts:126-129). This is a deliberate store-then-process inbox. If the request crashes or times out in between, route.ts:51 never returns 200, so Lemon Squeezy redelivers. The redelivery stores a fresh event row and re-runs the idempotent onConflictDoUpdate upsert, which repairs the subscription. The only leftover is an orphan unprocessed event row, which nothing in the app reads."
+  },
+  {
+   "findingId": "3d2adcfc238ab4d5",
+   "code": "MW1004",
+   "file": "src/app/api/webhook/route.ts",
+   "line": 49,
+   "function": "POST",
+   "classification": "intended-risk",
+   "notes": "The two commits are the insert of the event row with processed=false (webhook.ts:31-40, schema.ts:71) and the later update to processed=true (webhook.ts:144-150). The intermediate state is exactly what the processed flag is designed to record: a stored event that did not finish processing. A crash between them makes route.ts:49-51 fail without a 200, so Lemon Squeezy redelivers and a new row is processed. The stale row is only an accurate audit record, and no code reads processed."
+  },
+  {
+   "findingId": "38e751c103d6a61f",
+   "code": "MW1004",
+   "file": "src/lib/webhook.ts",
+   "line": 144,
+   "function": "processWebhookEvent",
+   "classification": "intended-risk",
+   "notes": "On the subscription_* path, the subscription upsert (webhook.ts:126-129) commits before the event row is marked processed (webhook.ts:144-150), so a crash in between leaves an applied subscription with an event row still at processed=false. The route then returns no 200 (route.ts:49-51). Lemon Squeezy redelivers, and the redelivery re-applies the idempotent upsert and marks its own new row processed. The leftover stale flag is never read anywhere in src (grep finds no reader of processed/processingError), so it has no functional effect."
+  }
+ ],
+ "corrections": [],
+ "reviewQueue": [
+  {
+   "knownPositive": "nextjs-billing-KP02",
+   "findings": [
+    "b6cf38aa870df5cb",
+    "3d2adcfc238ab4d5"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  },
+  {
+   "knownPositive": "nextjs-billing-KP03",
+   "findings": [
+    "38e751c103d6a61f"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  }
+ ]
+}

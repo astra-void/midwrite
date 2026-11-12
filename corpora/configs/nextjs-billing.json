@@ -1,0 +1,15 @@
+{
+  "databaseReceivers": ["db"],
+  "transactionMethods": ["transaction"],
+  "externalEffects": [
+    { "function": "createCheckout", "category": "payment", "importedFrom": "@lemonsqueezy/lemonsqueezy.js" },
+    { "function": "cancelSubscription", "category": "payment", "importedFrom": "@lemonsqueezy/lemonsqueezy.js" },
+    { "function": "updateSubscription", "category": "payment", "importedFrom": "@lemonsqueezy/lemonsqueezy.js" },
+    { "function": "createWebhook", "category": "http-request", "importedFrom": "@lemonsqueezy/lemonsqueezy.js" }
+  ],
+  "exclude": [
+    "**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "__tests__",
+    "src/db/migrations/**", "drizzle.config.ts", "next.config.mjs", "tailwind.config.ts", "postcss.config.js", ".eslintrc.js",
+    "*.d.ts", ".next", "node_modules"
+  ]
+}

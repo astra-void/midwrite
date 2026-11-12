@@ -57,6 +57,17 @@
       "config": "corpora/configs/vercel-chatbot.json",
       "labels": "corpora/eval/labels/vercel-chatbot.json",
       "notes": "Next.js AI chat template: Drizzle + postgres-js queries in lib/db/queries.ts, Vercel Blob uploads, Redis resumable streams and rate limiting. Promoted from reserve on 2026-11-06. Moved to dev on 2026-11-12: the user requested analyzer fixes driven by these evaluation misses and false positives."
+    },
+    {
+      "name": "nextjs-billing",
+      "set": "held-out",
+      "repository": "https://github.com/lmsqueezy/nextjs-billing.git",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "license": "MIT",
+      "path": ".corpora/nextjs-billing",
+      "config": "corpora/configs/nextjs-billing.json",
+      "labels": "corpora/eval/labels/nextjs-billing.json",
+      "notes": "Lemon Squeezy billing template: Next.js server actions, Drizzle over Neon HTTP (no transactions), Lemon Squeezy SDK subscription calls and a webhook route that stores then processes events. Added as held-out on 2026-11-12 (HEAD of main): configuration written from source by an agent that did not run the analyzer, known positives from a separate source-only audit, findings classified by a third agent that saw neither."
     }
   ],
   "reserve": [],

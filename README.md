@@ -106,14 +106,18 @@ them (see [configuration](docs/reference/configuration.md#recovery-declarations)
 
 How much to trust these numbers:
 
-* **There is no independent held-out set right now.** After that scoring,
-  the three projects were moved to the dev set and the analyzer was tuned
+* **Those three projects are no longer held out.** After that scoring,
+  they were moved to the dev set and the analyzer was tuned
   on their misses and false positives. On those same projects 99% (165/166)
   of reported windows are real by the analyzer's own change, 100% only after
   one label correction no separate reviewer has checked, and 52% (86/166)
   are unhandled bugs. That is a tuned result and says little about your
-  code. New held-out projects have to be audited and frozen before there
-  is a fresh estimate.
+  code.
+* **The current held-out set is one small project.** lmsqueezy/nextjs-billing
+  was added on 2026-11-12 without tuning. Midwrite reported 7 windows there:
+  all 7 exist, and 1 is an unhandled bug. Seven findings are too few to
+  tell much (the 95% interval for 7/7 runs from 65% to 100%), so the
+  127-hazard scoring above stays the main estimate.
 * **Every label was written by AI agents, not by people.** The agents that
   labeled findings were separate from the ones that audited the code, but
   no human has reviewed the labels yet.
@@ -130,7 +134,10 @@ The details are in the [evaluation harness](docs/development/evaluation-harness.
 Recall is the weak side. Expect Midwrite to stay silent about real
 problems.
 
-* In the last held-out scoring it found **49 of 61** known windows (80%).
+* In the last held-out scoring before tuning it found **49 of 61** known
+  windows (80%). On nextjs-billing, the current held-out project, it found
+  2 of the 3 audited windows. It missed a plan sync that commits one row per
+  variant in a loop.
   That denominator comes from capped AI audits of code that already uses
   the supported stack, so the real miss rate on your code is likely higher.
 * Where effects went through helpers it couldn't follow, recall dropped. On

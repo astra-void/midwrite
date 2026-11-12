@@ -23,11 +23,12 @@ still scored by `scripts/eval-sets.py`. This harness scores static
 | dittofeed | dev (since 2026-11-12) | `91277939` | Postgres through `db()`, Temporal, ClickHouse, Kafka |
 | zero (Mail-0/Zero) | dev (held-out until 2026-11-06) | `36132735` | Workers + Durable Objects, Gmail APIs, queues, R2/KV |
 | vercel-chatbot (vercel/chatbot) | dev (since 2026-11-12) | `a8989b52` | Next.js AI chat: queries in `lib/db/queries.ts`, Vercel Blob, Redis streams and rate limit |
+| nextjs-billing (lmsqueezy/nextjs-billing) | **held-out** (since 2026-11-12) | `5ddd7680` | Next.js server actions, Lemon Squeezy subscriptions, webhook route; Drizzle over Neon HTTP, no transactions |
 
 Reserve: empty. All former held-out projects moved to dev before the
-2026-11-12 coverage fixes below; there is currently no independent held-out
-score. New independent projects must be audited and frozen before the
-held-out gate can be measured again. Every project uses Drizzle + PostgreSQL. The first
+2026-11-12 coverage fixes below. nextjs-billing was added afterwards as the
+only held-out project ([held-out scoring](#nextjs-billing-held-out-2026-11-12)),
+so the gate runs again, on a small sample. Every project uses Drizzle + PostgreSQL. The first
 proposed candidates (cal.com, dub, documenso, formbricks) use Prisma, which
 Midwrite does not analyze.
 
@@ -697,6 +698,63 @@ Wilson 95% intervals after: hazard precision [91.9%, 96.4%], bug
 precision [35.7%, 45.2%]. This is development tuning on AI-only labels;
 there is no held-out set.
 
+## nextjs-billing held out (2026-11-12)
+
+Record: [`reports/eval/2026-11-12-nextjs-billing-held-out.json`](../../reports/eval/2026-11-12-nextjs-billing-held-out.json)
+(release build of `095ce4a`; labels and configuration frozen before scoring).
+
+lmsqueezy/nextjs-billing (MIT) is pinned at `5ddd7680`, the HEAD of `main`
+on 2026-11-12. It uses Drizzle over Neon HTTP with no transactions, and the
+Lemon Squeezy SDK, which is not a built-in effect. Three separate AI agents
+did the steps, following the rules above:
+
+* **Configuration:** written from source by an agent that did not run the
+  analyzer. Its four rules are `createCheckout`, `cancelSubscription`,
+  `updateSubscription` (payment) and `createWebhook` (http-request), all
+  imported from `@lemonsqueezy/lemonsqueezy.js`. Reads such as `getPrice`
+  and `listProducts` are left out.
+* **Known positives:** a source-only audit that did not see Midwrite
+  output found 3, all pattern D:
+  * KP01: `syncPlans` upserts one plan per variant between SDK reads that
+    can throw, and runs only while the table is empty.
+  * KP02: the webhook route stores the event, then processes it.
+  * KP03: `processWebhookEvent` applies the subscription upsert, then marks
+    the event processed.
+
+  The auditor rejected the four subscription actions (cancel, pause,
+  unpause, change plan). In each, the SDK call comes before the row update
+  (pattern B), and the `subscription_updated` webhook reconciles the row.
+* **Findings:** 7 hazards and 1 MW9001. A third agent, which saw neither
+  the audit nor the labels, classified them: 1 true-positive and 6
+  intended-risk.
+  * The true positive is `pauseUserSubscription` (`actions.ts:377`). The
+    webhook upsert always writes `isPaused: false`, so nothing restores the
+    flag.
+  * The other three MW1002 findings are reconciled by the webhook. The
+    three MW1004 findings are repaired by redelivery and the idempotent
+    upsert.
+  * KP02 and KP03 are in `reviewQueue`. The auditor says the stored event
+    row stays unprocessed forever. The labeler says nothing reads
+    `processed`.
+
+| set | hazards | hazard precision | bug precision | recall | audited recall |
+| --- | ---: | --- | --- | --- | --- |
+| **held-out (nextjs-billing)** | 7 | **7/7 (100%)** | 1/7 (14%) | 3/4 | 2/3 |
+
+**Stage-1 gate: PASS.**
+
+* The sample is small. Wilson 95% intervals: hazard precision 7/7 is
+  [64.6%, 100%], bug precision 1/7 is [2.6%, 51.3%] and audited recall 2/3
+  is [20.8%, 93.9%]. The README keeps the 127-hazard pre-tuning scoring as
+  its main estimate and quotes this one beside it.
+* The missed known positive, KP01 (`syncPlans`), is a held-out miss. Under
+  the rules above it is recorded here, not used to choose a fix. A fix
+  driven by it moves nextjs-billing to dev.
+* Six of the seven findings depend on Lemon Squeezy sending
+  `subscription_updated` and redelivering webhooks that did not get a 200.
+  The labeler could not verify that from the source.
+* All labels are AI-only, with no human review.
+
 ## Request methods decided through helpers (2026-11-12)
 
 Record: [scoring](../../reports/eval/2026-11-12-http-method-helpers.json).
@@ -750,4 +808,5 @@ by the scheduled renewal. The remaining false positive from before is
 Zero alone: 20/30 → 21/28 hazard precision, with 10 → 7 false
 positives. Wilson 95% intervals after (all five): hazard precision
 [92.7%, 97.0%], bug precision [35.9%, 45.4%]. This is development tuning
-on AI-only labels; there is no held-out set.
+on AI-only labels. The nextjs-billing held-out findings are unchanged by
+this change: the same finding IDs, gate PASS (hazard precision 7/7).

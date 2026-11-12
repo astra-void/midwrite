@@ -1,7 +1,17 @@
 {
   "schemaVersion": 1,
   "kind": "midwrite.eval-frozen",
-  "projects": {},
+  "projects": {
+    "nextjs-billing": {
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "files": {
+        "corpora/configs/nextjs-billing.json": "ab3ba41a8d03a70048294a62b7863c9e5730c673d9adeaecce566aeac8de484b",
+        "corpora/eval/labels/nextjs-billing.json": "76f1250e7ad636f299e347f04572976b288e23d82ca5e242ba842d9838ba755d"
+      },
+      "frozenAtUtc": "2026-11-12T04:17:00Z",
+      "history": []
+    }
+  },
   "retired": [
     {
       "date": "2026-11-12",

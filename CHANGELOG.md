@@ -9,6 +9,14 @@ output formats.
 
 ## [Unreleased]
 
+### Added
+
+- lmsqueezy/nextjs-billing as a held-out evaluation project, pinned at
+  `5ddd7680`, so the held-out precision gate runs again. Its first
+  scoring is hazard precision 7/7, bug precision 1/7 and audited recall
+  2/3. That is too few findings to replace the earlier pre-tuning estimate
+  (122/127). All labels are AI-written.
+
 ## [0.1.0] - 2026-11-12
 
 First public release, **experimental**. The README states what this

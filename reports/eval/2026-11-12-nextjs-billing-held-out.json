@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "kind": "midwrite.eval-report",
+  "binary": {
+    "path": "target/release/midwrite",
+    "sha256": "ebf0931998f05b65fb1fdf10b4cd92fdc2ffea66ed9fbe500fc15e3b43cb3c01"
+  },
+  "runAtUtc": "2026-11-12T04:17:00Z",
+  "projects": [
+    {
+      "hazardFindings": 7,
+      "bySeverity": {
+        "error": 0,
+        "warning": 4,
+        "info": 3
+      },
+      "analysisLimitations": 1,
+      "filesAnalyzed": 46,
+      "filesFailed": 0,
+      "labels": {
+        "true-positive": 1,
+        "intended-risk": 6,
+        "false-positive": 0,
+        "unclear": 0
+      },
+      "unlabeled": 0,
+      "staleLabels": 0,
+      "recall": {
+        "found": 3,
+        "positives": 4,
+        "knownPositivesFound": [
+          "nextjs-billing-KP02",
+          "nextjs-billing-KP03"
+        ],
+        "knownPositivesMissed": [
+          "nextjs-billing-KP01"
+        ],
+        "truePositiveFindingsOutsideAudit": 1
+      },
+      "findings": [
+        {
+          "findingId": "7619089948932cea",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "src/app/actions.ts",
+          "line": 334,
+          "function": "cancelSub",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "20260b839ea7a0ec",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "src/app/actions.ts",
+          "line": 377,
+          "function": "pauseUserSubscription",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "f0f7b851368b8e17",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "src/app/actions.ts",
+          "line": 421,
+          "function": "unpauseUserSubscription",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "c114c4a1140e26fc",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "src/app/actions.ts",
+          "line": 471,
+          "function": "changePlan",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "b6cf38aa870df5cb",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "src/app/api/webhook/route.ts",
+          "line": 49,
+          "function": "POST",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "3d2adcfc238ab4d5",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "src/app/api/webhook/route.ts",
+          "line": 49,
+          "function": "POST",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "38e751c103d6a61f",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "src/lib/webhook.ts",
+          "line": 144,
+          "function": "processWebhookEvent",
+          "classification": "intended-risk"
+        }
+      ],
+      "name": "nextjs-billing",
+      "set": "held-out",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "hazardPrecision": {
+        "value": 1.0,
+        "num": 7,
+        "den": 7
+      },
+      "bugPrecision": {
+        "value": 0.14285714285714285,
+        "num": 1,
+        "den": 7
+      },
+      "recallRatio": {
+        "value": 0.75,
+        "num": 3,
+        "den": 4
+      }
+    }
+  ],
+  "sets": {
+    "held-out": {
+      "hazardFindings": 7,
+      "labels": {
+        "true-positive": 1,
+        "intended-risk": 6,
+        "false-positive": 0,
+        "unclear": 0
+      },
+      "unlabeled": 0,
+      "hazardPrecision": {
+        "value": 1.0,
+        "num": 7,
+        "den": 7
+      },
+      "bugPrecision": {
+        "value": 0.14285714285714285,
+        "num": 1,
+        "den": 7
+      },
+      "recall": {
+        "value": 0.75,
+        "num": 3,
+        "den": 4
+      },
+      "projectsWithoutAudit": []
+    }
+  },
+  "gate": {
+    "threshold": 0.9,
+    "metric": "held-out hazard precision",
+    "passed": true,
+    "reasons": []
+  }
+}
