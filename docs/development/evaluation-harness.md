@@ -668,3 +668,31 @@ OAuth token exchange (a literal `POST`) still matches. It removed 9 false
 positives and 4 real intended-risk windows, and the 6 findings it exposed
 were all false positives on the token exchange. The configuration was
 left unchanged.
+
+## Literal entries of object literals in loops (2026-11-12)
+
+Record: [scoring](../../reports/eval/2026-11-12-loop-literal-entries.json).
+The four remaining midday `updateInbox` false positives
+(`match-transactions-bidirectional.ts:154` and `:171`, jobs and worker
+copies) pass the literal `status: "pending"`, but their entry value was
+unknown. The call sits in a loop, so the object literal is evaluated
+again with the same allocation site; the heap then holds a summary
+object for all iterations and cannot export it. The call still receives
+the object just created, so its entry value is now read from the literal
+itself: literal-valued properties keep their literal, other properties
+are unknown, and a spread, computed key or accessor leaves it unknown
+([value analysis](../architecture/value-analysis.md#path-facts-and-loops)).
+Regression: `markEachPending`, `removeEach` and `markEachWithExtra` in
+`fixtures/projects/literal_argument_branch`.
+
+Exactly those four finding IDs disappear; no other finding in the five
+dev projects changes.
+
+| development set (all five) | hazards | hazard precision | bug precision | recall | audited recall |
+| --- | ---: | --- | --- | --- | --- |
+| before | 416 | 382/408 (93.63%) | 163/408 (39.95%) | 152/168 | 78/94 |
+| after | 412 | 382/404 (94.55%) | 163/404 (40.35%) | 152/168 | 78/94 |
+
+Wilson 95% intervals after: hazard precision [91.9%, 96.4%], bug
+precision [35.7%, 45.2%]. This is development tuning on AI-only labels;
+there is no held-out set.

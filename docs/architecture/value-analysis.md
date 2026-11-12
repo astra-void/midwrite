@@ -235,7 +235,13 @@ The path walker of `ARCHITECTURE.md` gains facts from values:
   records its arguments as the callee receives them
   (`LocalCall::entry_values`, taken before the call marks objects it
   passes as escaped: primitive literals, the caller's parameter paths,
-  closed object-literal records of those). On instantiation, an arm or
+  closed object-literal records of those). An object literal written as
+  the argument and evaluated again in a loop shares its allocation with
+  earlier iterations, so the heap holds a summary it cannot export; its
+  entry value is then read from the literal itself: literal-valued
+  properties keep their literal, other properties are unknown, and a
+  spread, computed key or accessor leaves the whole value unknown. On
+  instantiation, an arm or
   exit fact on an input whose argument is a literal that contradicts it
   becomes `Never`, so that arm is infeasible for that call only. An input
   the caller forwards from its own parameters becomes an input of the

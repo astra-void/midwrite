@@ -940,6 +940,7 @@ fn literal_arguments_decide_callee_branches_on_destructured_parameters() {
         "markPending",
         "markPendingViaForward",
         "archiveOnly",
+        "markEachPending",
     ] {
         assert_eq!(pairs(function), ["update"], "{function}: {diagnostics:#?}");
     }
@@ -948,6 +949,7 @@ fn literal_arguments_decide_callee_branches_on_destructured_parameters() {
         "touch",
         "markAnalyzingAfterAudit",
         "markPendingViaRewrite",
+        "markEachWithExtra",
     ] {
         assert_eq!(
             pairs(function),
@@ -955,7 +957,12 @@ fn literal_arguments_decide_callee_branches_on_destructured_parameters() {
             "{function}: {diagnostics:#?}"
         );
     }
-    for function in ["remove", "removeViaForward", "archiveAndPurge"] {
+    for function in [
+        "remove",
+        "removeViaForward",
+        "archiveAndPurge",
+        "removeEach",
+    ] {
         assert_eq!(pairs(function), ["delete"], "{function}: {diagnostics:#?}");
     }
 }

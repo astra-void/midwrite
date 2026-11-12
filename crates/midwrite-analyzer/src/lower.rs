@@ -1257,7 +1257,14 @@ impl<'a> Lowerer<'_> {
         // Before `note_call` marks the objects passed as escaped.
         let entry_values: Vec<AbsValue> = values
             .iter()
-            .map(|v| entry_shape(&self.vs.heap.export(v), &self.stable_params))
+            .zip(&call.arguments)
+            .map(|(v, argument)| {
+                let shape = entry_shape(&self.vs.heap.export(v), &self.stable_params);
+                match argument.as_expression() {
+                    Some(expression) if shape.is_top() => literal_object_entry(expression),
+                    _ => shape,
+                }
+            })
             .collect();
         self.note_call(call, resolved.as_ref(), &values, receiver.as_ref());
         let Some(consumer) = consumer else {
@@ -3078,6 +3085,44 @@ fn entry_shape(value: &AbsValue, stable: &HashSet<u32>) -> AbsValue {
         },
         None => AbsValue::top(),
     }
+}
+
+/// The entry value of an object literal written as the argument itself,
+/// when the heap cannot export it: a literal evaluated again in a loop
+/// shares its allocation site with earlier iterations' objects, which
+/// makes that object a summary. The object this call receives is the one
+/// just created, so its own literal-valued properties are exactly those
+/// literals. Other property values are unknown; a spread, computed key
+/// or accessor makes the whole value unknown, since it may set any key.
+fn literal_object_entry(expression: &Expression<'_>) -> AbsValue {
+    let Expression::ObjectExpression(object) = expression.get_inner_expression() else {
+        return AbsValue::top();
+    };
+    let mut props = std::collections::BTreeMap::new();
+    for property in &object.properties {
+        let ObjectPropertyKind::ObjectProperty(property) = property else {
+            return AbsValue::top();
+        };
+        let Some(name) = property
+            .key
+            .static_name()
+            .filter(|_| !property.computed && property.kind == PropertyKind::Init)
+        else {
+            return AbsValue::top();
+        };
+        let value = literal_value(&property.value).map_or_else(AbsValue::top, AbsValue::lit);
+        props.insert(name.display().to_string(), value);
+    }
+    if props.values().all(AbsValue::is_top) {
+        return AbsValue::top();
+    }
+    AbsValue::atom(Atom::Record {
+        props: props
+            .into_iter()
+            .map(|(name, value)| (name.into_boxed_str(), value))
+            .collect(),
+        open: false,
+    })
 }
 
 fn entry_record(atom: &Atom, stable: &HashSet<u32>) -> AbsValue {
