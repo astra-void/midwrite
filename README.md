@@ -87,17 +87,29 @@ When Midwrite reports a window, the window almost always exists. Whether it
 is a bug is a separate question, and the answer is "no" more often than
 "yes".
 
-The best estimate of how it behaves on code it has never seen is the last
-scoring of three projects (Kan, Dittofeed, vercel/chatbot) that were still
-held out on 2026-11-12. The analyzer had not been tuned against them at
-that point, and Midwrite reported 127 hazards:
+Two scorings on code the analyzer was never tuned against give the best
+estimate of how it behaves on yours:
 
-| | count | share |
+* **Current held-out set** (scores the current analyzer): four projects
+  added on 2026-11-12 and frozen before scoring, never tuned against:
+  lmsqueezy/nextjs-billing, crafter-station/petdex,
+  mickasmt/next-saas-stripe-starter and kriasoft/react-starter-kit.
+  Midwrite reported 32 hazards.
+* **Historical held-out scoring** (an older analyzer): Kan, Dittofeed and
+  vercel/chatbot, scored on 2026-11-12 before any tuning on them, with 127
+  hazards. These projects have since moved to the dev set.
+
+| | current held-out | historical held-out |
 | --- | ---: | ---: |
-| The reported window exists in the code | 122 / 127 | 96% |
-| …and nothing in the app handles it (a likely bug) | 57 / 127 | 45% |
-| …but the app accepts or repairs it (best-effort email, job retries, webhook redelivery) | 65 / 127 | 51% |
-| False positive: the window is not real | 5 / 127 | 4% |
+| The reported window exists in the code | 30 / 32 (94%) | 122 / 127 (96%) |
+| …and nothing in the app handles it (a likely bug) | 3 / 32 (9%) | 57 / 127 (45%) |
+| …but the app accepts or repairs it (best-effort email, job retries, webhook redelivery) | 27 / 32 (84%) | 65 / 127 (51%) |
+| False positive: the window is not real | 2 / 32 (6%) | 5 / 127 (4%) |
+
+The current set is small. Its 95% interval for "the window exists" runs
+from 80% to 98%. Most of its findings come from one project (petdex, 24),
+where most of the reported windows sit in best-effort code: emails in a
+silent `try/catch`, or storage writes that a scheduled job backfills.
 
 So treat a warning as **a place worth five minutes of review**, not as a
 confirmed bug. Midwrite cannot see retries, reconciliation jobs or
@@ -106,18 +118,18 @@ them (see [configuration](docs/reference/configuration.md#recovery-declarations)
 
 How much to trust these numbers:
 
-* **Those three projects are no longer held out.** After that scoring,
+* **The historical projects are no longer held out.** After that scoring,
   they were moved to the dev set and the analyzer was tuned
   on their misses and false positives. On those same projects 99% (165/166)
   of reported windows are real by the analyzer's own change, 100% only after
   one label correction no separate reviewer has checked, and 52% (86/166)
-  are unhandled bugs. That is a tuned result and says little about your
+  are unhandled bugs. That is a tuned dev result and says little about your
   code.
-* **The current held-out set is one small project.** lmsqueezy/nextjs-billing
-  was added on 2026-11-12 without tuning. Midwrite reported 7 windows there:
-  all 7 exist, and 1 is an unhandled bug. Seven findings are too few to
-  tell much (the 95% interval for 7/7 runs from 65% to 100%), so the
-  127-hazard scoring above stays the main estimate.
+* **The current held-out projects were chosen by a fixed rule**, not by
+  hand: the first eligible projects in a star-ordered GitHub search. The
+  rule did not consider how well Midwrite does on them. One of them
+  (react-starter-kit) does all its writes inside an auth library and
+  produced no findings and no audited windows.
 * **Every label was written by AI agents, not by people.** The agents that
   labeled findings were separate from the ones that audited the code, but
   no human has reviewed the labels yet.
@@ -134,10 +146,10 @@ The details are in the [evaluation harness](docs/development/evaluation-harness.
 Recall is the weak side. Expect Midwrite to stay silent about real
 problems.
 
-* In the last held-out scoring before tuning it found **49 of 61** known
-  windows (80%). On nextjs-billing, the current held-out project, it found
-  2 of the 3 audited windows. It missed a plan sync that commits one row per
-  variant in a loop.
+* On the current held-out set it found **7 of 18** audited windows (39%).
+  Four of the misses are in petdex operator scripts that the project's
+  configuration excludes; inside the analyzed code it found 7 of 14. In
+  the historical held-out scoring before tuning it found 49 of 61 (80%).
   That denominator comes from capped AI audits of code that already uses
   the supported stack, so the real miss rate on your code is likely higher.
 * Where effects went through helpers it couldn't follow, recall dropped. On

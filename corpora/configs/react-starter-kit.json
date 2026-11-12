@@ -1,0 +1,13 @@
+{
+  "databaseReceivers": ["db", "ctx.db", "ctx.dbCached"],
+  "transactionMethods": ["transaction"],
+  "externalEffects": [],
+  "exclude": [
+    "**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "__tests__", "vitest.setup.ts", "db/testing.ts",
+    "db/migrations/**", "db/scripts/**", "db/seeds/**", "db/backups/**",
+    "drizzle.config.ts", "vitest.config.ts", "vite.config.ts", "astro.config.mjs",
+    "apps/app/**", "apps/web/**", "packages/ui/**", "packages/ws-protocol/example.ts",
+    "docs/**", "infra/**", "scripts/**",
+    "*.gen.ts", "*.d.ts", "dist", ".wrangler", "node_modules"
+  ]
+}

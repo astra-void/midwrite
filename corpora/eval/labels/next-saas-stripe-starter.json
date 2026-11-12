@@ -1,0 +1,100 @@
+{
+ "$comment": "Held-out evaluation labels (scripts/eval.py). knownPositives come from a code audit by an AI agent (Claude) that read only the project's source at the pinned revision: it did not run Midwrite and did not see its output. findings are classified afterwards, finding by finding, with the Phase 2 classes. No independent human review has been performed; an AI agent checking another AI agent's results is not independent human validation. Corrections go in `corrections` with a reason, never by editing a label to raise a score.",
+ "schemaVersion": 1,
+ "kind": "midwrite.eval-labels",
+ "project": "next-saas-stripe-starter",
+ "revision": "c6df229ae73c207e87356d5e592779c511a9b56d",
+ "set": "held-out",
+ "labeling": {
+  "knownPositives": {
+   "by": "AI agent (Claude), source-only audit",
+   "date": "2026-11-12",
+   "humanReviewed": false,
+   "scope": "unhandled half-written-state windows in server code; the audit was capped at 30 entries, highest confidence first, so the list is a sample when the project has more"
+  },
+  "findings": {
+   "by": "AI agent (Claude), finding-by-finding source review, separate from the auditor; did not see knownPositives",
+   "date": "2026-11-12",
+   "humanReviewed": false
+  }
+ },
+ "knownPositives": [
+  {
+   "id": "next-saas-stripe-starter-KP01",
+   "file": "lib/auth/server.ts",
+   "function": "after",
+   "functionStartLine": 79,
+   "functionEndLine": 94,
+   "pattern": "D",
+   "dbAccess": "Drizzle (neon-serverless Pool) via Better Auth drizzleAdapter; user.create.after hook runs after the user row is committed, no transaction spans the user insert and the organization creation",
+   "firstEffect": "Better Auth user insert (sign-up / social sign-in) committed before databaseHooks.user.create.after runs, line 79",
+   "secondEffect": "auth.api.createOrganization({ body: { name, slug, userId } }) at line 81 (organization + member + default team inserts)",
+   "consequence": "If createOrganization throws or the process dies after the user row is committed, the user exists with no organization or membership. The hook only fires on user creation, so later sign-ins never retry it; the session.create.before hook finds no membership and sets activeOrganizationId null, getActiveOrganization redirects to /onboarding, and that page is a Pro placeholder that cannot create an organization. The account is stranded and nothing repairs it, which breaks the stated invariant that every account has an organization.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "next-saas-stripe-starter-KP02",
+   "file": "lib/auth/delete-account.ts",
+   "function": "prepareAccountDeletion",
+   "functionStartLine": 15,
+   "functionEndLine": 83,
+   "pattern": "D",
+   "dbAccess": "Drizzle (neon-serverless Pool) global db, two autocommit statements, no transaction",
+   "firstEffect": "db.delete(subscription).where(inArray(subscription.referenceId, soloOrganizationIds)) at line 76",
+   "secondEffect": "db.delete(organization).where(inArray(organization.id, soloOrganizationIds)) at line 80",
+   "consequence": "A crash or error between the two deletes leaves the solo organizations alive with their subscription rows gone. Those rows include subscriptions that are still active in Stripe and only set to cancel (cancelAtPeriodEnd/cancelAt), so the surviving org shows as unsubscribed while Stripe keeps billing it, and later webhooks or reconcileSubscription find no row to update. It is only repaired if the user happens to retry account deletion.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "next-saas-stripe-starter-KP03",
+   "file": "lib/auth/server.ts",
+   "function": "beforeDelete",
+   "functionStartLine": 35,
+   "functionEndLine": 35,
+   "pattern": "D",
+   "dbAccess": "prepareAccountDeletion commits through the global Drizzle db (outside any Better Auth adapter transaction); Better Auth then deletes the user through its adapter",
+   "firstEffect": "prepareAccountDeletion(user.id) at line 35 -> db.delete(organization) at lib/auth/delete-account.ts:80 (cascades member/team/invitation)",
+   "secondEffect": "Better Auth deleteUser endpoint deletes the user row after beforeDelete returns (library, sequenced by the hook config at line 33-36)",
+   "consequence": "The organizations and memberships are committed as deleted before the user row is deleted. If the user deletion fails or the process dies in between, the user still exists but has no organization, so every org-scoped page redirects to the /onboarding placeholder. Nothing restores the org, and it only converges if the user finds and retries Delete account.",
+   "confidence": "low",
+   "source": "independent audit"
+  }
+ ],
+ "findings": [
+  {
+   "findingId": "c4c7830260eda71d",
+   "code": "MW1004",
+   "file": "lib/auth/delete-account.ts",
+   "line": 80,
+   "function": "prepareAccountDeletion",
+   "classification": "intended-risk",
+   "notes": "The window is real: db is a Neon Pool drizzle client (lib/db/index.ts:17-23) and the two deletes are separate autocommit statements with no transaction (delete-account.ts:76-78 deletes subscription rows, 80-82 deletes organization rows). If the organization delete fails, the solo org's subscription rows are already gone. prepareAccountDeletion is Better Auth's deleteUser.beforeDelete hook (lib/auth/server.ts:33-35), so the throw also aborts the user deletion and the user keeps an org with no local subscription record; at most that is a scheduled-to-end subscription, because lines 56-73 reject any running one. The client shows the error and leaves the dialog open (components/dashboard/settings/delete-account-card.tsx:47-54), and a retry converges: memberships still exist, the running-subscription count is 0, the subscription delete is a no-op and the org delete completes. The subscription-first order looks deliberate (comment at line 75: referenceId has no FK). Leftover risk: a user who gives up after the error keeps an org without its record of a still-paid subscription that was due to end.",
+   "crossRecord": true
+  }
+ ],
+ "corrections": [],
+ "reviewQueue": [
+  {
+   "knownPositive": "next-saas-stripe-starter-KP02",
+   "findings": [
+    "c4c7830260eda71d"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  }
+ ],
+ "auditRejected": [
+  "lib/auth/server.ts after (user.create.after) createOrganization (line 81) then adapter.updateMany session activeOrganizationId (line 88): the current session is left without an active org, but session.create.before restores the oldest membership on every new session, so it self-heals on next sign-in",
+  "modules/billing/sync.ts reconcileSubscription: stripeClient.subscriptions.retrieve is a read; only one durable effect (db.update at line 79), and it is itself a reconciliation",
+  "app/(app)/dashboard/billing/page.tsx BillingPage: listActiveSubscriptions + reconcileSubscription, single DB write",
+  "lib/auth/server.ts stripe onEvent: revalidateTag only (cache invalidation), no durable DB or remote write sequenced with another effect",
+  "lib/auth/server.ts mapProfileToUser / session.create.before / authorizeReference: reads only",
+  "lib/auth/delete-account.ts deleting organizations without deleting the Stripe customer, or deleting rows of subscriptions still active until period end: a design choice, not a crash window between two effects",
+  "modules/billing/prices.ts getPlanPrices: stripe.prices.retrieve is a read",
+  "lib/github.ts getGithubRepo: GET request, read only",
+  "modules/admin/preview-actions.ts setPreviewRole and lib/features/dev-actions.ts setFeatureOverrides: only set a browser cookie, single non-durable effect",
+  "Checkout, billing portal, subscription upgrade and the Stripe webhook are entirely inside the @better-auth/stripe plugin, and the client components only call authClient; no project-sequenced window",
+  "scripts/prune.ts: a developer CLI that edits the local filesystem, not server code"
+ ]
+}

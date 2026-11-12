@@ -24,11 +24,15 @@ still scored by `scripts/eval-sets.py`. This harness scores static
 | zero (Mail-0/Zero) | dev (held-out until 2026-11-06) | `36132735` | Workers + Durable Objects, Gmail APIs, queues, R2/KV |
 | vercel-chatbot (vercel/chatbot) | dev (since 2026-11-12) | `a8989b52` | Next.js AI chat: queries in `lib/db/queries.ts`, Vercel Blob, Redis streams and rate limit |
 | nextjs-billing (lmsqueezy/nextjs-billing) | **held-out** (since 2026-11-12) | `5ddd7680` | Next.js server actions, Lemon Squeezy subscriptions, webhook route; Drizzle over Neon HTTP, no transactions |
+| petdex (crafter-station/petdex) | **held-out** (since 2026-11-12) | `31c0aee7` | Next.js routes and admin flows; Drizzle over Neon HTTP, R2 writes, Resend, Clerk |
+| next-saas-stripe-starter (mickasmt/next-saas-stripe-starter) | **held-out** (since 2026-11-12) | `c6df229a` | Better Auth hooks with the Stripe plugin; Drizzle over Neon serverless |
+| react-starter-kit (kriasoft/react-starter-kit) | **held-out** (since 2026-11-12) | `dbdb0d49` | Hono + tRPC on Workers; every write happens inside Better Auth |
 
 Reserve: empty. All former held-out projects moved to dev before the
 2026-11-12 coverage fixes below. nextjs-billing was added afterwards as the
 only held-out project ([held-out scoring](#nextjs-billing-held-out-2026-11-12)),
-so the gate runs again, on a small sample. Every project uses Drizzle + PostgreSQL. The first
+then three more by a fixed sampling rule
+([held-out set restored](#held-out-set-restored-2026-11-12)). Every project uses Drizzle + PostgreSQL. The first
 proposed candidates (cal.com, dub, documenso, formbricks) use Prisma, which
 Midwrite does not analyze.
 
@@ -810,3 +814,97 @@ positives. Wilson 95% intervals after (all five): hazard precision
 [92.7%, 97.0%], bug precision [35.9%, 45.4%]. This is development tuning
 on AI-only labels. The nextjs-billing held-out findings are unchanged by
 this change: the same finding IDs, gate PASS (hazard precision 7/7).
+
+## Held-out set restored (2026-11-12)
+
+Record: [`reports/eval/2026-11-12-held-out-restored.json`](../../reports/eval/2026-11-12-held-out-restored.json)
+(release build of `461c75e`; configurations and labels of every held-out
+project frozen before this scoring). Linear DEV-161.
+
+### Sampling rule
+
+To keep the choice from depending on how well Midwrite does, candidates
+came from one fixed list, taken in order: GitHub repositories with the
+topic `drizzle-orm`, language TypeScript, not archived, not forks, sorted
+by stars, queried on 2026-11-12 (`gh search repos --topic drizzle-orm
+--language typescript --sort stars`). A candidate was eligible when:
+
+1. it has an OSI license;
+2. it is an application or application template (not a library, CLI,
+   scaffolder or ORM tool) with commits in the last 12 months;
+3. its server code uses Drizzle on the PostgreSQL dialect;
+4. its server code imports at least one external-effect SDK (payments,
+   email, object storage, queues, caches, webhooks);
+5. it never appeared in Midwrite's development (no fixture, corpus,
+   manifest or document names it).
+
+The first three eligible projects were taken, at the HEAD of their default
+branch: react-starter-kit (2nd by stars), petdex (6th) and
+next-saas-stripe-starter (7th). Skipped: supermemory (1st, no Drizzle in
+the public repository), kanbn/kan (3rd, already dev),
+create-better-t-stack (4th, scaffolder) and skateshop (5th, no commits
+since 2025-04). nextjs/saas-starter, cloned in `.corpora/` since early
+development, fails rule 5: its invite flow is a fixture.
+
+The rule judges the source only, so it kept react-starter-kit even though
+all of its writes happen inside Better Auth. It contributes no findings and
+no audited windows. It was not replaced: a replacement chosen after seeing
+that would be a choice made on results.
+
+### Procedure
+
+The same three separate AI agents per project as for nextjs-billing:
+
+* **Configuration** written from source by an agent that did not run the
+  analyzer or read any finding. petdex adds two wrapper rules for R2 helpers
+  that one caller reaches through a dynamic `import()`, and a Clerk
+  `users.updateUser` rule. It excludes `scripts/**` (operator scripts).
+  The two Better Auth projects need no rule beyond the built-ins.
+* **Known positives** from a source-only audit that saw neither the
+  configuration nor Midwrite output: petdex 12, next-saas-stripe-starter 3,
+  react-starter-kit 0. The auditors also listed the candidates they
+  rejected and why (`auditRejected` in each label file).
+* **Findings** classified by a third agent that saw neither the audit nor
+  the configuration rationale, only the source and the findings.
+
+### Scores
+
+| project | hazards | hazard precision | bug precision | audited recall |
+| --- | ---: | --- | --- | --- |
+| nextjs-billing | 7 | 7/7 | 1/7 | 2/3 |
+| petdex | 24 | 22/24 | 2/24 | 4/12 |
+| next-saas-stripe-starter | 1 | 1/1 | 0/1 | 1/3 |
+| react-starter-kit | 0 | n/a | n/a | n/a (no audited windows) |
+| **held-out (all four)** | **32** | **30/32 (93.75%)** | **3/32 (9.4%)** | **7/18** |
+
+**Stage-1 gate: PASS.** The harness's recall line (8/19) also counts
+nextjs-billing's true positive outside the audit.
+
+* Wilson 95% intervals: hazard precision [79.9%, 98.3%], bug precision
+  [3.2%, 24.2%], recall 8/19 [23.1%, 63.7%].
+* One project carries most of the weight: petdex has 24 of the 32
+  hazards. One more false positive there gives 29/32 (0.906), still a
+  pass; two more fail the gate.
+* petdex's two false positives: `26c8b8e69f66b1c1` pairs an approve-only
+  publish with an edit-only republish that never run in one call
+  (`submission-decisions.ts:179`, path infeasible), and `5c207dae68e2a103`
+  pairs a `finishReview` update with a second one that runs only after the
+  first matched no row (`submission-review.ts:249`, first change not
+  persisted).
+* Recall misses (held-out misses, recorded here and not used to choose a
+  fix):
+  * petdex KP06, KP07, KP09 and KP12 are operator scripts under
+    `scripts/`, which the configuration excludes. Inside the analyzed code
+    audited recall is 7/14.
+  * petdex KP01 (`takedownPet`): the delete commits through a raw-SQL
+    transaction or a neon-http `db.batch`, which Midwrite does not model
+    (MW9001), so the later R2 delete has no commit before it.
+  * petdex KP08, KP10, KP11 and nextjs-billing KP01 are not reported.
+  * next-saas-stripe-starter KP01 and KP03 sit in Better Auth hooks whose
+    first commit happens inside the library.
+* `reviewQueue` holds four disagreements, where the auditor called a window
+  unhandled and the labeler called the matching findings intended-risk:
+  petdex KP02, KP03 and KP04 (best-effort emails and R2 cleanup after an
+  approval) and next-saas-stripe-starter KP02 (a retry converges). Neither
+  label was changed.
+* All labels are AI-only, with no human review (DEV-162).

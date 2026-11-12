@@ -68,6 +68,39 @@
       "config": "corpora/configs/nextjs-billing.json",
       "labels": "corpora/eval/labels/nextjs-billing.json",
       "notes": "Lemon Squeezy billing template: Next.js server actions, Drizzle over Neon HTTP (no transactions), Lemon Squeezy SDK subscription calls and a webhook route that stores then processes events. Added as held-out on 2026-11-12 (HEAD of main): configuration written from source by an agent that did not run the analyzer, known positives from a separate source-only audit, findings classified by a third agent that saw neither."
+    },
+    {
+      "name": "react-starter-kit",
+      "set": "held-out",
+      "repository": "https://github.com/kriasoft/react-starter-kit.git",
+      "revision": "dbdb0d4991bbaae1671ff62180089f2733dd406a",
+      "license": "MIT",
+      "path": ".corpora/react-starter-kit",
+      "config": "corpora/configs/react-starter-kit.json",
+      "labels": "corpora/eval/labels/react-starter-kit.json",
+      "notes": "Bun monorepo starter: Hono + tRPC API, Better Auth with the Stripe plugin, Resend email, Drizzle over postgres-js (PostgreSQL). Added as held-out on 2026-11-12 (HEAD of main) by the DEV-161 sampling rule: configuration written from source by an agent that did not run the analyzer, known positives from a separate source-only audit, findings classified by a third agent that saw neither."
+    },
+    {
+      "name": "petdex",
+      "set": "held-out",
+      "repository": "https://github.com/crafter-station/petdex.git",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "license": "MIT",
+      "path": ".corpora/petdex",
+      "config": "corpora/configs/petdex.json",
+      "labels": "corpora/eval/labels/petdex.json",
+      "notes": "Next.js gallery of animated pets: Drizzle over Neon HTTP (PostgreSQL), S3/R2 uploads, Resend email, Svix webhooks, Upstash Redis rate limiting, OpenAI. Added as held-out on 2026-11-12 (HEAD of main) by the DEV-161 sampling rule: configuration written from source by an agent that did not run the analyzer, known positives from a separate source-only audit, findings classified by a third agent that saw neither."
+    },
+    {
+      "name": "next-saas-stripe-starter",
+      "set": "held-out",
+      "repository": "https://github.com/mickasmt/next-saas-stripe-starter.git",
+      "revision": "c6df229ae73c207e87356d5e592779c511a9b56d",
+      "license": "MIT",
+      "path": ".corpora/next-saas-stripe-starter",
+      "config": "corpora/configs/next-saas-stripe-starter.json",
+      "labels": "corpora/eval/labels/next-saas-stripe-starter.json",
+      "notes": "Next.js SaaS starter: Better Auth with the Stripe plugin, Stripe SDK calls, Drizzle over Neon serverless (PostgreSQL). Added as held-out on 2026-11-12 (HEAD of main) by the DEV-161 sampling rule: configuration written from source by an agent that did not run the analyzer, known positives from a separate source-only audit, findings classified by a third agent that saw neither."
     }
   ],
   "reserve": [],
@@ -87,6 +120,10 @@
     {
       "date": "2026-11-12",
       "change": "kan, dittofeed and vercel-chatbot moved from held-out to dev before analyzer tuning requested by the user. Their source-grounded label-correction baseline is reports/eval/2026-11-12-label-corrections.json. No unused reserve project exists, so there is currently no independent held-out set; subsequent results on these projects are development comparisons, not held-out generalization scores."
+    },
+    {
+      "date": "2026-11-12",
+      "change": "react-starter-kit, petdex and next-saas-stripe-starter added as held-out (DEV-161), chosen by a fixed sampling rule: the first three eligible projects in `gh search repos --topic drizzle-orm --language typescript --sort stars` (OSI license, application with commits in the last 12 months, Drizzle on PostgreSQL in server code, an external-effect SDK in server code, never used in Midwrite development). Each pinned at the HEAD of its default branch. Configuration, source-only audit and finding labels came from three separate AI agents per project; all were frozen before scoring. See docs/development/evaluation-harness.md#held-out-set-restored-2026-11-12."
     }
   ]
 }

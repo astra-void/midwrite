@@ -10,6 +10,33 @@
       },
       "frozenAtUtc": "2026-11-12T04:17:00Z",
       "history": []
+    },
+    "react-starter-kit": {
+      "revision": "dbdb0d4991bbaae1671ff62180089f2733dd406a",
+      "files": {
+        "corpora/configs/react-starter-kit.json": "06d80d469c1dcc416668ba749f83817fbf27eed66cf9ecf07eae91a0332e0d59",
+        "corpora/eval/labels/react-starter-kit.json": "88d0256a2bf028f62abae8501be81282849193a85c2c2858bde0405d088db9ce"
+      },
+      "frozenAtUtc": "2026-11-12T05:39:30Z",
+      "history": []
+    },
+    "petdex": {
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "files": {
+        "corpora/configs/petdex.json": "8bbd000947b372caca7ab409b02aae777f9071aeab43a11948d4e9196433a930",
+        "corpora/eval/labels/petdex.json": "402aca6e64fce4e53aceb0aad5c6bc089bca3037e5b00cd8cef1b6ba6d6e5194"
+      },
+      "frozenAtUtc": "2026-11-12T05:39:30Z",
+      "history": []
+    },
+    "next-saas-stripe-starter": {
+      "revision": "c6df229ae73c207e87356d5e592779c511a9b56d",
+      "files": {
+        "corpora/configs/next-saas-stripe-starter.json": "e0c8f0869bafd380c3d392a30b7a720bf6b8db8b6a6bf6d0ebf69b34201b1a6b",
+        "corpora/eval/labels/next-saas-stripe-starter.json": "ac9b2e3b4fe6f83d55260e7581e78ba7d26f4e06838a68cc49d7cd6b397f9363"
+      },
+      "frozenAtUtc": "2026-11-12T05:39:30Z",
+      "history": []
     }
   },
   "retired": [

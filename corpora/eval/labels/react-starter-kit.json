@@ -1,0 +1,41 @@
+{
+ "$comment": "Held-out evaluation labels (scripts/eval.py). knownPositives come from a code audit by an AI agent (Claude) that read only the project's source at the pinned revision: it did not run Midwrite and did not see its output. findings are classified afterwards, finding by finding, with the Phase 2 classes. No independent human review has been performed; an AI agent checking another AI agent's results is not independent human validation. Corrections go in `corrections` with a reason, never by editing a label to raise a score.",
+ "schemaVersion": 1,
+ "kind": "midwrite.eval-labels",
+ "project": "react-starter-kit",
+ "revision": "dbdb0d4991bbaae1671ff62180089f2733dd406a",
+ "set": "held-out",
+ "labeling": {
+  "knownPositives": {
+   "by": "AI agent (Claude), source-only audit",
+   "date": "2026-11-12",
+   "humanReviewed": false,
+   "scope": "unhandled half-written-state windows in server code; the audit was capped at 30 entries, highest confidence first, so the list is a sample when the project has more"
+  },
+  "findings": {
+   "by": "AI agent (Claude), finding-by-finding source review, separate from the auditor; did not see knownPositives",
+   "date": "2026-11-12",
+   "humanReviewed": false
+  }
+ },
+ "knownPositives": [],
+ "findings": [],
+ "corrections": [],
+ "reviewQueue": [],
+ "auditRejected": [
+  "apps/api/lib/auth.ts stripePlugin (lines 89-161) createCustomerOnSignUp: true -- Stripe customer creation followed by a user-row update happens entirely inside @better-auth/stripe's own hooks; project code only sets a config flag and sequences no effects itself.",
+  "apps/api/lib/auth.ts stripePlugin authorizeReference (lines 144-156) -- read-only membership SELECT; no durable effect.",
+  "apps/api/lib/auth.ts createAuth emailOTP.sendVerificationOTP (lines 253-255) -- one external effect (Resend send via sendOTP -> sendEmail). Better Auth writes the verification row before calling it, but the library does that sequencing; the project callback holds only one effect. The user can request a new code.",
+  "apps/api/lib/auth.ts createAuth emailAndPassword.sendResetPassword (lines 222-224) / emailVerification.sendVerificationEmail (lines 229-231) -- same as above: one Resend send per callback; the token-row write before it is inside Better Auth. Resending works as a retry.",
+  "apps/api/lib/auth.ts createAuth databaseHooks.session.create.before (lines 272-283) -- read-only lookup (findInitialOrganization) that returns modified data for the library's own single insert; no second effect.",
+  "apps/api/lib/auth.ts createAuth hooks.after (lines 289-325) -- only sets or clears a response cookie (not durable server state).",
+  "apps/api/lib/auth.ts organization() plugin (lines 239-243) -- org + owner-member inserts are inside Better Auth's organization plugin; project code does not sequence them.",
+  "apps/api/routers/billing.ts billingRouter.subscription (lines 14-89) -- tRPC query, read-only.",
+  "apps/api/lib/app.ts /api/auth/* handler (lines 53-59) and tRPC createContext (lines 67-99) -- delegate to the library or read the session; no project-sequenced writes.",
+  "apps/api/worker.ts / apps/api/dev.ts context middleware -- builds clients only; no effects.",
+  "apps/web/worker.ts -- pure proxy/asset routing; no durable effects.",
+  "packages/ws-protocol/router.ts -- example WebSocket handlers only send transient messages; the DB call is commented out.",
+  "db/seeds/users.ts seedUsers (lines 7-33) -- independent inserts in a loop (pattern D shape), but they use onConflictDoNothing, so a rerun converges; this is also a dev/staging seed script, not server code.",
+  "scripts/deploy.ts top-level wrangler deploy loop (lines 96-110) -- sequential non-atomic worker deploys (pattern E shape, and its own log message admits it). This is an operator CLI, not server request/job code; rerunning the script converges."
+ ]
+}

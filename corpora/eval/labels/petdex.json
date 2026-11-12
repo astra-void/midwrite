@@ -1,0 +1,476 @@
+{
+ "$comment": "Held-out evaluation labels (scripts/eval.py). knownPositives come from a code audit by an AI agent (Claude) that read only the project's source at the pinned revision: it did not run Midwrite and did not see its output. findings are classified afterwards, finding by finding, with the Phase 2 classes. No independent human review has been performed; an AI agent checking another AI agent's results is not independent human validation. Corrections go in `corrections` with a reason, never by editing a label to raise a score.",
+ "schemaVersion": 1,
+ "kind": "midwrite.eval-labels",
+ "project": "petdex",
+ "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+ "set": "held-out",
+ "labeling": {
+  "knownPositives": {
+   "by": "AI agent (Claude), source-only audit",
+   "date": "2026-11-12",
+   "humanReviewed": false,
+   "scope": "unhandled half-written-state windows in server code; the audit was capped at 30 entries, highest confidence first, so the list is a sample when the project has more"
+  },
+  "findings": {
+   "by": "AI agent (Claude), finding-by-finding source review, separate from the auditor; did not see knownPositives",
+   "date": "2026-11-12",
+   "humanReviewed": false
+  }
+ },
+ "knownPositives": [
+  {
+   "id": "petdex-KP01",
+   "file": "src/lib/takedown.ts",
+   "function": "takedownPet",
+   "functionStartLine": 66,
+   "functionEndLine": 261,
+   "pattern": "A",
+   "dbAccess": "Drizzle (Neon); row delete + reference cleanup in one db.batch / db.transaction; R2 delete runs after commit, outside it",
+   "firstEffect": "batch.batch([... DELETE FROM submitted_pets ...]) at line 156 (or db.transaction at line 167)",
+   "secondEffect": "deleteR2Objects(keys) at line 208 (R2 DeleteObjects of spritesheet, pet.json, zip, sound, public preview/thumb/sticker)",
+   "consequence": "The pet row is deleted and the slug is freed, but if the process dies or R2 fails after the commit, the source assets and the slug-keyed public artifacts stay in R2 and stay publicly reachable. Errors are caught and logged, per-key failures in the DeleteObjects response are never checked, and a retry returns early because the row is gone. The pending-asset GC only covers pending keys. A later pet that reuses the slug inherits the stale preview/thumb/sticker, because publishPetPublicArtifacts skips keys that already exist. Reached from DELETE /api/pets/[slug]/owner.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "petdex-KP02",
+   "file": "src/lib/submission-decisions.ts",
+   "function": "applySubmissionAction",
+   "functionStartLine": 72,
+   "functionEndLine": 219,
+   "pattern": "A",
+   "dbAccess": "Drizzle (Neon), autocommit, no transaction",
+   "firstEffect": "db.update(schema.submittedPets).set(update) at line 157 (status -> approved/rejected)",
+   "secondEffect": "notifySubmissionOwner(row) at line 191 -> createNotification insert (line 341, notifications.ts:27) and resend.emails.send at lines 369/381",
+   "consequence": "The approve/reject status is committed before the owner's in-app notification and email. A crash or timeout in between (including the slow LLM classify and R2 artifact publish that run first on approve) means the owner is never told. A retry does nothing: reviewSubmission reuses the latest review, the row is no longer pending, and nothing records that a notification is owed. Reached by auto-review from POST /api/submit and POST /api/cli/submit/register through persistSubmission -> reviewSubmission.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "petdex-KP03",
+   "file": "src/app/api/feedback/[id]/replies/route.ts",
+   "function": "POST",
+   "functionStartLine": 79,
+   "functionEndLine": 229,
+   "pattern": "A",
+   "dbAccess": "Drizzle (Neon), autocommit, no transaction (reply insert, read-marker update, notification insert are separate commits)",
+   "firstEffect": "db.insert(schema.feedbackReplies) at line 121",
+   "secondEffect": "resend.emails.send at line 193 (admin reply -> author) / line 215 (user follow-up -> admin); also createNotification at line 150",
+   "consequence": "The reply is persisted, but a crash before the email (or the fire-and-forget notification insert) means the other party is never told. Email failures are swallowed. A retry is not idempotent: it inserts a duplicate reply under a new id. The read-marker update at lines 135/140 is also a separate commit.",
+   "confidence": "high",
+   "source": "independent audit"
+  },
+  {
+   "id": "petdex-KP04",
+   "file": "src/lib/submission-decisions.ts",
+   "function": "applySubmissionAction",
+   "functionStartLine": 72,
+   "functionEndLine": 219,
+   "pattern": "A",
+   "dbAccess": "Drizzle (Neon), autocommit, no transaction",
+   "firstEffect": "db.update(schema.submittedPets).set(update) at line 157 (approved pet -> rejected/pending, or slug rename)",
+   "secondEffect": "deletePetPublicArtifacts(current.slug) at line 182 -> deleteR2Objects at line 333",
+   "consequence": "When an approved pet is rejected (e.g. by the scripts/audit-pet-security.ts security rejection) or renamed, the status/slug change commits before the old slug's public preview/thumb/sticker are deleted from R2. A crash, R2 error (caught and logged) or unchecked per-key failure leaves the rejected pet's artifacts publicly served. No job removes them: the backfills only add missing artifacts. A retry sees the pet as no longer approved, so deleteOld is false.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "petdex-KP05",
+   "file": "src/lib/request-candidates.ts",
+   "function": "approveCandidate",
+   "functionStartLine": 249,
+   "functionEndLine": 338,
+   "pattern": "D",
+   "dbAccess": "Drizzle (Neon), three autocommit updates, no transaction",
+   "firstEffect": "db.update(schema.petRequestCandidates).set({status:'approved'}) at line 289",
+   "secondEffect": "db.update(schema.petRequestCandidates) (reject siblings) at line 305 and db.update(schema.petRequests).set({status:'fulfilled'}) at line 321",
+   "consequence": "A crash after the first update leaves the candidate approved while the request stays open and sibling candidates stay pending. A retry fails with not_pending because the candidate is already approved, so the request is never marked fulfilled. Note: no caller in this repo; the admin UI lives in a separate app.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "petdex-KP06",
+   "file": "scripts/takedown-pet.ts",
+   "function": "main",
+   "functionStartLine": 52,
+   "functionEndLine": 181,
+   "pattern": "A",
+   "dbAccess": "Drizzle, sequence of autocommit deletes/updates (no transaction)",
+   "firstEffect": "db.delete(schema.submittedPets) at line 131",
+   "secondEffect": "deleteR2Objects(keys) at line 135; createNotification at line 143; resend.emails.send at line 160",
+   "consequence": "The ops takedown deletes the pet row, then deletes R2 assets and notifies the owner. A crash after the row delete leaves assets and public artifacts in R2 and the owner unnotified. A rerun exits with 'pet not found', so it never finishes. The earlier cleanup statements (lines 99-128) are also separate commits; those converge on rerun only while the row still exists.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "petdex-KP07",
+   "file": "scripts/takedown-by-keyword.ts",
+   "function": "takedownOne",
+   "functionStartLine": 127,
+   "functionEndLine": 205,
+   "pattern": "A",
+   "dbAccess": "Drizzle, sequence of autocommit deletes/updates (no transaction)",
+   "firstEffect": "db.delete(schema.submittedPets) at line 155",
+   "secondEffect": "deleteR2Objects(keys) at line 167; createNotification at line 172; resend.emails.send at line 194",
+   "consequence": "Same shape as takedown-pet. Once the row is gone, a rerun no longer matches the pet by keyword, so orphaned R2 assets and public artifacts stay live and the owner never gets the takedown notification or email.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "petdex-KP08",
+   "file": "src/lib/submissions.ts",
+   "function": "persistSubmission",
+   "functionStartLine": 83,
+   "functionEndLine": 172,
+   "pattern": "A",
+   "dbAccess": "Drizzle (Neon), autocommit insert",
+   "firstEffect": "db.insert(schema.submittedPets) at line 101",
+   "secondEffect": "resend.emails.send (admin new-submission notice, fire-and-forget void IIFE) at line 143",
+   "consequence": "The submission row is committed before the admin notice email. The email is detached (void) and errors are swallowed, so a crash, or the serverless process being frozen after the response, loses it. Nothing re-sends it. The submission sits in the queue with no alert; only the manual review script or admin queue would surface it.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "petdex-KP09",
+   "file": "scripts/revive-rejected-pets.ts",
+   "function": "main",
+   "functionStartLine": 25,
+   "functionEndLine": 110,
+   "pattern": "A",
+   "dbAccess": "neon serverless sql template, autocommit per row",
+   "firstEffect": "UPDATE submitted_pets SET status = 'approved' at line 56",
+   "secondEffect": "resend.emails.send at line 67",
+   "consequence": "Each pet is flipped to approved before its owner email goes out. A crash between them, or a swallowed send error, leaves the pet approved with no email. A rerun selects only rejected pets, so the email is never sent.",
+   "confidence": "medium",
+   "source": "independent audit"
+  },
+  {
+   "id": "petdex-KP10",
+   "file": "src/app/api/pet-requests/route.ts",
+   "function": "POST",
+   "functionStartLine": 237,
+   "functionEndLine": 363,
+   "pattern": "D",
+   "dbAccess": "Drizzle insert + raw neon() SQL statements, each autocommit, no transaction",
+   "firstEffect": "db.insert(schema.petRequests) at line 333",
+   "secondEffect": "rawSql UPDATE pet_requests SET embedding at line 343; rawSql INSERT INTO pet_request_votes (creator vote) at line 351",
+   "consequence": "A new request can be committed (upvote_count defaults to 1) without the creator's vote row and without its embedding. The vote list and the denormalized count then disagree: the next voter's recount drops the creator, and the creator can vote again. The embedding is never backfilled, so the request is missing from semantic matching. A creator retry repairs the vote only.",
+   "confidence": "low",
+   "source": "independent audit"
+  },
+  {
+   "id": "petdex-KP11",
+   "file": "src/lib/pet-edit.ts",
+   "function": "persistAutoAcceptedEdit",
+   "functionStartLine": 290,
+   "functionEndLine": 333,
+   "pattern": "D",
+   "dbAccess": "Drizzle (Neon), autocommit update then separate fire-and-forget insert",
+   "firstEffect": "db.update(schema.submittedPets).set(liveUpdate) at line 314",
+   "secondEffect": "createNotification (edit_approved) at line 323 -> db.insert(schema.notifications) in src/lib/notifications.ts:27",
+   "consequence": "The edit is applied live, but the owner's edit_approved notification is a separate, swallowed, fire-and-forget insert. A crash or freeze in between loses it, and nothing re-creates it.",
+   "confidence": "low",
+   "source": "independent audit"
+  },
+  {
+   "id": "petdex-KP12",
+   "file": "scripts/admin-import-pet.ts",
+   "function": "main",
+   "functionStartLine": 80,
+   "functionEndLine": 234,
+   "pattern": "B",
+   "dbAccess": "Drizzle autocommit insert",
+   "firstEffect": "r2.send(PutObjectCommand) x3 at lines 160/168/176",
+   "secondEffect": "db.insert(schema.submittedPets) at line 203",
+   "consequence": "The three R2 objects go under a random uploadId key before the DB row exists. A crash or insert failure leaves unreferenced objects under pets/<slug>-<id>/. gc-pending-r2 only collects pending-asset keys, and a rerun uploads under a fresh uploadId, so the orphans are never cleaned.",
+   "confidence": "low",
+   "source": "independent audit"
+  }
+ ],
+ "findings": [
+  {
+   "findingId": "09885b2a387721a9",
+   "code": "MW1004",
+   "file": "src/app/api/feedback/[id]/replies/route.ts",
+   "line": 135,
+   "function": "POST",
+   "classification": "intended-risk",
+   "notes": "The reply row is inserted (route.ts:121) and then the admin's read marker is advanced (route.ts:135). If the request dies in between, the reply exists but adminLastReadAt is stale, so the admin's own reply may look unread. This is a convenience marker that is refreshed every time the thread is opened (GET route.ts:55-59 sets adminLastReadAt). Nothing breaks, and the next view of the thread fixes it.",
+   "crossRecord": true
+  },
+  {
+   "findingId": "09885b2a387721a9-2",
+   "code": "MW1004",
+   "file": "src/app/api/feedback/[id]/replies/route.ts",
+   "line": 140,
+   "function": "POST",
+   "classification": "intended-risk",
+   "notes": "The reply row is inserted (route.ts:121) and then userLastReadAt is updated (route.ts:140). If the request dies in between, the user's marker is stale. Unread state only counts admin replies (me/header-state/route.ts:80-83, my-feedback/page.tsx:132-135), so the user's own follow-up never shows as unread. The marker is refreshed on every thread view (route.ts:60-64, my-feedback/[id]/page.tsx:60).",
+   "crossRecord": true
+  },
+  {
+   "findingId": "d4250a3efa87910f",
+   "code": "MW1001",
+   "file": "src/app/api/feedback/[id]/replies/route.ts",
+   "line": 193,
+   "function": "POST",
+   "classification": "intended-risk",
+   "notes": "The admin read-marker update (route.ts:135) commits before the notification email to the author (route.ts:193). The whole email block is wrapped in try/catch with the comment 'email is best-effort; silent fail' (route.ts:223-225), so a missed email is an accepted outcome. The reply itself is persisted, and the in-app notification is also fire-and-forget."
+  },
+  {
+   "findingId": "d4250a3efa87910f-2",
+   "code": "MW1001",
+   "file": "src/app/api/feedback/[id]/replies/route.ts",
+   "line": 215,
+   "function": "POST",
+   "classification": "intended-risk",
+   "notes": "The user read-marker update (route.ts:140) commits before the follow-up email to the admin (route.ts:215). The email is explicitly best-effort: try/catch with 'email is best-effort; silent fail' (route.ts:223-225). The reply is stored and is visible in the admin thread view, so a lost email is accepted by design."
+  },
+  {
+   "findingId": "674e1cbfb4f991ed",
+   "code": "MW1004",
+   "file": "src/app/api/internal/route-cost/route.ts",
+   "line": 132,
+   "function": "POST",
+   "classification": "intended-risk",
+   "notes": "Two sampled telemetry counter upserts, routeCostBuckets (route.ts:101) and routeCostSourceBuckets (route.ts:132), commit separately. Each one is wrapped in its own try/catch that only logs (route.ts:124-129, 159-164), so the code already accepts that one counter can get a sample the other misses. These are approximate cost-estimation buckets (sampleWeight estimates), so a skew of one sample is tolerated.",
+   "crossRecord": true
+  },
+  {
+   "findingId": "c9c3146672bb0292",
+   "code": "MW1004",
+   "file": "src/app/api/pets/[slug]/like/route.ts",
+   "line": 104,
+   "function": "POST",
+   "classification": "intended-risk",
+   "notes": "The like row is inserted (like/route.ts:64), then the denormalized petMetrics.likeCount is set via setLikeCount (metrics.ts:72). If the request dies in between, likeCount is stale. The count is always recomputed from scratch with count(*) over petLikes ('Recompute count to avoid drift', like/route.ts:98-104) on every like POST, including a retry by the same user (line 81 branch). The next like or unlike on that pet converges it.",
+   "crossRecord": true
+  },
+  {
+   "findingId": "32d25228029aea72",
+   "code": "MW1001",
+   "file": "src/app/api/profile/route.ts",
+   "line": 252,
+   "function": "PATCH",
+   "classification": "intended-risk",
+   "notes": "The profile handle is upserted in the DB (profile/route.ts:221), then the Clerk username is synced (route.ts:252). The comment at route.ts:244-248 says this is deliberate: if the Clerk call fails, it logs and moves on, and the DB stays the source of truth. The call is wrapped in try/catch that only warns (route.ts:250-258). A one-off scripts/backfill-clerk-usernames.ts also exists to re-sync."
+  },
+  {
+   "findingId": "2ea8e04a5e4ab4c5",
+   "code": "MW1002",
+   "file": "src/lib/pet-sound.ts",
+   "line": 269,
+   "function": "processPetSound",
+   "classification": "intended-risk",
+   "notes": "The sound file is uploaded to R2 at a deterministic key pets/<slug>/sound.mp3 (pet-sound.ts:266-277), then submittedPets.soundUrl is set (pet-sound.ts:280). If the DB update fails, an orphan object is left but the pet still has no soundUrl. The only caller, scripts/generate-pet-sounds.ts:23, selects approved pets missing sound_url, so a re-run regenerates and overwrites the same key and then sets the URL. The process converges on re-run."
+  },
+  {
+   "findingId": "6946f8ab26c2cbfa",
+   "code": "MW1004",
+   "file": "src/lib/request-candidates.ts",
+   "line": 305,
+   "function": "approveCandidate",
+   "classification": "true-positive",
+   "notes": "approveCandidate marks the chosen candidate approved (request-candidates.ts:289), then auto-rejects pending sibling candidates in a separate autocommitted statement (request-candidates.ts:305). If it fails in between, one candidate is approved while siblings stay 'pending' and the request is not fulfilled. A retry returns not_pending, because the candidate status is checked at request-candidates.ts:271, so the function cannot be re-run to finish. No reconciliation exists. Note: there is no in-repo caller (it is likely used by the separate admin app).",
+   "crossRecord": true
+  },
+  {
+   "findingId": "e22a74407ad5d615",
+   "code": "MW1004",
+   "file": "src/lib/request-candidates.ts",
+   "line": 321,
+   "function": "approveCandidate",
+   "classification": "true-positive",
+   "notes": "After the candidate is approved (request-candidates.ts:289) and siblings are rejected (request-candidates.ts:305), the petRequests row is marked fulfilled in another independent statement (request-candidates.ts:321). If it fails before line 321, the request stays 'open' with no fulfilledPetSlug even though a winning candidate is recorded. A retry is blocked by the candidate.status !== 'pending' guard (line 271), and nothing reconciles requests against approved candidates.",
+   "crossRecord": true
+  },
+  {
+   "findingId": "cad32ae8bbbbbb6d",
+   "code": "MW1001",
+   "file": "src/lib/submission-decisions.ts",
+   "line": 169,
+   "function": "applySubmissionAction",
+   "classification": "intended-risk",
+   "notes": "The approve status update (submission-decisions.ts:157) commits before public artifacts (thumbnail/preview/stickers) are published to R2 via runPostApprovalEffects -> publishApprovedPublicArtifacts (line 303). The publish is wrapped in a log-only try/catch (lines 299-321), so a failure is accepted. The 6-hourly preview-snapshot workflow (.github/workflows/preview-snapshot.yml, scripts/publish-pet-previews.ts:149-190) reconciles approved pets missing preview, thumbnail or sticker artifacts."
+  },
+  {
+   "findingId": "bf17618044d421e3",
+   "code": "MW1004",
+   "file": "src/lib/submission-decisions.ts",
+   "line": 169,
+   "function": "applySubmissionAction",
+   "classification": "intended-risk",
+   "notes": "The approve status update (submission-decisions.ts:157) and the auto-tag update of kind/vibes/tags on the same row (submission-decisions.ts:233) are separate commits. If it fails in between, an approved pet is left without auto-tags. That state is already normal whenever classifyPet returns null (line 232). It is repaired by the idempotent scripts/auto-tag.ts, which re-tags approved pets with empty tags or vibes."
+  },
+  {
+   "findingId": "4e30e5bf44efcfc9",
+   "code": "MW1001",
+   "file": "src/lib/submission-decisions.ts",
+   "line": 179,
+   "function": "applySubmissionAction",
+   "classification": "intended-risk",
+   "notes": "When an approved pet is edited with a new slug or spritesheet, the row update (submission-decisions.ts:157) commits before public artifacts are republished (line 179 -> 303). The republish is log-only best-effort (lines 299-321). The planPublicArtifacts comment (lines 44-53) relies on the 6-hourly backfill, which publishes missing artifacts for approved slugs (scripts/publish-pet-previews.ts:149-190), so a renamed slug gets its artifacts back."
+  },
+  {
+   "findingId": "26c8b8e69f66b1c1",
+   "code": "MW1005",
+   "file": "src/lib/submission-decisions.ts",
+   "line": 179,
+   "function": "applySubmissionAction",
+   "classification": "false-positive",
+   "notes": "The first effect is a publish inside runPostApprovalEffects, which only runs when body.action === 'approve' (submission-decisions.ts:168). The second is publishApprovedPublicArtifacts at line 179, which only runs when artifactPlan.republish is true. That requires input.action === 'edit' (planPublicArtifacts, lines 63-67). The two branches are mutually exclusive in one call, so this sequence cannot happen.",
+   "fpCause": "path infeasible"
+  },
+  {
+   "findingId": "9ca89e6d9d2cade8",
+   "code": "MW1001",
+   "file": "src/lib/submission-decisions.ts",
+   "line": 182,
+   "function": "applySubmissionAction",
+   "classification": "intended-risk",
+   "notes": "The status/slug update (submission-decisions.ts:157) commits before the old slug's derived public artifacts are deleted from R2 (line 182 -> 333). If it fails in between, stale thumbnail/preview/sticker objects stay in R2 under the old slug. deletePetPublicArtifacts deliberately swallows failure and only logs 'public artifact cleanup failed' (lines 328-336), so leftover derived files are an accepted outcome. Nothing repairs them automatically: re-applying the action no longer sets deleteOld, because wasApproved is now false or the slug is unchanged."
+  },
+  {
+   "findingId": "fbe4de706e93f1a8",
+   "code": "MW1005",
+   "file": "src/lib/submission-decisions.ts",
+   "line": 182,
+   "function": "applySubmissionAction",
+   "classification": "intended-risk",
+   "notes": "When an approved pet is renamed, artifacts are published for the new slug (line 179 -> 303) and then the old slug's artifacts are deleted (line 182 -> 333). These are independent R2 writes. If it fails in between, orphaned artifacts remain under the old slug, which nothing references any more. Both helpers are log-only best-effort (lines 299-321, 328-336), so leftover old-slug files are an accepted cost.",
+   "crossRecord": true
+  },
+  {
+   "findingId": "21aa19bc7eedd7ca",
+   "code": "MW1001",
+   "file": "src/lib/submission-decisions.ts",
+   "line": 191,
+   "function": "applySubmissionAction",
+   "classification": "intended-risk",
+   "notes": "The status update (submission-decisions.ts:157) commits before the owner's approval email (line 191 -> 369). notifySubmissionOwner wraps the Resend call in a silent try/catch (lines 357-391), and the in-app notification is fire-and-forget (lines 341-353). A missed email is deliberately accepted."
+  },
+  {
+   "findingId": "ea67ec43951c18b9",
+   "code": "MW1005",
+   "file": "src/lib/submission-decisions.ts",
+   "line": 191,
+   "function": "applySubmissionAction",
+   "classification": "intended-risk",
+   "notes": "The old slug's R2 artifacts are deleted (line 182 -> 333), then the owner email is sent (line 191 -> 369). These are independent external effects. Both are explicitly best-effort: the cleanup failure is only logged (lines 334-336) and the email failure is silent (lines 389-391). A missed notification email is accepted by design.",
+   "crossRecord": true
+  },
+  {
+   "findingId": "2de339dacc3f67b9",
+   "code": "MW1001",
+   "file": "src/lib/submission-decisions.ts",
+   "line": 242,
+   "function": "runPostApprovalEffects",
+   "classification": "intended-risk",
+   "notes": "In runPostApprovalEffects, the auto-tag update (submission-decisions.ts:233) commits before the public artifacts are published (line 242 -> 303). If it fails in between, the pet is tagged but has no preview, thumbnail or sticker in R2. The publish is log-only best-effort (lines 299-321). The 6-hourly preview-snapshot backfill republishes missing artifacts for approved pets (scripts/publish-pet-previews.ts:149-190)."
+  },
+  {
+   "findingId": "135c580767456c38",
+   "code": "MW1004",
+   "file": "src/lib/submission-review.ts",
+   "line": 151,
+   "function": "reviewSubmission",
+   "classification": "intended-risk",
+   "notes": "A 'running' submissionReviews row is inserted (submission-review.ts:133), then finalized by finishReview (line 151 -> 330). A crash in between leaves the review stuck in 'running'. scripts/review-pending-submissions.ts:108-133 (buryStaleRunningReviews) explicitly reconciles 'running' reviews older than 60 minutes into failed/hold 'review_interrupted'. It then re-reviews held pending submissions with force (lines 75-77)."
+  },
+  {
+   "findingId": "d5c98e10158af7a8",
+   "code": "MW1004",
+   "file": "src/lib/submission-review.ts",
+   "line": 164,
+   "function": "reviewSubmission",
+   "classification": "intended-risk",
+   "notes": "The 'running' review row is inserted (submission-review.ts:133), then dhash is written on submittedPets by persistAssetSignals (line 164 -> 658). A crash in between leaves a stuck 'running' review and no dhash. The stale-running sweeper (scripts/review-pending-submissions.ts:108-133) moves it to hold, and the forced re-review re-runs analyzeAssets and persistAssetSignals. The state converges.",
+   "crossRecord": true
+  },
+  {
+   "findingId": "f19cae57980901db",
+   "code": "MW1004",
+   "file": "src/lib/submission-review.ts",
+   "line": 235,
+   "function": "reviewSubmission",
+   "classification": "intended-risk",
+   "notes": "dhash is written on submittedPets (persistAssetSignals, submission-review.ts:658) before the review row is finalized (finishReview, line 235 -> 330). A crash in between leaves dhash updated but the review stuck 'running'. dhash is a recomputable signal, and buryStaleRunningReviews (scripts/review-pending-submissions.ts:108-133) plus the forced re-review of held submissions repairs the review row.",
+   "crossRecord": true
+  },
+  {
+   "findingId": "5c207dae68e2a103",
+   "code": "MW1004",
+   "file": "src/lib/submission-review.ts",
+   "line": 249,
+   "function": "reviewSubmission",
+   "classification": "false-positive",
+   "notes": "This path needs the first finishReview (line 151) to reach the `!review` throw at submission-review.ts:347-348. That happens only when the UPDATE at line 330 matched no row, so nothing was persisted by the 'first' operation. The catch at line 245 then calls finishReview again (line 249) on the same review id. No partial state exists between the two.",
+   "fpCause": "first change not persisted"
+  },
+  {
+   "findingId": "56d2e924ccafcb33",
+   "code": "MW1005",
+   "file": "src/lib/takedown.ts",
+   "line": 238,
+   "function": "takedownPet",
+   "classification": "intended-risk",
+   "notes": "After the pet is deleted in one batch/transaction (takedown.ts:155-176), R2 objects are removed (takedown.ts:208) and then the owner is emailed (takedown.ts:238). Both are explicitly best-effort. Step 6 is commented 'Best-effort R2 cleanup ... errors are logged but don't fail the takedown' (lines 197-211), and the email sits in a silent try/catch (lines 229-247). A missed takedown email is accepted."
+  }
+ ],
+ "corrections": [],
+ "reviewQueue": [
+  {
+   "knownPositive": "petdex-KP02",
+   "findings": [
+    "cad32ae8bbbbbb6d",
+    "4e30e5bf44efcfc9",
+    "9ca89e6d9d2cade8",
+    "21aa19bc7eedd7ca"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  },
+  {
+   "knownPositive": "petdex-KP03",
+   "findings": [
+    "d4250a3efa87910f",
+    "d4250a3efa87910f-2"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  },
+  {
+   "knownPositive": "petdex-KP04",
+   "findings": [
+    "cad32ae8bbbbbb6d",
+    "4e30e5bf44efcfc9",
+    "9ca89e6d9d2cade8",
+    "21aa19bc7eedd7ca"
+   ],
+   "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  }
+ ],
+ "auditRejected": [
+  "src/lib/submission-review.ts reviewSubmission: 'running' review insert -> applySubmissionAction -> finishReview are separate commits, but scripts/review-pending-submissions.ts buryStaleRunningReviews + re-review of pending/held/no-review rows reconciles stuck reviews.",
+  "src/lib/submission-decisions.ts applySubmissionAction approve -> publishApprovedPublicArtifacts (R2 puts): the 6-hourly preview-snapshot workflow plus the thumbnail/sticker publish scripts backfill missing artifacts, and publish is idempotent (skips existing keys).",
+  "src/lib/submission-decisions.ts runPostApprovalEffects: tag update and dominant-color update are separate commits after approval; missing tags/colors are cosmetic and backfilled by auto-tag/backfill-color scripts.",
+  "src/app/api/profile/route.ts PATCH: DB upsert then Clerk users.updateUser; the code says the DB is source of truth, and scripts/backfill-clerk-usernames.ts re-syncs handles to Clerk.",
+  "src/app/api/pets/[slug]/like/route.ts POST: like insert/delete then setLikeCount recount; the count is recomputed from pet_likes on every like (converges), and an explicit-liked retry recounts.",
+  "src/app/api/pet-requests/route.ts POST upvote path: vote insert is idempotent (ON CONFLICT DO NOTHING) and the count is recomputed from votes; a retry converges.",
+  "src/app/api/my-pets/[id]/withdraw/route.ts POST: single delete; no second effect (R2 objects are never deleted here, not a window).",
+  "src/app/api/my-pets/claim/route.ts POST: single DB update + cache invalidation (cache only).",
+  "src/lib/pet-edit.ts queueAssetEditWithClaimGuard: lock + update run in one batch/transaction.",
+  "Collection routes (profile/collection, profile/collections[/id], cli/collections[/id]) and createOwnerCollection: all writes go through runCollectionMutation (db.batch or db.transaction).",
+  "src/app/api/internal/route-cost/route.ts POST: two independent upserts but analytics counters only, errors intentionally swallowed.",
+  "src/app/api/telemetry/event, manifest telemetry, install/track-zip metric increments: single analytics writes plus cache invalidation.",
+  "src/app/api/webhooks/resend/route.ts POST: single update, redelivered webhooks converge.",
+  "src/app/api/cli/submit, r2/presign, edit-presign, pet-requests/image: presign only, no durable effect; client-side upload then register spans requests, and pending orphans are GC'd.",
+  "src/lib/pet-sound.ts processPetSound: R2 put then DB update (B), but the deterministic key and the missing-sound selection make a rerun converge.",
+  "scripts/gc-pending-r2.ts: claim (transaction) -> R2 delete -> release claim; a leftover claim is re-picked by the next run (UNION) or purged once the object is gone.",
+  "scripts/rescue-failed-submissions.ts processIssue: R2 puts at deterministic keys then insert; a rerun overwrites and inserts (converges).",
+  "scripts/process-pending-collection-requests.ts: item insert (ON CONFLICT DO NOTHING) then request update; a rerun converges.",
+  "scripts/audit-pet-security.ts maybeApplySecurityRejection: applySubmissionAction then a review-log insert; the missing audit row is cosmetic (the R2 window is captured as KP04).",
+  "scripts/release-desktop.ts: git tag push then gh release create; developer release tooling, not server code.",
+  "packages/discord-bot webhook handler: one channel.send per event; workers/petdex-assets.ts: read-only proxy.",
+  "src/app/[locale]/unsubscribe/actions.ts: single update per action."
+ ]
+}

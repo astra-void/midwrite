@@ -1,0 +1,540 @@
+{
+  "schemaVersion": 1,
+  "kind": "midwrite.eval-report",
+  "binary": {
+    "path": "target/release/midwrite",
+    "sha256": "78f91213cfc522e8296911feada5089cfacd35262d52e5fd98180112e423454d"
+  },
+  "runAtUtc": "2026-11-12T05:39:30Z",
+  "projects": [
+    {
+      "hazardFindings": 7,
+      "bySeverity": {
+        "error": 0,
+        "warning": 4,
+        "info": 3
+      },
+      "analysisLimitations": 1,
+      "filesAnalyzed": 46,
+      "filesFailed": 0,
+      "labels": {
+        "true-positive": 1,
+        "intended-risk": 6,
+        "false-positive": 0,
+        "unclear": 0
+      },
+      "unlabeled": 0,
+      "staleLabels": 0,
+      "recall": {
+        "found": 3,
+        "positives": 4,
+        "knownPositivesFound": [
+          "nextjs-billing-KP02",
+          "nextjs-billing-KP03"
+        ],
+        "knownPositivesMissed": [
+          "nextjs-billing-KP01"
+        ],
+        "truePositiveFindingsOutsideAudit": 1
+      },
+      "findings": [
+        {
+          "findingId": "7619089948932cea",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "src/app/actions.ts",
+          "line": 334,
+          "function": "cancelSub",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "20260b839ea7a0ec",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "src/app/actions.ts",
+          "line": 377,
+          "function": "pauseUserSubscription",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "f0f7b851368b8e17",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "src/app/actions.ts",
+          "line": 421,
+          "function": "unpauseUserSubscription",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "c114c4a1140e26fc",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "src/app/actions.ts",
+          "line": 471,
+          "function": "changePlan",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "b6cf38aa870df5cb",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "src/app/api/webhook/route.ts",
+          "line": 49,
+          "function": "POST",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "3d2adcfc238ab4d5",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "src/app/api/webhook/route.ts",
+          "line": 49,
+          "function": "POST",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "38e751c103d6a61f",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "src/lib/webhook.ts",
+          "line": 144,
+          "function": "processWebhookEvent",
+          "classification": "intended-risk"
+        }
+      ],
+      "name": "nextjs-billing",
+      "set": "held-out",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "hazardPrecision": {
+        "value": 1.0,
+        "num": 7,
+        "den": 7
+      },
+      "bugPrecision": {
+        "value": 0.14285714285714285,
+        "num": 1,
+        "den": 7
+      },
+      "recallRatio": {
+        "value": 0.75,
+        "num": 3,
+        "den": 4
+      }
+    },
+    {
+      "hazardFindings": 0,
+      "bySeverity": {
+        "error": 0,
+        "warning": 0,
+        "info": 0
+      },
+      "analysisLimitations": 0,
+      "filesAnalyzed": 37,
+      "filesFailed": 0,
+      "labels": {
+        "true-positive": 0,
+        "intended-risk": 0,
+        "false-positive": 0,
+        "unclear": 0
+      },
+      "unlabeled": 0,
+      "staleLabels": 0,
+      "recall": {
+        "found": 0,
+        "positives": 0,
+        "knownPositivesFound": [],
+        "knownPositivesMissed": [],
+        "truePositiveFindingsOutsideAudit": 0
+      },
+      "findings": [],
+      "name": "react-starter-kit",
+      "set": "held-out",
+      "revision": "dbdb0d4991bbaae1671ff62180089f2733dd406a",
+      "hazardPrecision": {
+        "value": null,
+        "num": 0,
+        "den": 0
+      },
+      "bugPrecision": {
+        "value": null,
+        "num": 0,
+        "den": 0
+      },
+      "recallRatio": {
+        "value": null,
+        "num": 0,
+        "den": 0
+      }
+    },
+    {
+      "hazardFindings": 24,
+      "bySeverity": {
+        "error": 0,
+        "warning": 9,
+        "info": 15
+      },
+      "analysisLimitations": 67,
+      "filesAnalyzed": 365,
+      "filesFailed": 0,
+      "labels": {
+        "true-positive": 2,
+        "intended-risk": 20,
+        "false-positive": 2,
+        "unclear": 0
+      },
+      "unlabeled": 0,
+      "staleLabels": 0,
+      "recall": {
+        "found": 4,
+        "positives": 12,
+        "knownPositivesFound": [
+          "petdex-KP02",
+          "petdex-KP03",
+          "petdex-KP04",
+          "petdex-KP05"
+        ],
+        "knownPositivesMissed": [
+          "petdex-KP01",
+          "petdex-KP06",
+          "petdex-KP07",
+          "petdex-KP08",
+          "petdex-KP09",
+          "petdex-KP10",
+          "petdex-KP11",
+          "petdex-KP12"
+        ],
+        "truePositiveFindingsOutsideAudit": 0
+      },
+      "findings": [
+        {
+          "findingId": "09885b2a387721a9",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "src/app/api/feedback/[id]/replies/route.ts",
+          "line": 135,
+          "function": "POST",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "09885b2a387721a9-2",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "src/app/api/feedback/[id]/replies/route.ts",
+          "line": 140,
+          "function": "POST",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "d4250a3efa87910f",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "src/app/api/feedback/[id]/replies/route.ts",
+          "line": 193,
+          "function": "POST",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "d4250a3efa87910f-2",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "src/app/api/feedback/[id]/replies/route.ts",
+          "line": 215,
+          "function": "POST",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "674e1cbfb4f991ed",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "src/app/api/internal/route-cost/route.ts",
+          "line": 132,
+          "function": "POST",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "c9c3146672bb0292",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "src/app/api/pets/[slug]/like/route.ts",
+          "line": 104,
+          "function": "POST",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "32d25228029aea72",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "src/app/api/profile/route.ts",
+          "line": 252,
+          "function": "PATCH",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "2ea8e04a5e4ab4c5",
+          "code": "MW1002",
+          "severity": "warning",
+          "file": "src/lib/pet-sound.ts",
+          "line": 269,
+          "function": "processPetSound",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "6946f8ab26c2cbfa",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "src/lib/request-candidates.ts",
+          "line": 305,
+          "function": "approveCandidate",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "e22a74407ad5d615",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "src/lib/request-candidates.ts",
+          "line": 321,
+          "function": "approveCandidate",
+          "classification": "true-positive"
+        },
+        {
+          "findingId": "cad32ae8bbbbbb6d",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "src/lib/submission-decisions.ts",
+          "line": 169,
+          "function": "applySubmissionAction",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "bf17618044d421e3",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "src/lib/submission-decisions.ts",
+          "line": 169,
+          "function": "applySubmissionAction",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "4e30e5bf44efcfc9",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "src/lib/submission-decisions.ts",
+          "line": 179,
+          "function": "applySubmissionAction",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "26c8b8e69f66b1c1",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "src/lib/submission-decisions.ts",
+          "line": 179,
+          "function": "applySubmissionAction",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "9ca89e6d9d2cade8",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "src/lib/submission-decisions.ts",
+          "line": 182,
+          "function": "applySubmissionAction",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "fbe4de706e93f1a8",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "src/lib/submission-decisions.ts",
+          "line": 182,
+          "function": "applySubmissionAction",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "21aa19bc7eedd7ca",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "src/lib/submission-decisions.ts",
+          "line": 191,
+          "function": "applySubmissionAction",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "ea67ec43951c18b9",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "src/lib/submission-decisions.ts",
+          "line": 191,
+          "function": "applySubmissionAction",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "2de339dacc3f67b9",
+          "code": "MW1001",
+          "severity": "warning",
+          "file": "src/lib/submission-decisions.ts",
+          "line": 242,
+          "function": "runPostApprovalEffects",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "135c580767456c38",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "src/lib/submission-review.ts",
+          "line": 151,
+          "function": "reviewSubmission",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "d5c98e10158af7a8",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "src/lib/submission-review.ts",
+          "line": 164,
+          "function": "reviewSubmission",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "f19cae57980901db",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "src/lib/submission-review.ts",
+          "line": 235,
+          "function": "reviewSubmission",
+          "classification": "intended-risk"
+        },
+        {
+          "findingId": "5c207dae68e2a103",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "src/lib/submission-review.ts",
+          "line": 249,
+          "function": "reviewSubmission",
+          "classification": "false-positive"
+        },
+        {
+          "findingId": "56d2e924ccafcb33",
+          "code": "MW1005",
+          "severity": "info",
+          "file": "src/lib/takedown.ts",
+          "line": 238,
+          "function": "takedownPet",
+          "classification": "intended-risk"
+        }
+      ],
+      "name": "petdex",
+      "set": "held-out",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazardPrecision": {
+        "value": 0.9166666666666666,
+        "num": 22,
+        "den": 24
+      },
+      "bugPrecision": {
+        "value": 0.08333333333333333,
+        "num": 2,
+        "den": 24
+      },
+      "recallRatio": {
+        "value": 0.3333333333333333,
+        "num": 4,
+        "den": 12
+      }
+    },
+    {
+      "hazardFindings": 1,
+      "bySeverity": {
+        "error": 0,
+        "warning": 0,
+        "info": 1
+      },
+      "analysisLimitations": 0,
+      "filesAnalyzed": 163,
+      "filesFailed": 0,
+      "labels": {
+        "true-positive": 0,
+        "intended-risk": 1,
+        "false-positive": 0,
+        "unclear": 0
+      },
+      "unlabeled": 0,
+      "staleLabels": 0,
+      "recall": {
+        "found": 1,
+        "positives": 3,
+        "knownPositivesFound": [
+          "next-saas-stripe-starter-KP02"
+        ],
+        "knownPositivesMissed": [
+          "next-saas-stripe-starter-KP01",
+          "next-saas-stripe-starter-KP03"
+        ],
+        "truePositiveFindingsOutsideAudit": 0
+      },
+      "findings": [
+        {
+          "findingId": "c4c7830260eda71d",
+          "code": "MW1004",
+          "severity": "info",
+          "file": "lib/auth/delete-account.ts",
+          "line": 80,
+          "function": "prepareAccountDeletion",
+          "classification": "intended-risk"
+        }
+      ],
+      "name": "next-saas-stripe-starter",
+      "set": "held-out",
+      "revision": "c6df229ae73c207e87356d5e592779c511a9b56d",
+      "hazardPrecision": {
+        "value": 1.0,
+        "num": 1,
+        "den": 1
+      },
+      "bugPrecision": {
+        "value": 0.0,
+        "num": 0,
+        "den": 1
+      },
+      "recallRatio": {
+        "value": 0.3333333333333333,
+        "num": 1,
+        "den": 3
+      }
+    }
+  ],
+  "sets": {
+    "held-out": {
+      "hazardFindings": 32,
+      "labels": {
+        "true-positive": 3,
+        "intended-risk": 27,
+        "false-positive": 2,
+        "unclear": 0
+      },
+      "unlabeled": 0,
+      "hazardPrecision": {
+        "value": 0.9375,
+        "num": 30,
+        "den": 32
+      },
+      "bugPrecision": {
+        "value": 0.09375,
+        "num": 3,
+        "den": 32
+      },
+      "recall": {
+        "value": 0.42105263157894735,
+        "num": 8,
+        "den": 19
+      },
+      "projectsWithoutAudit": []
+    }
+  },
+  "gate": {
+    "threshold": 0.9,
+    "metric": "held-out hazard precision",
+    "passed": true,
+    "reasons": []
+  }
+}

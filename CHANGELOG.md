@@ -16,6 +16,14 @@ output formats.
   scoring is hazard precision 7/7, bug precision 1/7 and audited recall
   2/3. That is too few findings to replace the earlier pre-tuning estimate
   (122/127). All labels are AI-written.
+- Three more held-out projects, chosen by a fixed sampling rule (the first
+  eligible Drizzle + PostgreSQL applications in a star-ordered GitHub
+  search): crafter-station/petdex, mickasmt/next-saas-stripe-starter and
+  kriasoft/react-starter-kit, pinned and frozen on 2026-11-12. The
+  four-project held-out set scores hazard precision 30/32 (94%, 95%
+  interval 80–98%), bug precision 3/32 and audited recall 7/18. The gate
+  passes. The README shows this scoring next to the historical pre-tuning
+  one and keeps the two apart.
 
 ## [0.1.0] - 2026-11-12
 

@@ -1,0 +1,11 @@
+{
+  "databaseReceivers": [{ "name": "db", "importedFrom": "@/lib/db" }],
+  "transactionMethods": ["transaction"],
+  "externalEffects": [],
+  "exclude": [
+    "**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "__tests__",
+    "drizzle/**", "drizzle.config.ts", "next.config.ts", "postcss.config.mjs", "eslint.config.mjs",
+    "scripts/**", "content/**", "public/**",
+    "*.d.ts", ".next", "node_modules"
+  ]
+}

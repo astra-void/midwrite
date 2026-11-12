@@ -1,0 +1,16 @@
+{
+  "databaseReceivers": ["db", { "name": "runtimeDb", "importedFrom": "@/lib/db/runtime" }],
+  "transactionMethods": ["transaction"],
+  "externalEffects": [
+    { "function": "deleteR2Objects", "category": "file-write" },
+    { "function": "publishPetPublicArtifacts", "category": "file-write" },
+    { "receiver": "cc.users", "method": "updateUser", "category": "other" }
+  ],
+  "exclude": [
+    "**/*.test.ts", "**/*.test.tsx", "**/*.integration.ts", "**/*.integration.tsx", "__tests__",
+    "src/lib/mock/**",
+    "drizzle/**", "drizzle.config.ts", "next.config.ts", "postcss.config.mjs",
+    "scripts/**", "packages/**", "workers/**",
+    "*.d.ts", ".next", "node_modules"
+  ]
+}
