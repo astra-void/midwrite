@@ -620,6 +620,12 @@ fix is broader than the two targets.
   worker twin `a3d512ea943bb6ce` was already reported) and
   `53f4da3bbb577624` (MW1002, jobs
   `match-transactions-bidirectional.ts:104`, the phase-1 match
-  notification before a phase-2 inbox update). Both are unlabeled. Under
-  the label rules they go to a separate blind labeler, not the session
-  that made the change.
+  notification before a phase-2 inbox update). A separate blind labeler
+  (no labels, reports or known positives) classified both as
+  `intended-risk`: each pairs operations on different inbox items, and
+  retried jobs, best-effort notification handling and the stuck-`analyzing`
+  reset accept the window. The labeler noted that false-positive is
+  arguable for both, because the two operations belong to different
+  records. With these labels, dev is hazard 282/301 (93.69%), bug 117/301
+  (38.87%) and recall 111/127, with 107 unlabeled
+  ([labeled scoring](../../reports/eval/2026-11-12-literal-arguments-labeled.json)).

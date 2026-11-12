@@ -1171,6 +1171,24 @@
    "function": "run",
    "classification": "intended-risk",
    "notes": "Within one inbox item the database updates commit before that item's notification (batch-process-matching.ts:36 then :42); the reported order exists only between different items. The notification is best-effort: its catch is commented 'Don't throw - notifications shouldn't break the matching process' (inbox-matching-notifications.ts:109-115). Unprocessed items keep their state and are retried (inbox-matching.ts:197-216)."
+  },
+  {
+   "findingId": "f7562c7236a52276",
+   "code": "MW1004",
+   "file": "packages/jobs/src/tasks/inbox/batch-process-matching.ts",
+   "line": 34,
+   "function": "run",
+   "classification": "intended-risk",
+   "notes": "The two updateInbox writes are status changes on different inbox items: item A's final 'pending' write (inbox-matching.ts:177) and item B's 'analyzing' write (inbox-matching.ts:161), processed concurrently through Promise.allSettled (batch-process-matching.ts:33-34). A crash only leaves some items unprocessed; the trigger.dev job is retried (trigger.config.ts:9-17), a re-run recomputes each item, and a catch resets items stuck in 'analyzing' (inbox-matching.ts:196-217). Arguably false-positive, since the pair spans different records."
+  },
+  {
+   "findingId": "53f4da3bbb577624",
+   "code": "MW1002",
+   "file": "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts",
+   "line": 104,
+   "function": "run",
+   "classification": "intended-risk",
+   "notes": "The phase-1 notification for item A (match-transactions-bidirectional.ts:104) is sent after A's match is committed (:61-76); the phase-2 calculateInboxSuggestions update applies to a different, still-unmatched item B (:190-193). The notification is best-effort ('Don't throw - notifications shouldn't break the matching process', inbox-matching-notifications.ts:109-115), the job is retried (trigger.config.ts:9-17) and phase 2 re-reads pending items each run (:185-188). Arguably false-positive, since the pair spans different records."
   }
  ],
  "corrections": [
@@ -1192,6 +1210,17 @@
     "71aabdf5657244c6"
    ],
    "reason": "Labeled findings first exposed by the effect-coverage commit b96f446 (not present in reports/eval/2026-11-12-label-corrections.json). Existing classifications were not changed. Source-only AI review, not human review or runtime confirmation."
+  },
+  {
+   "date": "2026-11-12",
+   "by": "AI agent (Claude), blind source-only review separate from analyzer tuning; did not see knownPositives, existing labels or reports",
+   "humanReviewed": false,
+   "type": "new-findings-reviewed",
+   "findings": [
+    "f7562c7236a52276",
+    "53f4da3bbb577624"
+   ],
+   "reason": "Labeled findings first exposed by the literal-argument branch pruning (fewer functions hit the 512-path cap). Both pair operations on different inbox items; the labeler chose intended-risk because the literal window exists and retries/best-effort handling accept it, noting false-positive is arguable. Source-only AI review, not human review or runtime confirmation."
   }
  ],
  "reviewQueue": [
