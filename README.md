@@ -12,6 +12,31 @@ paid, but the `order.completed` event was never published.
 It reads your source and never runs it. No account, no network, no
 telemetry.
 
+## Install
+
+From npm, with prebuilt binaries for macOS (arm64, x64), Linux (arm64, x64;
+static musl builds) and Windows (x64, arm64; static analysis only, no
+runtime replay):
+
+```bash
+npm install --save-dev midwrite
+```
+
+Or build from source with Rust 1.97 or newer, on any platform the code
+compiles on:
+
+```bash
+cargo install --path crates/midwrite-cli
+```
+
+If a GitHub release for `v0.1.0` exists, it carries prebuilt archives for
+the platforms its release run passed on, with SHA-256 checksums.
+
+The JavaScript client for replay harnesses is on npm as
+[`@midwrite/replay`](https://www.npmjs.com/package/@midwrite/replay). You
+only need it if you write a harness by hand; `midwrite init-replay`
+vendors its own copy.
+
 ## A real bug it found
 
 [Kan](https://github.com/kanbn/kan)'s Stripe checkout webhook creates a
@@ -188,31 +213,6 @@ says so with `MW9001` instead of guessing. The full list is in
 MySQL, SQLite and libSQL dialect semantics, and plain `.js`/`.jsx` files
 (they are not scanned). More detail is in
 [supported patterns](docs/reference/supported-patterns.md).
-
-## Install
-
-From npm, with prebuilt binaries for macOS (arm64, x64), Linux (arm64, x64;
-static musl builds) and Windows (x64, arm64; static analysis only, no
-runtime replay):
-
-```bash
-npm install --save-dev midwrite
-```
-
-Or build from source with Rust 1.97 or newer, on any platform the code
-compiles on:
-
-```bash
-cargo install --path crates/midwrite-cli
-```
-
-If a GitHub release for `v0.1.0` exists, it carries prebuilt archives for
-the platforms its release run passed on, with SHA-256 checksums.
-
-The JavaScript client for replay harnesses is on npm as
-[`@midwrite/replay`](https://www.npmjs.com/package/@midwrite/replay). You
-only need it if you write a harness by hand; `midwrite init-replay`
-vendors its own copy.
 
 ## Use
 
