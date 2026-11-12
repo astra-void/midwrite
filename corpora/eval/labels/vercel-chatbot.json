@@ -4,7 +4,7 @@
   "kind": "midwrite.eval-labels",
   "project": "vercel-chatbot",
   "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
-  "set": "held-out",
+  "set": "dev",
   "labeling": {
     "knownPositives": {
       "by": "AI agent (Claude), source-only audit",
@@ -231,9 +231,39 @@
       "function": "deleteMessagesByChatIdAfterTimestamp",
       "classification": "true-positive",
       "notes": "During an edit, votes on the trailing messages are deleted (queries.ts:485-489), then the messages (queries.ts:492-495), as separate commits. If the second fails, deleteTrailingMessages throws and submitEditedMessage stops (message-editor.tsx:18), leaving the trailing messages in place with their votes lost. Real and unhandled, but low impact."
+    },
+    {
+      "findingId": "01c931ad11655434",
+      "code": "MW1004",
+      "file": "app/(chat)/api/chat/route.ts",
+      "line": 352,
+      "function": "onEnd",
+      "classification": "true-positive",
+      "notes": "Audited vercel-chatbot-KP04: separate finished-message inserts in Promise.all can commit only a subset. There is no transaction across the joined callback invocations. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+    },
+    {
+      "findingId": "907a84b237552744",
+      "code": "MW1004",
+      "file": "app/(chat)/api/chat/route.ts",
+      "line": 352,
+      "function": "onEnd",
+      "classification": "true-positive",
+      "notes": "Same audited KP04 batch: distinct callback elements can take the existing-message update and new-message insert branches. A crash can persist one without the other. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
     }
   ],
-  "corrections": [],
+  "corrections": [
+    {
+      "date": "2026-11-12",
+      "by": "Codex AI source review requested by user",
+      "humanReviewed": false,
+      "type": "new-findings-reviewed",
+      "findings": [
+        "01c931ad11655434",
+        "907a84b237552744"
+      ],
+      "reason": "Reviewed newly exposed findings after source-analysis coverage fixes on the development set. Existing finding classifications were retained. Source-only AI review, not blind review or runtime confirmation; uncertain provider/error semantics remain unclear."
+    }
+  ],
   "reviewQueue": [
     {
       "knownPositive": "vercel-chatbot-KP07",

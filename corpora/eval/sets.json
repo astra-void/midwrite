@@ -16,25 +16,25 @@
     },
     {
       "name": "kan",
-      "set": "held-out",
+      "set": "dev",
       "repository": "https://github.com/kanbn/kan.git",
       "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
       "license": "AGPL-3.0",
       "path": ".corpora/kan",
       "config": "corpora/configs/kan.json",
       "labels": "corpora/eval/labels/kan.json",
-      "notes": "Kanban app: tRPC routers over repository functions, email, webhooks, Stripe, S3."
+      "notes": "Kanban app: tRPC routers over repository functions, email, webhooks, Stripe, S3. Moved to dev on 2026-11-12: the user requested analyzer fixes driven by these evaluation misses and false positives."
     },
     {
       "name": "dittofeed",
-      "set": "held-out",
+      "set": "dev",
       "repository": "https://github.com/dittofeed/dittofeed.git",
       "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
       "license": "MIT",
       "path": ".corpora/dittofeed",
       "config": "corpora/configs/dittofeed.json",
       "labels": "corpora/eval/labels/dittofeed.json",
-      "notes": "Customer messaging: Postgres through db(), Temporal workflows, ClickHouse, Kafka, message providers."
+      "notes": "Customer messaging: Postgres through db(), Temporal workflows, ClickHouse, Kafka, message providers. Moved to dev on 2026-11-12: the user requested analyzer fixes driven by these evaluation misses and false positives."
     },
     {
       "name": "zero",
@@ -49,14 +49,14 @@
     },
     {
       "name": "vercel-chatbot",
-      "set": "held-out",
+      "set": "dev",
       "repository": "https://github.com/vercel/chatbot.git",
       "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
       "license": "Apache-2.0",
       "path": ".corpora/vercel-chatbot",
       "config": "corpora/configs/vercel-chatbot.json",
       "labels": "corpora/eval/labels/vercel-chatbot.json",
-      "notes": "Next.js AI chat template: Drizzle + postgres-js queries in lib/db/queries.ts, Vercel Blob uploads, Redis resumable streams and rate limiting. Promoted from reserve on 2026-11-06."
+      "notes": "Next.js AI chat template: Drizzle + postgres-js queries in lib/db/queries.ts, Vercel Blob uploads, Redis resumable streams and rate limiting. Promoted from reserve on 2026-11-06. Moved to dev on 2026-11-12: the user requested analyzer fixes driven by these evaluation misses and false positives."
     }
   ],
   "reserve": [],
@@ -72,6 +72,10 @@
     {
       "date": "2026-11-06",
       "change": "midday gets audited known positives (30, source-only audit that did not see Midwrite output) in corpora/eval/labels/midday.json, so dev recall is no longer zero-only (DEV-148)."
+    },
+    {
+      "date": "2026-11-12",
+      "change": "kan, dittofeed and vercel-chatbot moved from held-out to dev before analyzer tuning requested by the user. Their source-grounded label-correction baseline is reports/eval/2026-11-12-label-corrections.json. No unused reserve project exists, so there is currently no independent held-out set; subsequent results on these projects are development comparisons, not held-out generalization scores."
     }
   ]
 }

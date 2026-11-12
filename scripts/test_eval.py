@@ -1,4 +1,4 @@
-"""Regression tests for the held-out CI precision gate (no corpus downloads)."""
+"""Regression tests for precision gating and recall matching (no corpus downloads)."""
 import contextlib
 import importlib.util
 import io
@@ -95,6 +95,44 @@ class PrecisionGateTests(unittest.TestCase):
         status, report = self.run_gate({})
         self.assertEqual(status, 1)
         self.assertIsNone(report["gate"])
+
+
+class RecallMatchingTests(unittest.TestCase):
+    def score(self, pattern, code="MW1005", classification="intended-risk",
+              file="app.ts", line=15):
+        report, labels = findings(0, 0)
+        report["diagnostics"] = [{
+            "fingerprint": "delivery-window", "code": code,
+            "severity": "info", "location": {"file": file, "line": line},
+            "function": "sendAndRecord",
+        }]
+        labels["findings"] = [{"findingId": "delivery-window",
+                               "classification": classification}]
+        labels["knownPositives"] = [{
+            "id": "delivery", "file": "app.ts", "functionStartLine": 10,
+            "functionEndLine": 20, "pattern": pattern,
+        }]
+        return EVAL.score_project(project("sample"), report, labels)["recall"]
+
+    def test_external_send_then_event_publish_matches_pattern_e(self):
+        recall = self.score("E")
+        self.assertEqual(recall["knownPositivesFound"], ["delivery"])
+        self.assertEqual((recall["found"], recall["positives"]), (1, 1))
+
+    def test_external_effects_do_not_satisfy_effect_then_database_commit(self):
+        recall = self.score("B")
+        self.assertEqual(recall["knownPositivesMissed"], ["delivery"])
+        self.assertEqual(recall["found"], 0)
+
+    def test_matching_requires_non_false_positive_in_same_file_and_span(self):
+        for options in ({"classification": "false-positive"},
+                        {"file": "other.ts"}, {"line": 9}, {"line": 21}):
+            with self.subTest(options=options):
+                recall = self.score("E", **options)
+                self.assertEqual(recall["knownPositivesMissed"], ["delivery"])
+
+    def test_legacy_diagnostic_prefix_matches_the_same_pattern(self):
+        self.assertEqual(self.score("E", code="CP1005")["found"], 1)
 
 
 class FetchTests(unittest.TestCase):

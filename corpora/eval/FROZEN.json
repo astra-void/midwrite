@@ -1,79 +1,97 @@
 {
   "schemaVersion": 1,
   "kind": "midwrite.eval-frozen",
-  "projects": {
-    "kan": {
-      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
-      "files": {
-        "corpora/configs/kan.json": "5e6090706221bce55f15992e9dc6ad92962512ebdeb9e58ab7c22fbc03eb5c34",
-        "corpora/eval/labels/kan.json": "65496d1ea0e7ce3b609cfba4719e3399c87560cc5b2294f8314ad75cc4881a7d"
-      },
-      "frozenAtUtc": "2026-11-11T10:15:31Z",
-      "history": [
-        {
-          "previous": {
-            "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
-            "files": {
-              "corpora/configs/kan.json": "5e6090706221bce55f15992e9dc6ad92962512ebdeb9e58ab7c22fbc03eb5c34",
-              "corpora/eval/labels/kan.json": "db6a2b4d52bf9a38de67db4ef5df82aa35519ecfd0354ee06b7da4d6385b10e7"
-            },
-            "frozenAtUtc": "2026-11-04T23:17:23Z"
+  "projects": {},
+  "retired": [
+    {
+      "date": "2026-11-12",
+      "reason": "Moved to dev before analyzer tuning; preserve prior frozen inputs for the baseline.",
+      "projects": {
+        "kan": {
+          "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+          "files": {
+            "corpora/configs/kan.json": "5e6090706221bce55f15992e9dc6ad92962512ebdeb9e58ab7c22fbc03eb5c34",
+            "corpora/eval/labels/kan.json": "65496d1ea0e7ce3b609cfba4719e3399c87560cc5b2294f8314ad75cc4881a7d"
           },
-          "reason": "Rekey only: DEV-152 removed positions from anonymous-function names, which changed fingerprints. Old IDs were matched to new ones by code, file, line and function through reports/eval/2026-11-06-dev148-sdk-builtins.json. No classification changed; scores are identical (held-out 0.96, 122/127)."
-        }
-      ]
-    },
-    "dittofeed": {
-      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
-      "files": {
-        "corpora/configs/dittofeed.json": "9c69f1b494e926de643ea6c89e6453c1dfb9d0314c49fd2b449dd6a3a88e1943",
-        "corpora/eval/labels/dittofeed.json": "824f98604921cfff6ad954ce1545ba24445d8c61b86f41afc961a10320be711c"
-      },
-      "frozenAtUtc": "2026-11-11T10:15:31Z",
-      "history": [
-        {
-          "previous": {
-            "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
-            "files": {
-              "corpora/configs/dittofeed.json": "9c69f1b494e926de643ea6c89e6453c1dfb9d0314c49fd2b449dd6a3a88e1943",
-              "corpora/eval/labels/dittofeed.json": "ba73275cba568f07801b71f46cfc2463d9935d87824b71d30b9bf7428653b444"
-            },
-            "frozenAtUtc": "2026-11-04T23:17:23Z"
-          },
-          "reason": "Label added for a finding that the DEV-148 analyzer change (lazy builders returned from non-async functions) newly reports (9ce210754461e404, classified intended-risk by a separate agent that did not see the change's motivation). No existing label changed."
+          "frozenAtUtc": "2026-11-11T10:15:31Z",
+          "history": [
+            {
+              "previous": {
+                "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+                "files": {
+                  "corpora/configs/kan.json": "5e6090706221bce55f15992e9dc6ad92962512ebdeb9e58ab7c22fbc03eb5c34",
+                  "corpora/eval/labels/kan.json": "db6a2b4d52bf9a38de67db4ef5df82aa35519ecfd0354ee06b7da4d6385b10e7"
+                },
+                "frozenAtUtc": "2026-11-04T23:17:23Z"
+              },
+              "reason": "Rekey only: DEV-152 removed positions from anonymous-function names, which changed fingerprints. Old IDs were matched to new ones by code, file, line and function through reports/eval/2026-11-06-dev148-sdk-builtins.json. No classification changed; scores are identical (held-out 0.96, 122/127)."
+            }
+          ]
         },
-        {
-          "previous": {
-            "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
-            "files": {
-              "corpora/configs/dittofeed.json": "9c69f1b494e926de643ea6c89e6453c1dfb9d0314c49fd2b449dd6a3a88e1943",
-              "corpora/eval/labels/dittofeed.json": "6cb0b350dfb0e36b8572addfe044e32980deb380307e03eb2b6761b7deaefd05"
-            },
-            "frozenAtUtc": "2026-11-06T06:35:24Z"
+        "dittofeed": {
+          "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+          "files": {
+            "corpora/configs/dittofeed.json": "9c69f1b494e926de643ea6c89e6453c1dfb9d0314c49fd2b449dd6a3a88e1943",
+            "corpora/eval/labels/dittofeed.json": "03a2627b5e98d79bf8320f6a11c0c3bf2418a98a547b61dac132e8d1713e3515"
           },
-          "reason": "Labels added for 3 findings that the DEV-148 built-in SDK effects newly report (2e0a09c0253930e9, cd600080513c83a1, 6613a8c1fddd79bf; all intended-risk, classified by a separate agent). No existing label changed."
+          "frozenAtUtc": "2026-11-11T23:24:35Z",
+          "history": [
+            {
+              "previous": {
+                "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+                "files": {
+                  "corpora/configs/dittofeed.json": "9c69f1b494e926de643ea6c89e6453c1dfb9d0314c49fd2b449dd6a3a88e1943",
+                  "corpora/eval/labels/dittofeed.json": "ba73275cba568f07801b71f46cfc2463d9935d87824b71d30b9bf7428653b444"
+                },
+                "frozenAtUtc": "2026-11-04T23:17:23Z"
+              },
+              "reason": "Label added for a finding that the DEV-148 analyzer change (lazy builders returned from non-async functions) newly reports (9ce210754461e404, classified intended-risk by a separate agent that did not see the change's motivation). No existing label changed."
+            },
+            {
+              "previous": {
+                "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+                "files": {
+                  "corpora/configs/dittofeed.json": "9c69f1b494e926de643ea6c89e6453c1dfb9d0314c49fd2b449dd6a3a88e1943",
+                  "corpora/eval/labels/dittofeed.json": "6cb0b350dfb0e36b8572addfe044e32980deb380307e03eb2b6761b7deaefd05"
+                },
+                "frozenAtUtc": "2026-11-06T06:35:24Z"
+              },
+              "reason": "Labels added for 3 findings that the DEV-148 built-in SDK effects newly report (2e0a09c0253930e9, cd600080513c83a1, 6613a8c1fddd79bf; all intended-risk, classified by a separate agent). No existing label changed."
+            },
+            {
+              "previous": {
+                "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+                "files": {
+                  "corpora/configs/dittofeed.json": "9c69f1b494e926de643ea6c89e6453c1dfb9d0314c49fd2b449dd6a3a88e1943",
+                  "corpora/eval/labels/dittofeed.json": "354040532b683e3baeff643bf7eed9c4655b98720a9aebf4c393755ed71ac7d5"
+                },
+                "frozenAtUtc": "2026-11-06T07:40:00Z"
+              },
+              "reason": "Rekey only: DEV-152 removed positions from anonymous-function names, which changed fingerprints. Old IDs were matched to new ones by code, file, line and function through reports/eval/2026-11-06-dev148-sdk-builtins.json. No classification changed; scores are identical (held-out 0.96, 122/127)."
+            },
+            {
+              "previous": {
+                "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+                "files": {
+                  "corpora/configs/dittofeed.json": "9c69f1b494e926de643ea6c89e6453c1dfb9d0314c49fd2b449dd6a3a88e1943",
+                  "corpora/eval/labels/dittofeed.json": "824f98604921cfff6ad954ce1545ba24445d8c61b86f41afc961a10320be711c"
+                },
+                "frozenAtUtc": "2026-11-11T10:15:31Z"
+              },
+              "reason": "Source-grounded label correction at pinned revision 91277939: KP01-KP03 pair provider delivery with Kafka/ClickHouse event publication, so correct pattern B to E; remove KP04 because UPDATE RETURNING makes its Running/Paused restart guard contradictory. Original KP04 and evidence retained in corrections. No analyzer, configuration, finding classification, or matching-rule changes."
+            }
+          ]
         },
-        {
-          "previous": {
-            "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
-            "files": {
-              "corpora/configs/dittofeed.json": "9c69f1b494e926de643ea6c89e6453c1dfb9d0314c49fd2b449dd6a3a88e1943",
-              "corpora/eval/labels/dittofeed.json": "354040532b683e3baeff643bf7eed9c4655b98720a9aebf4c393755ed71ac7d5"
-            },
-            "frozenAtUtc": "2026-11-06T07:40:00Z"
+        "vercel-chatbot": {
+          "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+          "files": {
+            "corpora/configs/vercel-chatbot.json": "e74e388fbf52f3c5bee158877f83448313e3d00a668d2f38fe2e584198a14130",
+            "corpora/eval/labels/vercel-chatbot.json": "22b2694cccae17f8fa82af59fb31f7e973d49f318b79e0a53b6a5f9b91dd8d07"
           },
-          "reason": "Rekey only: DEV-152 removed positions from anonymous-function names, which changed fingerprints. Old IDs were matched to new ones by code, file, line and function through reports/eval/2026-11-06-dev148-sdk-builtins.json. No classification changed; scores are identical (held-out 0.96, 122/127)."
+          "frozenAtUtc": "2026-11-06T04:49:38Z",
+          "history": []
         }
-      ]
-    },
-    "vercel-chatbot": {
-      "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
-      "files": {
-        "corpora/configs/vercel-chatbot.json": "e74e388fbf52f3c5bee158877f83448313e3d00a668d2f38fe2e584198a14130",
-        "corpora/eval/labels/vercel-chatbot.json": "22b2694cccae17f8fa82af59fb31f7e973d49f318b79e0a53b6a5f9b91dd8d07"
-      },
-      "frozenAtUtc": "2026-11-06T04:49:38Z",
-      "history": []
+      }
     }
-  }
+  ]
 }

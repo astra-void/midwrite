@@ -4,7 +4,7 @@
  "kind": "midwrite.eval-labels",
  "project": "kan",
  "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
- "set": "held-out",
+ "set": "dev",
  "labeling": {
   "knownPositives": {
    "by": "AI agent (Claude), source-only audit",
@@ -1229,9 +1229,109 @@
    "function": "create",
    "classification": "true-positive",
    "notes": "workspace.repo.ts:104-117 roles commit before the creator's admin member row: an orphaned workspace."
+  },
+  {
+   "findingId": "83e6e8979513e69f",
+   "code": "MW1004",
+   "file": "apps/web/src/pages/api/partner/webhook.ts",
+   "line": 239,
+   "function": "<anonymous@162:3>",
+   "classification": "true-positive",
+   "notes": "Partner deactivation runs cancelWorkspaceAccess for multiple license slots without a shared transaction. Its workspace-plan and workspace-member updates can commit independently; a crash leaves a subset downgraded. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "574be59f041f0e7e",
+   "code": "MW1004",
+   "file": "apps/web/src/pages/api/partner/webhook.ts",
+   "line": 298,
+   "function": "<anonymous@162:3>",
+   "classification": "true-positive",
+   "notes": "Partner upgrade changes subscription entitlements and linked workspace plans through separate root-handle writes in Promise.all. Neither is rolled back if the other fails. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "0d73861bb07f90db",
+   "code": "MW1004",
+   "file": "apps/web/src/pages/api/partner/webhook.ts",
+   "line": 307,
+   "function": "<anonymous@162:3>",
+   "classification": "true-positive",
+   "notes": "Partner upgrade updates existing workspace plans before createAndLinkSlots inserts additional license slots. A crash can persist the changed plans without the additional slots. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "9303f5935fcd8c8a",
+   "code": "MW1004",
+   "file": "apps/web/src/pages/api/partner/webhook.ts",
+   "line": 321,
+   "function": "<anonymous@162:3>",
+   "classification": "true-positive",
+   "notes": "Slot replacement creates new subscription rows before cancelling access for removed slots. The operations use the root database handle, without one shared transaction. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "e34fc613ab846935",
+   "code": "MW1004",
+   "file": "apps/web/src/pages/api/partner/webhook.ts",
+   "line": 322,
+   "function": "<anonymous@162:3>",
+   "classification": "true-positive",
+   "notes": "New license-slot rows can persist before removed slot subscriptions are marked inactive. The separate map callbacks do not share a transaction. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "a6167931ff4f7a4f",
+   "code": "MW1002",
+   "file": "apps/web/src/pages/api/upload/attachment.ts",
+   "line": 117,
+   "function": "<anonymous@26:18>",
+   "classification": "true-positive",
+   "notes": "Audited kan-KP09: Upload.done completes the S3 object before cardAttachmentRepo.create persists its reference. The catch handler only returns an error and does not delete the orphan object. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "98bdc7ad064dc6fa",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/import.ts",
+   "line": 537,
+   "function": "<anonymous@229:17>",
+   "classification": "true-positive",
+   "notes": "Audited kan-KP15: the imports row commits before the per-board create/import work awaited by Promise.allSettled. A process crash can leave the import record pending with only part of its boards persisted. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "3d2b766463edeb37",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/workspace.ts",
+   "line": 555,
+   "function": "<anonymous@520:15>",
+   "classification": "true-positive",
+   "notes": "Audited kan-KP21: partner subscription referenceId updates complete before workspaceRepo.hardDelete; a failure leaves the workspace present with detached subscriptions. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "45a682b82c7d5a80",
+   "code": "MW1001",
+   "file": "packages/api/src/utils/notifications.ts",
+   "line": 112,
+   "function": "sendMentionEmails",
+   "classification": "intended-risk",
+   "notes": "The mention notification inserts and emails are deliberately independent best-effort operations with log-only catch handlers. This is the same accepted behavior as existing finding d44dfa3f0820589f; iteration coverage now also exposes the pair across elements. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
   }
  ],
- "corrections": [],
+ "corrections": [
+  {
+   "date": "2026-11-12",
+   "by": "Codex AI source review requested by user",
+   "humanReviewed": false,
+   "type": "new-findings-reviewed",
+   "findings": [
+    "83e6e8979513e69f",
+    "574be59f041f0e7e",
+    "0d73861bb07f90db",
+    "9303f5935fcd8c8a",
+    "e34fc613ab846935",
+    "a6167931ff4f7a4f",
+    "98bdc7ad064dc6fa",
+    "3d2b766463edeb37",
+    "45a682b82c7d5a80"
+   ],
+   "reason": "Reviewed newly exposed findings after source-analysis coverage fixes on the development set. Existing finding classifications were retained. Source-only AI review, not blind review or runtime confirmation; uncertain provider/error semantics remain unclear."
+  }
+ ],
  "reviewQueue": [
   {
    "knownPositive": "kan-KP08",

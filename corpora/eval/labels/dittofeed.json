@@ -4,7 +4,7 @@
  "kind": "midwrite.eval-labels",
  "project": "dittofeed",
  "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
- "set": "held-out",
+ "set": "dev",
  "labeling": {
   "knownPositives": {
    "by": "AI agent (Claude), source-only audit",
@@ -25,7 +25,7 @@
    "function": "sendMessageFactory",
    "functionStartLine": 303,
    "functionEndLine": 392,
-   "pattern": "B",
+   "pattern": "E",
    "firstEffect": "sender(...) provider send (called from line 339)",
    "secondEffect": "submitTrack(...) MessageSent event at line 385",
    "consequence": "If the activity dies after the provider accepted the message, Temporal retries the activity and sends again; nothing dedups by messageId before sending.",
@@ -38,7 +38,7 @@
    "function": "sendMessagesFactory",
    "functionStartLine": 192,
    "functionEndLine": 431,
-   "pattern": "B",
+   "pattern": "E",
    "firstEffect": "sender(messageVariant) per user at line 360",
    "secondEffect": "submitBatch(...) delivery events at line 413",
    "consequence": "Dedup reads the events written at line 413, so a crash between sending and submitBatch makes the retried activity re-send the whole batch.",
@@ -51,23 +51,10 @@
    "function": "batchMessageUsers",
    "functionStartLine": 2545,
    "functionEndLine": 2846,
-   "pattern": "B",
+   "pattern": "E",
    "firstEffect": "sendMessage(...) per user at line 2690",
    "secondEffect": "submitBatch(...) MessageSent/Skipped events at line 2837",
    "consequence": "Messages are delivered without delivery records; a client retry (random messageId) re-sends to every user.",
-   "confidence": "high",
-   "source": "independent audit"
-  },
-  {
-   "id": "dittofeed-KP04",
-   "file": "packages/backend-lib/src/journeys.ts",
-   "function": "upsertJourney",
-   "functionStartLine": 946,
-   "functionEndLine": 1248,
-   "pattern": "A",
-   "firstEffect": "db().transaction(...) committing status Paused->Running at line 988",
-   "secondEffect": "restartUserJourneyWorkflow(...) Temporal start at line 1194",
-   "consequence": "The journey is Running but the restart workflow never starts; a retried upsert sees Running and never restarts re-entry users.",
    "confidence": "high",
    "source": "independent audit"
   },
@@ -466,9 +453,458 @@
    "function": "sendEmail",
    "classification": "intended-risk",
    "notes": "Same pattern on the Resend branch: storeEmailForViewInBrowser (messaging.ts:999) then sendMailResend -> resend.emails.send (resend.ts:33). The window exists, but the blob is a best-effort side copy for view-in-browser (failure logged as warn and ignored, messaging.ts:1004-1012), overwritten on retry under the same messageId key and only reachable via a link in the sent email, so an orphan after a failed send is harmless. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+  },
+  {
+   "findingId": "dd1501c6bd61005e",
+   "code": "MW1004",
+   "file": "packages/api/src/controllers/contentController.ts",
+   "line": 286,
+   "function": "contentController::<anonymous@246:5>",
+   "classification": "true-positive",
+   "notes": "Audited dittofeed-KP16: upsertMessageTemplate commits its own transaction before the controller transaction changes the matching journey-node channel. The two are not atomic. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "d86c358cb871d77d",
+   "code": "MW1001",
+   "file": "packages/backend-lib/src/bootstrap.ts",
+   "line": 135,
+   "function": "bootstrapPostgres",
+   "classification": "intended-risk",
+   "notes": "Re-runnable bootstrap: upsertWorkspace uses stable workspace identity and addFeatures/terminateComputePropertiesWorkflow performs best-effort workflow reconfiguration. Same bootstrap policy as existing 7323fd6e3fa25fbe. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "c03554c3fe7ca3b8",
+   "code": "MW1004",
+   "file": "packages/backend-lib/src/bootstrap.ts",
+   "line": 247,
+   "function": "bootstrapPostgres",
+   "classification": "intended-risk",
+   "notes": "Bootstrap seeds a workspace and its get-or-create write key in separate steps. Both are checked/upserted on subsequent bootstrap calls; partial setup is intentionally re-runnable. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "ee0048cc65517329",
+   "code": "MW1004",
+   "file": "packages/backend-lib/src/bootstrap.ts",
+   "line": 279,
+   "function": "bootstrapPostgres",
+   "classification": "intended-risk",
+   "notes": "Bootstrap obtains a write key and upserts the default subscription group separately. This is the re-runnable, idempotent bootstrap sequence, not a one-shot business transaction. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "58e962b9abd7a794",
+   "code": "MW1004",
+   "file": "packages/backend-lib/src/bootstrap.ts",
+   "line": 286,
+   "function": "bootstrapPostgres",
+   "classification": "intended-risk",
+   "notes": "Default email and SMS subscription groups use deterministic uuidv5 IDs and upserts. A partially completed bootstrap can be re-run to finish the other default group. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "8af63194255c32d4",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/broadcasts/activities.ts",
+   "line": 413,
+   "function": "sendMessagesWithSender::<anonymous@196:48>",
+   "classification": "intended-risk",
+   "notes": "The audited KP02 delivery/submitBatch window exists in a retried Temporal activity, with deterministic per-recipient event message IDs. Retain the same accepted at-least-once delivery interpretation as the existing KP01 finding ece472399ebf7efb; this is hazard detection, not confirmation that provider delivery is deduplicated. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "0d3c4b2d21a3bc3f",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/computedProperties/computePropertiesIncremental.ts",
+   "line": 3683,
+   "function": "processRowsInner",
+   "classification": "intended-risk",
+   "notes": "The computed-property processor independently dispatches journey and integration assignments in an at-least-once processing pipeline. Existing processRowsInner finding 641d7d73ce314294 documents the accepted deterministic workflow/versioned-update retry model. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "1789fad002a075f2",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/computedProperties/computePropertiesWorkflow/lifecycle.ts",
+   "line": 371,
+   "function": "resetComputePropertiesWorkflows",
+   "classification": "intended-risk",
+   "notes": "Administrative resetComputePropertiesWorkflows intentionally processes workspaces independently. terminateComputePropertiesWorkflow catches/logs termination errors, and the bulk operation does not promise atomic completion across workspaces. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "b91995ef0c98df9a",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/computedProperties/computePropertiesWorkflow/lifecycle.ts",
+   "line": 371,
+   "function": "resetComputePropertiesWorkflows",
+   "classification": "intended-risk",
+   "notes": "Administrative reset across distinct workspaces, some terminated and some reset according to their status. The operation is intentionally per-workspace and best-effort rather than one atomic cross-workspace change. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "9f8483db635fdba6",
+   "code": "MW1002",
+   "file": "packages/backend-lib/src/integrations/hubspot/activities.ts",
+   "line": 170,
+   "function": "refreshToken",
+   "classification": "unclear",
+   "notes": "The first operation is a HubSpot OAuth token exchange. Source alone does not establish whether receiving a new token invalidates an older credential or creates consistency-relevant provider state. Do not treat POST alone as proof of a business mutation. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "3b62eaf4c168a13e",
+   "code": "MW1004",
+   "file": "packages/backend-lib/src/integrations/hubspot/activities.ts",
+   "line": 232,
+   "function": "refreshToken",
+   "classification": "unclear",
+   "notes": "The proposed path combines a successful database token upsert with an AxiosError/BAD_REFRESH_TOKEN-only catch branch. This appears to mix incompatible success and failure paths, but confirming the exact exception provenance needs a stronger error/result model. Excluded from precision pending review. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "44476238f5f66c9d",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/integrations/hubspot/activities.ts",
+   "line": 797,
+   "function": "updateHubspotEmails",
+   "classification": "unclear",
+   "notes": "The code concurrently creates new HubSpot email records and updates existing ones in a retried integration activity. The source shows separate effects, but does not establish whether provider-side identity/reconciliation makes retry converge. No independent provider review performed. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "ed4a3babab01f114",
+   "code": "MW1001",
+   "file": "packages/backend-lib/src/journeys.ts",
+   "line": 1194,
+   "function": "upsertJourney",
+   "classification": "false-positive",
+   "notes": "Same unreachable restart branch as existing 29694cf677dd7e5d and removed KP04: UPDATE RETURNING provides the new status, so requested Running cannot coexist with returned journey.status Paused. Recognizing the wrapped database write exposes an additional MW1001 occurrence of this existing path-correlation limitation. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "068753260a2b6e61",
+   "code": "MW1001",
+   "file": "packages/backend-lib/src/journeys.ts",
+   "line": 1236,
+   "function": "upsertJourney",
+   "classification": "true-positive",
+   "notes": "A journey insert/update commits before enqueueRecompute for newly running manual-entry journeys. If enqueue fails after the commit, a retry can observe the already-running journey and not reproduce the transition flag. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "0a33bc81d8b3fa98",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/journeys/userWorkflow/activities.ts",
+   "line": 325,
+   "function": "sendMessageWithSender",
+   "classification": "intended-risk",
+   "notes": "Same provider-send/submitTrack window and at-least-once activity interpretation as ece472399ebf7efb. Tracing-wrapper coverage reports it at the enclosing specialized call as well; the auditor/labeler disagreement remains unresolved. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "c42feb08bb6a5b43",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/messaging.ts",
+   "line": 1198,
+   "function": "sendEmail",
+   "classification": "intended-risk",
+   "notes": "The first effect is the optional messageId-keyed view-in-browser body, whose own failure is only logged. It is a best-effort auxiliary copy, overwritten on retry and reachable through the sent email. Same source-grounded accepted-orphan interpretation as the pre-existing SMTP/SendGrid/Resend findings; explicit local-function rules now name the provider wrapper directly. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "f4f00bf8f5777d95",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/messaging.ts",
+   "line": 1285,
+   "function": "sendEmail",
+   "classification": "intended-risk",
+   "notes": "The first effect is the optional messageId-keyed view-in-browser body, whose own failure is only logged. It is a best-effort auxiliary copy, overwritten on retry and reachable through the sent email. Same source-grounded accepted-orphan interpretation as the pre-existing SMTP/SendGrid/Resend findings; explicit local-function rules now name the provider wrapper directly. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "cd318b2c2f1a14f4",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/messaging.ts",
+   "line": 1363,
+   "function": "sendEmail",
+   "classification": "intended-risk",
+   "notes": "The first effect is the optional messageId-keyed view-in-browser body, whose own failure is only logged. It is a best-effort auxiliary copy, overwritten on retry and reachable through the sent email. Same source-grounded accepted-orphan interpretation as the pre-existing SMTP/SendGrid/Resend findings; explicit local-function rules now name the provider wrapper directly. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "6951a63d3fb7b3f6",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/messaging.ts",
+   "line": 1526,
+   "function": "sendEmail",
+   "classification": "intended-risk",
+   "notes": "The first effect is the optional messageId-keyed view-in-browser body, whose own failure is only logged. It is a best-effort auxiliary copy, overwritten on retry and reachable through the sent email. Same source-grounded accepted-orphan interpretation as the pre-existing SMTP/SendGrid/Resend findings; explicit local-function rules now name the provider wrapper directly. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "d23493bf85bbff7c",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/messaging.ts",
+   "line": 1613,
+   "function": "sendEmail",
+   "classification": "intended-risk",
+   "notes": "The first effect is the optional messageId-keyed view-in-browser body, whose own failure is only logged. It is a best-effort auxiliary copy, overwritten on retry and reachable through the sent email. Same source-grounded accepted-orphan interpretation as the pre-existing SMTP/SendGrid/Resend findings; explicit local-function rules now name the provider wrapper directly. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "873730a2491cfacf",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/messaging.ts",
+   "line": 1709,
+   "function": "sendEmail",
+   "classification": "intended-risk",
+   "notes": "The first effect is the optional messageId-keyed view-in-browser body, whose own failure is only logged. It is a best-effort auxiliary copy, overwritten on retry and reachable through the sent email. Same source-grounded accepted-orphan interpretation as the pre-existing SMTP/SendGrid/Resend findings; explicit local-function rules now name the provider wrapper directly. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "0dc9dd28f65b47a7",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/messaging.ts",
+   "line": 2837,
+   "function": "batchMessageUsers",
+   "classification": "true-positive",
+   "notes": "Audited dittofeed-KP03: the API waits for per-user delivery before submitBatch records the results. There is no shared atomic boundary; a client retry with generated message IDs can resend messages whose records were never persisted. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "30284db5b21e9bd0",
+   "code": "MW1004",
+   "file": "packages/backend-lib/src/requestContext.ts",
+   "line": 427,
+   "function": "getRequestContext",
+   "classification": "intended-risk",
+   "notes": "getRequestContext now exposes the getMultiTenantRequestContext member/account get-or-create writes through its tracing wrapper. As documented for existing 985208f60c8a5189, each subsequent request checks and repairs missing member/account links. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "df60c7205bfb3d64",
+   "code": "MW1001",
+   "file": "packages/backend-lib/src/segments.ts",
+   "line": 1178,
+   "function": "deleteSegment",
+   "classification": "true-positive",
+   "notes": "deleteSegment commits the PostgreSQL deletion before ClickHouse cleanup. Once the row is absent, retry returns early, so the remaining ClickHouse data is not cleaned by that retry. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "2f0eb517a64e6bd4",
+   "code": "MW1001",
+   "file": "packages/backend-lib/src/userProperties.ts",
+   "line": 1004,
+   "function": "deleteUserProperty",
+   "classification": "true-positive",
+   "notes": "deleteUserProperty commits the PostgreSQL deletion before ClickHouse cleanup. A retry sees no deleted row and returns early, leaving stale ClickHouse state. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "44fe5767e6c8b5ca",
+   "code": "MW1001",
+   "file": "packages/backend-lib/src/userPropertyIndices.ts",
+   "line": 161,
+   "function": "upsertUserPropertyIndex",
+   "classification": "true-positive",
+   "notes": "Audited dittofeed-KP05: the PostgreSQL property-index transaction commits before ClickHouse config insertion and backfill. Retrying with an unchanged type can skip the pending backfill. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "99198abe94024c73",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/userPropertyIndices.ts",
+   "line": 171,
+   "function": "upsertUserPropertyIndex",
+   "classification": "true-positive",
+   "notes": "ClickHouse config is inserted before pruneIndex removes the previous type data. These external writes are not atomic; once PostgreSQL has the new type, retry may no longer select the old-type cleanup branch. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "ca3df0fc226b0b55",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/userPropertyIndices.ts",
+   "line": 180,
+   "function": "upsertUserPropertyIndex",
+   "classification": "true-positive",
+   "notes": "Old-type pruning and new-type backfill are separate ClickHouse commands after the PostgreSQL type update. A crash can leave the index pruned but not backfilled, and retry can skip the type-change branch. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "0d484f0e0917eaf3",
+   "code": "MW1001",
+   "file": "packages/backend-lib/src/userPropertyIndices.ts",
+   "line": 226,
+   "function": "deleteUserPropertyIndex",
+   "classification": "true-positive",
+   "notes": "Audited dittofeed-KP06: PostgreSQL deletion commits before ClickHouse config deletion. A retry finds no index and returns early without completing ClickHouse cleanup. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "2412ed6bd93ce3ec",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/userPropertyIndices.ts",
+   "line": 232,
+   "function": "deleteUserPropertyIndex",
+   "classification": "true-positive",
+   "notes": "ClickHouse configuration deletion and pruneIndex data deletion are separate commands. After PostgreSQL index deletion, a retry exits early and cannot finish a failed prune. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "c9d67292f4501f0c",
+   "code": "MW1002",
+   "file": "packages/backend-lib/src/users.ts",
+   "line": 1532,
+   "function": "deleteUsers",
+   "classification": "true-positive",
+   "notes": "deleteUsers performs ClickHouse deletions and PostgreSQL assignment/dependency deletions without a shared transaction or durable completion record. Partial deletion can survive a process crash. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "7a610782bf4c96b1",
+   "code": "MW1002",
+   "file": "packages/backend-lib/src/users.ts",
+   "line": 1596,
+   "function": "deleteAllUsers",
+   "classification": "true-positive",
+   "notes": "deleteAllUsers similarly deletes across ClickHouse and separate PostgreSQL statements without an atomic boundary; a crash can leave data present in only one store. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "d6013f22d54df0bb",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/workspaces.ts",
+   "line": 59,
+   "function": "coldStoreWorkspaceEvents",
+   "classification": "true-positive",
+   "notes": "Audited dittofeed-KP12: coldStoreWorkspaceEvents copies events to cold storage before deleting the hot user events. Failure before deletion leaves duplicate copies and a re-run can insert them again. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "d6013f22d54df0bb-2",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/workspaces.ts",
+   "line": 69,
+   "function": "coldStoreWorkspaceEvents",
+   "classification": "true-positive",
+   "notes": "Same audited KP12 cold-copy window before the separate internal_events deletion. The two hot-store deletions are independent commands. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "1128bf3043b4e960",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/workspaces.ts",
+   "line": 114,
+   "function": "restoreWorkspaceEvents",
+   "classification": "true-positive",
+   "notes": "Audited dittofeed-KP11: restoreWorkspaceEvents copies cold rows into the hot table before deleting the cold rows. A crash/re-run can duplicate restored events. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "b11d1aeec8c028a3",
+   "code": "MW1001",
+   "file": "packages/backend-lib/src/workspaces.ts",
+   "line": 174,
+   "function": "tombstoneWorkspace",
+   "classification": "true-positive",
+   "notes": "tombstoneWorkspace commits the status/name change before moving its events to cold storage. A crash can leave the workspace tombstoned while its data has not been cold-stored. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "0bebe8faf04a1c3d",
+   "code": "MW1001",
+   "file": "packages/backend-lib/src/workspaces.ts",
+   "line": 250,
+   "function": "activateTombstonedWorkspace",
+   "classification": "true-positive",
+   "notes": "Audited dittofeed-KP14: the reactivation transaction commits before restoreWorkspaceEvents; an active workspace can remain without its historical hot events. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "c5231eb8137cb921",
+   "code": "MW1001",
+   "file": "packages/backend-lib/src/workspaces.ts",
+   "line": 270,
+   "function": "pauseWorkspace",
+   "classification": "true-positive",
+   "notes": "pauseWorkspace updates its PostgreSQL status before coldStoreWorkspaceEvents. The status change does not atomically move the events, so a crash can leave mixed lifecycle/data state. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "1c385fd8b09fbecd",
+   "code": "MW1001",
+   "file": "packages/backend-lib/src/workspaces.ts",
+   "line": 292,
+   "function": "resumeWorkspace",
+   "classification": "true-positive",
+   "notes": "Audited dittofeed-KP13: resumeWorkspace marks the workspace Active before restoring cold events, without a shared atomic boundary. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
   }
  ],
- "corrections": [],
+ "corrections": [
+  {
+   "date": "2026-11-12",
+   "by": "Codex AI source review requested by user",
+   "humanReviewed": false,
+   "type": "pattern-correction",
+   "knownPositives": [
+    "dittofeed-KP01",
+    "dittofeed-KP02",
+    "dittofeed-KP03"
+   ],
+   "previousPattern": "B",
+   "pattern": "E",
+   "reason": "Provider delivery followed by submitTrack/submitBatch is a pair of independent external effects, not an external effect followed by a modeled PostgreSQL commit. The event helpers call insertUserEvents, which publishes to Kafka or inserts into ClickHouse. Keep the evaluator strict about the diagnostic code; correct the audited pattern instead of accepting unrelated codes in the same function. No finding classification changed.",
+   "evidence": [
+    "Pinned revision 91277939a9afcee797ab2562025f6b02d823b00c.",
+    "packages/backend-lib/src/apps/track.ts:7-31: submitTrack calls insertUserEvents.",
+    "packages/backend-lib/src/apps/batch.ts:68-112: submitBatch calls submitBatchChunk, which calls insertUserEvents.",
+    "packages/backend-lib/src/userEvents.ts:90-145: insertUserEvents writes to Kafka or ClickHouse.",
+    "corpora/configs/dittofeed.json: submitTrack and submitBatch are message-publish external effects (configuration unchanged)."
+   ]
+  },
+  {
+   "date": "2026-11-12",
+   "by": "Codex AI source review requested by user",
+   "humanReviewed": false,
+   "type": "remove-invalid-known-positive",
+   "knownPositive": "dittofeed-KP04",
+   "previous": {
+    "id": "dittofeed-KP04",
+    "file": "packages/backend-lib/src/journeys.ts",
+    "function": "upsertJourney",
+    "functionStartLine": 946,
+    "functionEndLine": 1248,
+    "pattern": "A",
+    "firstEffect": "db().transaction(...) committing status Paused->Running at line 988",
+    "secondEffect": "restartUserJourneyWorkflow(...) Temporal start at line 1194",
+    "consequence": "The journey is Running but the restart workflow never starts; a retried upsert sees Running and never restarts re-entry users.",
+    "confidence": "high",
+    "source": "independent audit"
+   },
+   "reason": "The audited crash window assumes restartUserJourneyWorkflow is reachable after changing Paused to Running. The UPDATE sets the requested status and returns the updated row. Outside the transaction journey is that updated row, so status === Running implies journey.status === Running, contradicting the restart guard journey.status === Paused. This is an unreachable restart branch, not an executed operation that a crash can interrupt. Remove this window from the recall denominator; keep finding 29694cf677dd7e5d false-positive. A possible application logic bug in the unreachable branch is outside this partial-write evaluation.",
+   "evidence": [
+    "Pinned revision 91277939a9afcee797ab2562025f6b02d823b00c.",
+    "packages/backend-lib/src/journeys.ts:1083-1095: UPDATE sets status and uses RETURNING.",
+    "packages/backend-lib/src/journeys.ts:1122-1141: the transaction returns journey: updated; the outer scope destructures that journey.",
+    "packages/backend-lib/src/journeys.ts:1183-1198: restart requires requested status Running and updated journey.status Paused.",
+    "packages/backend-lib/src/db.ts:65-78: queryResult awaits the supplied query and wraps its result without replacing the returned row."
+   ]
+  },
+  {
+   "date": "2026-11-12",
+   "by": "Codex AI source review requested by user",
+   "humanReviewed": false,
+   "type": "new-findings-reviewed",
+   "findings": [
+    "dd1501c6bd61005e",
+    "d86c358cb871d77d",
+    "c03554c3fe7ca3b8",
+    "ee0048cc65517329",
+    "58e962b9abd7a794",
+    "8af63194255c32d4",
+    "0d3c4b2d21a3bc3f",
+    "1789fad002a075f2",
+    "b91995ef0c98df9a",
+    "9f8483db635fdba6",
+    "3b62eaf4c168a13e",
+    "44476238f5f66c9d",
+    "ed4a3babab01f114",
+    "068753260a2b6e61",
+    "0a33bc81d8b3fa98",
+    "c42feb08bb6a5b43",
+    "f4f00bf8f5777d95",
+    "cd318b2c2f1a14f4",
+    "6951a63d3fb7b3f6",
+    "d23493bf85bbff7c",
+    "873730a2491cfacf",
+    "0dc9dd28f65b47a7",
+    "30284db5b21e9bd0",
+    "df60c7205bfb3d64",
+    "2f0eb517a64e6bd4",
+    "44fe5767e6c8b5ca",
+    "99198abe94024c73",
+    "ca3df0fc226b0b55",
+    "0d484f0e0917eaf3",
+    "2412ed6bd93ce3ec",
+    "c9d67292f4501f0c",
+    "7a610782bf4c96b1",
+    "d6013f22d54df0bb",
+    "d6013f22d54df0bb-2",
+    "1128bf3043b4e960",
+    "b11d1aeec8c028a3",
+    "0bebe8faf04a1c3d",
+    "c5231eb8137cb921",
+    "1c385fd8b09fbecd"
+   ],
+   "reason": "Reviewed newly exposed findings after source-analysis coverage fixes on the development set. Existing finding classifications were retained. Source-only AI review, not blind review or runtime confirmation; uncertain provider/error semantics remain unclear."
+  }
+ ],
  "reviewQueue": [
   {
    "knownPositive": "dittofeed-KP07",
@@ -505,6 +941,13 @@
     "a4a880f65a586c00"
    ],
    "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  },
+  {
+   "knownPositive": "dittofeed-KP01",
+   "findings": [
+    "ece472399ebf7efb"
+   ],
+   "issue": "The auditor calls the provider-send/event-publish window unhandled, while the finding labeler calls it intended-risk. The 2026-11-12 pattern correction makes the existing MW1005 match visible; neither judgment was changed. Hazard recall counts the detected window, not a confirmed bug. Human review remains outstanding."
   }
  ]
 }
