@@ -252,6 +252,19 @@ The path walker of `ARCHITECTURE.md` gains facts from values:
   payloads is the forwarding call. A property the
   argument does not list stays undecided (prototype properties are not
   modeled).
+  Reads of a parameter snapshot are inputs too (`FactInput`): a `const`
+  bound once (outside loops and inline callbacks) to `p.x`, `p?.x` or
+  either `?? literal` (`send#9` for `const send = options?.send ??
+  false`), and such a read used directly as a condition, which is a
+  variable of its own per read (`options?.send@812`). The parameter must
+  never be reassigned. An omitted argument is `undefined`
+  (`LocalCall::argument_count`), a property of `null` or `undefined` is
+  `undefined` (what `?.` gives; a plain `.` throws, so nothing after it
+  runs), and `?? literal` replaces either. When the parameter was passed
+  to other code or method-called before the read, that code may have
+  changed its properties: the read is decided only when the parameter
+  itself is `null` or `undefined`, which no call can change
+  (`FactInput::late_reads`).
 * **deferred request methods**: a `fetch` call matched by an `httpMethods`
   rule except for its method, which comes from an options parameter spread
   last into the options or passed as them (`fetch(url, { ...options,

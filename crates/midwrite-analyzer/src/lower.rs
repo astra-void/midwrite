@@ -36,8 +36,8 @@ use midwrite_core::absint::{AbsValue, Atom, ObjectKind, Provenance};
 use midwrite_core::analysis::{CallArgument, RETURN_VARIABLE};
 use midwrite_core::ir::{
     Arm, Branch, BranchKind, DbHandle, DeferredHttpMethod, Effect, EffectId, EffectKind, Execution,
-    Exit, ExitKind, Fact, FunctionIr, Handler, Literal, Loop, LoopKind, Node, Recognition, Switch,
-    TransactionId, TransactionInfo, TransactionScope, Try, UnknownReason,
+    Exit, ExitKind, Fact, FactInput, FunctionIr, Handler, Literal, Loop, LoopKind, Node,
+    Recognition, Switch, TransactionId, TransactionInfo, TransactionScope, Try, UnknownReason,
 };
 use midwrite_core::location::{LineIndex, Location};
 
@@ -452,6 +452,8 @@ pub(crate) fn lower_function(
             .map(|params| stable_parameters(params, recognizer))
             .unwrap_or_default(),
         fact_inputs: std::cell::RefCell::new(std::collections::BTreeMap::new()),
+        derived_inputs: HashMap::new(),
+        loop_depth: 0,
     };
     if is_generator {
         lowerer
@@ -564,7 +566,12 @@ pub(crate) struct Lowerer<'c> {
     /// Parameters a call may pass on as inputs (`stable_parameters`).
     stable_params: HashSet<u32>,
     /// [`FunctionIr::fact_inputs`] of the facts recorded so far.
-    fact_inputs: std::cell::RefCell<std::collections::BTreeMap<String, AbsValue>>,
+    fact_inputs: std::cell::RefCell<std::collections::BTreeMap<String, FactInput>>,
+    /// `const` bindings of an input read (`const send = options?.send ??
+    /// false`, see [`Self::input_expression`]), with that input.
+    derived_inputs: HashMap<oxc_syntax::symbol::SymbolId, FactInput>,
+    /// Depth of loop bodies being lowered.
+    loop_depth: usize,
     next_inline_call: u32,
     transactions: Vec<TransactionInfo>,
     next_effect: u32,
@@ -940,6 +947,16 @@ impl<'a> Lowerer<'_> {
             self.binding_snapshot = self.snapshot_source(init);
             self.bind_pattern(&declarator.id, value);
             self.binding_snapshot = false;
+            // Read once, where the function runs it once.
+            if self.loop_depth == 0
+                && self.callback_depth == 0
+                && let BindingPattern::BindingIdentifier(id) = &declarator.id
+                && let Some(symbol) = id.symbol_id.get()
+                && !self.param_snapshots.contains_key(&symbol)
+                && let Some(input) = self.input_expression(init, init.span().start)
+            {
+                self.derived_inputs.insert(symbol, input);
+            }
             // `const q = db.update(t).set(v)` binds an unexecuted builder that
             // a later `await q` executes.
             if let BindingPattern::BindingIdentifier(id) = &declarator.id
@@ -1927,6 +1944,13 @@ impl<'a> Lowerer<'_> {
     /// only (IR discarded). Effects are still modeled as zero or one
     /// iteration by the path walker.
     fn loop_body(&mut self, lower: &dyn Fn(&mut Self)) -> Vec<Node> {
+        self.loop_depth += 1;
+        let body = self.loop_body_inner(lower);
+        self.loop_depth -= 1;
+        body
+    }
+
+    fn loop_body_inner(&mut self, lower: &dyn Fn(&mut Self)) -> Vec<Node> {
         let entry = self.fork();
         let counters = (self.next_site, self.next_opaque);
         if self.dry_runs + MAX_LOOP_ITERATIONS + 1 > MAX_DRY_RUNS {
@@ -2275,9 +2299,9 @@ impl<'a> Lowerer<'_> {
             return never_unless(literal.is_truthy() == truthy);
         }
         match condition {
-            Expression::Identifier(_) | Expression::StaticMemberExpression(_) => match self
-                .condition_variable(condition)
-            {
+            Expression::Identifier(_)
+            | Expression::StaticMemberExpression(_)
+            | Expression::ChainExpression(_) => match self.condition_variable(condition) {
                 Some(Variable::Free(variable)) => vec![Fact::Truthy {
                     variable,
                     value: truthy,
@@ -2342,9 +2366,90 @@ impl<'a> Lowerer<'_> {
     /// assigned after its declaration, and not an import (imports are live
     /// bindings). `const` bindings of a literal are known constants.
     fn condition_variable(&self, expression: &Expression<'a>) -> Option<Variable> {
-        match expression.get_inner_expression() {
-            Expression::Identifier(ident) => self.variable(ident),
+        let variable = match expression.get_inner_expression() {
+            Expression::Identifier(ident) => return self.variable(ident),
             Expression::StaticMemberExpression(member) => self.member_variable(member),
+            _ => None,
+        };
+        variable.or_else(|| self.read_variable(expression))
+    }
+
+    /// A property read of a parameter (`options.send`, `options?.send`)
+    /// as a variable of its own: an input of the function (see
+    /// [`Self::input_expression`]). Two reads may differ, so each read is
+    /// a different variable.
+    fn read_variable(&self, expression: &Expression<'a>) -> Option<Variable> {
+        let expression = expression.get_inner_expression();
+        if self.loop_depth > 0 || self.callback_depth > 0 {
+            return None;
+        }
+        let start = expression.span().start;
+        let input = self.input_expression(expression, start)?;
+        let variable = format!("{}@{start}", compact(&self.text(expression.span())));
+        self.fact_inputs
+            .borrow_mut()
+            .insert(variable.clone(), input);
+        Some(Variable::Free(variable))
+    }
+
+    /// What `expression` evaluated at offset `at` holds, as an input of the
+    /// function: `p`, `p.x`, `p?.x` or any of those `?? literal`, where `p`
+    /// is a parameter snapshot never reassigned. Property reads of an
+    /// object that code before `at` may have changed (it was passed to a
+    /// call) are [`FactInput::late_reads`].
+    fn input_expression(&self, expression: &Expression<'a>, at: u32) -> Option<FactInput> {
+        self.input_read(expression, at).map(|(input, _)| input)
+    }
+
+    /// [`Self::input_expression`], and whether the parameter's object may
+    /// have changed before `at` (every property read of it is then late).
+    fn input_read(&self, expression: &Expression<'a>, at: u32) -> Option<(FactInput, bool)> {
+        let member = |object: &Expression<'a>, name: &str| {
+            let (base, changed) = self.input_read(object, at)?;
+            if base.default.is_some() {
+                return None;
+            }
+            let value = base.value.field(name);
+            let path = value
+                .single()
+                .is_some_and(|atom| matches!(atom.root(), Atom::Param { .. }));
+            path.then(|| {
+                let input = FactInput {
+                    value,
+                    default: None,
+                    late_reads: base.late_reads + u32::from(changed),
+                };
+                (input, changed)
+            })
+        };
+        match expression.get_inner_expression() {
+            Expression::Identifier(ident) => {
+                let scoping = self.recognizer.scoping;
+                let symbol = resolve_reference(scoping, ident)?;
+                let value = self.param_snapshots.get(&symbol)?;
+                if scoping.symbol_is_mutated(symbol) {
+                    return None;
+                }
+                let changed = !self.recognizer.table.unchanged_before(symbol, at);
+                Some((FactInput::new(value.clone()), changed))
+            }
+            Expression::StaticMemberExpression(it) => member(&it.object, it.property.name.as_str()),
+            Expression::ChainExpression(chain) => match &chain.expression {
+                ChainElement::StaticMemberExpression(it) => {
+                    member(&it.object, it.property.name.as_str())
+                }
+                _ => None,
+            },
+            Expression::LogicalExpression(logical)
+                if logical.operator == LogicalOperator::Coalesce =>
+            {
+                let (mut input, changed) = self.input_read(&logical.left, at)?;
+                if input.default.is_some() {
+                    return None;
+                }
+                input.default = Some(self.literal_test(&logical.right)?);
+                Some((input, changed))
+            }
             _ => None,
         }
     }
@@ -2382,7 +2487,7 @@ impl<'a> Lowerer<'_> {
             let variable = format!("{base}.{name}");
             self.fact_inputs
                 .borrow_mut()
-                .insert(variable.clone(), source.field(name));
+                .insert(variable.clone(), FactInput::new(source.field(name)));
             return Some(Variable::Free(variable));
         }
         if !self.recognizer.table.member_stable(symbol, scoping) {
@@ -2490,10 +2595,14 @@ impl<'a> Lowerer<'_> {
             return Some(Variable::Constant(value.clone()));
         }
         let variable = format!("{}#{}", ident.name.as_str(), symbol.index());
-        if let Some(input) = self.param_snapshots.get(&symbol) {
+        let input = match self.param_snapshots.get(&symbol) {
+            Some(value) => Some(FactInput::new(value.clone())),
+            None => self.derived_inputs.get(&symbol).cloned(),
+        };
+        if let Some(input) = input {
             self.fact_inputs
                 .borrow_mut()
-                .insert(variable.clone(), input.clone());
+                .insert(variable.clone(), input);
         }
         Some(Variable::Free(variable))
     }

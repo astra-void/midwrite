@@ -104,6 +104,11 @@ pub(crate) struct SymbolTable {
     member_reads: HashMap<SymbolId, usize>,
     /// Bindings whose methods are called (`x.p()`): the call may change them.
     member_called: HashSet<SymbolId>,
+    /// Start offsets of the references of each binding.
+    references_at: HashMap<SymbolId, Vec<u32>>,
+    /// Start offsets of references that are property reads or write
+    /// payloads (those counted in `member_reads` and `payload_reads`).
+    reads_at: HashSet<u32>,
     /// References of each binding that are the payload of a Drizzle-shaped
     /// write (`.update(t).set(x)`, `.insert(t).values(x)`), which reads the
     /// object's properties and never changes them.
@@ -350,6 +355,20 @@ impl SymbolTable {
         let reads = self.member_reads.get(&symbol).copied().unwrap_or(0)
             + self.payload_reads.get(&symbol).copied().unwrap_or(0);
         total.checked_sub(reads)
+    }
+
+    /// Whether no visible code can have changed the properties of the
+    /// value `symbol` holds before offset `at`: it is never method-called
+    /// or written through, and its references before `at` only read
+    /// properties or are write payloads. (Whether `symbol` itself is
+    /// reassigned is the caller's concern.)
+    pub fn unchanged_before(&self, symbol: SymbolId, at: u32) -> bool {
+        !self.member_called.contains(&symbol)
+            && self.references_at.get(&symbol).is_none_or(|starts| {
+                starts
+                    .iter()
+                    .all(|start| *start >= at || self.reads_at.contains(start))
+            })
     }
 
     /// Whether `symbol` is assigned from a nested function.
@@ -700,18 +719,32 @@ impl<'a> Visit<'a> for Collector<'_> {
         walk::walk_new_expression(self, it);
     }
 
+    fn visit_identifier_reference(&mut self, it: &IdentifierReference<'a>) {
+        if let Some(symbol) = resolve_reference(self.scoping, it) {
+            self.table
+                .references_at
+                .entry(symbol)
+                .or_default()
+                .push(it.span.start);
+        }
+    }
+
     fn visit_static_member_expression(&mut self, it: &StaticMemberExpression<'a>) {
         if let Expression::Identifier(ident) = it.object.get_inner_expression()
             && let Some(symbol) = resolve_reference(self.scoping, ident)
         {
             *self.table.member_reads.entry(symbol).or_default() += 1;
+            self.table.reads_at.insert(ident.span.start);
         }
         walk::walk_static_member_expression(self, it);
     }
 
     fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
-        if let Some(symbol) = drizzle_payload(it).and_then(|i| resolve_reference(self.scoping, i)) {
+        if let Some(ident) = drizzle_payload(it)
+            && let Some(symbol) = resolve_reference(self.scoping, ident)
+        {
             *self.table.payload_reads.entry(symbol).or_default() += 1;
+            self.table.reads_at.insert(ident.span.start);
         }
         if let Some(member) = it.callee.get_inner_expression().as_member_expression()
             && let Expression::Identifier(ident) = member.object().get_inner_expression()

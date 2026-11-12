@@ -77,12 +77,39 @@ pub struct FunctionIr {
     /// Fact variables whose value is a snapshot of an input taken when the
     /// function starts or destructures a parameter (`status#4` for a
     /// parameter `status`, `data#7.status` for the rest object of
-    /// `const { id, ...data } = params`), as an abstract value over the
-    /// parameters (`param#i`, `param#i.p`). When a call passes a literal for
-    /// that input, the facts on the variable that contradict it are
-    /// infeasible in that call. Not serialized: IR dumps keep their shape.
+    /// `const { id, ...data } = params`, `send#9` for `const send =
+    /// options?.send ?? false`), over the parameters (`param#i`,
+    /// `param#i.p`). When a call passes a literal for that input, the facts
+    /// on the variable that contradict it are infeasible in that call. Not
+    /// serialized: IR dumps keep their shape.
     #[serde(skip)]
-    pub fact_inputs: std::collections::BTreeMap<String, AbsValue>,
+    pub fact_inputs: std::collections::BTreeMap<String, FactInput>,
+}
+
+/// The input a fact variable snapshots (see [`FunctionIr::fact_inputs`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct FactInput {
+    /// A parameter path (`param#i`, `param#i.p.q`). A property of `null`
+    /// or `undefined` along it is `undefined`: that is what `p?.q` gives,
+    /// and a plain `p.q` throws, so nothing that depends on it runs.
+    pub value: AbsValue,
+    /// `value ?? default`.
+    pub default: Option<Literal>,
+    /// How many of the last property reads of `value` may see an object
+    /// that code ran before the read could have changed (it was passed to
+    /// a call first). Those reads are decided only when the object they
+    /// start from is `null` or `undefined`, which no call can change.
+    pub late_reads: u32,
+}
+
+impl FactInput {
+    pub fn new(value: AbsValue) -> Self {
+        Self {
+            value,
+            default: None,
+            late_reads: 0,
+        }
+    }
 }
 
 impl FunctionIr {

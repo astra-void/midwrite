@@ -168,13 +168,17 @@ rates on real projects are summarized in the
   other on a variable that is never reassigned (`flag`/`!flag`, different
   literals in `===` tests or `switch` cases, `const` literals). There is no
   general constraint solving: `a > 1` and `a <= 1` are both feasible.
-* A call decides a callee's branch only through a literal argument: for a
-  primitive parameter, or for a property of an object-literal argument
-  that the callee destructures (`const { status } = params`, or the rest
-  object of `const { id, ...data } = params`), also through helpers that
-  forward the parameter unchanged. A direct read `params.status`, a parameter
-  passed to other code before it is destructured, a property the
-  argument does not list and non-literal values decide nothing.
+* A call decides a callee's branch only through a literal argument or an
+  omitted one (`undefined`): for a primitive parameter, for a property of
+  an object-literal argument that the callee destructures (`const {
+  status } = params`, or the rest object of `const { id, ...data } =
+  params`) or reads (`params.status`, `params?.status`, either `?? false`,
+  in a condition or a `const`), also through helpers that forward the
+  parameter unchanged. A read after the parameter was passed to other code
+  is decided only when the parameter is left out or `undefined`. A
+  parameter reassigned or passed to other code before it is destructured,
+  reads in loops, a property the argument does not list and non-literal
+  values decide nothing.
 * Every awaited operation may fail; the analysis does not distinguish
   operations that cannot fail.
 * `Promise.all` elements are treated as started in source order; their

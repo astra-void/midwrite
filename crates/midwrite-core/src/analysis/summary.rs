@@ -63,9 +63,9 @@ use crate::absint::summary::Solved;
 use crate::absint::{AbsValue, Atom};
 use crate::ir::{
     Arm, Branch, CallId, CallResolution, CallScope, CallSite, DbHandle, DeferredHttpMethod, Effect,
-    EffectId, EffectKind, Execution, Exit, ExitKind, Fact, FunctionIr, Handler, Literal, Loop,
-    Node, Recognition, SummaryOrigin, Switch, TransactionId, TransactionInfo, TransactionScope,
-    Try, UnknownReason,
+    EffectId, EffectKind, Execution, Exit, ExitKind, Fact, FactInput, FunctionIr, Handler, Literal,
+    Loop, Node, Recognition, SummaryOrigin, Switch, TransactionId, TransactionInfo,
+    TransactionScope, Try, UnknownReason,
 };
 use crate::location::{FileId, Location};
 
@@ -436,7 +436,7 @@ struct Ids {
     transactions: Vec<TransactionInfo>,
     /// Fact inputs of instantiated callees that are still inputs of the
     /// function being expanded (a parameter forwarded to the callee).
-    fact_inputs: Vec<(String, AbsValue)>,
+    fact_inputs: Vec<(String, FactInput)>,
     /// A call was left unsummarized because of the depth bound.
     cut: bool,
     /// A call was left unsummarized because it is recursive: the expansion
@@ -1099,11 +1099,16 @@ impl<'a> Inliner<'a> {
         };
         // A callee input that is an input of the caller too (a forwarded
         // parameter) is decided where the caller is called.
-        for (variable, value) in &callee.fact_inputs {
-            let value = remap.entry_value(value);
+        for (variable, input) in &callee.fact_inputs {
+            let value = remap.entry_value(&input.value);
             if is_parameter_path(&value) {
-                ids.fact_inputs
-                    .push((format!("{}{variable}", remap.variables), value));
+                ids.fact_inputs.push((
+                    format!("{}{variable}", remap.variables),
+                    FactInput {
+                        value,
+                        ..input.clone()
+                    },
+                ));
             }
         }
         ids.next_call += 1 + summary.calls;
@@ -1328,7 +1333,7 @@ struct Remap<'a> {
     /// [`LocalCall::argument_count`] of the call.
     argument_count: Option<u32>,
     /// [`FunctionIr::fact_inputs`] of the callee.
-    fact_inputs: &'a std::collections::BTreeMap<String, AbsValue>,
+    fact_inputs: &'a std::collections::BTreeMap<String, FactInput>,
     /// Callee effect id → id in the caller.
     effect_ids: EffectIds<'a>,
 }
@@ -1389,7 +1394,7 @@ impl Remap<'_> {
         let Some(input) = fact.variable().and_then(|v| self.fact_inputs.get(v)) else {
             return false;
         };
-        let Some(Atom::Lit { value }) = self.entry_value(input).single().cloned() else {
+        let Some(value) = self.passed_input(input) else {
             return false;
         };
         let passed = Fact::Equals {
@@ -1397,6 +1402,56 @@ impl Remap<'_> {
             literal: value,
         };
         passed.contradicts(fact)
+    }
+
+    /// The literal this call passes for a callee input, if it is one.
+    fn passed_input(&self, input: &FactInput) -> Option<Literal> {
+        let mut settled = input.value.single()?;
+        for _ in 0..input.late_reads {
+            let Atom::Field { base, .. } = settled else {
+                return None;
+            };
+            settled = base;
+        }
+        let value = match self.passed_path(settled).single().cloned() {
+            Some(Atom::Lit {
+                value: Literal::Null | Literal::Undefined,
+            }) if input.late_reads > 0 => Literal::Undefined,
+            Some(Atom::Lit { value }) if input.late_reads == 0 => value,
+            _ => return None,
+        };
+        match (value, &input.default) {
+            (Literal::Null | Literal::Undefined, Some(default)) => Some(default.clone()),
+            (value, _) => Some(value),
+        }
+    }
+
+    /// The value this call passes for a callee parameter path: an omitted
+    /// argument is `undefined`, and so is a property of `null` or
+    /// `undefined` (see [`FactInput::value`]). A property a record does not
+    /// list stays unknown ([`Atom::field`]).
+    fn passed_path(&self, atom: &Atom) -> AbsValue {
+        match atom {
+            Atom::Param { index } => match self.entry_values.get(*index as usize) {
+                Some(value) => value.clone(),
+                None if self.argument_count.is_some_and(|count| *index >= count) => {
+                    AbsValue::lit(Literal::Undefined)
+                }
+                None => AbsValue::top(),
+            },
+            Atom::Field { base, name } => {
+                let base = self.passed_path(base);
+                match base.single() {
+                    Some(Atom::Lit {
+                        value: Literal::Null | Literal::Undefined,
+                    }) => AbsValue::lit(Literal::Undefined),
+                    Some(Atom::Record { .. }) => base.field(name),
+                    _ => AbsValue::top(),
+                }
+            }
+            Atom::Lit { .. } => AbsValue::atom(atom.clone()),
+            _ => AbsValue::top(),
+        }
     }
 
     /// A callee arm fact in the caller.

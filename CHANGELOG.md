@@ -25,6 +25,15 @@ output formats.
   passes. The README shows this scoring next to the historical pre-tuning
   one and keeps the two apart.
 
+### Changed
+
+- A call that leaves an optional argument out, or passes an object literal
+  with a literal property, now decides the callee's branches on reads of
+  that parameter (`const send = options?.send ?? false`, `if
+  (options.purge)`), not only on destructured ones. When the parameter is
+  passed to other code before the read, only a left-out or `undefined`
+  argument decides it. No evaluation finding changes.
+
 ### Fixed
 
 - A module-private helper (not exported, only ever called directly) whose

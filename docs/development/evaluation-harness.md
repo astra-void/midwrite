@@ -964,4 +964,40 @@ on parameters prune callee branches.
   that runs Drizzle. Its methods are reported as unmodelled database
   methods (MW9001).
 * `options?.x ?? default` on a parameter does not decide callee branches,
-  even for an explicit `{ x: false }` argument.
+  even for an explicit `{ x: false }` argument. (Fixed on 2026-11-13, see
+  below.)
+
+## Optional arguments decide callee branches (2026-11-13, DEV-166)
+
+Record: [`reports/eval/2026-11-13-optional-arguments.json`](../../reports/eval/2026-11-13-optional-arguments.json).
+The target came from the dev-set false positives of the parked SDK-field
+experiment above, never from held-out findings.
+
+**Changed.** A call now decides a callee's branch on a read of a
+parameter, not only on a destructured one: a `const` bound once to
+`p.x`, `p?.x` or either `?? literal`, or such a read used directly as a
+condition ([value analysis](../architecture/value-analysis.md#path-facts-and-loops)).
+An omitted argument is `undefined`, a property of `null` or `undefined`
+is `undefined`, and `?? literal` replaces both. When the parameter was
+passed to other code before the read, only an omitted or `undefined`
+argument decides it, because that code may have changed the object's
+properties but cannot change the binding. Regression:
+`fixtures/projects/optional_argument_branch` (omitted, `undefined`, an
+explicit `{ purge: false }` read directly and after the object was handed
+to other code, a forwarding helper, a reassigned parameter, a
+caller-chosen value).
+
+No dev or held-out finding changes (dev 383/401, held-out 30/32, gate
+PASS): no dev path reaches such a read through a call that leaves the
+argument out.
+
+**SDK clients stored on `this`, tried again: still not shipped.** With
+this change, the parked field-client patch adds 8 dev findings instead of
+12. The four `options?.sendEmail ?? false` false positives
+(`inbox-matching-notifications.ts:95,118`) are gone. The other 8 are the
+same findings the blind labeler classified: 5 intended-risk and 3 false
+positives. Those 3 report Resend's single `emails.send` branch, which runs only when
+`emailPayloads.some((p) => p.attachments …)` holds. That depends on the contents of an array
+built by `Promise.all(...map(...))`, which value analysis does not track.
+Dev hazard precision would go from 383/401 (95.51%) to 388/409 (94.87%),
+so the patch stays parked.
