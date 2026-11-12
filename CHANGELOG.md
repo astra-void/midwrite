@@ -38,6 +38,9 @@ release can and cannot do, with the measured precision and recall.
 - Policies (`recommended`, `strict`, `audit`), baselines, inline
   suppressions with a required reason, recovery declarations, and text,
   JSON and SARIF output.
+- `@midwrite/replay` on npm: the dependency-free replay harness client
+  (checkpoints, `pg` adapter, event log, source worker) for Node.js and
+  Bun.
 - Experimental, less-tested commands: `trace`, `replay` (executes a
   project-owned harness only with `--allow-execution`), `init-replay`,
   `report`, `model-check`, `discover` and `schema`.

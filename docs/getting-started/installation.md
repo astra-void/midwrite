@@ -1,7 +1,8 @@
 # Installation
 
-Midwrite is a Rust workspace. There are no published binaries or
-packages; build it from source.
+Midwrite is a Rust workspace. The CLI has no published binaries or
+packages; build it from source. The replay harness client is published on
+npm as `@midwrite/replay`; generated harnesses vendor their own copy.
 
 ## Requirements
 

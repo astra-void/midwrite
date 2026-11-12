@@ -115,8 +115,8 @@ client's `replayDatabase()` / `replayPoolConfig()` refuse a socket outside
 
 Checkpoints are emitted by adapters, never by the analyzed application code
 (an awaited `checkpoint()` next to a commit would itself become a MW9001).
-For Node.js and Bun, `runtime/node` (`@midwrite/replay`, private and
-unpublished, one dependency-free ES module for both runtimes) provides
+For Node.js and Bun, `runtime/node` (`@midwrite/replay` on npm,
+one dependency-free ES module for both runtimes) provides
 `instrumentPgPool(pool)` for node-postgres, which wraps `pool.query`,
 `pool.connect()` and the clients it returns and classifies each statement
 the ORM sends by its leading keyword, and `publishToEventLog` (an fsync'ed

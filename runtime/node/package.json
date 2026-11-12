@@ -1,8 +1,14 @@
 {
   "name": "@midwrite/replay",
   "version": "0.1.0",
-  "private": true,
-  "description": "Checkpoint client and driver adapters for Midwrite runtime replay harnesses. Not published; workspace-local until a release is authorized.",
+  "description": "Checkpoint client and pg adapter for Midwrite runtime replay harnesses (Node.js and Bun). Experimental.",
+  "keywords": [
+    "midwrite",
+    "replay",
+    "fault-injection",
+    "drizzle",
+    "postgres"
+  ],
   "license": "MIT OR Apache-2.0",
   "type": "module",
   "engines": {
@@ -35,6 +41,11 @@
     "event-log.d.ts",
     "README.md",
     "source.js",
-    "source.d.ts"
-  ]
+    "source.d.ts",
+    "LICENSE-MIT",
+    "LICENSE-APACHE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }

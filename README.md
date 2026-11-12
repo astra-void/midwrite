@@ -170,8 +170,8 @@ MySQL, SQLite and libSQL dialect semantics, and plain `.js`/`.jsx` files
 
 ## Install
 
-v0.1.0 is not published to any package registry. Build it from source with
-Rust 1.97 or newer:
+The `midwrite` CLI is not published to a package registry. Build it from
+source with Rust 1.97 or newer:
 
 ```bash
 cargo install --path crates/midwrite-cli
@@ -179,6 +179,11 @@ cargo install --path crates/midwrite-cli
 
 If a GitHub release for `v0.1.0` exists, it carries prebuilt archives for
 the platforms its release run passed on, with SHA-256 checksums.
+
+The JavaScript client for replay harnesses is on npm as
+[`@midwrite/replay`](https://www.npmjs.com/package/@midwrite/replay). You
+only need it if you write a harness by hand; `midwrite init-replay`
+vendors its own copy.
 
 ## Use
 

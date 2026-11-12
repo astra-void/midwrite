@@ -50,7 +50,7 @@ TypeScript separately.
 | `midwrite-replay` | disposable PostgreSQL clusters, OS isolation (macOS `sandbox-exec`, Linux bubblewrap), manifest validation, single-request replay supervisor and observations, original-code source coordinator, protocol fault proxy, catalog reads | core | run anything without `--allow-execution` and an authorized manifest |
 | `midwrite-cli` | the `midwrite` binary: argument parsing, configuration discovery, text/JSON/SARIF/HTML rendering, baselines, exit codes; commands `check`, `explain`, `ir`, `trace`, `report`, `model-check`, `discover`, `schema`, `replay`, `init-replay` | core, analyzer, model, discover, replay (default feature `replay`) | — |
 | `midwrite-corpus` | developer tool, not published: corpus runs, run comparison, reviewed precision, memory profile, trace coverage, review packets | core, analyzer | be used by `check` |
-| `runtime/node` (`@midwrite/replay`, unpublished) | dependency-free JavaScript client: checkpoint protocol, `pg` adapter, event log, source worker (`source.js`) for Node.js and Bun | — | be required by analyzed applications outside a harness |
+| `runtime/node` (`@midwrite/replay` on npm) | dependency-free JavaScript client: checkpoint protocol, `pg` adapter, event log, source worker (`source.js`) for Node.js and Bun | — | be required by analyzed applications outside a harness |
 
 ## Detailed pages
 

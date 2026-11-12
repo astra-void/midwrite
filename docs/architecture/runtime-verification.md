@@ -1,7 +1,7 @@
 # Runtime verification
 
 Crates and packages: `midwrite-replay` (Rust), `runtime/node`
-(`@midwrite/replay`, JavaScript, unpublished), `midwrite-model`
+(`@midwrite/replay`, JavaScript, on npm), `midwrite-model`
 (`oracle.rs`, `source_verify.rs`, `probe.rs`). Everything here is opt-in;
 nothing runs without `--allow-execution` and an authorized manifest,
 except the PostgreSQL oracle, which runs only the model's SQL. User guide:
