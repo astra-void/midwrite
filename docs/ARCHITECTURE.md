@@ -287,8 +287,11 @@ makes such calls:
 
 1. The callee is *expanded*: its own lowered IR with its local calls replaced
    in the same way, one level less deep. Expansion stops at
-   `--max-call-depth` levels (default 3) and never re-enters a function
-   already being expanded (recursion).
+   `--max-call-depth` levels (default 3) and never re-enters an expansion
+   in progress (recursion): the same function with the same callback
+   arguments. Running a callback parameter is not a level of its own (its
+   body belongs to a caller already being expanded), so `retry(() =>
+   retry(save))` costs two levels, not four.
 2. The expanded callee is used only if it contains a recognized operation and
    no unsupported control flow. Otherwise the call stays an unknown effect
    whose detail says why (no recognized operation, recursive, too deep,

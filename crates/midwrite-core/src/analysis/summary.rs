@@ -262,7 +262,7 @@ pub fn inline_calls_with(
             *function = inliner
                 .expand(
                     index,
-                    &mut vec![index],
+                    &mut vec![(index, Vec::new())],
                     options.max_call_depth,
                     &Context::default(),
                 )
@@ -388,6 +388,12 @@ type CanonicalKey = (usize, Vec<(u32, usize)>);
 /// A memo request of a call site: (callee, callback context used).
 type Request = (usize, Vec<(u32, usize)>);
 
+/// The expansions in progress, outermost first: (function, callback
+/// context). A call is recursive when it would expand one of them again.
+/// The same function with other callbacks (`retry(() => retry(save))`) is
+/// a different expansion; the depth bound still ends any chain of them.
+type Stack = Vec<(usize, Vec<(u32, usize)>)>;
+
 struct Inliner<'a> {
     /// The functions as lowered, before any inlining.
     originals: &'a [FunctionIr],
@@ -491,11 +497,11 @@ impl<'a> Inliner<'a> {
     }
 
     /// Function `index` with its calls expanded up to `depth` levels.
-    /// `stack` holds the functions being expanded, outermost first.
+    /// `stack` holds the expansions in progress, outermost first.
     fn expand(
         &mut self,
         index: usize,
-        stack: &mut Vec<usize>,
+        stack: &mut Stack,
         depth: usize,
         context: &Context,
     ) -> Expanded {
@@ -590,7 +596,7 @@ impl<'a> Inliner<'a> {
     fn summary(
         &mut self,
         index: usize,
-        stack: &mut Vec<usize>,
+        stack: &mut Stack,
         depth: usize,
         context: &Context,
     ) -> Rc<Summary> {
@@ -622,7 +628,7 @@ impl<'a> Inliner<'a> {
             }
         }
         self.stats.expansions += 1;
-        stack.push(index);
+        stack.push((index, key.2.clone()));
         self.direct.push(0);
         self.requests.push(Vec::new());
         let expanded = self.expand(index, stack, depth, context);
@@ -696,7 +702,7 @@ impl<'a> Inliner<'a> {
         nodes: &[Node],
         sites: &HashMap<EffectId, &'a LocalCall>,
         owners: &HashMap<EffectId, (EffectId, u32)>,
-        stack: &mut Vec<usize>,
+        stack: &mut Stack,
         depth: usize,
         context: &Context,
         ids: &mut Ids,
@@ -807,7 +813,7 @@ impl<'a> Inliner<'a> {
         caller: usize,
         effect: &Effect,
         site: &LocalCall,
-        stack: &mut Vec<usize>,
+        stack: &mut Stack,
         depth: usize,
         context: &Context,
         ids: &mut Ids,
@@ -829,6 +835,11 @@ impl<'a> Inliner<'a> {
                 awaited: Vec::new(),
             }
         };
+        // Running a callback parameter does not count toward the depth
+        // bound: its body is code of a caller already being expanded, and
+        // the wrapper that runs it was already counted. The stack still
+        // ends any cycle of callbacks.
+        let callback = site.callee.is_none();
         let index = match (site.callee, site.parameter) {
             (Some(index), _) => index,
             (None, Some(parameter)) => match context.callbacks.get(&parameter) {
@@ -887,13 +898,16 @@ impl<'a> Inliner<'a> {
         };
         let reason = if self.options.max_call_depth == 0 {
             format!("{declared}, but call summaries are disabled")
-        } else if stack.contains(&index) {
+        } else if stack
+            .iter()
+            .any(|(f, used)| *f == index && *used == callee_context.key())
+        {
             if inert {
                 return self.inert_call(caller, index, effect, site, awaited, ids);
             }
             ids.recursive = true;
             format!("{declared}, but the call is recursive; recursive calls are not summarized")
-        } else if depth == 0 {
+        } else if depth == 0 && !callback {
             // A decision of the depth bound: this expansion holds for this
             // exact depth only.
             ids.exact = true;
@@ -906,7 +920,8 @@ impl<'a> Inliner<'a> {
                 self.options.max_call_depth
             )
         } else {
-            let summary = self.summary(index, stack, depth - 1, &callee_context);
+            let depth = if callback { depth } else { depth - 1 };
+            let summary = self.summary(index, stack, depth, &callee_context);
             let used = callee_context.key();
             if let Some(top) = self.requests.last_mut() {
                 top.push((index, used));

@@ -1001,3 +1001,42 @@ positives. Those 3 report Resend's single `emails.send` branch, which runs only 
 built by `Promise.all(...map(...))`, which value analysis does not track.
 Dev hazard precision would go from 383/401 (95.51%) to 388/409 (94.87%),
 so the patch stays parked.
+
+## Nested higher-order helpers (2026-11-13, DEV-166)
+
+Record: [`reports/eval/2026-11-13-nested-wrappers.json`](../../reports/eval/2026-11-13-nested-wrappers.json).
+The case came from an adversarial probe of wrapper shapes the DEV-166 scope
+lists, not from held-out findings.
+
+**Fixed.** A write reached through a helper that runs a callback, nested
+in another such helper (`withSpan("x", () => withRetry(() =>
+db.insert(t)))`, or `withRetry` in itself), was silently lost. Two causes:
+the same helper with a different callback counted as recursion, and each
+callback run used a level of `--max-call-depth`, so two helpers already
+needed four. The expansion stack is now keyed by function and callback
+arguments, and running a callback parameter uses no level; the stack still
+cuts real cycles and every helper call still uses a level, so expansion
+ends. Regression: `fixtures/projects/higher_order_wrappers` (nested,
+mixed and three-deep helpers, a transaction helper inside a tracing one,
+and a recursive helper). The baseline binary reported none of its findings
+except the recursive one.
+
+| development set (all five) | hazards | hazard precision | bug precision | recall |
+| --- | ---: | --- | --- | --- |
+| before | 409 | 383/401 (95.51%) | 163/401 | 152/168 |
+| after | 413 | 387/405 (95.56%) | 164/405 | 152/168 |
+
+The four new findings are all dittofeed code reached through `withSpan`.
+A separate blind labeler classified them: 1 true-positive
+(`broadcasts/activities.ts:196`, messages sent before their delivery
+events are written; the retry guard depends on those events) and 3
+intended-risk (`computePropertiesIncremental.ts:3753`, at-least-once
+HubSpot signals; `computeProperties.ts:132` and `:133`, per-step period
+rows that each step resumes from, cross-record). Held-out findings are
+unchanged (30/32, gate PASS). Midday analysis time is unchanged (0.5 s).
+
+**Inventoried, not fixed:** effects in callbacks a builtin defers
+(`setTimeout(cb)`, `queueMicrotask(cb)`) and in promise continuations
+(`p.then(cb)`) are not placed on any path; the call itself is a modeled
+builtin, so not even an MW9001 note marks them.
+

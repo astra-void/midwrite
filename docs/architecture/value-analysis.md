@@ -155,6 +155,10 @@ the caller binds the result (`const r = await f()`) and tests the binding,
 the callee's `$ret` facts are renamed to `r` (property facts only when every
 reference of `r` is a property read). Recursive calls are never inlined; a
 recursive call of a non-inert callee stays an unknown effect ("recursive").
+A call is recursive when it would repeat an expansion in progress: the same
+function with the same callback arguments. A higher-order helper nested in
+itself with another callback is expanded again, and running a callback
+parameter does not use a level of `--max-call-depth`.
 
 ## Asynchronous and higher-order semantics
 

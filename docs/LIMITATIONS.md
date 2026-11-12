@@ -146,6 +146,9 @@ rates on real projects are summarized in the
   file, or imported from an analyzed file, is analyzed by inlining that
   function's summary: its own lowered body, with its own calls inlined in
   turn, at most `--max-call-depth` levels deep and never recursively.
+  Running a callback passed to a higher-order helper does not count as a
+  level, and the same helper nested with a different callback
+  (`withRetry(() => withRetry(save))`) is not recursion.
   `let`/`var` bindings, shadowed names and function declarations that are
   reassigned anywhere in the file are not followed.
 * Arguments are bound to parameters only for database handles passed as

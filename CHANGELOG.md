@@ -36,6 +36,11 @@ output formats.
 
 ### Fixed
 
+- A write reached through nested higher-order helpers (`withSpan("x", () =>
+  withRetry(() => db.insert(t)))`, or a helper nested in itself with
+  another callback) is no longer lost: such nesting is not treated as
+  recursion, and running a callback does not use a level of
+  `--max-call-depth`. Four new dev findings, all real windows.
 - A module-private helper (not exported, only ever called directly) whose
   every call passes a transaction handle is no longer reported as
   independent commits, without needing `closedWorld`. This removes one dev
