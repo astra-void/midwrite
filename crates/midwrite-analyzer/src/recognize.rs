@@ -86,12 +86,42 @@ pub(crate) enum Classified<'e, 'a> {
         label: String,
         calls: Vec<&'e CallExpression<'a>>,
         resolved_result: Option<serde_json::Value>,
+        /// Set when the rule's `httpMethods` decide the call but the method
+        /// comes from a parameter: the call is unknown here and decided by
+        /// each caller (`midwrite_core::ir::DeferredHttpMethod`).
+        deferred: Option<HttpDeferral>,
     },
     /// `Promise.all([...])` and friends.
     Concurrent {
         call: &'e CallExpression<'a>,
     },
     NotRecognized,
+}
+
+/// A request method taken from a parameter of the function being lowered.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct HttpDeferral {
+    pub parameter: u32,
+    pub name: String,
+    /// The methods when the argument sets none; `None` when unknown.
+    pub when_absent: Option<Vec<String>>,
+    /// The rule's `httpMethods`.
+    pub methods: Vec<String>,
+}
+
+/// What fetch-style options decide about the request method.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum HttpMethod {
+    /// One of these methods (uppercase).
+    Known(Vec<String>),
+    /// Taken from parameter `index` of this function, which is spread last
+    /// into the options or is the options: `when_absent` when it sets none.
+    Parameter {
+        index: u32,
+        name: String,
+        when_absent: Option<Vec<String>>,
+    },
+    Unknown,
 }
 
 const WRITE_METHODS: [(&str, WriteOperation); 3] = [
@@ -193,7 +223,7 @@ impl Recognizer<'_> {
                 return classified;
             }
         }
-        if let Some(classified) = self.classify_external(chain, root, resolved.as_ref()) {
+        if let Some(classified) = self.classify_external(chain, root, resolved.as_ref(), locals) {
             return classified;
         }
         if let Some(classified) = self.classify_sdk(chain, root) {
@@ -536,8 +566,13 @@ impl Recognizer<'_> {
         chain: &Chain<'e, 'a>,
         root: Root<'e, 'a>,
         resolved: Option<&Resolved>,
+        locals: &LocalBindings,
     ) -> Option<Classified<'e, 'a>> {
         let segments = &chain.segments;
+        // A rule whose method comes from a parameter applies only if no
+        // later rule matches the call (that rule would apply when the method
+        // is not listed, and the call is classified by it as before).
+        let mut pending = None;
         for rule in &self.config.external_effects {
             let (path, method) = match rule.target() {
                 Some(ExternalTarget::Function { name }) => (name, None),
@@ -562,11 +597,25 @@ impl Recognizer<'_> {
             let Some(Segment::Call(call)) = segments.get(index) else {
                 continue;
             };
-            if let Some(methods) = &rule.http_methods
-                && !literal_http_method(call)
-                    .is_some_and(|method| methods.iter().any(|expected| expected == &method))
-            {
-                continue;
+            let mut deferred = None;
+            if let Some(methods) = &rule.http_methods {
+                match self.http_method(call, locals) {
+                    HttpMethod::Known(known)
+                        if known.iter().all(|method| methods.contains(method)) => {}
+                    HttpMethod::Parameter {
+                        index,
+                        name,
+                        when_absent,
+                    } if pending.is_none() => {
+                        deferred = Some(HttpDeferral {
+                            parameter: index,
+                            name,
+                            when_absent,
+                            methods: methods.clone(),
+                        });
+                    }
+                    _ => continue,
+                }
             }
             // `firstArgument` narrows the rule to calls whose first argument
             // is that string literal (`triggerJob("notification", ...)`).
@@ -607,7 +656,7 @@ impl Recognizer<'_> {
             if let Some(result) = &rule.resolved_result {
                 detail.push_str(&format!("; declared resolvedResult {result} (an asserted API contract; rejected executions are not constrained)"));
             }
-            return Some(Classified::External {
+            let classified = Classified::External {
                 category: rule.category,
                 best_effort: rule.is_best_effort(),
                 recovery: rule.effective_recovery(),
@@ -619,9 +668,88 @@ impl Recognizer<'_> {
                 label: self.label(root.start(), call),
                 calls: calls(segments),
                 resolved_result: rule.resolved_result.clone(),
-            });
+                deferred: deferred.clone(),
+            };
+            if deferred.is_some() {
+                pending = Some(classified);
+                continue;
+            }
+            return Some(classified);
         }
-        None
+        pending
+    }
+
+    /// The request method of a fetch-style call `fetch(target, options)`.
+    /// Without a `method`, a request to a URL string is a GET; a `Request`
+    /// target carries its own method, so unless the target is a string, a
+    /// URL or a binding declared to hold one, an absent method is unknown.
+    /// An explicit literal `method` (or a conditional between literals)
+    /// decides; a spread, computed key, getter or dynamic method makes it
+    /// unknown, and a later literal `method` decides it again. A parameter
+    /// of this function that is spread last into the options, or passed as
+    /// them, defers the method to each caller ([`LocalBindings::option_params`]).
+    fn http_method(&self, call: &CallExpression<'_>, locals: &LocalBindings) -> HttpMethod {
+        let Some(target) = call.arguments.first().and_then(Argument::as_expression) else {
+            return HttpMethod::Unknown;
+        };
+        let url = crate::bindings::url_string_literal(self.scoping, target)
+            || matches!(target.get_inner_expression(), Expression::Identifier(ident)
+                if resolve_reference(self.scoping, ident)
+                    .is_some_and(|symbol| self.table.holds_url_string(symbol)));
+        let implicit = url.then(|| vec!["GET".to_owned()]);
+        let parameter = |expression: &Expression<'_>| match expression.get_inner_expression() {
+            Expression::Identifier(ident) => resolve_reference(self.scoping, ident)
+                .and_then(|symbol| locals.option_params.get(&symbol))
+                .cloned(),
+            _ => None,
+        };
+        let Some(options) = call.arguments.get(1) else {
+            return implicit.map_or(HttpMethod::Unknown, HttpMethod::Known);
+        };
+        let Some(options) = options.as_expression() else {
+            return HttpMethod::Unknown;
+        };
+        if let Some((index, name)) = parameter(options) {
+            return HttpMethod::Parameter {
+                index,
+                name,
+                when_absent: implicit,
+            };
+        }
+        let Expression::ObjectExpression(options) = options.get_inner_expression() else {
+            return HttpMethod::Unknown;
+        };
+        let mut method = implicit.map_or(HttpMethod::Unknown, HttpMethod::Known);
+        for property in &options.properties {
+            match property {
+                ObjectPropertyKind::ObjectProperty(property) if !property.computed => {
+                    if crate::semantic::property_key(&property.key).as_deref() == Some("method") {
+                        method = match (property.kind, property.method) {
+                            (PropertyKind::Init, false) => literal_methods(&property.value)
+                                .map_or(HttpMethod::Unknown, HttpMethod::Known),
+                            _ => HttpMethod::Unknown,
+                        };
+                    }
+                }
+                ObjectPropertyKind::SpreadProperty(spread) => {
+                    method = match (parameter(&spread.argument), method) {
+                        (Some((index, name)), HttpMethod::Known(before)) => HttpMethod::Parameter {
+                            index,
+                            name,
+                            when_absent: Some(before),
+                        },
+                        (Some((index, name)), HttpMethod::Unknown) => HttpMethod::Parameter {
+                            index,
+                            name,
+                            when_absent: None,
+                        },
+                        _ => HttpMethod::Unknown,
+                    };
+                }
+                ObjectPropertyKind::ObjectProperty(_) => method = HttpMethod::Unknown,
+            }
+        }
+        method
     }
 
     /// A short label for the call from offset `start` (the chain's root) to
@@ -677,6 +805,7 @@ impl Recognizer<'_> {
             label: self.label(root.start(), call),
             calls: calls(segments),
             resolved_result: None,
+            deferred: None,
         })
     }
 
@@ -1001,40 +1130,24 @@ fn method_call<'e, 'a>(segments: &[Segment<'e, 'a>], name: &str) -> Option<&'e C
     })
 }
 
-/// Only explicit fetch-style options establish a method. Spreads and
-/// computed keys can override it; a later literal `method` establishes it
-/// again. Request objects, aliases and implicit GETs remain unresolved.
-fn literal_http_method(call: &CallExpression<'_>) -> Option<String> {
-    if matches!(call.arguments.first(), Some(Argument::SpreadElement(_))) {
-        return None;
-    }
-    let Expression::ObjectExpression(options) = call
-        .arguments
-        .get(1)?
-        .as_expression()?
-        .get_inner_expression()
-    else {
-        return None;
-    };
-    let mut method = None;
-    for property in &options.properties {
-        match property {
-            ObjectPropertyKind::ObjectProperty(property) if !property.computed => {
-                if crate::semantic::property_key(&property.key).as_deref() == Some("method") {
-                    method = match (property.kind, property.value.get_inner_expression()) {
-                        (PropertyKind::Init, Expression::StringLiteral(literal))
-                            if !property.method =>
-                        {
-                            literal.value.as_str().map(str::to_ascii_uppercase)
-                        }
-                        _ => None,
-                    };
+/// The methods a `method` value can be: a string literal, or a conditional
+/// between such values (uppercase).
+fn literal_methods(value: &Expression<'_>) -> Option<Vec<String>> {
+    match value.get_inner_expression() {
+        Expression::StringLiteral(literal) => {
+            Some(vec![literal.value.as_str()?.to_ascii_uppercase()])
+        }
+        Expression::ConditionalExpression(conditional) => {
+            let mut methods = literal_methods(&conditional.consequent)?;
+            for method in literal_methods(&conditional.alternate)? {
+                if !methods.contains(&method) {
+                    methods.push(method);
                 }
             }
-            _ => method = None,
+            Some(methods)
         }
+        _ => None,
     }
-    method
 }
 
 /// Name of the table argument: `orders` or `schema.orders`.

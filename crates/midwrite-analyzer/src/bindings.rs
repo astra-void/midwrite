@@ -85,6 +85,10 @@ pub(crate) struct SymbolTable {
     functions: HashMap<SymbolId, u32>,
     /// `const` bindings initialized with a primitive literal.
     literals: HashMap<SymbolId, Literal>,
+    /// Bindings that hold a URL string or `URL`, never a `Request`: declared
+    /// `string` or `URL` (parameters too), or a `const` initialized with a
+    /// string or template literal or `new URL(...)`.
+    url_strings: HashSet<SymbolId>,
     /// `const` bindings of an object literal whose properties are functions
     /// of this file (`const orders = { async markPaid() {}, close: closeOrder }`),
     /// by property name. Objects whose properties are assigned or deleted
@@ -369,6 +373,12 @@ impl SymbolTable {
         self.imports.get(&symbol)
     }
 
+    /// Whether `symbol` holds a URL string or `URL`, never a `Request`
+    /// (see [`Self::url_strings`]).
+    pub fn holds_url_string(&self, symbol: SymbolId) -> bool {
+        self.url_strings.contains(&symbol)
+    }
+
     /// The literal a `const` binding is initialized with.
     pub fn literal(&self, symbol: SymbolId) -> Option<&Literal> {
         self.literals.get(&symbol)
@@ -501,6 +511,15 @@ impl<'a> Visit<'a> for Collector<'_> {
             };
             let is_const = self.scoping.symbol_flags(symbol).is_const_variable();
             self.note_sdk(symbol, it.init.as_ref(), it.type_annotation.as_deref());
+            if url_string_annotation(self.scoping, it.type_annotation.as_deref())
+                || (is_const
+                    && it
+                        .init
+                        .as_ref()
+                        .is_some_and(|init| url_string_literal(self.scoping, init)))
+            {
+                self.table.url_strings.insert(symbol);
+            }
             if is_const && let Some(literal) = it.init.as_ref().and_then(literal_value) {
                 self.table.literals.insert(symbol, literal);
             }
@@ -625,6 +644,9 @@ impl<'a> Visit<'a> for Collector<'_> {
             && let Some(symbol) = id.symbol_id.get()
         {
             self.note_sdk(symbol, None, it.type_annotation.as_deref());
+            if url_string_annotation(self.scoping, it.type_annotation.as_deref()) {
+                self.table.url_strings.insert(symbol);
+            }
         }
         walk::walk_formal_parameter(self, it);
     }
@@ -1074,6 +1096,13 @@ pub(crate) struct LocalBindings {
     /// enclosing function), with their position and name. Parameters that
     /// are reassigned are left out: their value is not the argument.
     pub params: HashMap<SymbolId, (u32, String)>,
+    /// Plain identifier parameters that still hold what the caller passed
+    /// wherever fetch-style options use them: never reassigned, written
+    /// through or method-called, with exactly one reference other than
+    /// property reads (that use), and no default other than an object
+    /// literal of plain properties without `method`. Their request method
+    /// is decided by each caller.
+    pub option_params: HashMap<SymbolId, (u32, String)>,
 }
 
 const MAX_ALIAS_DEPTH: usize = 8;
@@ -1193,5 +1222,35 @@ fn drizzle_payload<'b, 'a>(call: &'b CallExpression<'a>) -> Option<&'b Identifie
             _ => None,
         },
         _ => None,
+    }
+}
+
+/// Whether `annotation` is `string` or the global `URL` type.
+fn url_string_annotation(
+    scoping: &Scoping,
+    annotation: Option<&oxc_ast::ast::TSTypeAnnotation<'_>>,
+) -> bool {
+    match annotation.map(|annotation| &annotation.type_annotation) {
+        Some(oxc_ast::ast::TSType::TSStringKeyword(_)) => true,
+        Some(oxc_ast::ast::TSType::TSTypeReference(reference)) => matches!(
+            &reference.type_name,
+            oxc_ast::ast::TSTypeName::IdentifierReference(name)
+                if name.name == "URL" && resolve_reference(scoping, name).is_none()
+        ),
+        _ => false,
+    }
+}
+
+/// Whether `expression` is a string or template literal or `new URL(...)`
+/// of the global `URL`.
+pub(crate) fn url_string_literal(scoping: &Scoping, expression: &Expression<'_>) -> bool {
+    match expression.get_inner_expression() {
+        Expression::StringLiteral(_) | Expression::TemplateLiteral(_) => true,
+        Expression::NewExpression(new) => matches!(
+            new.callee.get_inner_expression(),
+            Expression::Identifier(callee)
+                if callee.name == "URL" && resolve_reference(scoping, callee).is_none()
+        ),
+        _ => false,
     }
 }

@@ -35,9 +35,9 @@ use midwrite_core::absint::summary::ParamUse;
 use midwrite_core::absint::{AbsValue, Atom, ObjectKind, Provenance};
 use midwrite_core::analysis::{CallArgument, RETURN_VARIABLE};
 use midwrite_core::ir::{
-    Arm, Branch, BranchKind, DbHandle, Effect, EffectId, EffectKind, Execution, Exit, ExitKind,
-    Fact, FunctionIr, Handler, Literal, Loop, LoopKind, Node, Recognition, Switch, TransactionId,
-    TransactionInfo, TransactionScope, Try, UnknownReason,
+    Arm, Branch, BranchKind, DbHandle, DeferredHttpMethod, Effect, EffectId, EffectKind, Execution,
+    Exit, ExitKind, Fact, FunctionIr, Handler, Literal, Loop, LoopKind, Node, Recognition, Switch,
+    TransactionId, TransactionInfo, TransactionScope, Try, UnknownReason,
 };
 use midwrite_core::location::{LineIndex, Location};
 
@@ -242,6 +242,9 @@ pub(crate) struct LocalCallSite {
     /// The arguments as the callee receives them
     /// (`LocalCall::entry_values`).
     pub entry_values: Vec<AbsValue>,
+    /// The number of arguments, when no argument is a spread
+    /// (`LocalCall::argument_count`).
+    pub argument_count: Option<u32>,
     /// The `CallResult` site of this call's value.
     pub result: Option<u64>,
     /// The caller's binding of the result (a fact variable), and whether
@@ -392,6 +395,20 @@ pub(crate) fn lower_function(
                 let index = u32::try_from(index).unwrap_or(u32::MAX);
                 locals
                     .params
+                    .insert(symbol, (index, id.name.as_str().to_owned()));
+            }
+            if let BindingPattern::BindingIdentifier(id) = &param.pattern
+                && param.initializer.as_deref().is_none_or(empty_options)
+                && let Some(symbol) = id.symbol_id.get()
+                && !recognizer.scoping.symbol_is_mutated(symbol)
+                && recognizer
+                    .table
+                    .other_references(symbol, recognizer.scoping)
+                    == Some(1)
+            {
+                let index = u32::try_from(index).unwrap_or(u32::MAX);
+                locals
+                    .option_params
                     .insert(symbol, (index, id.name.as_str().to_owned()));
             }
         }
@@ -1145,12 +1162,50 @@ impl<'a> Lowerer<'_> {
                 label,
                 calls,
                 resolved_result,
+                deferred,
             } => {
                 self.arguments(&calls);
                 self.facts
                     .refute(format!("performs a configured external effect (`{label}`)"));
                 let references = argument_references(&calls);
                 let provenance = self.provenance(&calls, None);
+                if let Some(deferred) = deferred {
+                    // Unknown here, as a call with unresolved options; each
+                    // caller decides it (`Remap::deferred_http`).
+                    let detail = format!(
+                        "the request method comes from `{}`, parameter {} of this function; {} matches it only for httpMethods {}, which each call of this function decides",
+                        deferred.name,
+                        deferred.parameter + 1,
+                        recognition.detail,
+                        deferred.methods.join(", ")
+                    );
+                    self.push_effect_with(
+                        EffectKind::Unknown {
+                            reason: UnknownReason::UnrecognizedCall,
+                            detail,
+                            deferred: Some(Box::new(DeferredHttpMethod {
+                                parameter: deferred.parameter,
+                                name: deferred.name,
+                                when_absent: deferred.when_absent,
+                                methods: deferred.methods,
+                                category,
+                                best_effort,
+                                recovery,
+                                recognition,
+                                provenance: Some(provenance),
+                            })),
+                        },
+                        label,
+                        call.span,
+                        fire_and_forget,
+                        None,
+                        references,
+                        None,
+                    );
+                    let value = self.opaque();
+                    self.call_values.insert(call.span.start, value);
+                    return;
+                }
                 self.push_effect_with(
                     EffectKind::External {
                         category,
@@ -1317,6 +1372,11 @@ impl<'a> Lowerer<'_> {
             values: exported,
             receiver,
             entry_values,
+            argument_count: call
+                .arguments
+                .iter()
+                .all(|argument| !matches!(argument, Argument::SpreadElement(_)))
+                .then(|| u32::try_from(call.arguments.len()).unwrap_or(u32::MAX)),
             result: Some(site),
             binding,
             immediate: resolved.immediate,
@@ -2172,6 +2232,7 @@ impl<'a> Lowerer<'_> {
                 values: vec![AbsValue::top()],
                 receiver: None,
                 entry_values: Vec::new(),
+                argument_count: None,
                 result: Some(site),
                 binding: None,
                 immediate: false,
@@ -2715,7 +2776,11 @@ impl<'a> Lowerer<'_> {
         execution: Execution,
     ) {
         self.push_effect(
-            EffectKind::Unknown { reason, detail },
+            EffectKind::Unknown {
+                reason,
+                detail,
+                deferred: None,
+            },
             label,
             span,
             execution,
@@ -3083,8 +3148,36 @@ fn entry_shape(value: &AbsValue, stable: &HashSet<u32>) -> AbsValue {
             Atom::Record { .. } => entry_record(atom, stable),
             _ => AbsValue::top(),
         },
+        // One of several literals (`exists ? "POST" : "PUT"`).
+        None if !value.atoms().is_empty()
+            && value
+                .atoms()
+                .iter()
+                .all(|atom| matches!(atom, Atom::Lit { .. })) =>
+        {
+            value.clone()
+        }
         None => AbsValue::top(),
     }
+}
+
+/// Whether a parameter default leaves the request method unset: an object
+/// literal of plain properties, none of them `method`.
+fn empty_options(default: &Expression<'_>) -> bool {
+    let Expression::ObjectExpression(object) = default.get_inner_expression() else {
+        return false;
+    };
+    object.properties.iter().all(|property| match property {
+        ObjectPropertyKind::ObjectProperty(property) => {
+            !property.computed
+                && property.kind == PropertyKind::Init
+                && property
+                    .key
+                    .static_name()
+                    .is_some_and(|name| name != "method")
+        }
+        ObjectPropertyKind::SpreadProperty(_) => false,
+    })
 }
 
 /// The entry value of an object literal written as the argument itself,
@@ -3110,8 +3203,7 @@ fn literal_object_entry(expression: &Expression<'_>) -> AbsValue {
         else {
             return AbsValue::top();
         };
-        let value = literal_value(&property.value).map_or_else(AbsValue::top, AbsValue::lit);
-        props.insert(name.display().to_string(), value);
+        props.insert(name.display().to_string(), literal_entry(&property.value));
     }
     if props.values().all(AbsValue::is_top) {
         return AbsValue::top();
@@ -3123,6 +3215,20 @@ fn literal_object_entry(expression: &Expression<'_>) -> AbsValue {
             .collect(),
         open: false,
     })
+}
+
+/// A literal, or a conditional between literals, as a value; otherwise
+/// unknown.
+fn literal_entry(expression: &Expression<'_>) -> AbsValue {
+    if let Expression::ConditionalExpression(conditional) = expression.get_inner_expression() {
+        let consequent = literal_entry(&conditional.consequent);
+        let alternate = literal_entry(&conditional.alternate);
+        if consequent.is_top() || alternate.is_top() {
+            return AbsValue::top();
+        }
+        return consequent.joined(&alternate);
+    }
+    literal_value(expression).map_or_else(AbsValue::top, AbsValue::lit)
 }
 
 fn entry_record(atom: &Atom, stable: &HashSet<u32>) -> AbsValue {

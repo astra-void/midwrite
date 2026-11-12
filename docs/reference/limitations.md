@@ -21,8 +21,9 @@ Contents:
 
 Broad HTTP-effect rules can flag read-only network requests. The optional
 [`httpMethods` filter](configuration.md#narrowing-http-effects) narrows literal
-fetch-style methods; unresolved options remain unknown, and a POST query may
-still be read-only.
+fetch-style methods, also through a helper that spreads its options parameter
+into the call; unresolved options remain unknown, and a POST query (or an
+OAuth token exchange) may still be read-only.
 
 Joined collections have a bounded source model: a single-use `const`
 initialized by `map`/`flatMap` and awaited with `Promise.all` is connected

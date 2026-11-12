@@ -100,11 +100,7 @@ impl FunctionIr {
     /// Whether the function contains at least one effect recognized as a
     /// database operation or a configured external effect.
     pub fn has_recognized_effects(&self) -> bool {
-        !self.transactions.is_empty()
-            || self
-                .effects()
-                .iter()
-                .any(|effect| effect.recognition.is_some())
+        !self.transactions.is_empty() || self.effects().iter().any(|effect| effect.is_recognized())
     }
 }
 
@@ -332,6 +328,19 @@ pub struct Effect {
 }
 
 impl Effect {
+    /// Whether the effect is a recognized operation, or an HTTP call that
+    /// each caller of the function decides ([`DeferredHttpMethod`]).
+    pub fn is_recognized(&self) -> bool {
+        self.recognition.is_some()
+            || matches!(
+                self.kind,
+                EffectKind::Unknown {
+                    deferred: Some(_),
+                    ..
+                }
+            )
+    }
+
     /// The outermost inlined call through which this function reaches the
     /// effect, if it comes from a summary.
     pub fn call(&self) -> Option<&CallSite> {
@@ -444,7 +453,42 @@ pub enum EffectKind {
     Unknown {
         reason: UnknownReason,
         detail: String,
+        /// Set when the call is a method-restricted HTTP effect whose
+        /// method comes from a parameter: each call of the function decides
+        /// it from its argument (see [`DeferredHttpMethod`]).
+        #[serde(skip)]
+        deferred: Option<Box<DeferredHttpMethod>>,
     },
+}
+
+/// An HTTP effect matched by an `httpMethods` rule except for its method,
+/// which comes from parameter `parameter` of the function
+/// (`fetch(url, { ...options, headers })` or `fetch(url, options)`). In
+/// that function it is an unknown call, exactly as a direct call with
+/// unresolved options. Where the function is inlined, the call's argument
+/// decides it: a method in `methods` makes it the configured effect, a
+/// method outside makes it an ordinary unknown call, and a parameter of the
+/// caller passed on defers it one call further out.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DeferredHttpMethod {
+    pub parameter: u32,
+    /// The parameter's name, for explanations.
+    pub name: String,
+    /// The possible methods when the argument sets no `method` (an absent
+    /// argument, or an object without that key): what the options object
+    /// set before the spread, `GET` when nothing did and the request target
+    /// is a URL string. `None` when unknown (the target may be a `Request`,
+    /// which carries its own method).
+    pub when_absent: Option<Vec<String>>,
+    /// The rule's `httpMethods`.
+    pub methods: Vec<String>,
+    /// The effect when every possible method is in `methods`.
+    pub category: ExternalCategory,
+    pub best_effort: bool,
+    pub recovery: Option<Recovery>,
+    pub recognition: Recognition,
+    /// Argument provenance of the effect, in this function's frame.
+    pub provenance: Option<Provenance>,
 }
 
 impl EffectKind {

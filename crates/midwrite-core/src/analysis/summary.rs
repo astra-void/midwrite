@@ -62,9 +62,10 @@ use std::rc::Rc;
 use crate::absint::summary::Solved;
 use crate::absint::{AbsValue, Atom};
 use crate::ir::{
-    Arm, Branch, CallId, CallResolution, CallScope, CallSite, DbHandle, Effect, EffectId,
-    EffectKind, Execution, Exit, ExitKind, Fact, FunctionIr, Handler, Loop, Node, Recognition,
-    SummaryOrigin, Switch, TransactionId, TransactionInfo, TransactionScope, Try, UnknownReason,
+    Arm, Branch, CallId, CallResolution, CallScope, CallSite, DbHandle, DeferredHttpMethod, Effect,
+    EffectId, EffectKind, Execution, Exit, ExitKind, Fact, FunctionIr, Handler, Literal, Loop,
+    Node, Recognition, SummaryOrigin, Switch, TransactionId, TransactionInfo, TransactionScope,
+    Try, UnknownReason,
 };
 use crate::location::{FileId, Location};
 
@@ -110,6 +111,10 @@ pub struct LocalCall {
     /// only to decide the callee's facts on its
     /// [`FunctionIr::fact_inputs`]. Empty when not computed.
     pub entry_values: Vec<AbsValue>,
+    /// How many arguments the call passes, when it is known exactly (no
+    /// spread argument): a parameter at or past it receives `undefined`.
+    /// `None` when not computed.
+    pub argument_count: Option<u32>,
     /// The `CallResult` site that stands for this call's result in the
     /// caller's abstract values.
     pub result: Option<u64>,
@@ -139,6 +144,7 @@ impl LocalCall {
             values: Vec::new(),
             receiver: None,
             entry_values: Vec::new(),
+            argument_count: None,
             result: None,
             binding: None,
             binding_members: false,
@@ -313,6 +319,7 @@ fn standalone_nodes(nodes: &[Node]) -> Vec<Node> {
                                 reason: UnknownReason::UnrecognizedCall,
                                 detail: "no configuration entry or supported API matches it"
                                     .to_owned(),
+                                deferred: None,
                             },
                             recognition: None,
                             provenance: None,
@@ -948,13 +955,19 @@ impl<'a> Inliner<'a> {
                         awaited,
                     };
                 }
-                // Every operation depended on a handle this call does not pass.
+                // Every operation depended on a handle or a request method
+                // this call does not pass.
                 ids.next_effect = saved.0;
                 ids.next_call = saved.1;
                 ids.transactions.truncate(saved.2);
-                format!(
-                    "{declared}, but it performs database operations only on its parameters, and this call passes no recognized database or transaction handle for them"
-                )
+                match decided_http(&expanded.function.body, &call.body) {
+                    Some(detail) => format!(
+                        "{declared}, but at this call it performs no recognized database operation or configured external effect: {detail}"
+                    ),
+                    None => format!(
+                        "{declared}, but it performs database operations only on its parameters, and this call passes no recognized database or transaction handle for them"
+                    ),
+                }
             }
         };
         // Awaiting a parameter is source evidence independent of whether
@@ -1080,6 +1093,7 @@ impl<'a> Inliner<'a> {
             values: &site_info.values,
             receiver: site_info.receiver.as_ref(),
             entry_values: &site_info.entry_values,
+            argument_count: site_info.argument_count,
             fact_inputs: &callee.fact_inputs,
             effect_ids,
         };
@@ -1182,6 +1196,43 @@ fn is_parameter_path(value: &AbsValue) -> bool {
         .is_some_and(|atom| matches!(atom.root(), Atom::Param { .. }))
 }
 
+/// The request methods an options argument with entry value `value` can
+/// give `fetch` (uppercase): `when_absent` when it sets no `method` (it is
+/// `undefined`, or a closed record without the key; prototype properties
+/// are not modeled), `GET` for an `undefined` method. `None` unless every
+/// possibility is known.
+fn passed_methods(value: &AbsValue, when_absent: Option<&[String]>) -> Option<BTreeSet<String>> {
+    let absent = || when_absent.map(|methods| methods.iter().cloned().collect());
+    let method = match value.single()? {
+        Atom::Lit {
+            value: Literal::Undefined,
+        } => return absent(),
+        Atom::Record { props, open: false } => {
+            match props.iter().find(|(key, _)| &**key == "method") {
+                Some((_, method)) => method,
+                None => return absent(),
+            }
+        }
+        _ => return None,
+    };
+    if method.atoms().is_empty() {
+        return None;
+    }
+    method
+        .atoms()
+        .iter()
+        .map(|atom| match atom {
+            Atom::Lit {
+                value: Literal::String(method),
+            } => Some(method.to_ascii_uppercase()),
+            Atom::Lit {
+                value: Literal::Undefined,
+            } => Some("GET".to_owned()),
+            _ => None,
+        })
+        .collect()
+}
+
 /// Callee effect id → id in the caller: `base` plus the effect's position
 /// in visit order.
 struct EffectIds<'a> {
@@ -1274,6 +1325,8 @@ struct Remap<'a> {
     receiver: Option<&'a AbsValue>,
     /// [`LocalCall::entry_values`] of the call.
     entry_values: &'a [AbsValue],
+    /// [`LocalCall::argument_count`] of the call.
+    argument_count: Option<u32>,
     /// [`FunctionIr::fact_inputs`] of the callee.
     fact_inputs: &'a std::collections::BTreeMap<String, AbsValue>,
     /// Callee effect id → id in the caller.
@@ -1396,6 +1449,10 @@ impl Remap<'_> {
             EffectKind::DatabaseRead { handle, .. } | EffectKind::DatabaseWrite { handle, .. } => {
                 handle
             }
+            EffectKind::Unknown {
+                deferred: Some(deferred),
+                ..
+            } => return self.deferred_http(effect, deferred),
             other => return (other.clone(), effect.recognition.clone()),
         };
         let (handle, recognition) = match handle {
@@ -1438,6 +1495,7 @@ impl Remap<'_> {
                                 self.site.callee,
                                 self.site.label
                             ),
+                            deferred: None,
                         },
                         None,
                     );
@@ -1447,6 +1505,96 @@ impl Remap<'_> {
         let mut kind = effect.kind.clone();
         set_handle(&mut kind, handle);
         (kind, recognition)
+    }
+
+    /// A callee HTTP effect whose method comes from its parameter, decided
+    /// by what this call passes for it ([`DeferredHttpMethod`]).
+    fn deferred_http(
+        &self,
+        effect: &Effect,
+        deferred: &DeferredHttpMethod,
+    ) -> (EffectKind, Option<Box<Recognition>>) {
+        let index = deferred.parameter;
+        let passed = match self.entry_values.get(index as usize) {
+            Some(value) => value.clone(),
+            None if self.argument_count.is_some_and(|count| index >= count) => {
+                AbsValue::lit(Literal::Undefined)
+            }
+            None => AbsValue::top(),
+        };
+        let unknown = |detail: String, deferred: Option<Box<DeferredHttpMethod>>| {
+            (
+                EffectKind::Unknown {
+                    reason: UnknownReason::UnrecognizedCall,
+                    detail,
+                    deferred,
+                },
+                None,
+            )
+        };
+        let name = &deferred.name;
+        let site = &self.site.label;
+        // Passed on from the caller's own parameter: decided one call further
+        // out.
+        if let Some(Atom::Param { index }) = passed.single() {
+            let mut forwarded = deferred.clone();
+            forwarded.parameter = *index;
+            forwarded.provenance = deferred.provenance.as_ref().map(|provenance| {
+                provenance.substitute(&|atom| {
+                    frame_atom(
+                        atom,
+                        self.frame,
+                        self.values,
+                        self.receiver,
+                        Some(&self.effect_ids),
+                    )
+                })
+            });
+            return unknown(
+                format!(
+                    "the request method of `{}` comes from `{name}`, which the call `{site}` passes on from a parameter; it is decided where that function is called",
+                    effect.label
+                ),
+                Some(Box::new(forwarded)),
+            );
+        }
+        let Some(methods) = passed_methods(&passed, deferred.when_absent.as_deref()) else {
+            return unknown(
+                format!(
+                    "the request method of `{}` comes from `{name}`, and the call `{site}` passes no literal method for it",
+                    effect.label
+                ),
+                None,
+            );
+        };
+        let listed = |method: &String| deferred.methods.contains(method);
+        let shown = methods.iter().cloned().collect::<Vec<_>>().join(" or ");
+        if methods.iter().all(listed) {
+            let mut recognition = deferred.recognition.clone();
+            recognition.detail.push_str(&format!(
+                "; the request method {shown} comes from `{name}` as passed by the call `{site}`"
+            ));
+            return (
+                EffectKind::External {
+                    category: deferred.category,
+                    best_effort: deferred.best_effort,
+                    recovery: deferred.recovery,
+                },
+                Some(Box::new(recognition)),
+            );
+        }
+        let detail = if methods.iter().any(listed) {
+            format!(
+                "the call `{site}` makes `{}` use {shown}, and not every one is among the rule's httpMethods",
+                effect.label
+            )
+        } else {
+            format!(
+                "the call `{site}` makes `{}` use {shown}, which no `httpMethods` entry lists, so no configuration entry matches it",
+                effect.label
+            )
+        };
+        unknown(detail, None)
     }
 
     fn execution(&self, execution: Execution) -> Execution {
@@ -1494,7 +1642,14 @@ impl Remap<'_> {
                 let id = EffectId(*next_effect);
                 *next_effect += 1;
                 let (kind, recognition) = self.effect_kind(effect);
-                let provenance = match (&kind, &effect.provenance) {
+                let source = match &effect.kind {
+                    EffectKind::Unknown {
+                        deferred: Some(deferred),
+                        ..
+                    } => deferred.provenance.as_ref(),
+                    _ => effect.provenance.as_deref(),
+                };
+                let provenance = match (&kind, source) {
                     (EffectKind::Unknown { .. }, _) | (_, None) => None,
                     (_, Some(provenance)) => Some(Box::new(provenance.substitute(&|atom| {
                         frame_atom(
@@ -1744,11 +1899,42 @@ fn has_recognized_nodes(nodes: &[Node]) -> bool {
     visit(nodes, &mut |node| {
         found |= match node {
             Node::Transaction(_) => true,
-            Node::Effect(effect) => effect.recognition.is_some(),
+            Node::Effect(effect) => effect.is_recognized(),
             _ => false,
         };
     });
     found
+}
+
+/// When `callee` defers a request method to its callers: why the copy of
+/// it at a call (`instantiated`) is unknown, taken from its first unknown
+/// effect.
+fn decided_http(callee: &[Node], instantiated: &[Node]) -> Option<String> {
+    let mut deferred = false;
+    visit(callee, &mut |node| {
+        deferred |= matches!(
+            node,
+            Node::Effect(Effect {
+                kind: EffectKind::Unknown {
+                    deferred: Some(_),
+                    ..
+                },
+                ..
+            })
+        );
+    });
+    let mut detail = None;
+    visit(instantiated, &mut |node| {
+        if let Node::Effect(Effect {
+            kind: EffectKind::Unknown { detail: text, .. },
+            ..
+        }) = node
+            && detail.is_none()
+        {
+            detail = Some(text.clone());
+        }
+    });
+    detail.filter(|_| deferred)
 }
 
 fn count_calls(nodes: &[Node]) -> u32 {

@@ -696,3 +696,58 @@ dev projects changes.
 Wilson 95% intervals after: hazard precision [91.9%, 96.4%], bug
 precision [35.7%, 45.2%]. This is development tuning on AI-only labels;
 there is no held-out set.
+
+## Request methods decided through helpers (2026-11-12)
+
+Record: [scoring](../../reports/eval/2026-11-12-http-method-helpers.json).
+Zero's 10 false positives came from its generic `fetch` rule. The earlier
+attempt to add `httpMethods` failed because writes go through
+`makeAuthenticatedRequest(url, options = {})`, which calls
+`fetch(url, { ...options, headers })`: the method was dynamic. Now a
+`fetch` whose method comes from such a parameter (spread last into the
+options, or passed as them) is decided at each call of the helper, from
+the argument passed, in the way literal arguments decide callee branches
+([value analysis](../architecture/value-analysis.md#path-facts-and-loops),
+[configuration](../reference/configuration.md#narrowing-http-effects)).
+A missing method is a GET when the request target is a URL string (a
+literal, `new URL(...)`, or a binding declared `string`/`URL`). A target
+that may be a `Request` keeps an absent method unknown. A literal or a
+conditional between literals decides it, and a dynamic method stays an
+unknown call (MW9001), as in a direct call. Zero's config now restricts
+`fetch` to `POST`, `PUT`, `PATCH` and `DELETE`. Regression:
+`fixtures/vulnerable/http_method_helper.ts` (implicit GET, literal PUT,
+POST-or-PUT conditional, DELETE forwarded through a second helper, and two
+dynamic methods), plus direct-call cases in
+`crates/midwrite-analyzer/tests/http_methods.rs`.
+
+Decided: the OAuth token exchange (`getAccessToken`, a literal `POST`)
+stays reported. A method does not show whether a request changes remote
+state, and Midwrite does not guess from URLs or bodies. So once the GET
+lookups no longer count, the token exchange they trigger becomes the
+completed first effect of the same three windows.
+
+Finding IDs against the
+[previous record](../../reports/eval/2026-11-12-loop-literal-entries.json):
+midday, kan, dittofeed and vercel-chatbot are unchanged. In zero, 9
+findings disappear, all labeled false-positive: the 6 GET-lookup pairs at
+`google-subscription.factory.ts:120`, `:157` and `:190`, the token
+exchange followed by the now-unknown request inside
+`makeAuthenticatedRequest` (`:97`), and the two `bimi.ts` GET pairs. No
+true-positive or intended-risk finding is lost. 7 findings are new, and a
+separate blind labeler (source only, no labels or reports) classified
+them. 6 are false-positive: the token exchange is the completed first
+effect at `:120`, `:157` and `:190` (`fpCause` "first effect is a token
+fetch / read-only lookup"). 1 is intended-risk: `3a582c35f3710521`,
+topic setup then subscription creation in `subscribe` (`:290`), retried
+by the scheduled renewal. The remaining false positive from before is
+`chat-attachments.ts:77`, a literal `POST` to a stateless conversion API.
+
+| development set (all five) | hazards | hazard precision | bug precision | recall | audited recall |
+| --- | ---: | --- | --- | --- | --- |
+| before | 412 | 382/404 (94.55%) | 163/404 (40.35%) | 152/168 | 78/94 |
+| after | 410 | 383/402 (95.27%) | 163/402 (40.55%) | 152/168 | 78/94 |
+
+Zero alone: 20/30 → 21/28 hazard precision, with 10 → 7 false
+positives. Wilson 95% intervals after (all five): hazard precision
+[92.7%, 97.0%], bug precision [35.9%, 45.4%]. This is development tuning
+on AI-only labels; there is no held-out set.

@@ -115,7 +115,8 @@ rates on real projects are summarized in the
 
 * Broad HTTP rules can match read-only requests, including POST query APIs.
   Opt-in `externalEffects[].httpMethods` narrows fetch-style calls to an
-  explicit literal method in their second argument. Dynamic options and
+  explicit literal method in their second argument, decided per call when a
+  helper spreads its options parameter into the request. Dynamic options and
   unmatched methods stay unknown; this filter does not prove a request mutates
   state ([configuration](reference/configuration.md#narrowing-http-effects)).
 * `databaseReceivers` and `externalEffects` are trusted declarations. Matching

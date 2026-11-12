@@ -371,7 +371,7 @@ fn traces(manifests: &[PathBuf], unknowns_out: Option<&Path>) -> Result<bool, St
                 for file in &analysis.files {
                     for function in &file.ir.functions {
                         for effect in function.effects() {
-                            if let EffectKind::Unknown { reason, detail } = &effect.kind {
+                            if let EffectKind::Unknown { reason, detail, .. } = &effect.kind {
                                 let at = effect.location.resolve(&file.ir.path, &file.ir.sources);
                                 details.insert(
                                     (at.file, at.line, at.column, effect.label.to_string()),

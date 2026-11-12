@@ -36,7 +36,7 @@
     {"receiver":"driver","method":"revokeToken","category":"http-request"},
     {"receiver":"this.driver","method":"modifyLabels","category":"http-request"},
     {"receiver":"this.driver","method":"watchMailbox","category":"http-request"},
-    {"function":"fetch","category":"http-request"},
+    {"function":"fetch","category":"http-request","httpMethods":["POST","PUT","PATCH","DELETE"]},
     {"receiver":"autumn","method":"attach","category":"payment"},
     {"receiver":"autumn","method":"cancel","category":"payment"},
     {"receiver":"autumn","method":"track","category":"payment"},

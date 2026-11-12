@@ -251,6 +251,7 @@ pub(crate) fn link_sites(
         call.receiver = site.receiver.as_ref().map(|v| renumber(v, &globalize));
         // Function-free by construction (`entry_shape`): nothing to renumber.
         call.entry_values = site.entry_values.clone();
+        call.argument_count = site.argument_count;
         call.result = site.result;
         if let Some((binding, members)) = &site.binding {
             call.binding = Some(binding.clone());

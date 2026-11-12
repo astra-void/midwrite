@@ -114,6 +114,7 @@ impl Builder {
             EffectKind::Unknown {
                 reason: UnknownReason::UnrecognizedCall,
                 detail: "test".to_owned(),
+                deferred: None,
             },
             Execution::Awaited,
         )

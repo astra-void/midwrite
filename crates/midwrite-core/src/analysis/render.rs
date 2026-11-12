@@ -717,7 +717,7 @@ impl Renderer<'_> {
         inside: Option<TransactionId>,
     ) -> Parts {
         let effect = occurrence.effect;
-        let EffectKind::Unknown { reason, detail } = &effect.kind else {
+        let EffectKind::Unknown { reason, detail, .. } = &effect.kind else {
             unreachable!("unknown findings are built from unknown effects")
         };
         let label = &effect.label;

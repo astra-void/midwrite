@@ -252,6 +252,23 @@ The path walker of `ARCHITECTURE.md` gains facts from values:
   payloads is the forwarding call. A property the
   argument does not list stays undecided (prototype properties are not
   modeled).
+* **deferred request methods**: a `fetch` call matched by an `httpMethods`
+  rule except for its method, which comes from an options parameter spread
+  last into the options or passed as them (`fetch(url, { ...options,
+  headers })`), is an unknown effect carrying `DeferredHttpMethod`. Inside
+  the function it stays unknown, exactly as a call with unresolved options.
+  On instantiation (`Remap::deferred_http`) the call's entry value for that
+  parameter decides it: no argument (`LocalCall::argument_count`), or a
+  closed record without `method`, gives the method the options set before
+  the spread (GET when nothing did and the target is a URL string); a
+  record's literal `method`, or a set of literals, gives those. Every
+  method listed makes it the configured effect, with its recognition and
+  provenance; otherwise it is an ordinary unknown call. A parameter of the
+  caller passed on defers it again. Entry values keep a set of literals
+  (`exists ? "POST" : "PUT"`) instead of widening it to unknown; facts on
+  inputs still need a single literal to be decided. Unlike input facts, a
+  key the closed record does not list reads as absent here: `method` is
+  not a property of `Object.prototype`.
 
 Facts remain literal (in)equality, truthiness and object-ness, compared
 pairwise; there is no constraint solver. When leaving an inlined call,
