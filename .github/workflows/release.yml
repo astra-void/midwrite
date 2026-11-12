@@ -55,6 +55,53 @@ jobs:
             target/package/*.tar.gz
             target/package/*.sha256
 
+  # Binaries for the npm packages (`midwrite` and @midwrite/cli-*). Linux
+  # builds are static musl so they run on any distribution; Windows has no
+  # runtime replay (built without the `replay` feature). Each binary is
+  # smoke-tested on its own OS. The packages are assembled and published
+  # from these artifacts with scripts/npm-cli.py; nothing is published here.
+  npm-binaries:
+    name: npm binary ${{ matrix.npm }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-15, target: aarch64-apple-darwin, npm: darwin-arm64 }
+          - { os: macos-15-intel, target: x86_64-apple-darwin, npm: darwin-x64 }
+          - { os: ubuntu-24.04, target: x86_64-unknown-linux-musl, npm: linux-x64 }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl, npm: linux-arm64 }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, npm: win32-x64, features: --no-default-features }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install musl tools
+        if: contains(matrix.target, 'musl')
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools
+      - run: cargo build --release --locked --target ${{ matrix.target }} -p midwrite-cli --bin midwrite ${{ matrix.features }}
+      - name: Smoke test
+        run: |
+          exe="target/${{ matrix.target }}/release/midwrite"
+          if [[ "$RUNNER_OS" == Windows ]]; then exe="$exe.exe"; fi
+          "$exe" --version
+          set +e
+          "$exe" check fixtures/vulnerable --format json > check.json
+          code=$?
+          set -e
+          test "$code" -eq 1
+          python3 -c "import json; d = json.load(open('check.json')); assert d['diagnostics'], 'no diagnostics'"
+          mkdir -p dist && cp "$exe" dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: midwrite-npm-${{ matrix.npm }}
+          path: dist/*
+          if-no-files-found: error
+
   draft-release:
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')

@@ -161,7 +161,7 @@ says so with `MW9001` instead of guessing. The full list is in
 | Database | **Drizzle ORM on PostgreSQL** only: writes, reads, `db.transaction(...)`, savepoints |
 | External effects | What you list in `midwrite.json`, plus built-in rules for Stripe, Resend, BullMQ, Redis (ioredis, redis, Upstash), Supabase storage and auth admin, S3 (including multipart uploads), ClickHouse inserts, Polar, Nodemailer, SendGrid, Twilio, Vercel Blob |
 | Code structure | Functions in the same file and in imported files (relative imports, `tsconfig` `paths`, workspace packages), classes with known receivers, object services, callbacks passed to analyzed functions |
-| Platforms | Built and tested on macOS arm64 and Linux aarch64. Linux and macOS x86_64 are expected to work but have not been run. Windows is not supported. |
+| Platforms | Full test suite on macOS arm64 and Linux aarch64. npm binaries for macOS x64, Linux x64 and Windows x64 are built and smoke-tested in CI only. Windows has static analysis only. |
 
 **Not supported:** Prisma, TypeORM, Kysely, Sequelize, MikroORM, raw SQL,
 MySQL, SQLite and libSQL dialect semantics, and plain `.js`/`.jsx` files
@@ -170,8 +170,16 @@ MySQL, SQLite and libSQL dialect semantics, and plain `.js`/`.jsx` files
 
 ## Install
 
-The `midwrite` CLI is not published to a package registry. Build it from
-source with Rust 1.97 or newer:
+From npm, with prebuilt binaries for macOS (arm64, x64), Linux (arm64, x64;
+static musl builds) and Windows x64 (static analysis only, no runtime
+replay):
+
+```bash
+npm install --save-dev midwrite
+```
+
+Or build from source with Rust 1.97 or newer, on any platform the code
+compiles on:
 
 ```bash
 cargo install --path crates/midwrite-cli

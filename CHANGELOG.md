@@ -38,6 +38,10 @@ release can and cannot do, with the measured precision and recall.
 - Policies (`recommended`, `strict`, `audit`), baselines, inline
   suppressions with a required reason, recovery declarations, and text,
   JSON and SARIF output.
+- The CLI on npm as `midwrite`, a launcher that installs one prebuilt
+  binary package (`@midwrite/cli-darwin-arm64`, `-darwin-x64`,
+  `-linux-arm64`, `-linux-x64`, `-win32-x64`; Linux builds are static musl,
+  the Windows build has static analysis only).
 - `@midwrite/replay` on npm: the dependency-free replay harness client
   (checkpoints, `pg` adapter, event log, source worker) for Node.js and
   Bun.
@@ -63,8 +67,10 @@ release can and cannot do, with the measured precision and recall.
   application accepts or repairs the partial state in ways Midwrite cannot
   see.
 - No finding in an external application has been reproduced at runtime.
-- Prebuilt archives cover only the platforms on which the release workflow
-  passed. Windows is not supported.
+- The full test suite runs on macOS arm64 and Linux. The npm binaries are
+  built natively in CI and only smoke-tested (`check` on the vulnerable
+  fixtures) on their own OS. Windows has static analysis only: no runtime
+  replay or PostgreSQL validation.
 
 See [`docs/reference/limitations.md`](docs/reference/limitations.md).
 

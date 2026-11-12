@@ -1,0 +1,41 @@
+{
+  "name": "midwrite",
+  "version": "0.1.0",
+  "description": "Static analysis for partial failures in TypeScript backends (Drizzle on PostgreSQL). Experimental.",
+  "keywords": [
+    "static-analysis",
+    "typescript",
+    "drizzle",
+    "postgres",
+    "consistency",
+    "outbox"
+  ],
+  "homepage": "https://github.com/astra-void/midwrite#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/astra-void/midwrite.git"
+  },
+  "license": "MIT OR Apache-2.0",
+  "bin": {
+    "midwrite": "bin/midwrite.js"
+  },
+  "files": [
+    "bin/midwrite.js",
+    "README.md",
+    "LICENSE-MIT",
+    "LICENSE-APACHE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "optionalDependencies": {
+    "@midwrite/cli-darwin-arm64": "0.1.0",
+    "@midwrite/cli-darwin-x64": "0.1.0",
+    "@midwrite/cli-linux-arm64": "0.1.0",
+    "@midwrite/cli-linux-x64": "0.1.0",
+    "@midwrite/cli-win32-x64": "0.1.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
