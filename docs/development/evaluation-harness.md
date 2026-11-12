@@ -629,3 +629,42 @@ fix is broader than the two targets.
   records. With these labels, dev is hazard 282/301 (93.69%), bug 117/301
   (38.87%) and recall 111/127, with 107 unlabeled
   ([labeled scoring](../../reports/eval/2026-11-12-literal-arguments-labeled.json)).
+
+## Every dev finding labeled (2026-11-12)
+
+Record: [scoring](../../reports/eval/2026-11-12-midday-full-labels.json).
+Midday's precision so far came from a labeled sample; 107 findings were
+unlabeled. Four separate blind labelers (no labels, reports or known
+positives, source only) classified all of them: 46 true-positive, 54
+intended-risk, 7 false-positive. Test seed code and retried or
+best-effort work account for most intended risks. Six pairs act on
+different records (item A's write and item B's write in one batch); the
+window exists, so they were not called false positives for that reason,
+and they are marked `crossRecord` in the labels so the rule can be
+revisited. Each false positive carries an `fpCause`. No existing label
+was changed.
+
+| development set (all five) | hazards | unlabeled | hazard precision | bug precision | recall | audited recall |
+| --- | ---: | ---: | --- | --- | --- | --- |
+| before | 416 | 107 | 282/301 (93.69%) | 117/301 (38.87%) | 111/127 | 78/94 |
+| after labeling | 416 | 0 | 382/408 (93.63%) | 163/408 (39.95%) | 152/168 | 78/94 |
+
+Labeling did not move precision. Recall rises only because the 41 new
+true positives outside the audit enter its denominator (found by
+construction); audited recall is unchanged at 78/94.
+
+Remaining false positives by cause: zero's 10 are all the generic
+`fetch` rule matching read-only GETs and a stateless token exchange.
+Midday's 16 are 4 `updateInbox` deletes behind a literal status that
+was not decided (fixed below), and twelve single causes (an update that
+matched no row, mutually exclusive branches, a private helper that only
+ever receives `tx`, notifications the labelers did not see as owed).
+
+Tried and ruled out: adding `httpMethods: ["POST", "PUT", "PATCH",
+"DELETE"]` to zero's `fetch` rule. Zero's writes go through
+`makeAuthenticatedRequest(url, options)`, which spreads `options` into
+`fetch`, so the method is dynamic and the writes stop matching, while the
+OAuth token exchange (a literal `POST`) still matches. It removed 9 false
+positives and 4 real intended-risk windows, and the 6 findings it exposed
+were all false positives on the token exchange. The configuration was
+left unchanged.

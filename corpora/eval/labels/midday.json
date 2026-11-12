@@ -1189,6 +1189,982 @@
    "function": "run",
    "classification": "intended-risk",
    "notes": "The phase-1 notification for item A (match-transactions-bidirectional.ts:104) is sent after A's match is committed (:61-76); the phase-2 calculateInboxSuggestions update applies to a different, still-unmatched item B (:190-193). The notification is best-effort ('Don't throw - notifications shouldn't break the matching process', inbox-matching-notifications.ts:109-115), the job is retried (trigger.config.ts:9-17) and phase 2 re-reads pending items each run (:185-188). Arguably false-positive, since the pair spans different records."
+  },
+  {
+   "findingId": "90d4e5f9de04293d",
+   "code": "MW1004",
+   "file": "apps/api/src/bot/platform-resolver.ts",
+   "line": 107,
+   "function": "resolvePlatformLinkCode",
+   "classification": "true-positive",
+   "notes": "consumePlatformLinkToken burns the one-time code with a standalone UPDATE (platform-identities.ts:273); the identity INSERT comes later (platform-resolver.ts:107) after hasCurrentTeamAccess and afterConnect, both of which can fail. The catch (platform-resolver.ts:133-148) never un-consumes the token."
+  },
+  {
+   "findingId": "246c976e5813fb6e",
+   "code": "MW1004",
+   "file": "apps/api/src/bot/runtime.ts",
+   "line": 613,
+   "function": "resolveSlackConversation",
+   "classification": "true-positive",
+   "notes": "runtime.ts:594 consumes the link token, then runtime.ts:613 updates the existing identity (platform-identities.ts:116), reachable per runtime.ts:553-559. A failure in between leaves the code used and the identity not refreshed."
+  },
+  {
+   "findingId": "ab258026ff1ce99e",
+   "code": "MW1004",
+   "file": "apps/api/src/bot/runtime.ts",
+   "line": 613,
+   "function": "resolveSlackConversation",
+   "classification": "true-positive",
+   "notes": "Insert branch of the same flow (platform-identities.ts:135): the token consumed at runtime.ts:594 stays used when the identity insert at runtime.ts:613 never happens; the catch at runtime.ts:637-643 does not compensate."
+  },
+  {
+   "findingId": "99e6cd338c788b85",
+   "code": "MW1004",
+   "file": "apps/api/src/mcp/tools/invoices.ts",
+   "line": 1141,
+   "function": "registerInvoiceTools::<anonymous@978:7>",
+   "classification": "true-positive",
+   "notes": "The MCP tool inserts a draft invoice (invoices.ts:1095 -> queries/invoices.ts:816), then sets status unpaid (invoices.ts:1141). A failure leaves a stray draft holding the invoice number, and a client retry creates a second invoice."
+  },
+  {
+   "findingId": "a1967f526e88ec8d",
+   "code": "MW1004",
+   "file": "apps/api/src/rest/routers/apps/slack/oauth-callback.ts",
+   "line": 190,
+   "function": "<anonymous@112:3>",
+   "classification": "true-positive",
+   "notes": "oauth-callback.ts:172 upserts the Slack app; createOrUpdatePlatformIdentity runs separately at :190 and can throw (AlreadyLinked, platform-identities.ts:108-114). Slack stays installed without the installer's identity; only a manual reinstall recovers."
+  },
+  {
+   "findingId": "99d088d108a4a401",
+   "code": "MW1004",
+   "file": "apps/api/src/rest/routers/apps/slack/oauth-callback.ts",
+   "line": 190,
+   "function": "<anonymous@112:3>",
+   "classification": "true-positive",
+   "notes": "Insert branch (platform-identities.ts:135): the app row committed at oauth-callback.ts:172 survives a failure before the identity insert at :190, with no compensation."
+  },
+  {
+   "findingId": "7687896e32002051",
+   "code": "MW1004",
+   "file": "apps/api/src/rest/routers/invoices.ts",
+   "line": 487,
+   "function": "<anonymous@406:3>",
+   "classification": "true-positive",
+   "notes": "REST create runs draftInvoice (rest/routers/invoices.ts:449), then updateInvoice to unpaid (:487) as separate statements; a failure leaves a draft that used up the invoice number."
+  },
+  {
+   "findingId": "cd96946a5cfad17d",
+   "code": "MW1005",
+   "file": "apps/api/src/rest/routers/webhooks/inbox/utils.ts",
+   "line": 168,
+   "function": "triggerProcessingJobs",
+   "classification": "intended-risk",
+   "notes": "The notification at utils.ts:168 is fire-and-forget: the comment at :164-166 calls it a non-critical side effect and errors are swallowed at :176."
+  },
+  {
+   "findingId": "b87d2c7bc6f87592",
+   "code": "MW1004",
+   "file": "apps/api/src/trpc/routers/customers.ts",
+   "line": 82,
+   "function": "<anonymous@65:15>",
+   "classification": "false-positive",
+   "notes": "updateCustomerEnrichmentStatus (customers.ts router:82) runs only for a new customer (no input.id, router:66, :75); a new customer has no existing tags, so tagIdsToDelete is empty and the customerTags DELETE (queries/customers.ts:449-460) never runs on that path.",
+   "fpCause": "callee delete branch infeasible on new-customer path"
+  },
+  {
+   "findingId": "dfb0cd536b3056e5",
+   "code": "MW1004",
+   "file": "apps/api/src/trpc/routers/document-tags.ts",
+   "line": 34,
+   "function": "<anonymous@22:15>",
+   "classification": "intended-risk",
+   "notes": "The tag insert (document-tags.ts:23) can be followed by a failed embed and embedding insert (:34); the embed-document-tags worker regenerates any missing slug embedding the next time the tag appears (embed-document-tags.ts:41-89), so the gap heals itself."
+  },
+  {
+   "findingId": "36ff8ff9eee85e2b",
+   "code": "MW1001",
+   "file": "apps/api/src/trpc/routers/documents.ts",
+   "line": 121,
+   "function": "<anonymous@93:15>",
+   "classification": "intended-risk",
+   "notes": "Unsupported documents are marked completed (documents.ts:107); jobs for the separate supported documents are triggered at :121 with deterministic jobIds. Stale pending documents are offered a retry (dashboard/src/utils/document.ts:1-29, documents.ts:140).",
+   "crossRecord": true
+  },
+  {
+   "findingId": "dfc1396154895c55",
+   "code": "MW1005",
+   "file": "apps/api/src/trpc/routers/inbox.ts",
+   "line": 167,
+   "function": "<anonymous@143:15>",
+   "classification": "intended-risk",
+   "notes": "The inbox_new notification at inbox.ts:167 is explicitly non-critical (comments at :164, :178) and its errors are caught."
+  },
+  {
+   "findingId": "96176b84f25478ae",
+   "code": "MW1004",
+   "file": "apps/api/src/trpc/routers/oauth-applications.ts",
+   "line": 163,
+   "function": "<anonymous@98:15>",
+   "classification": "intended-risk",
+   "notes": "The comment at oauth-applications.ts:158 says the DCR app is claimed before any auth codes are issued; if the flow fails after the claim (:159) and before createAuthorizationCode (:163), re-running authorize skips the claim and issues the code."
+  },
+  {
+   "findingId": "19ea0ceae945b39c",
+   "code": "MW1001",
+   "file": "apps/api/src/trpc/routers/team.ts",
+   "line": 358,
+   "function": "<anonymous@317:15>",
+   "classification": "true-positive",
+   "notes": "Invites are inserted (team.ts:328 -> user-invites.ts:302), then the email task is triggered (team.ts:358). If the trigger fails, a retry treats the email as already_invited (user-invites.ts:265-269) and sends nothing; there is no resend path."
+  },
+  {
+   "findingId": "bf7f7b9886c13fb1",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/accounting/export-transactions.ts",
+   "line": 281,
+   "function": "ExportTransactionsProcessor.process",
+   "classification": "intended-risk",
+   "notes": "initializeProvider (export-transactions.ts:170) only persists refreshed OAuth tokens with an atomic merge (apps.ts:602), independent of the sync record upserted at :281; the worker job retries 4 times with backoff (accounting.config.ts:18-23)."
+  },
+  {
+   "findingId": "bf7f7b9886c13fb1-2",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/accounting/export-transactions.ts",
+   "line": 425,
+   "function": "ExportTransactionsProcessor.process",
+   "classification": "intended-risk",
+   "notes": "Same as above with the failed-batch sync-record upsert at export-transactions.ts:425; the token refresh (apps.ts:602) stands alone and the job is retried (accounting.config.ts:18-23)."
+  },
+  {
+   "findingId": "c2455d12176cd60b",
+   "code": "MW1005",
+   "file": "apps/worker/src/processors/accounting/export-transactions.ts",
+   "line": 456,
+   "function": "ExportTransactionsProcessor.process",
+   "classification": "intended-risk",
+   "notes": "The first trigger is for a newly exported transaction (export-transactions.ts:329), the second for a different already-synced one (:456); the job retries 4 times (accounting.config.ts:18) and a re-run re-queues missing attachment syncs.",
+   "crossRecord": true
+  },
+  {
+   "findingId": "b0a11fa4f1db08fb",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/accounting/sync-attachments.ts",
+   "line": 292,
+   "function": "SyncAttachmentsProcessor.process",
+   "classification": "intended-risk",
+   "notes": "The token refresh in initializeProvider (sync-attachments.ts:88, apps.ts:602) is self-contained; the mapping update at sync-attachments.ts:292 is redone on job retry (accounting.config.ts:18)."
+  },
+  {
+   "findingId": "fa8a9ec55efccfa6",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/customers/enrich-customer.ts",
+   "line": 70,
+   "function": "EnrichCustomerProcessor.process",
+   "classification": "intended-risk",
+   "notes": "enrich-customer.ts:47 sets an in-progress marker; exceptions before the final update (:70) are caught and mark the enrichment failed (:103-116). Only a hard crash leaves it processing, and the UI offers cancel or re-enrich (customer-details.tsx:141-205)."
+  },
+  {
+   "findingId": "c33acaecce003bd2",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/customers/enrich-customer.ts",
+   "line": 106,
+   "function": "EnrichCustomerProcessor.process",
+   "classification": "intended-risk",
+   "notes": "markCustomerEnrichmentFailed (enrich-customer.ts:106) is the error handler for the processing marker set at :47; the status stays processing only after a crash, and the UI offers cancel or re-enrich."
+  },
+  {
+   "findingId": "018e04c86add0b55",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/documents/embed-document-tags.ts",
+   "line": 104,
+   "function": "EmbedDocumentTagsProcessor.process",
+   "classification": "intended-risk",
+   "notes": "A documents-queue job with 3 attempts (documents.config.ts:17); embeddings (embed-document-tags.ts:85) and tags (:104) are idempotent upserts, so a retry recomputes the set."
+  },
+  {
+   "findingId": "34ec356c01d2f06d",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/documents/embed-document-tags.ts",
+   "line": 125,
+   "function": "EmbedDocumentTagsProcessor.process",
+   "classification": "intended-risk",
+   "notes": "In the same retried job (documents.config.ts:17), the tag upsert (embed-document-tags.ts:104) and assignment upsert (:125) are idempotent ON CONFLICT writes."
+  },
+  {
+   "findingId": "b38118e50a4b1d0b",
+   "code": "MW1005",
+   "file": "apps/worker/src/processors/documents/process-document.ts",
+   "line": 498,
+   "function": "ProcessDocumentProcessor.process",
+   "classification": "intended-risk",
+   "notes": "The document_processed notification (process-document.ts:498) is in a try/catch commented 'Don't fail the entire process if notification fails' (:511)."
+  },
+  {
+   "findingId": "a101c4ca65ed78ae",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts",
+   "line": 171,
+   "function": "MatchTransactionsBidirectionalProcessor.process",
+   "classification": "false-positive",
+   "notes": "updateInbox at match-transactions-bidirectional.ts:171 passes the literal status 'pending'; the transactionAttachments DELETE (inbox.ts:1100) is reached only under status === 'deleted' (inbox.ts:1086).",
+   "fpCause": "callee branch infeasible for literal argument"
+  },
+  {
+   "findingId": "b5c28dcf88a37554",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts",
+   "line": 171,
+   "function": "MatchTransactionsBidirectionalProcessor.process",
+   "classification": "false-positive",
+   "notes": "The transactionMatchSuggestions DELETE (inbox.ts:1133) is inside the status === 'deleted' branch (inbox.ts:1086); the call at match-transactions-bidirectional.ts:171 passes 'pending'.",
+   "fpCause": "callee branch infeasible for literal argument"
+  },
+  {
+   "findingId": "7b6606f1b7dee4d0",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts",
+   "line": 171,
+   "function": "MatchTransactionsBidirectionalProcessor.process",
+   "classification": "intended-risk",
+   "notes": "The second update (:171) is the compensating reset of the 'analyzing' marker set at match-transactions-bidirectional.ts:59, on the error path; the comment at :153 says it avoids leaving items stuck."
+  },
+  {
+   "findingId": "f2338bc951472a2a",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts",
+   "line": 229,
+   "function": "MatchTransactionsBidirectionalProcessor.process",
+   "classification": "intended-risk",
+   "notes": "The phase-1 reset for inbox X (match-transactions-bidirectional.ts:171) and phase-2 analyzing update for inbox Y (:229) touch different records; pending items are re-selected by later runs (inbox-matching.ts:416-443).",
+   "crossRecord": true
+  },
+  {
+   "findingId": "a125b2ac5b61bd26",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/inbox/process-attachment.ts",
+   "line": 149,
+   "function": "ProcessAttachmentProcessor.process",
+   "classification": "false-positive",
+   "notes": "updateInbox at apps/worker/src/processors/inbox/process-attachment.ts:130 runs only when inboxData is truthy (:129); createInbox at :149 runs only when !inboxData (:144). inboxData is not reassigned between them, so no path performs both.",
+   "fpCause": "mutually exclusive branches on the same unchanged variable"
+  },
+  {
+   "findingId": "92e76f3400624b30-2",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/inbox/process-attachment.ts",
+   "line": 336,
+   "function": "ProcessAttachmentProcessor.process",
+   "classification": "intended-risk",
+   "notes": "createInbox (process-attachment.ts:149) writes 'processing' and the update at :336 comes later. The inbox queue retries jobs (apps/worker/src/queues/inbox.config.ts:14, attempts 3, stalled-job recovery) and a re-run finds the row via getInboxByFilePath (:68)."
+  },
+  {
+   "findingId": "3e8f00c64ace90be",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/inbox/process-attachment.ts",
+   "line": 353,
+   "function": "ProcessAttachmentProcessor.process",
+   "classification": "intended-risk",
+   "notes": "groupRelatedInboxItems (process-attachment.ts:353) is wrapped in try/catch with the comment \"Don't fail the entire process if grouping fails\" (:362); grouping is explicitly best-effort."
+  },
+  {
+   "findingId": "f99b4a2b1e0893df",
+   "code": "MW1005",
+   "file": "apps/worker/src/processors/inbox/process-attachment.ts",
+   "line": 407,
+   "function": "ProcessAttachmentProcessor.process",
+   "classification": "intended-risk",
+   "notes": "process-document (process-attachment.ts:374) is fire-and-forget with a 'non-critical' catch (:393-404) and a deterministic jobId (:382); a batch-process-matching failure (:407) resets the inbox to 'pending' (:429); a crash leads to a job retry (inbox.config.ts:14)."
+  },
+  {
+   "findingId": "67871384bd4caf94",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/inbox/process-attachment.ts",
+   "line": 507,
+   "function": "ProcessAttachmentProcessor.process",
+   "classification": "intended-risk",
+   "notes": "After createInbox (process-attachment.ts:149), a crash before the catch-path updateInbox('pending') at :507 leaves 'processing'; the inbox job is retried (inbox.config.ts:14) and a re-run picks up the row via getInboxByFilePath (:68)."
+  },
+  {
+   "findingId": "cb04575e4a022224",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/inbox/slack-upload.ts",
+   "line": 259,
+   "function": "SlackUploadProcessor.process",
+   "classification": "intended-risk",
+   "notes": "slack-upload runs on the retried inbox queue (inbox.config.ts:14,51); createInbox (slack-upload.ts:176) uses a stable referenceId (:183) with onConflictDoNothing (packages/db/src/queries/inbox.ts:1817-1863), so a retry reaches the update at :259 idempotently."
+  },
+  {
+   "findingId": "cb04575e4a022224-2",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/inbox/slack-upload.ts",
+   "line": 306,
+   "function": "SlackUploadProcessor.process",
+   "classification": "intended-risk",
+   "notes": "Same pattern: createInbox (slack-upload.ts:176) is idempotent through its referenceId, and a retried inbox job re-runs the extraction and the update at :306 (inbox.config.ts:14)."
+  },
+  {
+   "findingId": "f1dfc38dbd9d9270",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/inbox/slack-upload.ts",
+   "line": 575,
+   "function": "SlackUploadProcessor.process",
+   "classification": "intended-risk",
+   "notes": "updateInbox('pending') at slack-upload.ts:575 is the catch-path fallback for Gemini errors (:574-588); a crash after createInbox (:176) is covered by job retry plus the idempotent createInbox."
+  },
+  {
+   "findingId": "cb04575e4a022224-3",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/inbox/slack-upload.ts",
+   "line": 606,
+   "function": "SlackUploadProcessor.process",
+   "classification": "intended-risk",
+   "notes": "The catch-path update ('pending') at slack-upload.ts:606 is followed by a rethrow (:612), so the job is retried (inbox.config.ts:14) and reuses the inbox row created at :176."
+  },
+  {
+   "findingId": "3f6ae28452b6c1cf",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/insights/generate-team-insights.ts",
+   "line": 157,
+   "function": "GenerateInsightsProcessor.process",
+   "classification": "intended-risk",
+   "notes": "Between createInsight (generate-team-insights.ts:144) and updateInsight('generating') (:157), the insights queue retries (3 attempts; apps/worker/src/queues/insights.config.ts:21); a re-run finds the non-completed row (:73) and takes the update branch (:136)."
+  },
+  {
+   "findingId": "c6b903cb815fe230",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/insights/generate-team-insights.ts",
+   "line": 179,
+   "function": "GenerateInsightsProcessor.process",
+   "classification": "intended-risk",
+   "notes": "An insight left 'generating' (generate-team-insights.ts:157) without the completed update (:179) is regenerated on job retry; the skip guard (:80) skips only 'completed'."
+  },
+  {
+   "findingId": "c6b903cb815fe230-2",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/insights/generate-team-insights.ts",
+   "line": 246,
+   "function": "GenerateInsightsProcessor.process",
+   "classification": "intended-risk",
+   "notes": "updateInsight('failed') (generate-team-insights.ts:246) is the catch-path marker after 'generating' (:138); a crash leaves 'generating', which a retried job re-processes (:80)."
+  },
+  {
+   "findingId": "b1745ea3f348702e",
+   "code": "MW1005",
+   "file": "apps/worker/src/processors/invoices/generate-invoice.ts",
+   "line": 108,
+   "function": "GenerateInvoiceProcessor.process",
+   "classification": "intended-risk",
+   "notes": "If queueing process-document (generate-invoice.ts:108) fails after send-invoice-email is queued (:94), the invoices queue retries (3 attempts; apps/worker/src/queues/invoices.config.ts:15) and queues the missing job. Caveat: the retry re-queues send-invoice-email without a jobId, which can duplicate the email."
+  },
+  {
+   "findingId": "e50b4aab33fce3ef",
+   "code": "MW1005",
+   "file": "apps/worker/src/processors/invoices/generate-recurring.ts",
+   "line": 226,
+   "function": "InvoiceRecurringSchedulerProcessor.process",
+   "classification": "intended-risk",
+   "notes": "The in-app notification (generate-recurring.ts:226) is a secondary notice after generate-invoice is queued (:214); the analogous path's comment (:416-419, :469-477) states queueing failures after the invoice exists are tolerated."
+  },
+  {
+   "findingId": "a86fc50262a4bc3b",
+   "code": "MW1005",
+   "file": "apps/worker/src/processors/invoices/generate-recurring.ts",
+   "line": 449,
+   "function": "InvoiceRecurringSchedulerProcessor.process",
+   "classification": "intended-risk",
+   "notes": "Two best-effort notifications (generate-recurring.ts:432, :449) sit in a try/catch whose comment (:469-477) accepts queueing failures once the invoice exists."
+  },
+  {
+   "findingId": "1971c07cf478c175",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/invoices/upcoming-notification.ts",
+   "line": 228,
+   "function": "InvoiceUpcomingNotificationProcessor.process",
+   "classification": "intended-risk",
+   "notes": "The comment at upcoming-notification.ts:217-219 explains rows are marked notified before the best-effort sendToProviders to avoid duplicate emails; sendToProviders (:228) is in a catch logged as best-effort (:239-249)."
+  },
+  {
+   "findingId": "e237a8e11febcc4e",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/transactions/enrich-transaction.ts",
+   "line": 180,
+   "function": "EnrichTransactionProcessor.process::<anonymous@67:7>",
+   "classification": "intended-risk",
+   "notes": "The two markTransactionsAsEnriched calls (enrich-transaction.ts:147, :180) cover disjoint ID sets (:174-176); the catch (:217) marks the whole batch, and a retried job re-selects only enrichmentCompleted=false rows (transaction-enrichment.ts:58).",
+   "crossRecord": true
+  },
+  {
+   "findingId": "62c8b2de3957ca54",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/transactions/enrich-transaction.ts",
+   "line": 217,
+   "function": "EnrichTransactionProcessor.process::<anonymous@67:7>",
+   "classification": "intended-risk",
+   "notes": "markTransactionsAsEnriched(validTransactionIds) (enrich-transaction.ts:217) is the catch-path fallback after partial progress (:147); a crash is recovered by job retry, which re-selects only non-enriched rows (transaction-enrichment.ts:58)."
+  },
+  {
+   "findingId": "f1f1cbd82048506c",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/transactions/export.ts",
+   "line": 238,
+   "function": "ExportTransactionsProcessor.process",
+   "classification": "intended-risk",
+   "notes": "updateDocumentByPath (export.ts:231) is commented as non-critical (:228); the transactions queue retries (transactions.config.ts:14) and the export re-run is idempotent (upload upsert at :215)."
+  },
+  {
+   "findingId": "1243d2e80ee1e83a",
+   "code": "MW1005",
+   "file": "apps/worker/src/processors/transactions/import-transactions.ts",
+   "line": 231,
+   "function": "ImportTransactionsProcessor.process",
+   "classification": "intended-risk",
+   "notes": "The enrich (import-transactions.ts:222) and match (:231) triggers run after idempotent upserts (:184); a failure fails the job, which the transactions queue retries (transactions.config.ts:14), and enrichment is idempotent (transaction-enrichment.ts:58)."
+  },
+  {
+   "findingId": "10a4438c99947b37",
+   "code": "MW1004",
+   "file": "packages/bot/src/activity-notifications.ts",
+   "line": 279,
+   "function": "flushDueActivityNotificationBatches",
+   "classification": "intended-risk",
+   "notes": "A crash after updatePlatformIdentityMetadata (packages/bot/src/activity-notifications.ts:271) leaves the batch unsent; the periodic flush job (activity-notification-flush.ts:17; provider-notification-batches.ts:94) picks it up again, at the cost of a duplicate best-effort chat notification."
+  },
+  {
+   "findingId": "a2f398e0bcf73531",
+   "code": "MW1004",
+   "file": "packages/bot/src/inbox-upload.ts",
+   "line": 196,
+   "function": "processInboxUpload",
+   "classification": "true-positive",
+   "notes": "processInboxUpload runs in request paths with no job retry (apps/api/src/bot/runtime.ts:748, apps/api/src/rest/routers/chat.ts:101). After createInbox (packages/bot/src/inbox-upload.ts:156) with 'processing', a crash before the update at :196 leaves the item stuck; getStuckInboxItems (inbox.ts:1663) has no callers."
+  },
+  {
+   "findingId": "6ee083e4e5b0a689",
+   "code": "MW1004",
+   "file": "packages/bot/src/inbox-upload.ts",
+   "line": 230,
+   "function": "processInboxUpload",
+   "classification": "intended-risk",
+   "notes": "groupRelatedInboxItems (inbox-upload.ts:230) is wrapped in a try/catch that only logs (:229-239); grouping is deliberately best-effort."
+  },
+  {
+   "findingId": "d9c695c40aea710f",
+   "code": "MW1004",
+   "file": "packages/bot/src/inbox-upload.ts",
+   "line": 279,
+   "function": "processInboxUpload",
+   "classification": "true-positive",
+   "notes": "updateInbox('pending') at inbox-upload.ts:279 is the in-process compensation for the 'processing' row created at :156; on a crash it never runs, the request-path callers (runtime.ts:748, chat.ts:101) do not retry, and nothing reconciles stuck items."
+  },
+  {
+   "findingId": "e7c9a8566c0c0444",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/apps.ts",
+   "line": 183,
+   "function": "disconnectApp",
+   "classification": "true-positive",
+   "notes": "disconnectApp deletes platformIdentities (packages/db/src/queries/apps.ts:173) and then apps (:183) on plain db (caller apps/api/src/trpc/routers/apps.ts:28); a failure leaves the app connected with its identities removed."
+  },
+  {
+   "findingId": "8c34f1ec481aadbd",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/apps.ts",
+   "line": 433,
+   "function": "removeWhatsAppConnection",
+   "classification": "true-positive",
+   "notes": "removeWhatsAppConnection deletes the identity (apps.ts:407) and later deletes the app (:433) in separate commits with no transaction (caller trpc/routers/apps.ts:74)."
+  },
+  {
+   "findingId": "e44f0046b1284927",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/apps.ts",
+   "line": 440,
+   "function": "removeWhatsAppConnection",
+   "classification": "true-positive",
+   "notes": "When connections remain, the identity delete (apps.ts:407) and the config update (:440) commit independently; a failure leaves the removed number in config.connections."
+  },
+  {
+   "findingId": "881bc43f84a6c044",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/customers.ts",
+   "line": 442,
+   "function": "upsertCustomer",
+   "classification": "true-positive",
+   "notes": "The customer upsert at packages/db/src/queries/customers.ts:359 and the tag insert at :442 are separate autocommit statements; callers (apps/api/src/trpc/routers/customers.ts:68, rest, mcp) pass plain db. A new customer can exist without its tags, and a retry creates a second customer."
+  },
+  {
+   "findingId": "bc0c0d7f3a7d325c",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/customers.ts",
+   "line": 453,
+   "function": "upsertCustomer",
+   "classification": "true-positive",
+   "notes": "Tag insert (customers.ts:442) and tag delete (:453) are independent commits; a failure leaves a half-applied tag diff and nothing in the code repairs it."
+  },
+  {
+   "findingId": "904e58b51537360a",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/documents.ts",
+   "line": 335,
+   "function": "deleteDocument",
+   "classification": "true-positive",
+   "notes": "documents.ts:317 deletes the document row, then :335 deletes matching transactionAttachments with no transaction. A retry hits the !result early return at :327, so the attachments stay orphaned."
+  },
+  {
+   "findingId": "d0dd253149ffd8b2",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/inbox-matching.ts",
+   "line": 177,
+   "function": "calculateInboxSuggestions",
+   "classification": "intended-risk",
+   "notes": "inbox-matching.ts:161 sets the transient 'analyzing' marker and :177 resets it to 'pending'; exceptions are caught by the 'Best-effort recovery' block at :197-213, and the function runs only from retried worker jobs (apps/worker/src/config/job-options.ts:8 attempts: 3) that re-run idempotently."
+  },
+  {
+   "findingId": "aaa87248ca87596a",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/inbox-matching.ts",
+   "line": 186,
+   "function": "calculateInboxSuggestions",
+   "classification": "intended-risk",
+   "notes": "The 'analyzing' marker (inbox-matching.ts:161) commits before the persistInboxSuggestionWorkflow transaction (:55; insert at transaction-matching.ts:1068), which is itself atomic. The leftover marker is covered by the best-effort reset at :197 and retried worker jobs (job-options.ts:8)."
+  },
+  {
+   "findingId": "d0dd253149ffd8b2-2",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/inbox-matching.ts",
+   "line": 211,
+   "function": "calculateInboxSuggestions",
+   "classification": "intended-risk",
+   "notes": "The second operation is the recovery itself: updateInbox(pending) at inbox-matching.ts:211 in the catch commented 'Best-effort recovery' (:197). A crash before it leaves 'analyzing', which the code knowingly accepts; the worker job is retried (job-options.ts:8)."
+  },
+  {
+   "findingId": "4081668c91879382",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/inbox.ts",
+   "line": 530,
+   "function": "deleteInbox",
+   "classification": "true-positive",
+   "notes": "deleteInbox deletes the attachment (inbox.ts:508), then resets the transaction's tax fields (:530) as a separate commit; callers (apps/api/src/trpc/routers/inbox.ts:75, rest, mcp) pass plain db. A failure leaves stale tax info."
+  },
+  {
+   "findingId": "d1296812cac9a2aa",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/inbox.ts",
+   "line": 541,
+   "function": "deleteInbox",
+   "classification": "true-positive",
+   "notes": "The tax reset (inbox.ts:530) and the match-suggestion delete (:541) commit independently in a user-triggered API path with no recovery."
+  },
+  {
+   "findingId": "9fde97de86be22e9",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/inbox.ts",
+   "line": 561,
+   "function": "deleteInbox",
+   "classification": "true-positive",
+   "notes": "Suggestions are deleted (inbox.ts:541) before the inbox row is marked deleted (:561); a failure leaves an undeleted inbox item whose suggestions and attachment are gone. Only a user retry would finish it."
+  },
+  {
+   "findingId": "a16c84bb38514479",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/inbox.ts",
+   "line": 636,
+   "function": "deleteInboxMany",
+   "classification": "true-positive",
+   "notes": "In deleteInboxMany's per-item loop, the attachment delete (inbox.ts:614) and tax reset (:636) for the same item are separate commits; the per-item catch (~:666) only logs and continues."
+  },
+  {
+   "findingId": "868f2098ab2a26ab",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/inbox.ts",
+   "line": 647,
+   "function": "deleteInboxMany",
+   "classification": "true-positive",
+   "notes": "The tax reset (inbox.ts:636) and suggestion delete (:647) for the same item commit independently; the catch only logs."
+  },
+  {
+   "findingId": "49d704c3d7e36d24",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/inbox.ts",
+   "line": 1122,
+   "function": "updateInbox",
+   "classification": "true-positive",
+   "notes": "updateInbox's status==='deleted' branch deletes the attachment (inbox.ts:1100), then resets tax (:1122) without a transaction; the trpc and rest routers (apps/api/src/trpc/routers/inbox.ts:207, rest/routers/inbox.ts:303) pass plain db and a user-supplied status, so the branch is reachable."
+  },
+  {
+   "findingId": "c8e04ee35a7150e4",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/inbox.ts",
+   "line": 1133,
+   "function": "updateInbox",
+   "classification": "true-positive",
+   "notes": "Same deleted branch: the tax reset (inbox.ts:1122) and suggestion delete (:1133) are independent commits on the plain-db API path."
+  },
+  {
+   "findingId": "1840a074d61c191f",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/inbox.ts",
+   "line": 1144,
+   "function": "updateInbox",
+   "classification": "true-positive",
+   "notes": "Suggestions deleted (inbox.ts:1133) and inbox status update (:1144) commit independently from the plain-db API path (apps/api/src/trpc/routers/inbox.ts:207)."
+  },
+  {
+   "findingId": "f6effe95abcc5918",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/inbox.ts",
+   "line": 1358,
+   "function": "matchTransaction",
+   "classification": "true-positive",
+   "notes": "matchTransaction inserts transactionAttachments (inbox.ts:1316) then updates transaction tax (:1358); from plain db (apps/api/src/trpc/routers/inbox.ts:213, mcp) it is not in a transaction (only inbox-matching.ts:81 passes tx). A retry inserts duplicate attachments."
+  },
+  {
+   "findingId": "3940d7c4689ea6d2",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/inbox.ts",
+   "line": 1373,
+   "function": "matchTransaction",
+   "classification": "true-positive",
+   "notes": "The tax update (inbox.ts:1358) and inbox link update (:1373) commit separately on the plain-db API path (trpc/routers/inbox.ts:213); a failure leaves attachments created while the inbox stays unmatched."
+  },
+  {
+   "findingId": "ab71f5b9b8f819f8",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/inbox.ts",
+   "line": 1490,
+   "function": "unmatchTransaction",
+   "classification": "true-positive",
+   "notes": "unmatchTransaction marks the suggestion 'unmatched' (inbox.ts:1464), then clears the inbox link (:1490) as separate commits with plain db (trpc/routers/inbox.ts:219)."
+  },
+  {
+   "findingId": "54cf2dee2257f846",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/inbox.ts",
+   "line": 1513,
+   "function": "unmatchTransaction",
+   "classification": "true-positive",
+   "notes": "The inbox link is cleared (inbox.ts:1490) before the attachment delete (:1513); after a failure the attachmentIds can no longer be found from the inbox, so they are orphaned."
+  },
+  {
+   "findingId": "8a0b84097527f6ef",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/oauth-flow.ts",
+   "line": 162,
+   "function": "exchangeAuthorizationCode",
+   "classification": "true-positive",
+   "notes": "The auth code is marked used (oauth-flow.ts:156), then createAccessToken inserts the token (:192) as a separate commit, with no tx at the caller (apps/api/src/rest/routers/oauth.ts:518). A failure burns the code without a token; a retry trips reuse detection (:109). Fail-closed ordering, but no comment addresses the window."
+  },
+  {
+   "findingId": "9fa2009baa7c522f",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/oauth-flow.ts",
+   "line": 361,
+   "function": "refreshAccessToken",
+   "classification": "true-positive",
+   "notes": "refreshAccessToken revokes the old token (oauth-flow.ts:352) before inserting the new one (:192 via :361), with no transaction (caller oauth.ts:587); a failure leaves the client with no valid refresh token."
+  },
+  {
+   "findingId": "3ff46231b276492b",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/teams.ts",
+   "line": 227,
+   "function": "createSystemCategoriesForTeam",
+   "classification": "false-positive",
+   "notes": "createSystemCategoriesForTeam is a module-private helper (teams.ts:153) whose only caller, createTeam, passes the transaction handle inside db.transaction (teams.ts:245/280), so the parent and child inserts (:183, :227) are atomic.",
+   "fpCause": "same transaction via tx parameter"
+  },
+  {
+   "findingId": "9b320b7325f23fe2",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/teams.ts",
+   "line": 370,
+   "function": "leaveTeam",
+   "classification": "true-positive",
+   "notes": "leaveTeam nulls users.teamId (teams.ts:364), then deletes the usersOnTeam membership (:370) as independent commits from plain db (apps/api/src/trpc/routers/team.ts:108)."
+  },
+  {
+   "findingId": "3ef329787ad15324",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/tracker-entries.ts",
+   "line": 437,
+   "function": "startTimer",
+   "classification": "true-positive",
+   "notes": "startTimer stops the running timer via stopCurrentRunningTimer (tracker-entries.ts:769, called at :433), then inserts the new entry (:437) with no transaction; a failure leaves the old timer stopped and no new one."
+  },
+  {
+   "findingId": "2c7b1f1b8694507f",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/tracker-projects.ts",
+   "line": 368,
+   "function": "upsertTrackerProject",
+   "classification": "true-positive",
+   "notes": "The project upsert (tracker-projects.ts:288) and tag insert (:368) are independent commits from plain-db callers (apps/api/src/trpc/routers/tracker-projects.ts:28); a retry without an id creates a duplicate."
+  },
+  {
+   "findingId": "3278abb93a4a0193",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/tracker-projects.ts",
+   "line": 379,
+   "function": "upsertTrackerProject",
+   "classification": "true-positive",
+   "notes": "Tag insert (tracker-projects.ts:368) and tag delete (:379) commit separately, leaving a half-applied tag diff that nothing repairs."
+  },
+  {
+   "findingId": "7b873cc8546d82a7",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/transaction-attachments.ts",
+   "line": 178,
+   "function": "deleteAttachment",
+   "classification": "true-positive",
+   "notes": "deleteAttachment clears inbox rows linked by attachmentId (transaction-attachments.ts:168), then separately clears other inbox rows linked by transactionId (:178); a failure leaves sibling inbox items still pointing at the transaction.",
+   "crossRecord": true
+  },
+  {
+   "findingId": "8db2acea6dc8f1a9",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/transaction-attachments.ts",
+   "line": 215,
+   "function": "deleteAttachment",
+   "classification": "true-positive",
+   "notes": "Inbox links are cleared (transaction-attachments.ts:178) before suggestions are marked 'unmatched' (:215); a retry recomputes affectedInboxIds from the already-cleared FKs (:155), finds none, and never fixes the suggestions."
+  },
+  {
+   "findingId": "4943916f7095548a",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/transaction-attachments.ts",
+   "line": 228,
+   "function": "deleteAttachment",
+   "classification": "true-positive",
+   "notes": "deleteAttachment marks the match suggestions 'unmatched' (transaction-attachments.ts:215) and then clears the transaction's tax fields (:228) as separate autocommit statements on plain db. The tRPC caller passes the root db with no transaction (apps/api/src/trpc/routers/transaction-attachments.ts:25), and nothing restores the partial state."
+  },
+  {
+   "findingId": "97b92165266eb826",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/transaction-attachments.ts",
+   "line": 234,
+   "function": "deleteAttachment",
+   "classification": "true-positive",
+   "notes": "The tax fields are cleared (transaction-attachments.ts:228), then accountingSyncRecords are deleted separately (:234) to reset export status. A crash in between leaves the transaction modified but still marked exported, and no transaction or retry covers it."
+  },
+  {
+   "findingId": "c60fb221a7380453",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/transaction-attachments.ts",
+   "line": 245,
+   "function": "deleteAttachment",
+   "classification": "true-positive",
+   "notes": "Sync records are deleted (transaction-attachments.ts:234) before the attachment row itself is deleted (:245), with no transaction. A failure leaves the attachment in place while its export status is already reset."
+  },
+  {
+   "findingId": "825372822f9064c5",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/transactions.ts",
+   "line": 1566,
+   "function": "updateTransaction",
+   "classification": "true-positive",
+   "notes": "updateTransaction commits the status change (transactions.ts:1551) and then deletes accountingSyncRecords separately (:1566). Callers use plain db (apps/api/src/trpc/routers/transactions.ts:88; rest/routers/transactions.ts:361). A crash leaves a non-exported status with stale sync records; the comment at :1563 explains the delete, not an accepted gap."
+  },
+  {
+   "findingId": "bb4e08045103af77",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/transactions.ts",
+   "line": 1754,
+   "function": "updateTransactions",
+   "classification": "true-positive",
+   "notes": "updateTransactions inserts transactionTags (transactions.ts:1738) and then updates the transaction fields (:1754) without a transaction. A failure applies only the tag part of the bulk edit; nothing recovers automatically."
+  },
+  {
+   "findingId": "60b8ba7be63544f4",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/transactions.ts",
+   "line": 1875,
+   "function": "createTransaction",
+   "classification": "true-positive",
+   "notes": "createTransaction inserts the transaction (transactions.ts:1852) and then calls createAttachments (:1875 -> transaction-attachments.ts:32) as a separate commit. A failure leaves a manual transaction without its attachments; callers retry nothing."
+  },
+  {
+   "findingId": "8d601d22ac3589d2",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/transactions.ts",
+   "line": 2199,
+   "function": "moveTransactionToReview",
+   "classification": "true-positive",
+   "notes": "moveTransactionToReview resets the status to 'posted' (transactions.ts:2187) and then deletes accountingSyncRecords (:2199) as independent statements on plain db (apps/api/src/trpc/routers/transactions.ts:242). Idempotent on a user re-run, but no code drives that retry."
+  },
+  {
+   "findingId": "02e794e4ed30fbcd",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/user-invites.ts",
+   "line": 71,
+   "function": "acceptTeamInvite",
+   "classification": "true-positive",
+   "notes": "acceptTeamInvite inserts the usersOnTeam membership (user-invites.ts:64) and then deletes the invite (:71) without a transaction. A failure leaves the user on the team with a stale pending invite."
+  },
+  {
+   "findingId": "25825e796ff697a0",
+   "code": "MW1004",
+   "file": "packages/db/src/queries/users.ts",
+   "line": 146,
+   "function": "deleteUser",
+   "classification": "true-positive",
+   "notes": "deleteUser runs delete(users) and delete(teams) concurrently in Promise.all (users.ts:143-148) on plain db, so one can commit while the other fails; the router (apps/api/src/trpc/routers/user.ts:77-84) has no compensation."
+  },
+  {
+   "findingId": "5e8a14b298b074fd",
+   "code": "MW1004",
+   "file": "packages/db/src/test/helpers/seed.ts",
+   "line": 98,
+   "function": "seedAll",
+   "classification": "intended-risk",
+   "notes": "seedAll in packages/db/src/test/helpers/seed.ts:96-106 is a test fixture seeder (used by calculations-e2e.test.ts:54); a partial seed only breaks a test run."
+  },
+  {
+   "findingId": "6b4948d08a9844f3",
+   "code": "MW1004",
+   "file": "packages/db/src/test/helpers/seed.ts",
+   "line": 99,
+   "function": "seedAll",
+   "classification": "intended-risk",
+   "notes": "Test seed code: seedTeams (seed.ts:120) then seedCategories (:138), via seedAll (:98-99)."
+  },
+  {
+   "findingId": "ac690489652d4e50",
+   "code": "MW1004",
+   "file": "packages/db/src/test/helpers/seed.ts",
+   "line": 100,
+   "function": "seedAll",
+   "classification": "intended-risk",
+   "notes": "Test seed code: category insert (seed.ts:334) then bankConnections insert (:371), via seedAll (:99-100)."
+  },
+  {
+   "findingId": "c0415b292a70c09b",
+   "code": "MW1004",
+   "file": "packages/db/src/test/helpers/seed.ts",
+   "line": 102,
+   "function": "seedAll",
+   "classification": "intended-risk",
+   "notes": "Test seed code: exchangeRates insert (seed.ts:442) then invoices insert (:451), via seedAll (:101-102)."
+  },
+  {
+   "findingId": "d1189efd3ed4d380",
+   "code": "MW1004",
+   "file": "packages/db/src/test/helpers/seed.ts",
+   "line": 103,
+   "function": "seedAll",
+   "classification": "intended-risk",
+   "notes": "Test seed code: invoices insert (seed.ts:451) then invoiceRecurring insert (:519), via seedAll (:102-103)."
+  },
+  {
+   "findingId": "f31093a51ef4d094",
+   "code": "MW1004",
+   "file": "packages/db/src/test/helpers/seed.ts",
+   "line": 104,
+   "function": "seedAll",
+   "classification": "intended-risk",
+   "notes": "Test seed code: invoiceRecurring insert (seed.ts:519) then trackerProjects insert (:538), via seedAll (:103-104)."
+  },
+  {
+   "findingId": "24098d398d68b6a1",
+   "code": "MW1004",
+   "file": "packages/db/src/test/helpers/seed.ts",
+   "line": 105,
+   "function": "seedAll",
+   "classification": "intended-risk",
+   "notes": "Test seed code: trackerEntries insert (seed.ts:551) then transactions insert (:578), via seedAll (:104-105)."
+  },
+  {
+   "findingId": "c7b58fba4d522cf2",
+   "code": "MW1004",
+   "file": "packages/db/src/test/helpers/seed.ts",
+   "line": 334,
+   "function": "seedCategories",
+   "classification": "intended-risk",
+   "notes": "Test seed code: seedCategories inserts USD-team categories (seed.ts:138) then EUR-team categories (:334)."
+  },
+  {
+   "findingId": "55adc6e161e1a3bd",
+   "code": "MW1004",
+   "file": "packages/db/src/test/helpers/seed.ts",
+   "line": 381,
+   "function": "seedBankAccounts",
+   "classification": "intended-risk",
+   "notes": "Test seed code: bankConnections insert (seed.ts:371) then bankAccounts insert (:381) in seedBankAccounts."
+  },
+  {
+   "findingId": "82a050ba6d5e896a",
+   "code": "MW1004",
+   "file": "packages/db/src/test/helpers/seed.ts",
+   "line": 551,
+   "function": "seedTrackerData",
+   "classification": "intended-risk",
+   "notes": "Test seed code: trackerProjects insert (seed.ts:538) then trackerEntries insert (:551) in seedTrackerData."
+  },
+  {
+   "findingId": "e8c739e4f9354389",
+   "code": "MW1005",
+   "file": "packages/jobs/src/tasks/document/process-document.ts",
+   "line": 76,
+   "function": "run",
+   "classification": "intended-risk",
+   "notes": "Both effects are best-effort activity notifications ('document_uploaded' at process-document.ts:24, 'document_processed' at :76) sent via tasks.trigger in a Trigger.dev job; failures between them are caught at :85-92, which marks the document failed."
+  },
+  {
+   "findingId": "84fdd9d28315fdaf",
+   "code": "MW1004",
+   "file": "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts",
+   "line": 154,
+   "function": "run",
+   "classification": "false-positive",
+   "notes": "The second updateInbox call (match-transactions-bidirectional.ts:154-158) passes the literal status 'pending'. The delete(transactionAttachments) at inbox.ts:1100 runs only when data.status === 'deleted' (inbox.ts:1086), so it cannot run on this path.",
+   "fpCause": "callee branch infeasible for literal argument"
+  },
+  {
+   "findingId": "ab486c34ea1d199b",
+   "code": "MW1004",
+   "file": "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts",
+   "line": 154,
+   "function": "run",
+   "classification": "false-positive",
+   "notes": "The callee (match-transactions-bidirectional.ts:154) receives the literal status 'pending'. The delete(transactionMatchSuggestions) at inbox.ts:1133 sits inside the data.status === 'deleted' branch (inbox.ts:1086), which cannot be taken for that literal.",
+   "fpCause": "callee branch infeasible for literal argument"
+  },
+  {
+   "findingId": "720265abc7596ca3",
+   "code": "MW1004",
+   "file": "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts",
+   "line": 154,
+   "function": "run",
+   "classification": "true-positive",
+   "notes": "The inbox is set to 'analyzing' (match-transactions-bidirectional.ts:55). The only reset to 'pending' is the catch-block compensation at :154, which covers exceptions but not a crash or timeout (maxDuration 120). Reverse matching picks only 'pending' (inbox-matching.ts:437) and no sweeper resets 'analyzing'."
+  },
+  {
+   "findingId": "dcad981cd0b4fe99",
+   "code": "MW1004",
+   "file": "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts",
+   "line": 210,
+   "function": "run",
+   "classification": "intended-risk",
+   "notes": "The phase-1 reset to 'pending' of one item (match-transactions-bidirectional.ts:154) and phase 2's calculateInboxSuggestions on a different item (:210) are independent per-item steps; an unprocessed item stays 'pending' and is picked up by later runs (inbox-matching.ts:437).",
+   "crossRecord": true
+  },
+  {
+   "findingId": "c2e81439d1cfa083",
+   "code": "MW1001",
+   "file": "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts",
+   "line": 218,
+   "function": "run",
+   "classification": "intended-risk",
+   "notes": "After calculateInboxSuggestions commits (match-transactions-bidirectional.ts:210), triggerMatchingNotification (:218) is wrapped in try/catch; inbox-matching-notifications.ts:109-115 says notifications must not break matching, so it is best-effort."
+  },
+  {
+   "findingId": "bedbe8685bdc49ef",
+   "code": "MW1005",
+   "file": "packages/jobs/src/tasks/team/onboarding.ts",
+   "line": 67,
+   "function": "run",
+   "classification": "intended-risk",
+   "notes": "A drip email sequence: welcome email (onboarding.ts:41), a 3-day wait.for (:58), then a conditional activation nudge (:67). Missing the second marketing email after a failure is best-effort by design."
   }
  ],
  "corrections": [
@@ -1221,6 +2197,122 @@
     "53f4da3bbb577624"
    ],
    "reason": "Labeled findings first exposed by the literal-argument branch pruning (fewer functions hit the 512-path cap). Both pair operations on different inbox items; the labeler chose intended-risk because the literal window exists and retries/best-effort handling accept it, noting false-positive is arguable. Source-only AI review, not human review or runtime confirmation."
+  },
+  {
+   "date": "2026-11-12",
+   "by": "AI agents (Claude), four blind source-only labelers separate from analyzer tuning; did not see knownPositives, existing labels or reports",
+   "humanReviewed": false,
+   "type": "new-findings-reviewed",
+   "findings": [
+    "90d4e5f9de04293d",
+    "246c976e5813fb6e",
+    "ab258026ff1ce99e",
+    "99e6cd338c788b85",
+    "a1967f526e88ec8d",
+    "99d088d108a4a401",
+    "7687896e32002051",
+    "cd96946a5cfad17d",
+    "b87d2c7bc6f87592",
+    "dfb0cd536b3056e5",
+    "36ff8ff9eee85e2b",
+    "dfc1396154895c55",
+    "96176b84f25478ae",
+    "19ea0ceae945b39c",
+    "bf7f7b9886c13fb1",
+    "bf7f7b9886c13fb1-2",
+    "c2455d12176cd60b",
+    "b0a11fa4f1db08fb",
+    "fa8a9ec55efccfa6",
+    "c33acaecce003bd2",
+    "018e04c86add0b55",
+    "34ec356c01d2f06d",
+    "b38118e50a4b1d0b",
+    "a101c4ca65ed78ae",
+    "b5c28dcf88a37554",
+    "7b6606f1b7dee4d0",
+    "f2338bc951472a2a",
+    "a125b2ac5b61bd26",
+    "92e76f3400624b30-2",
+    "3e8f00c64ace90be",
+    "f99b4a2b1e0893df",
+    "67871384bd4caf94",
+    "cb04575e4a022224",
+    "cb04575e4a022224-2",
+    "f1dfc38dbd9d9270",
+    "cb04575e4a022224-3",
+    "3f6ae28452b6c1cf",
+    "c6b903cb815fe230",
+    "c6b903cb815fe230-2",
+    "b1745ea3f348702e",
+    "e50b4aab33fce3ef",
+    "a86fc50262a4bc3b",
+    "1971c07cf478c175",
+    "e237a8e11febcc4e",
+    "62c8b2de3957ca54",
+    "f1f1cbd82048506c",
+    "1243d2e80ee1e83a",
+    "10a4438c99947b37",
+    "a2f398e0bcf73531",
+    "6ee083e4e5b0a689",
+    "d9c695c40aea710f",
+    "e7c9a8566c0c0444",
+    "8c34f1ec481aadbd",
+    "e44f0046b1284927",
+    "881bc43f84a6c044",
+    "bc0c0d7f3a7d325c",
+    "904e58b51537360a",
+    "d0dd253149ffd8b2",
+    "aaa87248ca87596a",
+    "d0dd253149ffd8b2-2",
+    "4081668c91879382",
+    "d1296812cac9a2aa",
+    "9fde97de86be22e9",
+    "a16c84bb38514479",
+    "868f2098ab2a26ab",
+    "49d704c3d7e36d24",
+    "c8e04ee35a7150e4",
+    "1840a074d61c191f",
+    "f6effe95abcc5918",
+    "3940d7c4689ea6d2",
+    "ab71f5b9b8f819f8",
+    "54cf2dee2257f846",
+    "8a0b84097527f6ef",
+    "9fa2009baa7c522f",
+    "3ff46231b276492b",
+    "9b320b7325f23fe2",
+    "3ef329787ad15324",
+    "2c7b1f1b8694507f",
+    "3278abb93a4a0193",
+    "7b873cc8546d82a7",
+    "8db2acea6dc8f1a9",
+    "4943916f7095548a",
+    "97b92165266eb826",
+    "c60fb221a7380453",
+    "825372822f9064c5",
+    "bb4e08045103af77",
+    "60b8ba7be63544f4",
+    "8d601d22ac3589d2",
+    "02e794e4ed30fbcd",
+    "25825e796ff697a0",
+    "5e8a14b298b074fd",
+    "6b4948d08a9844f3",
+    "ac690489652d4e50",
+    "c0415b292a70c09b",
+    "d1189efd3ed4d380",
+    "f31093a51ef4d094",
+    "24098d398d68b6a1",
+    "c7b58fba4d522cf2",
+    "55adc6e161e1a3bd",
+    "82a050ba6d5e896a",
+    "e8c739e4f9354389",
+    "84fdd9d28315fdaf",
+    "ab486c34ea1d199b",
+    "720265abc7596ca3",
+    "dcad981cd0b4fe99",
+    "c2e81439d1cfa083",
+    "bedbe8685bdc49ef"
+   ],
+   "reason": "Labeled every remaining unlabeled midday finding so midday precision is no longer a sample. Cross-record pairs whose window exists are marked crossRecord and were not called false-positive for that reason; false positives carry an fpCause. Existing classifications were not changed. Source-only AI review, not human review or runtime confirmation."
   }
  ],
  "reviewQueue": [
