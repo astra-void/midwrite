@@ -12,6 +12,7 @@
 //!
 //! Static analysis (`midwrite check`) never calls into this crate.
 
+pub mod cancel;
 pub mod catalog;
 pub mod isolation;
 pub mod manifest;
@@ -52,6 +53,10 @@ const MAX_REPEAT: u32 = 50;
 
 #[derive(Clone, Debug)]
 pub struct ReplayOptions {
+    /// The user authorized running the harness (`--allow-execution`).
+    /// [`run`] refuses without it, so no caller can execute a harness
+    /// without the explicit consent.
+    pub allow_execution: bool,
     /// How many times each case runs, each from a fresh database.
     pub repeat: u32,
     /// Allow running without network isolation (requires the manifest's
@@ -64,6 +69,7 @@ pub struct ReplayOptions {
 impl Default for ReplayOptions {
     fn default() -> Self {
         Self {
+            allow_execution: false,
             repeat: 1,
             allow_network: false,
             keep_artifacts: false,
@@ -285,6 +291,13 @@ pub fn run(
     options: &ReplayOptions,
 ) -> Result<VerificationReport, ReplayError> {
     let manifest = &harness.manifest;
+    if !options.allow_execution {
+        return Err(ReplayError::Refused(
+            "replay runs the harness's own code and needs explicit authorization (--allow-execution)"
+                .to_owned(),
+        ));
+    }
+    cancel::install();
     if options.repeat == 0 || options.repeat > MAX_REPEAT {
         return Err(ReplayError::Refused(format!(
             "--repeat must be between 1 and {MAX_REPEAT}"
@@ -342,7 +355,7 @@ pub fn run(
         ),
         (
             "MIDWRITE_REPLAY_PG_USER".to_owned(),
-            postgres::USER.to_owned(),
+            postgres::APP_USER.to_owned(),
         ),
     ];
     for dir in ["home", "tmp", "runs"] {
@@ -383,10 +396,18 @@ pub fn run(
 
     let mut results = Vec::new();
     for (index, case) in cases.iter().enumerate() {
+        if cancel::cancelled() {
+            return Err(ReplayError::Blocked(
+                "cancelled by a signal; the harness processes were killed and the disposable cluster is being removed".to_owned(),
+            ));
+        }
         let linked = link(case, traces);
         let mut runs = Vec::new();
         if control_ok {
             for repetition in 1..=options.repeat {
+                if cancel::cancelled() {
+                    break;
+                }
                 let label = format!("c{index}-r{repetition}");
                 let mut record = run_once(
                     &context,
@@ -964,9 +985,12 @@ fn runtime_version(program: &str, env: &[(String, String)]) -> Option<String> {
 
 fn source_info(dir: &Path) -> SourceInfo {
     let git = |args: &[&str]| {
+        // `core.fsmonitor` would run a command named by the harness
+        // repository's own configuration, outside the isolation.
         Command::new("git")
             .arg("-C")
             .arg(dir)
+            .args(["-c", "core.fsmonitor=false"])
             .args(args)
             .stderr(std::process::Stdio::null())
             .output()

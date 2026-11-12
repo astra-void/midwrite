@@ -124,6 +124,7 @@ pub(crate) fn replay(args: &ReplayArgs) -> Result<u8, String> {
         return Ok(EXIT_USAGE);
     }
     let options = ReplayOptions {
+        allow_execution: args.allow_execution,
         repeat: args.repeat,
         allow_network: args.allow_network,
         keep_artifacts: args.keep_artifacts,

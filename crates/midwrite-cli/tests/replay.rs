@@ -1688,3 +1688,74 @@ fn html_renders_v1_reports_with_the_finding_to_case_table_and_no_scripts() {
     assert!(!html.to_ascii_lowercase().contains("<script"));
     assert!(html.contains("Content-Security-Policy"));
 }
+
+/// A valid harness whose code and setup SQL would each create a marker.
+fn marker_harness(tag: &str, setup_sql: &str) -> (PathBuf, PathBuf) {
+    let dir = std::env::temp_dir().join(format!("midwrite-consent-{tag}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let marker = dir.join("EXECUTED");
+    std::fs::write(
+        dir.join("schema.sql"),
+        setup_sql.replace("MARKER", &marker.display().to_string()),
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("harness.ts"),
+        format!(
+            "import {{ writeFileSync }} from \"node:fs\";\nwriteFileSync({:?}, \"x\");\n",
+            marker.display().to_string()
+        ),
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("midwrite-replay.json"),
+        probe_manifest(r#"{ "id": "c", "scenario": "noop" }"#, ""),
+    )
+    .unwrap();
+    (dir, marker)
+}
+
+#[test]
+fn a_valid_harness_is_never_run_without_authorization() {
+    let (dir, marker) = marker_harness("noflag", PROBE_SQL);
+    let output = Command::new(bin())
+        .arg("replay")
+        .arg(&dir)
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    // The manifest is valid: refusal comes from the missing flag, not from
+    // a load error.
+    assert_eq!(output.status.code(), Some(2), "{stderr}");
+    assert!(stderr.contains("Nothing was executed"), "{stderr}");
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    assert!(
+        !marker.exists(),
+        "the harness ran without --allow-execution"
+    );
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn setup_sql_cannot_run_shell_commands_even_when_authorized() {
+    for (tag, sql) in [
+        ("meta", "CREATE TABLE probe (id int);\n\\! touch MARKER\n"),
+        (
+            "program",
+            "CREATE TABLE probe (id int);\nCOPY (SELECT 1) TO PROGRAM 'touch MARKER';\n",
+        ),
+    ] {
+        let (dir, marker) = marker_harness(tag, sql);
+        let output = Command::new(bin())
+            .args(["replay", "--allow-execution"])
+            .arg(&dir)
+            .output()
+            .unwrap();
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert_ne!(output.status.code(), Some(0), "{stderr}");
+        assert!(stderr.contains("refused"), "{stderr}");
+        assert!(!marker.exists(), "setup SQL ran a shell command ({tag})");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+}

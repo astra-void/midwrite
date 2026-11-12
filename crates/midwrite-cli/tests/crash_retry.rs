@@ -688,6 +688,34 @@ fn reading_a_schema_is_static_and_comparing_it_needs_authorization() {
         .unwrap();
     assert_ne!(output.status.code(), Some(0));
     assert!(String::from_utf8_lossy(&output.stderr).contains("--allow-execution"));
+    // Migration SQL that would run a shell command is refused before any
+    // cluster starts, even when execution is authorized.
+    let dir = std::env::temp_dir().join(format!("midwrite-migration-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let marker = dir.join("EXECUTED");
+    let hostile = dir.join("0001_hostile.sql");
+    std::fs::write(
+        &hostile,
+        format!("CREATE TABLE x (id int);\n\\! touch {}\n", marker.display()),
+    )
+    .unwrap();
+    let output = bin()
+        .arg("schema")
+        .arg(repo().join("fixtures/apps/shop-app"))
+        .args([
+            "--file",
+            "src/lib/db/schema.ts",
+            "--allow-execution",
+            "--migrations",
+        ])
+        .arg(&hostile)
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_ne!(output.status.code(), Some(0), "{stderr}");
+    assert!(stderr.contains("meta-commands"), "{stderr}");
+    assert!(!marker.exists());
+    std::fs::remove_dir_all(&dir).unwrap();
 }
 
 #[test]

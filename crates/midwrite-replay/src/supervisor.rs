@@ -28,6 +28,7 @@ use serde_json::{Value, json};
 use midwrite_core::verification::{CheckpointEvent, ConditionResult, ExitInfo, FailureMode};
 
 use crate::manifest::InjectSpec;
+use crate::source::{WorkerLimits, apply_limits, leader_exited, processes_with_token, run_token};
 
 pub const PROTOCOL_VERSION: u64 = 1;
 const SIGKILL: i32 = 9;
@@ -95,20 +96,44 @@ fn kill_group(child: &mut Child) {
     let _ = child.kill();
 }
 
-/// Wait for the child to exit until `deadline`; kill it after.
+/// Wait for the child to exit until `deadline`, then kill its whole process
+/// group and reap it. The group is killed on every path, also after a
+/// normal exit, so processes the harness started in its group do not
+/// outlive it. The leader is reaped only after the kill (`WNOWAIT` before),
+/// so the group id cannot have been reused by then.
 fn reap(child: &mut Child, deadline: Instant) -> (ExitStatus, bool) {
-    loop {
-        match child.try_wait() {
-            Ok(Some(status)) => return (status, false),
-            Ok(None) if Instant::now() >= deadline => {
-                kill_group(child);
-                let status = child.wait().unwrap_or_else(|_| ExitStatus::from_raw(9));
-                return (status, true);
-            }
-            Ok(None) => std::thread::sleep(Duration::from_millis(5)),
-            Err(_) => return (ExitStatus::from_raw(9 << 8), false),
+    let mut timed_out = false;
+    while !leader_exited(child.id()) {
+        if Instant::now() >= deadline || crate::cancel::cancelled() {
+            timed_out = true;
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    kill_group(child);
+    let status = child
+        .wait()
+        .unwrap_or_else(|_| ExitStatus::from_raw(9 << 8));
+    (status, timed_out)
+}
+
+/// Kill every process of this execution that left the harness' process
+/// group (`setsid`, `detached: true`): they carry `token` in their
+/// environment. Returns how many were found, and the ones that survived
+/// SIGKILL.
+fn sweep(token: &str) -> (usize, Vec<i32>) {
+    let found = processes_with_token(token);
+    for pid in &found {
+        // SAFETY: kill(2); the pid was just read with this execution's token.
+        unsafe {
+            libc::kill(*pid, SIGKILL);
         }
     }
+    if found.is_empty() {
+        return (0, Vec::new());
+    }
+    std::thread::sleep(Duration::from_millis(50));
+    (found.len(), processes_with_token(token))
 }
 
 fn send(stream: &mut UnixStream, message: &Value) -> std::io::Result<()> {
@@ -149,6 +174,7 @@ pub fn execute(
         return execution;
     };
 
+    let token = run_token();
     let mut command = Command::new(&process.command[0]);
     command
         .args(&process.command[1..])
@@ -158,10 +184,17 @@ pub fn execute(
         .env("MIDWRITE_REPLAY_SOCKET", &socket_path)
         .env("MIDWRITE_REPLAY_SCENARIO", scenario)
         .env("MIDWRITE_REPLAY_INPUT", input.to_string())
+        .env("MIDWRITE_RUN_TOKEN", &token)
         .stdin(Stdio::null())
         .stdout(stdout)
         .stderr(stderr)
         .process_group(0);
+    let limits = WorkerLimits::default();
+    // SAFETY: the closure runs in the forked child before exec and only
+    // calls getrlimit(2)/setrlimit(2), which are async-signal-safe.
+    unsafe {
+        command.pre_exec(move || apply_limits(limits));
+    }
     let start = Instant::now();
     let deadline = start + process.timeout;
     let mut child = match command.spawn() {
@@ -186,10 +219,10 @@ pub fn execute(
         match listener.accept() {
             Ok((stream, _)) => break Some(stream),
             Err(error) if error.kind() == ErrorKind::WouldBlock => {
-                if let Ok(Some(_)) = child.try_wait() {
+                if leader_exited(child.id()) {
                     break None;
                 }
-                if Instant::now() >= deadline {
+                if Instant::now() >= deadline || crate::cancel::cancelled() {
                     break None;
                 }
                 std::thread::sleep(Duration::from_millis(2));
@@ -210,7 +243,7 @@ pub fn execute(
         let mut line = String::new();
         let mut seen: u32 = 0;
         loop {
-            if Instant::now() >= deadline {
+            if Instant::now() >= deadline || crate::cancel::cancelled() {
                 execution.timed_out = true;
                 break;
             }
@@ -221,7 +254,7 @@ pub fn execute(
                 Err(error)
                     if matches!(error.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) =>
                 {
-                    if let Ok(Some(_)) = child.try_wait() {
+                    if leader_exited(child.id()) {
                         break;
                     }
                     continue;
@@ -348,8 +381,18 @@ pub fn execute(
 
     let (status, reaped_by_deadline) = reap(&mut child, deadline);
     execution.timed_out |= reaped_by_deadline;
-    if execution.timed_out {
-        kill_group(&mut child);
+    let (escaped, survived) = sweep(&token);
+    if escaped > 0 && execution.problem.is_none() {
+        execution.problem = Some(if survived.is_empty() {
+            format!(
+                "{escaped} process(es) started by the harness left its process group and were still running after it; they were killed, but may have changed the database after the scenario ended"
+            )
+        } else {
+            format!(
+                "{} process(es) started by the harness survived SIGKILL: {survived:?}",
+                survived.len()
+            )
+        });
     }
     let exit = exit_info(status);
     if execution.timed_out {
@@ -392,4 +435,123 @@ pub fn execute(
     }
     let _ = std::fs::remove_file(&socket_path);
     execution
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn scratch(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("cr-sup-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir.canonicalize().unwrap()
+    }
+
+    fn run_script(dir: &Path, script: &str, timeout: Duration) -> Execution {
+        let command = vec!["/bin/sh".to_owned(), "-c".to_owned(), script.to_owned()];
+        let env = vec![("PATH".to_owned(), "/usr/bin:/bin".to_owned())];
+        let process = Process {
+            harness_dir: dir,
+            command: &command,
+            env: &env,
+            run_dir: dir,
+            timeout,
+        };
+        execute(&process, "t", "scenario", &json!({}), None)
+    }
+
+    fn alive(pid: i32) -> bool {
+        // SAFETY: kill(2) with signal 0 only checks for existence.
+        unsafe { libc::kill(pid, 0) == 0 }
+    }
+
+    fn read_pid(path: &Path) -> i32 {
+        for _ in 0..200 {
+            if let Some(pid) = std::fs::read_to_string(path)
+                .ok()
+                .and_then(|s| s.trim().parse().ok())
+            {
+                return pid;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        panic!("no pid in {}", path.display());
+    }
+
+    #[test]
+    fn processes_left_in_the_group_die_with_a_normally_exiting_harness() {
+        let dir = scratch("group");
+        let execution = run_script(
+            &dir,
+            "sleep 30 & echo $! > child.pid; exit 0",
+            Duration::from_secs(10),
+        );
+        let pid = read_pid(&dir.join("child.pid"));
+        assert!(!execution.timed_out);
+        std::thread::sleep(Duration::from_millis(50));
+        assert!(!alive(pid), "a process of the harness' group outlived it");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    // Linux only: the sweep reads `/proc/<pid>/environ`. On macOS 27 the
+    // kernel no longer returns another process' environment (`ps -E`,
+    // KERN_PROCARGS2), so a process that left the group is not found there
+    // (docs/reference/security.md, "Not protected").
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn processes_that_leave_the_group_are_swept_and_reported() {
+        let dir = scratch("setsid");
+        // Fork a child that starts its own session (leaves the group) and
+        // keeps running after the harness exits.
+        let execution = run_script(
+            &dir,
+            "perl -e 'use POSIX; my $p = fork; if ($p == 0) { POSIX::setsid(); sleep 30; exit 0 } open(my $f, \">\", \"escaped.pid\"); print $f $p; close $f' ; exit 0",
+            Duration::from_secs(10),
+        );
+        let pid = read_pid(&dir.join("escaped.pid"));
+        std::thread::sleep(Duration::from_millis(50));
+        assert!(!alive(pid), "the escaped process survived the sweep");
+        let problem = execution.problem.unwrap_or_default();
+        assert!(
+            problem.contains("left its process group") || problem.contains("without connecting"),
+            "{problem}"
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn harness_processes_run_under_resource_limits() {
+        let dir = scratch("limits");
+        run_script(
+            &dir,
+            "{ ulimit -t; ulimit -n; ulimit -c; } > limits.txt",
+            Duration::from_secs(10),
+        );
+        let text = std::fs::read_to_string(dir.join("limits.txt")).unwrap();
+        let values: Vec<&str> = text.lines().map(str::trim).collect();
+        assert_eq!(values[0], "120", "CPU seconds: {text}");
+        let files: u64 = values[1].parse().unwrap();
+        assert!(files <= 1024, "open files: {text}");
+        assert_eq!(values[2], "0", "core dumps: {text}");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_harness_that_never_finishes_is_killed_at_the_deadline() {
+        let dir = scratch("deadline");
+        let start = Instant::now();
+        let execution = run_script(
+            &dir,
+            "sleep 30 & echo $! > child.pid; sleep 30",
+            Duration::from_millis(500),
+        );
+        assert!(execution.timed_out);
+        assert_eq!(execution.outcome, "timedOut");
+        assert!(start.elapsed() < Duration::from_secs(5));
+        let pid = read_pid(&dir.join("child.pid"));
+        std::thread::sleep(Duration::from_millis(50));
+        assert!(!alive(pid));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }

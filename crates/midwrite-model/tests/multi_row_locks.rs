@@ -940,6 +940,7 @@ impl Facts {
             ])
             .env_clear()
             .env("LC_ALL", "C")
+            .env("PGPASSWORD", self.cluster.superuser_env().1)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());

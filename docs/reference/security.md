@@ -54,9 +54,9 @@ write only where you ask.
 | command | executes | authorization |
 | --- | --- | --- |
 | `model-check --validate-postgres` | a private PostgreSQL cluster and the **model's** SQL; no application code | the flag itself |
-| `schema --migrations … ` | the migration SQL, on a private cluster | `--allow-execution` |
+| `schema --migrations … ` | the migration SQL, through `psql` (not isolated), as an ordinary role on a private cluster | `--allow-execution` |
 | `model-check --verify-source` | the application's original code through the named source harness | `--allow-execution` and a `midwrite-source.json` manifest |
-| `replay` | the harness directory you name | `--allow-execution` and a `midwrite-replay.json` manifest; without the flag only the plan is printed (exit 2) |
+| `replay` | the harness directory you name | `--allow-execution` and a `midwrite-replay.json` manifest; without the flag only the plan is printed (exit 2). The library refuses as well (`ReplayOptions::allow_execution`), so no other caller can skip the flag |
 
 There is no environment variable or scenario field that authorizes
 execution. Nothing is discovered or run because a repository contains a
@@ -68,14 +68,16 @@ harness mapping you declared, and running them still needs the flags above
 
 | measure | how |
 | --- | --- |
-| validated manifest first | unknown fields rejected; the command is argv (no shell anywhere); setup files, analysis paths and the entry point relative, without `..`, canonicalized inside the harness directory; compiled entries must exist (Midwrite compiles and installs nothing); a `MIDWRITE-TODO` marker in a manifest, setup SQL or entry point is refused; source harnesses must say `"network": "deny"`; `limits` are range-checked |
+| validated manifest first | unknown fields rejected; the command is argv (no shell anywhere); setup files, analysis paths and the entry point relative, without `..`, canonicalized inside the harness directory; compiled entries must exist (Midwrite compiles and installs nothing); a `MIDWRITE-TODO` marker in a manifest, setup SQL or entry point is refused; source harnesses must say `"network": "deny"`; `limits` are range-checked; a source-harness manifest must be named `midwrite-source.json` or `midwrite-source-<variant>.json`; SQL files (setup, schema, migrations) and observation queries containing a `psql` meta-command (`\!`, `\o |…`, `\copy`, `\i`: a backslash outside strings and comments) or `COPY … PROGRAM` are refused before anything starts, because `psql` runs outside the isolation |
 | entry consistency | a source harness entry's selector must equal the actor's selector; declared programs are not eligible |
-| disposable database | the only provider is a cluster created by `initdb` in a private 0700 temporary directory, `listen_addresses=''`, Unix socket in that directory, trust authentication for a local test user, a fresh database per run, deleted afterwards. Manifest `url`, `connectionString`, `host`, `port`, `password` are refused without echoing the value; client libraries refuse sockets outside the run directory; no connection string is read from the environment |
+| disposable database | the only provider is a cluster created by `initdb` in a private 0700 temporary directory, `listen_addresses=''`, Unix socket in that directory, a fresh database per run, deleted afterwards. Two roles: harnesses and project SQL (setup files, migrations, observations) use `midwrite_app`, an ordinary role that owns each database, trusted without a password; the superuser `midwrite` is used only by Midwrite and needs a random per-cluster password that is never in a harness' environment. So a harness cannot make the unsandboxed server run a program or write a file (`COPY … PROGRAM`, `COPY … TO '<file>'`). Manifest `url`, `connectionString`, `host`, `port`, `password` are refused without echoing the value; client libraries refuse sockets outside the run directory; no connection string is read from the environment |
 | clean environment | cleared and rebuilt (`PATH`, private `HOME`/`TMPDIR`, Midwrite variables, validated manifest `env`). Refused manifest names: `PG*`, `DATABASE*`, `DB_*`, `MIDWRITE*`, `LD_*`, `DYLD_*`, `NODE_*`, `BUN_*`, `PATH`, `HOME`, anything containing `SECRET`, `TOKEN`, `PASSWORD`, `KEY`, `CREDENTIAL` and similar words; values containing `://`. An inherited `PGPASSWORD` is removed |
-| OS isolation | macOS `sandbox-exec`: IP networking denied, Unix-socket connections and file writes only inside the run directory. Linux bubblewrap: new user (same uid), network (loopback only), PID, IPC, UTS and cgroup namespaces; read-only view of system directories, the harness project (its Git work tree) and the runtime installation; only the run directory writable; private `/tmp`; `--die-with-parent`. Bubblewrap is probed; if a fresh `/proc` cannot be mounted it refuses rather than bind-mounting the host's (which would expose other processes' environments). Without a backend, execution is **blocked** (exit 3) unless the manifest says `"network": "allow"` **and** `--allow-network` is given (replay only) |
+| OS isolation | macOS `sandbox-exec`: IP networking denied, Unix-socket connections and file writes only inside the run directory. Linux bubblewrap: new user (same uid), network (loopback only), PID, IPC, UTS and cgroup namespaces; read-only view of system directories, the harness project (its Git work tree) and the runtime installation, each narrowed so that it never exposes the home directory (a runtime in `~/bin` mounts `~/bin`, a dotfiles repository in `~` mounts only the harness directory); only the run directory writable; private `/tmp`; `--die-with-parent`. Bubblewrap is probed; if a fresh `/proc` cannot be mounted it refuses rather than bind-mounting the host's (which would expose other processes' environments). Without a backend, execution is **blocked** (exit 3) unless the manifest says `"network": "allow"` **and** `--allow-network` is given (replay only) |
 | bounded execution | wall-time deadline from the manifest (`timeoutSeconds` / `timeoutMs`, at most 300 s), then SIGKILL to the process group |
-| per-worker rlimits | CPU time 120 s (manifest `limits.cpuSeconds`), file size including logs 64 MiB, open files 1024 (never above the inherited hard limit), no core dumps; `max_connections=40` per cluster |
-| cleanup | every exit path (`Drop`): process groups killed, cluster stopped, run directory removed (`--keep-artifacts` or `MIDWRITE_KEEP_ARTIFACTS=1` keeps it). A worker is reaped only after it exited (`waitid(WNOWAIT)`), then its group is killed, so a group id cannot have been reused. A random per-run token in the environment lets every surviving process carrying it be killed after the run (a survivor makes the run inconclusive); on Linux the PID namespace ends with the worker |
+| per-worker rlimits | for every harness process, of `replay` and of source runs: CPU time 120 s (source manifests: `limits.cpuSeconds`), file size including logs 64 MiB, open files 1024 (never above the inherited hard limit), no core dumps; `max_connections=40` per cluster |
+| cleanup | every exit path (`Drop`): process groups killed, cluster stopped, run directory removed (`--keep-artifacts` or `MIDWRITE_KEEP_ARTIFACTS=1` keeps it). A worker's group is killed after every exit, also a normal one, so a background process it left in its group dies with it. The worker is reaped only after that (`waitid(WNOWAIT)` first), so the group id cannot have been reused. A random token in each worker's environment lets processes that left the group be found afterwards and killed; such a process makes the run inconclusive. Finding them reads other processes' environments, which works on Linux (`/proc/<pid>/environ`) but not on macOS 27 (see below); on Linux the PID namespace also ends with the worker |
+| cancellation | SIGINT, SIGTERM and SIGHUP are caught while a cluster or harness runs: the first one ends the run like its deadline (workers killed, cluster stopped, run directory removed, exit `blocked`); a second one exits at once. Without this, Ctrl-C left the `pg_ctl` daemon running with its shared memory |
+| program lookup | `initdb`, `pg_ctl`, `postgres`, `psql`, `pg_config` and `bwrap` are looked up only in absolute `PATH` entries (a `.` or `node_modules/.bin` entry would let the analyzed repository supply them); `/usr/bin/bwrap` is preferred to any `bwrap` on `PATH`; `git` (for the report's revision) runs with `core.fsmonitor=false` |
 | redaction | only environment variable **names** are recorded; harness output truncated (16 KiB per stream); the run directory becomes `<replay-root>`, the harness directory `<harness>`, and `scheme://user:password@` becomes `user:***` |
 
 Every failure of this machinery ends a run `blocked` or `inconclusive`,
@@ -131,12 +133,23 @@ Not protected:
   connections to the run directory.
 * **Same-user access to the disposable database**: another process of your
   user that finds the private socket during the run could connect.
+* **SQL as code**: `psql` and the PostgreSQL server run outside the
+  isolation. Shell escapes are refused and project SQL runs as an ordinary
+  role, but SQL files are still code: they can use all the time and disk
+  the limits allow.
 * **Resources**: memory (`RLIMIT_AS` breaks V8), process count
   (`RLIMIT_NPROC` is per user) and temporary disk are not capped; CPU only
   per worker.
-* **macOS detached processes** that leave the process group are found only
-  by the token sweep; a worker stuck in a busy loop after the coordinator
-  is killed is bounded by its CPU limit.
+* **macOS detached processes.** A process that leaves the worker's process
+  group (`setsid`, `detached: true`) is not found on macOS 27: the kernel no
+  longer returns another process' environment (`ps -E`, `KERN_PROCARGS2`),
+  so the token sweep sees nothing. It keeps the sandbox profile and its CPU
+  limit, but may outlive the run. A harness can also ask `launchd` to
+  start programs (`open`, `osascript`); those run outside the sandbox.
+* **Total disk use.** Each file is capped at 64 MiB, but the number of files
+  in the run directory is not.
+* **`kill -9` of Midwrite** cannot be caught: the cluster and run directory
+  stay behind (on Linux the harness dies with its parent).
 * **The platforms**: `sandbox-exec` is deprecated by Apple (its
   effectiveness is re-tested by the suite); bubblewrap is as strong as
   unprivileged user namespaces; kernel bugs are out of scope.
@@ -148,9 +161,37 @@ Not protected:
   upgrading Midwrite, copy the new `runtime/node` files. Only the protocol
   version is checked at run time.
 
-Open before a public release: an independent review of the replay crate,
-the sandbox profile and the bubblewrap arguments; memory and process caps;
-a replacement for `sandbox-exec`.
+Open before a public release: an independent (human) review of the replay
+crate, the sandbox profile and the bubblewrap arguments; memory and process
+caps; a replacement for `sandbox-exec`; a way to find detached processes on
+macOS.
+
+### Review of 2026-11-12 (DEV-163)
+
+An AI review of every execution path, the isolation backends, resource
+limits and cleanup (not the independent review above). Findings, by
+severity under the threat model above:
+
+| severity | finding | disposition |
+| --- | --- | --- |
+| high | `replay` harness processes ran without the rlimits, group kill after a normal exit and survivor sweep that the docs listed (only source runs had them) | fixed: shared with source runs; `supervisor` tests |
+| medium | harnesses connected as the cluster's superuser (trust authentication): `COPY … PROGRAM` or `COPY … TO '<file>'` through the unsandboxed server gets around the isolation | fixed: `midwrite_app` role, password-only superuser; `cluster_roles` test |
+| medium | `psql` meta-commands (`\!`) in setup, migration or observation SQL run shell commands outside the isolation, also for `schema --migrations` | fixed: refused at load; `postgres` unit tests, `setup_sql_cannot_run_shell_commands_even_when_authorized`, `reading_a_schema_is_static_and_comparing_it_needs_authorization` |
+| medium | Ctrl-C/SIGTERM left the PostgreSQL daemon, its shared memory and the run directory behind (31 leaked segments filled macOS's limit of 32 on the reviewing machine) | fixed: signal handler, cancellation in every run loop |
+| medium | Linux: a runtime in `~/bin` or a Git work tree at `~` mounted the whole home directory read-only (sockets in it reachable) | fixed: `mounts_never_expose_the_home_directory` |
+| medium | macOS 27: the token sweep cannot read process environments, so detached processes are not found | documented (above); Linux test only |
+| low | relative `PATH` entries could supply `initdb`/`psql`/`bwrap`; `bwrap` preferred from `PATH` | fixed |
+| low | `replay`'s consent check lived only in the CLI | fixed: `ReplayOptions::allow_execution` |
+| low | a scenario's `sourceVerification.harness` could name any JSON file | fixed: file name required |
+| low | `git status` in the harness ran `core.fsmonitor` from the repository's configuration | fixed: `-c core.fsmonitor=false` |
+| low | macOS: `launchd`-started programs leave the sandbox | documented (above) |
+| info | `--allow-execution` is accepted and ignored by commands that do not execute | unchanged |
+
+No consent bypass was found: no command executes harness code, applies
+project SQL or starts PostgreSQL without its flag, and no environment
+variable, scenario field or discovered manifest authorizes execution
+(pinned by `a_valid_harness_is_never_run_without_authorization` and the
+tests named above).
 
 ## Data handling
 

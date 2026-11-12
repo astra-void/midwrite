@@ -11,7 +11,14 @@ opt-in features go further; each says exactly what it ran.
 | schema drift check | `schema --migrations … --allow-execution` | executes the migration SQL on a disposable cluster | Drizzle schema facts vs. the database catalog ([schema fidelity](../architecture/schema-extraction.md#schema-fidelity-source-vs-database-catalog)) |
 
 Without `--allow-execution`, `replay` prints the plan and `--verify-source`
-is refused. Isolation and authorization rules:
+is refused.
+
+> **Before `--allow-execution`:** read the harness and its SQL files first;
+> they run as you. Midwrite only ever uses a disposable PostgreSQL cluster
+> it creates itself, never your database, and its isolation guards against
+> accidents in a harness you trust, not against hostile code.
+
+Isolation and authorization rules:
 [security reference](../reference/security.md). Architecture:
 [runtime verification](../architecture/runtime-verification.md).
 

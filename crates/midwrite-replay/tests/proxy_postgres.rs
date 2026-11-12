@@ -9,7 +9,7 @@ use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-use midwrite_replay::postgres::{Binaries, Cluster, USER};
+use midwrite_replay::postgres::{APP_USER, Binaries, Cluster};
 use midwrite_replay::proxy::{EventKind, Fault, FaultProxy, Target};
 use midwrite_replay::safety::ReplayRoot;
 use serde_json::Value;
@@ -78,7 +78,7 @@ impl Rig {
             .args(["-v", "ON_ERROR_STOP=1"])
             .arg("-h")
             .arg(self.root.path.join("px"))
-            .args(["-p", "5432", "-U", USER, "-d", DB])
+            .args(["-p", "5432", "-U", APP_USER, "-d", DB])
             .arg("-f")
             .arg(&file)
             .stdin(Stdio::null())

@@ -559,7 +559,12 @@ impl Manifest {
                 ));
             }
             match (&observation.sql, &observation.events) {
-                (Some(sql), None) if !sql.trim().is_empty() => {}
+                (Some(sql), None) if !sql.trim().is_empty() => {
+                    crate::postgres::check_untrusted_sql(
+                        sql,
+                        &format!("observation `{}`", observation.name),
+                    )?;
+                }
                 (None, Some(_)) => {}
                 _ => {
                     return Err(format!(
@@ -716,8 +721,10 @@ impl DatabaseSpec {
                     "database.setup: `{file}` resolves outside the harness directory"
                 ));
             }
-            if std::fs::read_to_string(&resolved).is_ok_and(|sql| sql.contains(PLACEHOLDER_MARKER))
-            {
+            let sql = std::fs::read_to_string(&resolved)
+                .map_err(|e| format!("database.setup: `{file}`: {e}"))?;
+            crate::postgres::check_untrusted_sql(&sql, &format!("database.setup `{file}`"))?;
+            if sql.contains(PLACEHOLDER_MARKER) {
                 return Err(format!(
                     "database.setup: `{file}` still contains {PLACEHOLDER_MARKER} placeholders; replace them with your application's schema and initial state"
                 ));

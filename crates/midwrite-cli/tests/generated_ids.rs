@@ -124,7 +124,7 @@ fn runtime_probe(socket_dir: &Path, probe: &str, args: &[&str]) -> Json {
         .args(args)
         .current_dir(&dir)
         .env("PGHOST", socket_dir)
-        .env("PGUSER", midwrite_replay::postgres::USER)
+        .env("PGUSER", midwrite_replay::postgres::APP_USER)
         .env("PGDATABASE", "probe")
         .output()
         .expect("node");

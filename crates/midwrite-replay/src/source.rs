@@ -156,6 +156,16 @@ pub struct LoadedSource {
 
 /// Load and check a source-harness manifest. Nothing is executed.
 pub fn load_manifest(path: &Path) -> Result<LoadedSource, String> {
+    // Only a file named as a source-harness manifest: a scenario's
+    // `sourceVerification.harness` cannot point execution at an arbitrary
+    // JSON file.
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    if !(name.starts_with("midwrite-source") && name.ends_with(".json")) {
+        return Err(format!(
+            "`{}` is not a source-harness manifest: its file name must be `midwrite-source.json` (or `midwrite-source-<variant>.json`)",
+            path.display()
+        ));
+    }
     let text = std::fs::read_to_string(path)
         .map_err(|e| format!("cannot read `{}`: {e}", path.display()))?;
     let manifest: SourceManifest =
@@ -204,6 +214,7 @@ pub fn load_manifest(path: &Path) -> Result<LoadedSource, String> {
     for s in &manifest.schema {
         let file = inside(s)?;
         let sql = std::fs::read_to_string(&file).map_err(|e| format!("`{s}`: {e}"))?;
+        crate::postgres::check_untrusted_sql(&sql, &format!("schema `{s}`"))?;
         if sql.contains("MIDWRITE-TODO") {
             return Err(format!("`{s}` still contains a MIDWRITE-TODO marker"));
         }
@@ -1028,7 +1039,7 @@ fn kill_group(child: &mut Child) {
 }
 
 /// Whether the child `pid` has exited, WITHOUT reaping it (`WNOWAIT`).
-fn leader_exited(pid: u32) -> bool {
+pub(crate) fn leader_exited(pid: u32) -> bool {
     // SAFETY: waitid(2) on our own child with WNOWAIT|WNOHANG writes only
     // into `info`, which is a zeroed, properly sized siginfo_t.
     unsafe {
@@ -1091,7 +1102,7 @@ fn reader(slot: usize, stream: UnixStream, tx: Sender<Message>) {
 /// Apply `limits` to the calling process (between fork and exec).
 // `rlim_t` is `u64` on the supported platforms but not by definition.
 #[allow(clippy::unnecessary_cast)]
-fn apply_limits(limits: WorkerLimits) -> std::io::Result<()> {
+pub(crate) fn apply_limits(limits: WorkerLimits) -> std::io::Result<()> {
     let set = |resource, soft: u64, hard: u64| {
         let limit = libc::rlimit {
             rlim_cur: soft as libc::rlim_t,
@@ -1121,7 +1132,7 @@ fn apply_limits(limits: WorkerLimits) -> std::io::Result<()> {
 
 /// A random token identifying this run's processes (environment variable
 /// `MIDWRITE_RUN_TOKEN`), for the survivor sweep.
-fn run_token() -> String {
+pub(crate) fn run_token() -> String {
     let mut bytes = [0u8; 16];
     if let Ok(mut f) = std::fs::File::open("/dev/urandom") {
         use std::io::Read;
@@ -1238,6 +1249,12 @@ struct Coordinator<'r> {
 }
 
 impl Coordinator<'_> {
+    /// The deadline passed, or the user cancelled the run (SIGINT/SIGTERM):
+    /// either way workers are killed and the run ends inconclusive.
+    fn expired(&self) -> bool {
+        Instant::now() >= self.deadline || crate::cancel::cancelled()
+    }
+
     /// The actors that share a process with `actor` (itself included).
     fn group_of(&self, actor: usize) -> Vec<usize> {
         match &self.req.actors[actor].process {
@@ -1326,7 +1343,7 @@ impl Coordinator<'_> {
             match listener.accept() {
                 Ok((s, _)) => break Some(s),
                 Err(e) if e.kind() == ErrorKind::WouldBlock => {
-                    if matches!(child.try_wait(), Ok(Some(_))) || Instant::now() >= self.deadline {
+                    if matches!(child.try_wait(), Ok(Some(_))) || self.expired() {
                         break None;
                     }
                     std::thread::sleep(Duration::from_millis(2));
@@ -1678,7 +1695,7 @@ impl Coordinator<'_> {
             if self.task_finished(self.statements[index].actor) {
                 return Some(false);
             }
-            if Instant::now() >= self.deadline {
+            if self.expired() {
                 return None;
             }
             self.release_outside();
@@ -1790,7 +1807,7 @@ impl Coordinator<'_> {
                 self.diverged = true;
                 return None;
             }
-            if Instant::now() >= self.deadline {
+            if self.expired() {
                 self.problems.push(format!(
                     "plan step {k}: {} did not send the expected {what} before the deadline",
                     self.req.actors[a].name
@@ -2697,7 +2714,7 @@ impl Coordinator<'_> {
         let started = Instant::now();
         let announced = self.statements.len();
         let completed = self.statements.iter().filter(|x| x.completed).count();
-        while started.elapsed() < quiet && Instant::now() < self.deadline {
+        while started.elapsed() < quiet && !self.expired() {
             self.release_outside();
             self.pump(Duration::from_millis(10));
         }
@@ -2796,7 +2813,7 @@ impl Coordinator<'_> {
         // The previous execution must have ended (the model retries only
         // after every task of the attempt ended).
         while !self.task_finished(a) {
-            if Instant::now() >= self.deadline {
+            if self.expired() {
                 self.problems.push(format!(
                     "plan step {k}: {} did not end before its retry",
                     self.req.actors[a].name
@@ -2890,7 +2907,7 @@ impl Coordinator<'_> {
                         if self.statements[index].completed || self.task_finished(a) {
                             break;
                         }
-                        if Instant::now() >= self.deadline {
+                        if self.expired() {
                             self.problems.push(format!(
                                 "plan step {k}: the waiting statement of {} did not complete",
                                 self.req.actors[a].name
@@ -2962,7 +2979,7 @@ impl Coordinator<'_> {
             if (0..self.workers.len()).all(|w| self.finished(w)) {
                 return;
             }
-            if Instant::now() >= self.deadline {
+            if self.expired() {
                 self.problems
                     .push("workers did not finish before the deadline".to_owned());
                 self.inconclusive = true;
@@ -3046,6 +3063,7 @@ pub fn run(req: &RunRequest<'_>) -> SourceRun {
             "source verification executes the application's code: it requires the explicit --allow-execution flag",
         );
     }
+    crate::cancel::install();
     let started = Instant::now();
     let manifest = &req.harness.manifest;
     for a in req.actors {
@@ -3166,7 +3184,7 @@ pub fn run(req: &RunRequest<'_>) -> SourceRun {
         ),
         (
             "MIDWRITE_REPLAY_PG_USER".to_owned(),
-            postgres::USER.to_owned(),
+            postgres::APP_USER.to_owned(),
         ),
         (
             "MIDWRITE_REPLAY_PG_DATABASE".to_owned(),
@@ -3485,6 +3503,10 @@ mod tests {
         outside["schema"] = json!(["../../etc/passwd"]);
         write(outside);
         assert!(load_manifest(&path).is_err());
+        // Any other file name is refused before it is read.
+        let other = dir.join("package.json");
+        std::fs::write(&other, base.to_string()).unwrap();
+        assert!(load_manifest(&other).unwrap_err().contains("file name"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

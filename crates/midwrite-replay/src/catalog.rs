@@ -82,6 +82,13 @@ pub fn read_migrations(
                 .to_owned(),
         );
     }
+    // Checked before anything starts: migration files are run by `psql`,
+    // outside any isolation.
+    for m in migrations {
+        let sql = std::fs::read_to_string(m)
+            .map_err(|e| format!("cannot read `{}`: {e}", m.display()))?;
+        crate::postgres::check_untrusted_sql(&sql, &format!("migration `{}`", m.display()))?;
+    }
     let bins = crate::postgres::Binaries::discover()?;
     let root = crate::safety::ReplayRoot::create(false)?;
     let cluster = Cluster::start(bins, &root.path.join("db"))

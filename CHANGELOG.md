@@ -25,6 +25,29 @@ output formats.
   passes. The README shows this scoring next to the historical pre-tuning
   one and keeps the two apart.
 
+### Security
+
+- `replay` harness processes now get the same per-process limits (CPU
+  time, file size, open files, no core dumps) and process cleanup as
+  source runs. The process group is killed after every exit, and detached
+  processes are swept on Linux. Before this, only source runs had them,
+  although the security reference listed them for both.
+- Harnesses and project SQL connect to the disposable cluster as an
+  ordinary role (`midwrite_app`). The superuser needs a per-cluster
+  password. A harness could otherwise make the unsandboxed server run a
+  program or write a file (`COPY … PROGRAM`).
+- SQL files and observation queries with `psql` meta-commands (`\!`) or
+  `COPY … PROGRAM` are refused, including `schema --migrations`.
+- Ctrl-C, SIGTERM and SIGHUP stop the run and clean up the cluster, its
+  shared memory and the run directory; a second signal exits at once.
+- Linux isolation no longer mounts the whole home directory when the
+  runtime lives in `~/bin` or the home directory is a Git work tree.
+- Programs are looked up only in absolute `PATH` entries, `/usr/bin/bwrap`
+  is preferred, `git` runs without `core.fsmonitor`, and a source-harness
+  manifest must be named `midwrite-source*.json`.
+- Known limitation: on macOS 27 detached harness processes cannot be
+  found after a run ([security](docs/reference/security.md#review-of-2026-11-12-dev-163)).
+
 ## [0.1.0] - 2026-11-12
 
 First public release, **experimental**. The README states what this

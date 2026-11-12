@@ -1011,6 +1011,7 @@ impl Session {
         db: &str,
         default_iso: Option<&str>,
         actor: Option<u16>,
+        password: &str,
     ) -> Result<Self, String> {
         let mut command = Command::new("sh");
         command
@@ -1033,6 +1034,7 @@ impl Session {
             .env_clear()
             .env("LC_ALL", "C")
             .env("PGCONNECT_TIMEOUT", "10")
+            .env("PGPASSWORD", password)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());
@@ -1315,7 +1317,14 @@ impl PgEnv {
     }
 
     fn open(&self, db: &str, iso: Option<&str>, actor: Option<u16>) -> Result<Session, String> {
-        Session::open(&self.bins, self.cluster.socket_dir(), db, iso, actor)
+        Session::open(
+            &self.bins,
+            self.cluster.socket_dir(),
+            db,
+            iso,
+            actor,
+            self.cluster.superuser_env().1,
+        )
     }
 
     /// Create a database with the model's schema.

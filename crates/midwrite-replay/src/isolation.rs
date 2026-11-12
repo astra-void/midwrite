@@ -180,11 +180,14 @@ const SYSTEM_DIRS: &[&str] = &[
 ];
 
 /// Find the bubblewrap executable.
+/// The distribution's `/usr/bin/bwrap` first, so that a `bwrap` earlier on
+/// `PATH` cannot replace the isolation; else an absolute `PATH` entry.
 fn find_bwrap() -> Option<PathBuf> {
-    crate::postgres::find_on_path("bwrap").or_else(|| {
-        let fixed = Path::new("/usr/bin/bwrap");
-        fixed.is_file().then(|| fixed.to_path_buf())
-    })
+    let fixed = Path::new("/usr/bin/bwrap");
+    if fixed.is_file() {
+        return Some(fixed.to_path_buf());
+    }
+    crate::postgres::find_on_path("bwrap")
 }
 
 /// Resolve `program` like the supervisor would start it: a path relative to
@@ -233,11 +236,53 @@ fn covered_by(path: &Path, dirs: &[PathBuf]) -> bool {
     dirs.iter().any(|dir| path.starts_with(dir))
 }
 
+/// Whether mounting `dir` would expose the user's whole home directory (or
+/// more): `/`, the home directory itself, or one of its ancestors.
+pub fn exposes_home(dir: &Path, home: Option<&Path>) -> bool {
+    dir == Path::new("/") || home.is_some_and(|home| home.starts_with(dir))
+}
+
+/// The read-only directory that makes `program` runnable: its installation
+/// directory, narrowed to the program's own directory, then to the program
+/// file, when the wider one would expose the home directory
+/// (`~/bin/node` must not mount all of `~`).
+pub fn runtime_mount(program: &Path, home: Option<&Path>) -> Option<PathBuf> {
+    [
+        installation_dir(program),
+        program.parent().map(Path::to_path_buf),
+    ]
+    .into_iter()
+    .flatten()
+    .find(|dir| !exposes_home(dir, home))
+    .or_else(|| Some(program.to_path_buf()))
+}
+
+/// The project directory mounted read-only: the enclosing Git work tree,
+/// or the harness directory itself when the work tree would expose the
+/// home directory (a dotfiles repository in `~`).
+pub fn project_mount(harness_dir: &Path, home: Option<&Path>) -> PathBuf {
+    let root = project_root(harness_dir);
+    if exposes_home(&root, home) {
+        harness_dir.to_path_buf()
+    } else {
+        root
+    }
+}
+
+/// The user's home directory, canonicalized, for [`exposes_home`].
+fn home_dir() -> Option<PathBuf> {
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
+        .map(|p| p.canonicalize().unwrap_or(p))
+}
+
 /// The bubblewrap arguments (without `--` and the command).
 pub fn bubblewrap_args(
     root: &Path,
     harness_dir: &Path,
     extra_read_only: &[PathBuf],
+    home: Option<&Path>,
 ) -> (Vec<String>, Vec<PathBuf>) {
     let mut args: Vec<String> = [
         "--die-with-parent",
@@ -281,7 +326,7 @@ pub fn bubblewrap_args(
     );
     // The runtime's installation and the project, unless already visible.
     let mut extra: Vec<PathBuf> = extra_read_only.to_vec();
-    extra.push(project_root(harness_dir));
+    extra.push(project_mount(harness_dir, home));
     extra.sort();
     extra.dedup();
     for dir in extra {
@@ -307,13 +352,15 @@ fn prepare_bubblewrap(request: &IsolationRequest<'_>) -> Result<Isolation, Strin
     // An unresolvable program is passed on unchanged: the run then fails as
     // "could not be started", exactly as without isolation.
     let resolved = resolve_program(request.program, request.harness_dir);
+    let home = home_dir();
     let extra: Vec<PathBuf> = resolved
         .as_deref()
-        .and_then(installation_dir)
+        .and_then(|program| runtime_mount(program, home.as_deref()))
         .into_iter()
         .collect();
     let program = resolved.unwrap_or_else(|| PathBuf::from(request.program));
-    let (args, read_only) = bubblewrap_args(request.root, request.harness_dir, &extra);
+    let (args, read_only) =
+        bubblewrap_args(request.root, request.harness_dir, &extra, home.as_deref());
     probe(&bwrap, &args)?;
     Ok(Isolation::Bubblewrap {
         bwrap,
@@ -380,7 +427,12 @@ mod tests {
     fn bubblewrap_arguments_unshare_the_network_and_expose_only_the_root_writable() {
         let root = Path::new("/tmp/cr-test-root");
         let harness = Path::new("/home/dev/project/harness");
-        let (args, read_only) = bubblewrap_args(root, harness, &[PathBuf::from("/opt/node-v22")]);
+        let (args, read_only) = bubblewrap_args(
+            root,
+            harness,
+            &[PathBuf::from("/opt/node-v22")],
+            Some(Path::new("/home/dev")),
+        );
         let joined = args.join(" ");
         for flag in [
             "--unshare-user",
@@ -416,6 +468,45 @@ mod tests {
             .position(|a| a == "/home/dev/project/harness")
             .unwrap();
         assert!(tmpfs < bind && tmpfs < project);
+    }
+
+    #[test]
+    fn mounts_never_expose_the_home_directory() {
+        let home = Some(Path::new("/home/dev"));
+        // `~/bin/node`: the installation prefix would be `~` itself.
+        assert_eq!(
+            runtime_mount(Path::new("/home/dev/bin/node"), home),
+            Some(PathBuf::from("/home/dev/bin"))
+        );
+        // A program directly in `~`: only the file.
+        assert_eq!(
+            runtime_mount(Path::new("/home/dev/node"), home),
+            Some(PathBuf::from("/home/dev/node"))
+        );
+        // A normal installation keeps its prefix.
+        assert_eq!(
+            runtime_mount(Path::new("/home/dev/.nvm/versions/node/v22/bin/node"), home),
+            Some(PathBuf::from("/home/dev/.nvm/versions/node/v22"))
+        );
+        assert!(exposes_home(Path::new("/"), home));
+        assert!(exposes_home(Path::new("/home"), home));
+        assert!(exposes_home(Path::new("/home/dev"), home));
+        assert!(!exposes_home(Path::new("/home/dev/project"), home));
+
+        // A dotfiles repository in `~`: the Git work tree would be `~`.
+        let base = std::env::temp_dir()
+            .canonicalize()
+            .unwrap()
+            .join(format!("cr-home-{}", std::process::id()));
+        let harness = base.join("project/harness");
+        std::fs::create_dir_all(&harness).unwrap();
+        std::fs::create_dir_all(base.join(".git")).unwrap();
+        assert_eq!(project_mount(&harness, Some(&base)), harness);
+        std::fs::create_dir_all(base.join("project/.git")).unwrap();
+        assert_eq!(project_mount(&harness, Some(&base)), base.join("project"));
+        let (args, read_only) = bubblewrap_args(Path::new("/tmp/cr-r"), &harness, &[], Some(&base));
+        assert!(!read_only.contains(&base), "{args:?}");
+        std::fs::remove_dir_all(&base).unwrap();
     }
 
     #[test]
