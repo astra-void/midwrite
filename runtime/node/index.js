@@ -9,7 +9,7 @@
 // because the supervisor kills the process while it waits. Outside replay
 // every checkpoint is a no-op.
 //
-// See docs/architecture/replay-protocol.md and docs/architecture/replay-protocol.md.
+// See docs/architecture/replay-protocol.md and docs/user-guide/source-verification.md.
 
 import { connect } from "node:net";
 
