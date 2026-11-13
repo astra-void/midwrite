@@ -62,6 +62,23 @@ pub(crate) struct FunctionFinder<'c> {
 }
 
 impl<'c> FunctionFinder<'c> {
+    fn initializer(&mut self, value: &Expression<'_>, name: String) {
+        use oxc_span::GetSpan;
+        let pushed = self.lower(
+            name,
+            value.span(),
+            matches!(value.get_inner_expression(), Expression::AwaitExpression(_)),
+            false,
+            false,
+            None,
+            Body::Expression(value),
+        );
+        if pushed {
+            *self.starts.last_mut().unwrap() = crate::module_values::initializer_id(value);
+            self.enclosing.pop();
+            self.this_stack.pop();
+        }
+    }
     pub fn new(recognizer: &'c Recognizer<'c>, lines: &'c LineIndex<'c>) -> Self {
         Self {
             recognizer,
@@ -130,7 +147,7 @@ impl<'c> FunctionFinder<'c> {
         is_async: bool,
         is_generator: bool,
         arrow: bool,
-        params: &FormalParameters<'_>,
+        params: Option<&FormalParameters<'_>>,
         body: Body<'_, '_>,
     ) -> bool {
         if self.consumed.contains(&span.start) {
@@ -150,7 +167,7 @@ impl<'c> FunctionFinder<'c> {
             is_async,
             is_generator,
             this_class,
-            Some(params),
+            params,
             body,
         );
         self.consumed.extend(lowered.consumed);
@@ -198,6 +215,13 @@ impl<'a> Visit<'a> for FunctionFinder<'_> {
     fn visit_variable_declarator(&mut self, it: &VariableDeclarator<'a>) {
         if let (BindingPattern::BindingIdentifier(id), Some(init)) = (&it.id, &it.init) {
             self.name_value(init, id.name.as_str().to_owned());
+            if id
+                .symbol_id
+                .get()
+                .is_some_and(|symbol| self.recognizer.table.initializers.contains_key(&symbol))
+            {
+                self.initializer(init, format!("<module:{}>", id.name));
+            }
         }
         walk::walk_variable_declarator(self, it);
     }
@@ -260,6 +284,13 @@ impl<'a> Visit<'a> for FunctionFinder<'_> {
     }
 
     fn visit_export_default_declaration(&mut self, it: &ExportDefaultDeclaration<'a>) {
+        if let Some(expression) = it
+            .declaration
+            .as_expression()
+            .filter(|e| crate::module_values::eligible(e))
+        {
+            self.initializer(expression, "<module:default>".to_owned());
+        }
         match &it.declaration {
             ExportDefaultDeclarationKind::FunctionDeclaration(function)
                 if function.id.is_none() =>
@@ -285,7 +316,7 @@ impl<'a> Visit<'a> for FunctionFinder<'_> {
                     it.r#async,
                     it.generator,
                     false,
-                    &it.params,
+                    Some(&it.params),
                     Body::Statements(&body.statements),
                 )
             }
@@ -306,7 +337,7 @@ impl<'a> Visit<'a> for FunctionFinder<'_> {
             it.r#async,
             false,
             true,
-            &it.params,
+            Some(&it.params),
             Body::Arrow(&it.body),
         );
         walk::walk_arrow_function_expression(self, it);

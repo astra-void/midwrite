@@ -20,6 +20,7 @@ use crate::resolve::Resolution;
 pub(crate) enum Export {
     /// A function of the project table.
     Function(usize),
+    Initializer(usize),
     /// An object service: function properties by name, as table indices.
     Object(BTreeMap<String, usize>),
     /// A class: (module, class start offset).
@@ -81,6 +82,7 @@ pub(crate) struct ClassTable {
 
 /// One module's view for linking.
 pub(crate) struct ModuleView<'a> {
+    pub value_imports: &'a HashMap<u32, CallTarget>,
     pub classes: &'a HashMap<u32, ClassInfo>,
     /// Function start offset → index in the module.
     pub index: &'a HashMap<u32, usize>,
@@ -446,12 +448,16 @@ impl ClassTable {
 pub(crate) enum Linked {
     /// A function of the table.
     Function(usize, Option<CallResolution>),
+    Initializer(usize),
     /// The callback the caller passes for this parameter.
     Callback(u32),
     /// Nothing runs (an implicit constructor chain).
     Nothing,
     /// Not linked, with the reason; `package` for calls into packages.
-    Unlinked { reason: String, package: bool },
+    Unlinked {
+        reason: String,
+        package: bool,
+    },
     /// Not a call of a function at all (a method call on an imported
     /// binding that is not an object service): left as it was.
     NotAFunction,
@@ -475,6 +481,20 @@ pub(crate) fn link_target(
             },
         },
         CallTarget::Param(index) => Linked::Callback(*index),
+        CallTarget::Returned(_) => Linked::NotAFunction,
+        CallTarget::Value(value) => match value.single() {
+            Some(
+                midwrite_core::absint::Atom::Function { id }
+                | midwrite_core::absint::Atom::Closure { id, .. },
+            ) => link_target(module, &CallTarget::Local(*id), modules, classes, imports),
+            Some(midwrite_core::absint::Atom::ModuleValue { initializer }) => view
+                .index
+                .get(initializer)
+                .map_or(Linked::NotAFunction, |index| {
+                    Linked::Initializer(view.offset + index)
+                }),
+            _ => Linked::NotAFunction,
+        },
         CallTarget::Imported {
             module: specifier,
             name,
@@ -490,6 +510,7 @@ pub(crate) fn link_target(
                     let file = imports.module_name(target_module).to_owned();
                     match (imports.export(target_module, name), member) {
                         (Export::Function(index), None) => Linked::Function(index, None),
+                        (Export::Initializer(index), None) => Linked::Initializer(index),
                         (Export::Object(methods), Some(member)) => match methods.get(member) {
                             Some(index) => Linked::Function(*index, None),
                             None => Linked::Unlinked {
@@ -612,6 +633,30 @@ pub(crate) fn link_facts(
     classes: &ClassTable,
     imports: &mut dyn ImportResolver,
 ) -> FunctionFacts {
+    fn argument(arg: &FactArg, view: &ModuleView<'_>) -> ArgFact {
+        match arg {
+            FactArg::Other => ArgFact::Other,
+            FactArg::Param(index) => ArgFact::Param(*index),
+            FactArg::Function(start) => view.index.get(start).map_or(ArgFact::Other, |index| {
+                ArgFact::Function(view.offset + index)
+            }),
+            FactArg::Closure {
+                function,
+                parameters,
+                captures,
+            } => view
+                .index
+                .get(function)
+                .map_or(ArgFact::Other, |index| ArgFact::Closure {
+                    function: view.offset + index,
+                    parameters: *parameters,
+                    captures: captures
+                        .iter()
+                        .map(|capture| argument(capture, view))
+                        .collect(),
+                }),
+        }
+    }
     let view = &modules[module];
     let mut out = FunctionFacts {
         refuted: facts.refuted.clone(),
@@ -619,19 +664,7 @@ pub(crate) fn link_facts(
         params: facts.params.clone(),
     };
     for call in &facts.calls {
-        let args: Vec<ArgFact> = call
-            .args
-            .iter()
-            .copied()
-            .map(|arg| match arg {
-                FactArg::Other => ArgFact::Other,
-                FactArg::Param(index) => ArgFact::Param(index),
-                FactArg::Function(start) => match view.index.get(&start) {
-                    Some(index) => ArgFact::Function(view.offset + index),
-                    None => ArgFact::Other,
-                },
-            })
-            .collect();
+        let args: Vec<ArgFact> = call.args.iter().map(|arg| argument(arg, view)).collect();
         let label = &table.labels[call.label as usize];
         match link_target(
             module,
@@ -647,6 +680,9 @@ pub(crate) fn link_facts(
             }),
             Linked::Nothing => {}
             Linked::Callback(_) => {}
+            Linked::Initializer(_) => {
+                out.refuted.get_or_insert_with(|| format!("calls initialized binding `{label}`; its callable is resolved at instantiation"));
+            }
             Linked::Unlinked { reason, .. } => {
                 if out.refuted.is_none() {
                     out.refuted = Some(format!("calls `{label}`, which is not linked: {reason}"));

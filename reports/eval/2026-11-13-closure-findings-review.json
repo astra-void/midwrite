@@ -1,0 +1,979 @@
+{
+  "schemaVersion": 1,
+  "kind": "midwrite.finding-review",
+  "date": "2026-11-13",
+  "scope": "Exactly the nine previously unlabeled development findings added by closure-environment/module-factory support. No analyzer changes, old label corrections, held-out changes, application execution or upstream contact.",
+  "reviewer": {
+    "by": "Codex source review in the implementation chat",
+    "date": "2026-11-13",
+    "blind": false,
+    "humanReviewed": false,
+    "runtimeReproduced": false
+  },
+  "binary": {
+    "path": "target/release/midwrite",
+    "sha256": "1a3d730de0d01df46453a0f33dc8245a71e8817e63b93caec992c4b51ce218d4"
+  },
+  "revisions": {
+    "midday": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+    "kan": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+    "dittofeed": "91277939a9afcee797ab2562025f6b02d823b00c"
+  },
+  "counts": {
+    "true-positive": 6,
+    "intended-risk": 2,
+    "false-positive": 1,
+    "unclear": 0
+  },
+  "existingWindowContexts": 7,
+  "falsePositiveProof": {
+    "findingId": "930f362854dc67c5",
+    "argument": "For m=existing.length and n=newCount, preferKeep partitions existing, hence has length m. Creation requires n>m; removal requires max(m-n,0)>0, hence n<m. No invocation can satisfy both. Pinned tier counts are 1,2,4.",
+    "boundedSanityCases": 99,
+    "externalCodeExecuted": false
+  },
+  "findings": [
+    {
+      "project": "midday",
+      "findingId": "4fda8babb4a80988",
+      "code": "MW1004",
+      "file": "apps/worker/src/processors/transactions/update-account-base-currency.ts",
+      "line": 93,
+      "function": "UpdateAccountBaseCurrencyProcessor.process",
+      "classification": "intended-risk",
+      "notes": "The account update at process:58 commits before the transaction batches at process:93 (transactions.ts:2081). The window is real. The transactions queue retries jobs three times (transactions.config.ts:14), BaseProcessor.handle rethrows retryable failures (base.ts:245-246), and shouldProcess defaults to true (base.ts:319-321). Retrying overwrites the same account and transaction base values; there is no increment or completion guard skipping the failed batch. Classify as a retried recomputation job, not an impossible window or a guaranteed permanent inconsistency. Exhausted retries or non-retryable errors can still leave stale derived values.",
+      "review": {
+        "by": "Codex source review in the implementation chat",
+        "date": "2026-11-13",
+        "blind": false,
+        "humanReviewed": false,
+        "runtimeReproduced": false
+      },
+      "windowExists": true,
+      "message": "`db.update(bankAccounts)` (via `updateBankAccount(…)`) and the transaction started at packages/db/src/queries/transactions.ts:2081:11 (via `bulkUpdateTransactionsBaseCurrency(…)`) commit independently; a failure in between persists only the first change",
+      "reportedEffects": [
+        {
+          "role": "completedFirst",
+          "label": "db.update(bankAccounts)",
+          "description": "database update on `bankAccounts` (commits on its own), inside `updateBankAccount`",
+          "location": {
+            "file": "packages/db/src/queries/bank-accounts.ts",
+            "line": 75,
+            "column": 26,
+            "endLine": 76,
+            "endColumn": 26
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "updateBankAccount(…)",
+          "description": "call of `updateBankAccount`, declared in packages/db/src/queries/bank-accounts.ts:69:8; the operations inside it are taken from its summary",
+          "location": {
+            "file": "apps/worker/src/processors/transactions/update-account-base-currency.ts",
+            "line": 58,
+            "column": 11,
+            "endLine": 68,
+            "endColumn": 7
+          }
+        },
+        {
+          "role": "transaction",
+          "label": "db.transaction(…)",
+          "description": "transaction committing 1 write(s), inside `bulkUpdateTransactionsBaseCurrency`",
+          "location": {
+            "file": "packages/db/src/queries/transactions.ts",
+            "line": 2081,
+            "column": 11,
+            "endLine": 2081,
+            "endColumn": 25
+          }
+        },
+        {
+          "role": "notYetPerformed",
+          "label": "tx.update(transactions)",
+          "description": "database update on `transactions` (committed with the transaction), inside `bulkUpdateTransactionsBaseCurrency::<anonymous@2085:21>`",
+          "location": {
+            "file": "packages/db/src/queries/transactions.ts",
+            "line": 2086,
+            "column": 13,
+            "endLine": 2087,
+            "endColumn": 36
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "bulkUpdateTransactionsBaseCurrency(…)",
+          "description": "call of `bulkUpdateTransactionsBaseCurrency`, declared in packages/db/src/queries/transactions.ts:2064:8; the operations inside it are taken from its summary",
+          "location": {
+            "file": "apps/worker/src/processors/transactions/update-account-base-currency.ts",
+            "line": 93,
+            "column": 11,
+            "endLine": 100,
+            "endColumn": 7
+          }
+        }
+      ],
+      "sourceReferences": [
+        {
+          "file": "apps/worker/src/processors/transactions/update-account-base-currency.ts",
+          "line": 58,
+          "sha256": "1c43091402de0b2090baca8da09d73cdcc7b364223949803f2662f9ad09427e8"
+        },
+        {
+          "file": "apps/worker/src/processors/transactions/update-account-base-currency.ts",
+          "line": 93,
+          "sha256": "1c43091402de0b2090baca8da09d73cdcc7b364223949803f2662f9ad09427e8"
+        },
+        {
+          "file": "packages/db/src/queries/transactions.ts",
+          "line": 2064,
+          "sha256": "4ceba810b6a2e6d2ec2d7848e0994db29c8a8ee47da5a54b97e3be6729f12553"
+        },
+        {
+          "file": "apps/worker/src/queues/transactions.config.ts",
+          "line": 14,
+          "sha256": "fb45a5dff41d8d4de24bc467fd7de41fd591ad84c0b89bd4f6a02a9187da7f6c"
+        },
+        {
+          "file": "apps/worker/src/processors/base.ts",
+          "line": 245,
+          "sha256": "b8189b66f68b4fcb45d8a59430dfee721c1873e30dd32c5fc6d574cbb3222d0d"
+        }
+      ]
+    },
+    {
+      "project": "kan",
+      "findingId": "d758901597e4584a",
+      "code": "MW1004",
+      "file": "apps/web/src/pages/api/partner/webhook.ts",
+      "line": 161,
+      "function": "default",
+      "classification": "true-positive",
+      "notes": "Upgrade/downgrade writes each kept subscription at webhook.ts:287 and each linked workspace at :299 in Promise.all on the root DB, without one transaction. For an existing linked slot, one UPDATE can commit and the other fail, leaving subscription entitlements and workspace plan inconsistent. Promise.all does not roll back completed siblings. HTTP 500 handling in withApiLogging is not durable compensation or a guaranteed redelivery contract. This is the already reported inner-handler window at 574be59f041f0e7e, exposed at the default export, not a new independent bug.",
+      "review": {
+        "by": "Codex source review in the implementation chat",
+        "date": "2026-11-13",
+        "blind": false,
+        "humanReviewed": false,
+        "runtimeReproduced": false
+      },
+      "duplicateOf": [
+        "574be59f041f0e7e"
+      ],
+      "windowExists": true,
+      "message": "`db.update(subscription)` (via `default(…)`) and `db.update(workspaces)` (via `default(…)`) commit independently; a failure in between persists only the first change",
+      "reportedEffects": [
+        {
+          "role": "completedFirst",
+          "label": "db.update(subscription)",
+          "description": "database update on `subscription` (commits on its own), inside `updateById`",
+          "location": {
+            "file": "packages/db/src/repository/subscription.repo.ts",
+            "line": 23,
+            "column": 26,
+            "endLine": 24,
+            "endColumn": 26
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "default(…)",
+          "description": "call of `withApiLogging::<anonymous@21:10>`, declared in packages/api/src/utils/apiLogging.ts:21:10; the operations inside it are taken from its summary",
+          "location": {
+            "file": "apps/web/src/pages/api/partner/webhook.ts",
+            "line": 161,
+            "column": 16,
+            "endLine": 413,
+            "endColumn": 2
+          }
+        },
+        {
+          "role": "notYetPerformed",
+          "label": "db.update(workspaces)",
+          "description": "database update on `workspaces` (commits on its own), inside `update`",
+          "location": {
+            "file": "packages/db/src/repository/workspace.repo.ts",
+            "line": 147,
+            "column": 26,
+            "endLine": 148,
+            "endColumn": 24
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "default(…)",
+          "description": "call of `withApiLogging::<anonymous@21:10>`, declared in packages/api/src/utils/apiLogging.ts:21:10; the operations inside it are taken from its summary",
+          "location": {
+            "file": "apps/web/src/pages/api/partner/webhook.ts",
+            "line": 161,
+            "column": 16,
+            "endLine": 413,
+            "endColumn": 2
+          }
+        }
+      ],
+      "sourceReferences": [
+        {
+          "file": "apps/web/src/pages/api/partner/webhook.ts",
+          "line": 278,
+          "sha256": "9d43933373d2aee0b8fcd1ab5796a353faf168a5af792e03dbb35827e4cc351b"
+        },
+        {
+          "file": "apps/web/src/pages/api/partner/webhook.ts",
+          "line": 285,
+          "sha256": "9d43933373d2aee0b8fcd1ab5796a353faf168a5af792e03dbb35827e4cc351b"
+        },
+        {
+          "file": "packages/db/src/repository/subscription.repo.ts",
+          "line": 23,
+          "sha256": "eb56f8de93d9ff957cddf4c3c16df9c73fd78a3a39cc3853eaf599e794dcb1ba"
+        },
+        {
+          "file": "packages/db/src/repository/workspace.repo.ts",
+          "line": 147,
+          "sha256": "bfc8d0d1e9321b6dfce1ec3a5a797d14643bb5d0e389972b28cb19bae2848ae3"
+        },
+        {
+          "file": "packages/api/src/utils/apiLogging.ts",
+          "line": 49,
+          "sha256": "3990e7db48eb6cd853a1eee7b7b0d96510cd119483b9b38a4fff681c3cf74b5f"
+        }
+      ]
+    },
+    {
+      "project": "kan",
+      "findingId": "d5803fc413673fa3",
+      "code": "MW1004",
+      "file": "apps/web/src/pages/api/partner/webhook.ts",
+      "line": 161,
+      "function": "default",
+      "classification": "true-positive",
+      "notes": "The deactivate path reaches cancelWorkspaceAccess at webhook.ts:248. That helper independently starts member pausing and workspace-plan/slug UPDATEs in Promise.all (utils/workspace.ts:31-40). Both can affect real rows; one can commit while the other fails, leaving access and plan inconsistent. No shared transaction or compensating write exists in this path. Redelivery could repair it but is not established as a durable recovery mechanism by this source. This overlaps 83e6e8979513e69f and is not a distinct new bug.",
+      "review": {
+        "by": "Codex source review in the implementation chat",
+        "date": "2026-11-13",
+        "blind": false,
+        "humanReviewed": false,
+        "runtimeReproduced": false
+      },
+      "duplicateOf": [
+        "83e6e8979513e69f"
+      ],
+      "windowExists": true,
+      "message": "`db.update(workspaces)` (via `default(…)`) and `db.update(workspaceMembers)` (via `default(…)`) commit independently; a failure in between persists only the first change",
+      "reportedEffects": [
+        {
+          "role": "completedFirst",
+          "label": "db.update(workspaces)",
+          "description": "database update on `workspaces` (commits on its own), inside `update`",
+          "location": {
+            "file": "packages/db/src/repository/workspace.repo.ts",
+            "line": 147,
+            "column": 26,
+            "endLine": 148,
+            "endColumn": 24
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "default(…)",
+          "description": "call of `withApiLogging::<anonymous@21:10>`, declared in packages/api/src/utils/apiLogging.ts:21:10; the operations inside it are taken from its summary",
+          "location": {
+            "file": "apps/web/src/pages/api/partner/webhook.ts",
+            "line": 161,
+            "column": 16,
+            "endLine": 413,
+            "endColumn": 2
+          }
+        },
+        {
+          "role": "notYetPerformed",
+          "label": "db.update(workspaceMembers)",
+          "description": "database update on `workspaceMembers` (commits on its own), inside `pauseMembersExcept`",
+          "location": {
+            "file": "packages/db/src/repository/member.repo.ts",
+            "line": 251,
+            "column": 9,
+            "endLine": 252,
+            "endColumn": 30
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "default(…)",
+          "description": "call of `withApiLogging::<anonymous@21:10>`, declared in packages/api/src/utils/apiLogging.ts:21:10; the operations inside it are taken from its summary",
+          "location": {
+            "file": "apps/web/src/pages/api/partner/webhook.ts",
+            "line": 161,
+            "column": 16,
+            "endLine": 413,
+            "endColumn": 2
+          }
+        }
+      ],
+      "sourceReferences": [
+        {
+          "file": "apps/web/src/pages/api/partner/webhook.ts",
+          "line": 239,
+          "sha256": "9d43933373d2aee0b8fcd1ab5796a353faf168a5af792e03dbb35827e4cc351b"
+        },
+        {
+          "file": "packages/api/src/utils/workspace.ts",
+          "line": 31,
+          "sha256": "a9529ed7457685b54b798ac042c7d5490f05908fac9adf4e18095d1cb671ee59"
+        },
+        {
+          "file": "packages/db/src/repository/member.repo.ts",
+          "line": 246,
+          "sha256": "404d07382f9efb880400a89104021f9ad4d7073bb86a41ce0702f95e9c5cfe4b"
+        },
+        {
+          "file": "packages/db/src/repository/workspace.repo.ts",
+          "line": 135,
+          "sha256": "bfc8d0d1e9321b6dfce1ec3a5a797d14643bb5d0e389972b28cb19bae2848ae3"
+        }
+      ]
+    },
+    {
+      "project": "kan",
+      "findingId": "930f362854dc67c5",
+      "code": "MW1004",
+      "file": "apps/web/src/pages/api/partner/webhook.ts",
+      "line": 161,
+      "function": "default",
+      "classification": "false-positive",
+      "notes": "The first insertion is reached only through createAndLinkSlots when newCount > existing.length (webhook.ts:303-314). The later removed-subscription UPDATE requires slotsToRemove.length > 0 (:317-329). preferKeep is the concatenation of the truthy and falsy referenceId partitions of existing (:277-280), so its length equals existing.length. With nonnegative tier counts 1, 2 or 4, slotsToRemove = preferKeep.slice(newCount) can be nonempty only when newCount < existing.length. Both conditions cannot hold in one invocation. The same contradiction holds in the migrate branch. No real partial-state window corresponds to this pair.",
+      "review": {
+        "by": "Codex source review in the implementation chat",
+        "date": "2026-11-13",
+        "blind": false,
+        "humanReviewed": false,
+        "runtimeReproduced": false
+      },
+      "fpCause": "infeasible-path: growth and shrink conditions are mutually exclusive",
+      "windowExists": false,
+      "message": "`db.insert(subscription)` (via `default(…)`) and `db.update(subscription)` (via `default(…)`) commit independently; a failure in between persists only the first change",
+      "reportedEffects": [
+        {
+          "role": "completedFirst",
+          "label": "db.insert(subscription)",
+          "description": "database insert on `subscription` (commits on its own), inside `createPartnerLicenseSlots`",
+          "location": {
+            "file": "packages/db/src/repository/subscription.repo.ts",
+            "line": 194,
+            "column": 16,
+            "endLine": 194,
+            "endColumn": 39
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "default(…)",
+          "description": "call of `withApiLogging::<anonymous@21:10>`, declared in packages/api/src/utils/apiLogging.ts:21:10; the operations inside it are taken from its summary",
+          "location": {
+            "file": "apps/web/src/pages/api/partner/webhook.ts",
+            "line": 161,
+            "column": 16,
+            "endLine": 413,
+            "endColumn": 2
+          }
+        },
+        {
+          "role": "notYetPerformed",
+          "label": "db.update(subscription)",
+          "description": "database update on `subscription` (commits on its own), inside `updateById`",
+          "location": {
+            "file": "packages/db/src/repository/subscription.repo.ts",
+            "line": 23,
+            "column": 26,
+            "endLine": 24,
+            "endColumn": 26
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "default(…)",
+          "description": "call of `withApiLogging::<anonymous@21:10>`, declared in packages/api/src/utils/apiLogging.ts:21:10; the operations inside it are taken from its summary",
+          "location": {
+            "file": "apps/web/src/pages/api/partner/webhook.ts",
+            "line": 161,
+            "column": 16,
+            "endLine": 413,
+            "endColumn": 2
+          }
+        }
+      ],
+      "sourceReferences": [
+        {
+          "file": "apps/web/src/pages/api/partner/webhook.ts",
+          "line": 277,
+          "sha256": "9d43933373d2aee0b8fcd1ab5796a353faf168a5af792e03dbb35827e4cc351b"
+        },
+        {
+          "file": "apps/web/src/pages/api/partner/webhook.ts",
+          "line": 303,
+          "sha256": "9d43933373d2aee0b8fcd1ab5796a353faf168a5af792e03dbb35827e4cc351b"
+        },
+        {
+          "file": "apps/web/src/pages/api/partner/webhook.ts",
+          "line": 317,
+          "sha256": "9d43933373d2aee0b8fcd1ab5796a353faf168a5af792e03dbb35827e4cc351b"
+        },
+        {
+          "file": "apps/web/src/pages/api/partner/webhook.ts",
+          "line": 350,
+          "sha256": "9d43933373d2aee0b8fcd1ab5796a353faf168a5af792e03dbb35827e4cc351b"
+        },
+        {
+          "file": "apps/web/src/pages/api/partner/_utils.ts",
+          "line": 10,
+          "sha256": "09fb7a0a6dddf156d72268bc87b50f726b482eb416c9b5266a7d6e5a31a34c13"
+        }
+      ]
+    },
+    {
+      "project": "kan",
+      "findingId": "cef2b1b6c27c48e9",
+      "code": "MW1004",
+      "file": "apps/web/src/pages/api/partner/webhook.ts",
+      "line": 161,
+      "function": "default",
+      "classification": "true-positive",
+      "notes": "createAndLinkSlots can execute both slot INSERTs: available.length > 0 at :60 creates slots at :61, autoLinked becomes available.length at :90, and count-autoLinked > 0 creates the remainder at :97. For example, growing from one existing slot to tier 3 (four slots) requests count=3; one eligible owned workspace gives available.length=1 and remaining=2. The first INSERT commits independently of linking and of the remainder INSERT. A failure can leave an incomplete or partly linked allocation; no encompassing transaction or cleanup undoes it. This is the same helper window as 11727d753731af8a at a default-export context.",
+      "review": {
+        "by": "Codex source review in the implementation chat",
+        "date": "2026-11-13",
+        "blind": false,
+        "humanReviewed": false,
+        "runtimeReproduced": false
+      },
+      "duplicateOf": [
+        "11727d753731af8a"
+      ],
+      "windowExists": true,
+      "message": "`db.insert(subscription)` (via `default(…)`) and `db.insert(subscription)` (via `default(…)`) commit independently; a failure in between persists only the first change",
+      "reportedEffects": [
+        {
+          "role": "completedFirst",
+          "label": "db.insert(subscription)",
+          "description": "database insert on `subscription` (commits on its own), inside `createPartnerLicenseSlots`",
+          "location": {
+            "file": "packages/db/src/repository/subscription.repo.ts",
+            "line": 194,
+            "column": 16,
+            "endLine": 194,
+            "endColumn": 39
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "default(…)",
+          "description": "call of `withApiLogging::<anonymous@21:10>`, declared in packages/api/src/utils/apiLogging.ts:21:10; the operations inside it are taken from its summary",
+          "location": {
+            "file": "apps/web/src/pages/api/partner/webhook.ts",
+            "line": 161,
+            "column": 16,
+            "endLine": 413,
+            "endColumn": 2
+          }
+        },
+        {
+          "role": "notYetPerformed",
+          "label": "db.insert(subscription)",
+          "description": "database insert on `subscription` (commits on its own), inside `createPartnerLicenseSlots`",
+          "location": {
+            "file": "packages/db/src/repository/subscription.repo.ts",
+            "line": 194,
+            "column": 16,
+            "endLine": 194,
+            "endColumn": 39
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "default(…)",
+          "description": "call of `withApiLogging::<anonymous@21:10>`, declared in packages/api/src/utils/apiLogging.ts:21:10; the operations inside it are taken from its summary",
+          "location": {
+            "file": "apps/web/src/pages/api/partner/webhook.ts",
+            "line": 161,
+            "column": 16,
+            "endLine": 413,
+            "endColumn": 2
+          }
+        }
+      ],
+      "sourceReferences": [
+        {
+          "file": "apps/web/src/pages/api/partner/webhook.ts",
+          "line": 58,
+          "sha256": "9d43933373d2aee0b8fcd1ab5796a353faf168a5af792e03dbb35827e4cc351b"
+        },
+        {
+          "file": "apps/web/src/pages/api/partner/webhook.ts",
+          "line": 90,
+          "sha256": "9d43933373d2aee0b8fcd1ab5796a353faf168a5af792e03dbb35827e4cc351b"
+        },
+        {
+          "file": "apps/web/src/pages/api/partner/webhook.ts",
+          "line": 97,
+          "sha256": "9d43933373d2aee0b8fcd1ab5796a353faf168a5af792e03dbb35827e4cc351b"
+        },
+        {
+          "file": "packages/db/src/repository/subscription.repo.ts",
+          "line": 177,
+          "sha256": "eb56f8de93d9ff957cddf4c3c16df9c73fd78a3a39cc3853eaf599e794dcb1ba"
+        }
+      ]
+    },
+    {
+      "project": "kan",
+      "findingId": "305530861885c933",
+      "code": "MW1004",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 537,
+      "function": "<anonymous@229:17>",
+      "classification": "true-positive",
+      "notes": "importSingleBoard commits cardRepo.bulkCreate at import.ts:382 before cardActivityRepo.bulkCreate at :406. The card transaction ends in card.repo.ts before the independent activity INSERT. A failed activity write leaves committed cards without creation activity and aborts the remaining per-board import. Promise.allSettled (:536) only records the rejection; :561 updates the import status, not the missing data. A rerun allocates fresh IDs and creates another board (:317-326), rather than repairing this one. This is an existing importSingleBoard window at 2aadc5212a97547b, now reached through the captured callback.",
+      "review": {
+        "by": "Codex source review in the implementation chat",
+        "date": "2026-11-13",
+        "blind": false,
+        "humanReviewed": false,
+        "runtimeReproduced": false
+      },
+      "duplicateOf": [
+        "2aadc5212a97547b"
+      ],
+      "windowExists": true,
+      "message": "the transaction started at packages/db/src/repository/card.repo.ts:421:10 (via `(boardId) => importSingleBoard(boardId) (per element)`) and `db.insert(cardActivities)` (via `(boardId) => importSingleBoard(boardId) (per element)`) commit independently; a failure in between persists only the first change",
+      "reportedEffects": [
+        {
+          "role": "transaction",
+          "label": "db.transaction(…)",
+          "description": "transaction committing 1 write(s), inside `bulkCreate`",
+          "location": {
+            "file": "packages/db/src/repository/card.repo.ts",
+            "line": 421,
+            "column": 10,
+            "endLine": 421,
+            "endColumn": 24
+          }
+        },
+        {
+          "role": "completedFirst",
+          "label": "tx.insert(cards)",
+          "description": "database insert on `cards` (committed with the transaction), inside `bulkCreate`",
+          "location": {
+            "file": "packages/db/src/repository/card.repo.ts",
+            "line": 498,
+            "column": 28,
+            "endLine": 499,
+            "endColumn": 21
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "(boardId) => importSingleBoard(boardId) (per element)",
+          "description": "call of `<anonymous@229:17>::<anonymous@537:30>`, a function declared in this file; the operations inside it are taken from its summary",
+          "location": {
+            "file": "packages/api/src/routers/import.ts",
+            "line": 537,
+            "column": 30,
+            "endLine": 537,
+            "endColumn": 69
+          }
+        },
+        {
+          "role": "notYetPerformed",
+          "label": "db.insert(cardActivities)",
+          "description": "database insert on `cardActivities` (commits on its own), inside `bulkCreate`",
+          "location": {
+            "file": "packages/db/src/repository/cardActivity.repo.ts",
+            "line": 108,
+            "column": 25,
+            "endLine": 109,
+            "endColumn": 28
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "(boardId) => importSingleBoard(boardId) (per element)",
+          "description": "call of `<anonymous@229:17>::<anonymous@537:30>`, a function declared in this file; the operations inside it are taken from its summary",
+          "location": {
+            "file": "packages/api/src/routers/import.ts",
+            "line": 537,
+            "column": 30,
+            "endLine": 537,
+            "endColumn": 69
+          }
+        }
+      ],
+      "sourceReferences": [
+        {
+          "file": "packages/api/src/routers/import.ts",
+          "line": 317,
+          "sha256": "2c8a7687348fabfc1e91f0073cfbcb04e79fd6f7f331df01f01baf61a52426c5"
+        },
+        {
+          "file": "packages/api/src/routers/import.ts",
+          "line": 382,
+          "sha256": "2c8a7687348fabfc1e91f0073cfbcb04e79fd6f7f331df01f01baf61a52426c5"
+        },
+        {
+          "file": "packages/api/src/routers/import.ts",
+          "line": 406,
+          "sha256": "2c8a7687348fabfc1e91f0073cfbcb04e79fd6f7f331df01f01baf61a52426c5"
+        },
+        {
+          "file": "packages/api/src/routers/import.ts",
+          "line": 536,
+          "sha256": "2c8a7687348fabfc1e91f0073cfbcb04e79fd6f7f331df01f01baf61a52426c5"
+        },
+        {
+          "file": "packages/db/src/repository/card.repo.ts",
+          "line": 421,
+          "sha256": "c69a1acaee63f8533049361a0c2563dee6cedeaa5ebfaad9efaa166ec5e4a12e"
+        },
+        {
+          "file": "packages/db/src/repository/cardActivity.repo.ts",
+          "line": 108,
+          "sha256": "97dec4e6c03d0f86bc9584b37806679f853bd32bdc1f78014db1cdd8a40e8b71"
+        }
+      ]
+    },
+    {
+      "project": "kan",
+      "findingId": "ecaea63b0bab9693",
+      "code": "MW1004",
+      "file": "packages/api/src/routers/import.ts",
+      "line": 537,
+      "function": "<anonymous@229:17>",
+      "classification": "true-positive",
+      "notes": "boardRepo.create commits the board and creator membership in its own transaction (board.repo.ts:639-662), before labelRepo.bulkCreate inserts labels at import.ts:349. A board with at least one label takes both operations; a failure between leaves a visible, incomplete imported board. There is no outer transaction or per-board cleanup; allSettled and the final import-status update cannot undo the committed board, and a retry generates a new public ID (:317). This duplicates the already reported f322f5de643c442a window at a caller context.",
+      "review": {
+        "by": "Codex source review in the implementation chat",
+        "date": "2026-11-13",
+        "blind": false,
+        "humanReviewed": false,
+        "runtimeReproduced": false
+      },
+      "duplicateOf": [
+        "f322f5de643c442a"
+      ],
+      "windowExists": true,
+      "message": "the transaction started at packages/db/src/repository/board.repo.ts:639:10 (via `(boardId) => importSingleBoard(boardId) (per element)`) and `db.insert(labels)` (via `(boardId) => importSingleBoard(boardId) (per element)`) commit independently; a failure in between persists only the first change",
+      "reportedEffects": [
+        {
+          "role": "transaction",
+          "label": "db.transaction(…)",
+          "description": "transaction committing 2 write(s), inside `create`",
+          "location": {
+            "file": "packages/db/src/repository/board.repo.ts",
+            "line": 639,
+            "column": 10,
+            "endLine": 639,
+            "endColumn": 24
+          }
+        },
+        {
+          "role": "completedFirst",
+          "label": "tx.insert(boards)",
+          "description": "database insert on `boards` (committed with the transaction), inside `create`",
+          "location": {
+            "file": "packages/db/src/repository/board.repo.ts",
+            "line": 642,
+            "column": 28,
+            "endLine": 643,
+            "endColumn": 22
+          }
+        },
+        {
+          "role": "completedFirst",
+          "label": "db.insert(boardMembers)",
+          "description": "database insert on `boardMembers` (committed with the transaction), inside `addCreatorAsAdmin`",
+          "location": {
+            "file": "packages/db/src/repository/boardMember.repo.ts",
+            "line": 53,
+            "column": 9,
+            "endLine": 54,
+            "endColumn": 26
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "(boardId) => importSingleBoard(boardId) (per element)",
+          "description": "call of `<anonymous@229:17>::<anonymous@537:30>`, a function declared in this file; the operations inside it are taken from its summary",
+          "location": {
+            "file": "packages/api/src/routers/import.ts",
+            "line": 537,
+            "column": 30,
+            "endLine": 537,
+            "endColumn": 69
+          }
+        },
+        {
+          "role": "notYetPerformed",
+          "label": "db.insert(labels)",
+          "description": "database insert on `labels` (commits on its own), inside `bulkCreate`",
+          "location": {
+            "file": "packages/db/src/repository/label.repo.ts",
+            "line": 74,
+            "column": 25,
+            "endLine": 75,
+            "endColumn": 20
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "(boardId) => importSingleBoard(boardId) (per element)",
+          "description": "call of `<anonymous@229:17>::<anonymous@537:30>`, a function declared in this file; the operations inside it are taken from its summary",
+          "location": {
+            "file": "packages/api/src/routers/import.ts",
+            "line": 537,
+            "column": 30,
+            "endLine": 537,
+            "endColumn": 69
+          }
+        }
+      ],
+      "sourceReferences": [
+        {
+          "file": "packages/api/src/routers/import.ts",
+          "line": 317,
+          "sha256": "2c8a7687348fabfc1e91f0073cfbcb04e79fd6f7f331df01f01baf61a52426c5"
+        },
+        {
+          "file": "packages/api/src/routers/import.ts",
+          "line": 339,
+          "sha256": "2c8a7687348fabfc1e91f0073cfbcb04e79fd6f7f331df01f01baf61a52426c5"
+        },
+        {
+          "file": "packages/api/src/routers/import.ts",
+          "line": 349,
+          "sha256": "2c8a7687348fabfc1e91f0073cfbcb04e79fd6f7f331df01f01baf61a52426c5"
+        },
+        {
+          "file": "packages/api/src/routers/import.ts",
+          "line": 536,
+          "sha256": "2c8a7687348fabfc1e91f0073cfbcb04e79fd6f7f331df01f01baf61a52426c5"
+        },
+        {
+          "file": "packages/db/src/repository/board.repo.ts",
+          "line": 639,
+          "sha256": "a9c366bdabeba1ee6d8fc0099a4f5d7307117828d647c69f2173900f301b9659"
+        },
+        {
+          "file": "packages/db/src/repository/label.repo.ts",
+          "line": 74,
+          "sha256": "c43214f8b09afb3356278e9470f39b98cd9031b101ad3701d94aafc4423763ab"
+        }
+      ]
+    },
+    {
+      "project": "dittofeed",
+      "findingId": "933e380a6fe7be7d",
+      "code": "MW1005",
+      "file": "packages/backend-lib/src/broadcasts/activities.ts",
+      "line": 433,
+      "function": "sendMessages",
+      "classification": "true-positive",
+      "notes": "The exported sendMessages calls the provider sender at broadcasts/activities.ts:360, waits for sends at :368, and only then publishes delivery events with submitBatch at :413. The retry policy is explicit (broadcastWorkflowV2.ts:154-160), but the resend guard getUnmessagedUsers/searchDeliveries (:176-186) depends on the very delivery events absent after a send/publish failure. Thus retry can resend an already delivered message; a deterministic tracking messageId does not make the provider call idempotent. This follows the more recent source-grounded true-positive judgment 4b0058e6a225b154. The older 8af63194255c32d4 intended-risk label disagrees; it is preserved and flagged for human review. This is not a new independent bug or a runtime-confirmed duplicate delivery.",
+      "review": {
+        "by": "Codex source review in the implementation chat",
+        "date": "2026-11-13",
+        "blind": false,
+        "humanReviewed": false,
+        "runtimeReproduced": false
+      },
+      "duplicateOf": [
+        "4b0058e6a225b154",
+        "8af63194255c32d4"
+      ],
+      "windowExists": true,
+      "message": "`sender(messageVariant)` (via `sendMessages(…)`) and `submitBatch(…)` (via `sendMessages(…)`) are independent external effects; a failure in between performs only the first",
+      "reportedEffects": [
+        {
+          "role": "completedFirst",
+          "label": "sender(messageVariant)",
+          "description": "external effect (email), inside `sendMessagesWithSender::<anonymous@196:48>::<anonymous@278:28>::<anonymous@279:57>`",
+          "location": {
+            "file": "packages/backend-lib/src/broadcasts/activities.ts",
+            "line": 360,
+            "column": 32,
+            "endLine": 360,
+            "endColumn": 54
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "sendMessages(…)",
+          "description": "call of `sendMessagesWithSender`, a function declared in this file; the operations inside it are taken from its summary",
+          "location": {
+            "file": "packages/backend-lib/src/broadcasts/activities.ts",
+            "line": 433,
+            "column": 29,
+            "endLine": 433,
+            "endColumn": 61
+          }
+        },
+        {
+          "role": "notYetPerformed",
+          "label": "submitBatch(…)",
+          "description": "external effect (message-publish), inside `sendMessagesWithSender::<anonymous@196:48>`",
+          "location": {
+            "file": "packages/backend-lib/src/broadcasts/activities.ts",
+            "line": 413,
+            "column": 13,
+            "endLine": 418,
+            "endColumn": 9
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "sendMessages(…)",
+          "description": "call of `sendMessagesWithSender`, a function declared in this file; the operations inside it are taken from its summary",
+          "location": {
+            "file": "packages/backend-lib/src/broadcasts/activities.ts",
+            "line": 433,
+            "column": 29,
+            "endLine": 433,
+            "endColumn": 61
+          }
+        }
+      ],
+      "sourceReferences": [
+        {
+          "file": "packages/backend-lib/src/broadcasts/activities.ts",
+          "line": 176,
+          "sha256": "fa5286b35b2a12bfde78e3814daeebe1b00d41f00894cc466ff0565cb4a44018"
+        },
+        {
+          "file": "packages/backend-lib/src/broadcasts/activities.ts",
+          "line": 360,
+          "sha256": "fa5286b35b2a12bfde78e3814daeebe1b00d41f00894cc466ff0565cb4a44018"
+        },
+        {
+          "file": "packages/backend-lib/src/broadcasts/activities.ts",
+          "line": 413,
+          "sha256": "fa5286b35b2a12bfde78e3814daeebe1b00d41f00894cc466ff0565cb4a44018"
+        },
+        {
+          "file": "packages/backend-lib/src/broadcasts/broadcastWorkflowV2.ts",
+          "line": 154,
+          "sha256": "8dd663f471920d9fbdf1f796adff391149e0298a8926487d957f0ff2848e168c"
+        },
+        {
+          "file": "packages/backend-lib/src/messaging.ts",
+          "line": 2403,
+          "sha256": "225cdc783825e0a353fe1c27c983877dcbb49bc8f1d1ed9361e2797d65906177"
+        }
+      ]
+    },
+    {
+      "project": "dittofeed",
+      "findingId": "5e0ac5ccb0740877",
+      "code": "MW1005",
+      "file": "packages/backend-lib/src/journeys/userWorkflow/activities.ts",
+      "line": 394,
+      "function": "sendMessageV2",
+      "classification": "intended-risk",
+      "notes": "sendMessageV2 calls sender at userWorkflow/activities.ts:259 and publishes submitTrack at :385, so the delivery/recording window is real. The journey explicitly configures per-node retryCount (userWorkflow.ts:948-958); the activity distinguishes final attempts and returns a skipped result after exhaustion (:270-300), and events reuse the messageId (:244-252,:375-385; apps/track.ts:25). Retain the existing intended-risk interpretation for this retry-aware, at-least-once journey activity rather than asserting a new bug without a stricter delivery contract. This does not establish provider-side deduplication or exactly-once delivery. The existing KP01 auditor/labeler disagreement remains open; the new export context duplicates ece472399ebf7efb and 0a33bc81d8b3fa98.",
+      "review": {
+        "by": "Codex source review in the implementation chat",
+        "date": "2026-11-13",
+        "blind": false,
+        "humanReviewed": false,
+        "runtimeReproduced": false
+      },
+      "duplicateOf": [
+        "ece472399ebf7efb",
+        "0a33bc81d8b3fa98"
+      ],
+      "windowExists": true,
+      "message": "`sender(…)` (via `sendMessageV2(…)`) and `submitTrack(…)` (via `sendMessageV2(…)`) are independent external effects; a failure in between performs only the first",
+      "reportedEffects": [
+        {
+          "role": "completedFirst",
+          "label": "sender(…)",
+          "description": "external effect (email), inside `sendMessageInner`",
+          "location": {
+            "file": "packages/backend-lib/src/journeys/userWorkflow/activities.ts",
+            "line": 259,
+            "column": 26,
+            "endLine": 268,
+            "endColumn": 7
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "sendMessageV2(…)",
+          "description": "call of `sendMessageWithSender`, a function declared in this file; the operations inside it are taken from its summary",
+          "location": {
+            "file": "packages/backend-lib/src/journeys/userWorkflow/activities.ts",
+            "line": 394,
+            "column": 30,
+            "endLine": 394,
+            "endColumn": 61
+          }
+        },
+        {
+          "role": "notYetPerformed",
+          "label": "submitTrack(…)",
+          "description": "external effect (message-publish), inside `sendMessageWithSender::<anonymous@325:56>`",
+          "location": {
+            "file": "packages/backend-lib/src/journeys/userWorkflow/activities.ts",
+            "line": 385,
+            "column": 13,
+            "endLine": 388,
+            "endColumn": 9
+          }
+        },
+        {
+          "role": "callSite",
+          "label": "sendMessageV2(…)",
+          "description": "call of `sendMessageWithSender`, a function declared in this file; the operations inside it are taken from its summary",
+          "location": {
+            "file": "packages/backend-lib/src/journeys/userWorkflow/activities.ts",
+            "line": 394,
+            "column": 30,
+            "endLine": 394,
+            "endColumn": 61
+          }
+        }
+      ],
+      "sourceReferences": [
+        {
+          "file": "packages/backend-lib/src/journeys/userWorkflow/activities.ts",
+          "line": 259,
+          "sha256": "ea2d9f4d0cc8a4131bbcda9d440bfb5dd2cf194511c7a25dfca265a2062f7566"
+        },
+        {
+          "file": "packages/backend-lib/src/journeys/userWorkflow/activities.ts",
+          "line": 270,
+          "sha256": "ea2d9f4d0cc8a4131bbcda9d440bfb5dd2cf194511c7a25dfca265a2062f7566"
+        },
+        {
+          "file": "packages/backend-lib/src/journeys/userWorkflow/activities.ts",
+          "line": 385,
+          "sha256": "ea2d9f4d0cc8a4131bbcda9d440bfb5dd2cf194511c7a25dfca265a2062f7566"
+        },
+        {
+          "file": "packages/backend-lib/src/journeys/userWorkflow.ts",
+          "line": 948,
+          "sha256": "86d8dc31760fc797114ecfa146750b8241f6dc72497a3ec7e695507c1fe682c9"
+        },
+        {
+          "file": "packages/backend-lib/src/apps/track.ts",
+          "line": 25,
+          "sha256": "fed4dd918fded58542f9ae31a0521e3c95b8283653e27b7f4f50014163a3753b"
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Source-only AI review, not independent human validation or runtime reproduction.",
+    "True-positive means a source-grounded bug candidate, not maintainer confirmation.",
+    "Duplicate contexts are not additional independent bugs.",
+    "Existing baseline labels with contradictions were preserved and queued for review."
+  ]
+}

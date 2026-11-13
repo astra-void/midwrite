@@ -578,7 +578,7 @@ impl Recovery {
 }
 
 /// The database handle an operation is issued on.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum DbHandle {
     /// The root database object (auto-commit outside a transaction).

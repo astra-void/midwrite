@@ -1310,6 +1310,245 @@
    "function": "sendMentionEmails",
    "classification": "intended-risk",
    "notes": "The mention notification inserts and emails are deliberately independent best-effort operations with log-only catch handlers. This is the same accepted behavior as existing finding d44dfa3f0820589f; iteration coverage now also exposes the pair across elements. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+  },
+  {
+   "findingId": "d758901597e4584a",
+   "code": "MW1004",
+   "file": "apps/web/src/pages/api/partner/webhook.ts",
+   "line": 161,
+   "function": "default",
+   "classification": "true-positive",
+   "notes": "Upgrade/downgrade writes each kept subscription at webhook.ts:287 and each linked workspace at :299 in Promise.all on the root DB, without one transaction. For an existing linked slot, one UPDATE can commit and the other fail, leaving subscription entitlements and workspace plan inconsistent. Promise.all does not roll back completed siblings. HTTP 500 handling in withApiLogging is not durable compensation or a guaranteed redelivery contract. This is the already reported inner-handler window at 574be59f041f0e7e, exposed at the default export, not a new independent bug.",
+   "review": {
+    "by": "Codex source review in the implementation chat",
+    "date": "2026-11-13",
+    "blind": false,
+    "humanReviewed": false,
+    "runtimeReproduced": false
+   },
+   "duplicateOf": [
+    "574be59f041f0e7e"
+   ]
+  },
+  {
+   "findingId": "d5803fc413673fa3",
+   "code": "MW1004",
+   "file": "apps/web/src/pages/api/partner/webhook.ts",
+   "line": 161,
+   "function": "default",
+   "classification": "true-positive",
+   "notes": "The deactivate path reaches cancelWorkspaceAccess at webhook.ts:248. That helper independently starts member pausing and workspace-plan/slug UPDATEs in Promise.all (utils/workspace.ts:31-40). Both can affect real rows; one can commit while the other fails, leaving access and plan inconsistent. No shared transaction or compensating write exists in this path. Redelivery could repair it but is not established as a durable recovery mechanism by this source. This overlaps 83e6e8979513e69f and is not a distinct new bug.",
+   "review": {
+    "by": "Codex source review in the implementation chat",
+    "date": "2026-11-13",
+    "blind": false,
+    "humanReviewed": false,
+    "runtimeReproduced": false
+   },
+   "duplicateOf": [
+    "83e6e8979513e69f"
+   ]
+  },
+  {
+   "findingId": "930f362854dc67c5",
+   "code": "MW1004",
+   "file": "apps/web/src/pages/api/partner/webhook.ts",
+   "line": 161,
+   "function": "default",
+   "classification": "false-positive",
+   "notes": "The first insertion is reached only through createAndLinkSlots when newCount > existing.length (webhook.ts:303-314). The later removed-subscription UPDATE requires slotsToRemove.length > 0 (:317-329). preferKeep is the concatenation of the truthy and falsy referenceId partitions of existing (:277-280), so its length equals existing.length. With nonnegative tier counts 1, 2 or 4, slotsToRemove = preferKeep.slice(newCount) can be nonempty only when newCount < existing.length. Both conditions cannot hold in one invocation. The same contradiction holds in the migrate branch. No real partial-state window corresponds to this pair.",
+   "review": {
+    "by": "Codex source review in the implementation chat",
+    "date": "2026-11-13",
+    "blind": false,
+    "humanReviewed": false,
+    "runtimeReproduced": false
+   },
+   "fpCause": "infeasible-path: growth and shrink conditions are mutually exclusive"
+  },
+  {
+   "findingId": "cef2b1b6c27c48e9",
+   "code": "MW1004",
+   "file": "apps/web/src/pages/api/partner/webhook.ts",
+   "line": 161,
+   "function": "default",
+   "classification": "true-positive",
+   "notes": "createAndLinkSlots can execute both slot INSERTs: available.length > 0 at :60 creates slots at :61, autoLinked becomes available.length at :90, and count-autoLinked > 0 creates the remainder at :97. For example, growing from one existing slot to tier 3 (four slots) requests count=3; one eligible owned workspace gives available.length=1 and remaining=2. The first INSERT commits independently of linking and of the remainder INSERT. A failure can leave an incomplete or partly linked allocation; no encompassing transaction or cleanup undoes it. This is the same helper window as 11727d753731af8a at a default-export context.",
+   "review": {
+    "by": "Codex source review in the implementation chat",
+    "date": "2026-11-13",
+    "blind": false,
+    "humanReviewed": false,
+    "runtimeReproduced": false
+   },
+   "duplicateOf": [
+    "11727d753731af8a"
+   ]
+  },
+  {
+   "findingId": "305530861885c933",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/import.ts",
+   "line": 537,
+   "function": "<anonymous@229:17>",
+   "classification": "true-positive",
+   "notes": "importSingleBoard commits cardRepo.bulkCreate at import.ts:382 before cardActivityRepo.bulkCreate at :406. The card transaction ends in card.repo.ts before the independent activity INSERT. A failed activity write leaves committed cards without creation activity and aborts the remaining per-board import. Promise.allSettled (:536) only records the rejection; :561 updates the import status, not the missing data. A rerun allocates fresh IDs and creates another board (:317-326), rather than repairing this one. This is an existing importSingleBoard window at 2aadc5212a97547b, now reached through the captured callback.",
+   "review": {
+    "by": "Codex source review in the implementation chat",
+    "date": "2026-11-13",
+    "blind": false,
+    "humanReviewed": false,
+    "runtimeReproduced": false
+   },
+   "duplicateOf": [
+    "2aadc5212a97547b"
+   ]
+  },
+  {
+   "findingId": "ecaea63b0bab9693",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/import.ts",
+   "line": 537,
+   "function": "<anonymous@229:17>",
+   "classification": "true-positive",
+   "notes": "boardRepo.create commits the board and creator membership in its own transaction (board.repo.ts:639-662), before labelRepo.bulkCreate inserts labels at import.ts:349. A board with at least one label takes both operations; a failure between leaves a visible, incomplete imported board. There is no outer transaction or per-board cleanup; allSettled and the final import-status update cannot undo the committed board, and a retry generates a new public ID (:317). This duplicates the already reported f322f5de643c442a window at a caller context.",
+   "review": {
+    "by": "Codex source review in the implementation chat",
+    "date": "2026-11-13",
+    "blind": false,
+    "humanReviewed": false,
+    "runtimeReproduced": false
+   },
+   "duplicateOf": [
+    "f322f5de643c442a"
+   ]
+  },
+  {
+   "findingId": "5e48f8c6e0002b7e",
+   "code": "MW1004",
+   "file": "apps/web/src/pages/api/partner/webhook.ts",
+   "line": 161,
+   "function": "default",
+   "classification": "true-positive",
+   "notes": "The retained workspace plan update at webhook.ts:299 can commit before removed-slot deactivation at :323. A shrink example with m=3 existing slots and n=2 kept slots reaches both; choose a linked kept slot and an unlinked removed slot. Unlike the eliminated insert/removal pair, no growth-only insertion is required. No shared transaction or compensation connects these writes. This is the export context of the feasible pair now reported as d0fbcec7ea72a273.",
+   "review": {
+    "by": "Codex source review in the implementation chat",
+    "date": "2026-11-13",
+    "blind": false,
+    "humanReviewed": false,
+    "runtimeReproduced": false
+   },
+   "relatedFindings": [
+    "d0fbcec7ea72a273"
+   ]
+  },
+  {
+   "findingId": "8b23b88ead359cc8",
+   "code": "MW1004",
+   "file": "apps/web/src/pages/api/partner/webhook.ts",
+   "line": 321,
+   "function": "<anonymous@162:3>",
+   "classification": "true-positive",
+   "notes": "A downgrade with m=3 existing slots and n=2 keeps and updates linked workspace plans (:299), then cancels access for a removed linked workspace (:321). The member pause inside cancelWorkspaceAccess is an independent root DB write (utils/workspace.ts:31-40). Both branches are feasible when removed workspaces have no other active subscription. A failure can leave retained plans changed and removed access still active; no shared transaction rolls back the earlier work.",
+   "review": {
+    "by": "Codex source review in the implementation chat",
+    "date": "2026-11-13",
+    "blind": false,
+    "humanReviewed": false,
+    "runtimeReproduced": false
+   }
+  },
+  {
+   "findingId": "d0fbcec7ea72a273",
+   "code": "MW1004",
+   "file": "apps/web/src/pages/api/partner/webhook.ts",
+   "line": 322,
+   "function": "<anonymous@162:3>",
+   "classification": "true-positive",
+   "notes": "A downgrade with m=3, n=2 updates retained linked workspace plans at :299 before deactivating removed subscription rows at :323. Both sets are nonempty, and these are separate commits. Unlike 930f362854dc67c5, the first write is an unconditional kept-workspace update, not a growth-only insertion. A failure can leave the removed subscription active after kept plans changed.",
+   "review": {
+    "by": "Codex source review in the implementation chat",
+    "date": "2026-11-13",
+    "blind": false,
+    "humanReviewed": false,
+    "runtimeReproduced": false
+   }
+  },
+  {
+   "findingId": "574be59f041f0e7e-2",
+   "code": "MW1004",
+   "file": "apps/web/src/pages/api/partner/webhook.ts",
+   "line": 369,
+   "function": "<anonymous@162:3>",
+   "classification": "true-positive",
+   "notes": "The migrate branch updates retained subscription entitlements and partnerLicenseKey at :358 before linked workspace plans at :370, in Promise.all with no shared transaction. One can commit while the other fails. The writes are analogous to 574be59f041f0e7e in the upgrade/downgrade branch, not an infeasible growth/shrink combination. Retrying with prev_license_key can omit already-renamed subscriptions, so a 500 response is not a proof of recovery.",
+   "review": {
+    "by": "Codex source review in the implementation chat",
+    "date": "2026-11-13",
+    "blind": false,
+    "humanReviewed": false,
+    "runtimeReproduced": false
+   },
+   "relatedFindings": [
+    "574be59f041f0e7e"
+   ]
+  },
+  {
+   "findingId": "0d73861bb07f90db-2",
+   "code": "MW1004",
+   "file": "apps/web/src/pages/api/partner/webhook.ts",
+   "line": 378,
+   "function": "<anonymous@162:3>",
+   "classification": "true-positive",
+   "notes": "Migration can update retained workspace plans (:370) then create additional slots (:378): existing count m=1 and target tier size n=2 satisfies the growth condition. A failed insertion leaves the changed plan without the extra slot. Subscription rows may already have been renamed to the new license key, while a retry still looks up prev_license_key and can return early with no old rows. This is analogous to the upgrade growth window 0d73861bb07f90db.",
+   "review": {
+    "by": "Codex source review in the implementation chat",
+    "date": "2026-11-13",
+    "blind": false,
+    "humanReviewed": false,
+    "runtimeReproduced": false
+   },
+   "relatedFindings": [
+    "0d73861bb07f90db"
+   ]
+  },
+  {
+   "findingId": "8b23b88ead359cc8-2",
+   "code": "MW1004",
+   "file": "apps/web/src/pages/api/partner/webhook.ts",
+   "line": 392,
+   "function": "<anonymous@162:3>",
+   "classification": "true-positive",
+   "notes": "Migration with m=3, n=2 updates retained workspace plans (:370), skips growth, then pauses members of a removed linked workspace through cancellation (:392). The kept and removed sets can both be nonempty. The independent root-handle writes have no encompassing transaction or rollback. This is the migrate counterpart of the feasible shrink window 8b23b88ead359cc8.",
+   "review": {
+    "by": "Codex source review in the implementation chat",
+    "date": "2026-11-13",
+    "blind": false,
+    "humanReviewed": false,
+    "runtimeReproduced": false
+   },
+   "relatedFindings": [
+    "8b23b88ead359cc8"
+   ]
+  },
+  {
+   "findingId": "d0fbcec7ea72a273-2",
+   "code": "MW1004",
+   "file": "apps/web/src/pages/api/partner/webhook.ts",
+   "line": 393,
+   "function": "<anonymous@162:3>",
+   "classification": "true-positive",
+   "notes": "Migration with m=3, n=2 updates retained linked workspace plans (:370), skips growth, then deactivates removed subscriptions (:394). Both changes are required by the same migration but commit independently. A failure leaves a mixed entitlement/allocation state; this is the migrate counterpart of d0fbcec7ea72a273, not an insertion followed by an impossible shrink.",
+   "review": {
+    "by": "Codex source review in the implementation chat",
+    "date": "2026-11-13",
+    "blind": false,
+    "humanReviewed": false,
+    "runtimeReproduced": false
+   },
+   "relatedFindings": [
+    "d0fbcec7ea72a273"
+   ]
   }
  ],
  "corrections": [
@@ -1401,6 +1640,36 @@
     "e14cd29b85203f8a"
    ],
    "issue": "the auditor lists this window as unhandled; the finding labeler classified the matching finding(s) as intended-risk. Both are AI judgments; neither label was changed. A human reviewer should decide and record the outcome in `corrections`."
+  },
+  {
+   "findingId": "930f362854dc67c5",
+   "relatedFindings": [
+    "9303f5935fcd8c8a",
+    "e34fc613ab846935"
+   ],
+   "issue": "The new finding is false-positive: growth requires n>m while shrink/removal requires n<m. The existing true-positive labels for creation followed by cancellation (9303f5935fcd8c8a) and removed-subscription updates (e34fc613ab846935) appear to have the same impossible growth/shrink path. Those older labels were not changed in this nine-finding review; re-review/corrections remain outstanding.",
+   "review": {
+    "by": "Codex source review in the implementation chat",
+    "date": "2026-11-13",
+    "blind": false,
+    "humanReviewed": false,
+    "runtimeReproduced": false
+   }
+  },
+  {
+   "findings": [
+    "930f362854dc67c5",
+    "9303f5935fcd8c8a",
+    "e34fc613ab846935"
+   ],
+   "issue": "The cardinality-guard fix removes these three impossible growth/shrink diagnostics. Their historical labels are preserved, including the two previously flagged older TP labels; they are stale and not scored in the corrected-binary run. Seven newly selected feasible pairs have separate source-grounded labels; they do not inherit the old impossible pair judgments.",
+   "review": {
+    "by": "Codex source review in the implementation chat",
+    "date": "2026-11-13",
+    "blind": false,
+    "humanReviewed": false,
+    "runtimeReproduced": false
+   }
   }
  ]
 }

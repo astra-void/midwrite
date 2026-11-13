@@ -337,6 +337,33 @@ impl Recognizer<'_> {
         }
     }
 
+    /// A captured lexical binding, without inventing an AST reference.
+    pub fn captured_handle(
+        &self,
+        symbol: oxc_syntax::symbol::SymbolId,
+        locals: &LocalBindings,
+    ) -> Option<DbHandle> {
+        let resolved = crate::bindings::resolve_symbol(symbol, self.scoping, self.table, locals);
+        if let Some((handle, _)) = provenance_handle(&resolved) {
+            return Some(handle);
+        }
+        let configured = self.config.database_receivers.iter().any(|rule| {
+            (rule.name() == resolved.name || (matches!(resolved.origin, Origin::Import(_)) && rule.name() == resolved.written))
+                && rule.imported_from().is_none_or(|module| matches!(&resolved.origin, Origin::Import(import) if import.module == module))
+                && matches!(resolved.origin, Origin::Unresolved | Origin::Import(_) | Origin::Local | Origin::CallResult { .. })
+        });
+        if let Some((index, name)) = locals.params.get(&symbol) {
+            return Some(DbHandle::Parameter {
+                index: *index,
+                name: name.clone(),
+                configured,
+            });
+        }
+        configured.then_some(DbHandle::Root {
+            name: resolved.written,
+        })
+    }
+
     /// `this.repo.db.update(...)`, `deps.queue.publish(...)`: a configured
     /// receiver path (without a leading `this`) reached through some other
     /// expression. Its path is not configured, so it is reported as unknown

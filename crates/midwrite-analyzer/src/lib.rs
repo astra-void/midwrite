@@ -36,7 +36,9 @@
 
 mod bindings;
 mod builtins;
+mod cardinality;
 mod classes;
+mod closures;
 mod concurrency;
 pub mod context;
 mod discover;
@@ -49,6 +51,7 @@ pub mod handles;
 pub mod identity;
 mod link;
 mod lower;
+mod module_values;
 pub mod packages;
 mod project;
 mod recognize;
@@ -118,6 +121,8 @@ pub struct Analyzer {
 /// One file lowered on its own, before any call is summarized.
 #[derive(Debug)]
 pub(crate) struct LoweredModule {
+    pub initializers: std::collections::HashSet<usize>,
+    pub value_imports: HashMap<u32, CallTarget>,
     pub suppressions: suppression::Suppressions,
     pub functions: Vec<FunctionIr>,
     /// The calls each function makes of functions the frontend could name.
@@ -157,8 +162,53 @@ fn direct_callee_references(
 }
 
 impl LoweredModule {
+    fn entries(&self, offset: usize) -> Vec<(FunctionIr, Vec<LocalCall>)> {
+        self.exports
+            .named
+            .iter()
+            .filter_map(|(name, entries)| {
+                let [ExportEntry::Initializer(index)] = entries.as_slice() else {
+                    return None;
+                };
+                let location = self.functions[*index].location;
+                let effect = midwrite_core::ir::Effect {
+                    id: EffectId(0),
+                    kind: midwrite_core::ir::EffectKind::Unknown {
+                        reason: midwrite_core::ir::UnknownReason::UnrecognizedCall,
+                        detail: "callable value of a module export".to_owned(),
+                        deferred: None,
+                    },
+                    label: format!("{name}(…)").into(),
+                    location,
+                    execution: midwrite_core::ir::Execution::Awaited,
+                    recognition: None,
+                    summary: None,
+                    references: Box::default(),
+                    provenance: None,
+                };
+                let mut call = LocalCall::new(EffectId(0), None, false);
+                call.callable = Some(AbsValue::atom(Atom::ModuleValue {
+                    initializer: (offset + index) as u32,
+                }));
+                call.entrypoint = true;
+                Some((
+                    FunctionIr {
+                        name: name.clone(),
+                        location,
+                        is_async: true,
+                        transactions: Vec::new(),
+                        body: vec![midwrite_core::ir::Node::Effect(effect)],
+                        returns: None,
+                        fact_inputs: Default::default(),
+                    },
+                    vec![call],
+                ))
+            })
+            .collect()
+    }
     pub(crate) fn view(&self, offset: usize) -> ModuleView<'_> {
         ModuleView {
+            value_imports: &self.value_imports,
             classes: &self.classes,
             index: &self.index,
             offset,
@@ -232,11 +282,15 @@ fn tested_variables(nodes: &[midwrite_core::ir::Node]) -> std::collections::BTre
 
 /// Renumber the function atoms of `value` (`f` maps an id to its new id).
 pub(crate) fn renumber(value: &AbsValue, f: &dyn Fn(u32) -> Option<u32>) -> AbsValue {
-    if !value
-        .atoms()
-        .iter()
-        .any(|atom| matches!(atom, Atom::Function { .. } | Atom::Record { .. }))
-    {
+    if !value.atoms().iter().any(|atom| {
+        matches!(
+            atom,
+            Atom::Function { .. }
+                | Atom::Closure { .. }
+                | Atom::ModuleValue { .. }
+                | Atom::Record { .. }
+        )
+    }) {
         return value.clone();
     }
     value.substitute(&|atom| match atom {
@@ -244,7 +298,55 @@ pub(crate) fn renumber(value: &AbsValue, f: &dyn Fn(u32) -> Option<u32>) -> AbsV
             Some(id) => AbsValue::atom(Atom::Function { id }),
             None => AbsValue::top(),
         }),
+        Atom::Closure {
+            id,
+            parameters,
+            captures,
+        } => Some(match f(*id) {
+            Some(id) => midwrite_core::absint::value::closure_value(
+                id,
+                *parameters,
+                captures
+                    .iter()
+                    .map(|c| midwrite_core::absint::CapturedValue {
+                        value: renumber(&c.value, f),
+                        handle: c.handle.clone(),
+                        default: c.default.clone(),
+                    })
+                    .collect(),
+            ),
+            None => AbsValue::top(),
+        }),
+        Atom::ModuleValue { initializer } => Some(match f(*initializer) {
+            Some(initializer) => AbsValue::atom(Atom::ModuleValue { initializer }),
+            None => AbsValue::top(),
+        }),
         _ => None,
+    })
+}
+
+/// Resolve function-valued imports in arguments and lexical environments.
+pub(crate) fn link_value(
+    value: &AbsValue,
+    module: usize,
+    views: &[ModuleView<'_>],
+    classes: &ClassTable,
+    imports: &mut dyn ImportResolver,
+) -> AbsValue {
+    // `substitute` takes an Fn; resolution caches are interior to this call.
+    let imports = std::cell::RefCell::new(imports);
+    value.substitute(&|atom| {
+        let Atom::Static { symbol } = atom else {
+            return None;
+        };
+        let target = views[module].value_imports.get(symbol)?;
+        match link_target(module, target, views, classes, &mut **imports.borrow_mut()) {
+            Linked::Function(index, _) => Some(AbsValue::atom(Atom::Function { id: index as u32 })),
+            Linked::Initializer(index) => Some(AbsValue::atom(Atom::ModuleValue {
+                initializer: index as u32,
+            })),
+            _ => None,
+        }
     })
 }
 
@@ -266,13 +368,30 @@ pub(crate) fn link_sites(
     let mut out = Vec::with_capacity(sites.len());
     for site in sites {
         let mut call = LocalCall::new(site.effect, None, site.placeholder);
+        call.value_only = site.value_only;
+        if let CallTarget::Returned(result) = site.target {
+            call.returned_callee = Some(result);
+        }
+        if let CallTarget::Value(value) = &site.target {
+            let local = |start| {
+                views[module]
+                    .index
+                    .get(&start)
+                    .and_then(|i| u32::try_from(*i).ok())
+            };
+            call.callable = Some(renumber(&renumber(value, &local), &globalize));
+        }
         call.arguments = site.arguments.clone();
         call.values = site
             .values
             .iter()
-            .map(|v| renumber(v, &globalize))
+            .map(|v| link_value(&renumber(v, &globalize), module, views, classes, imports))
             .collect();
         call.receiver = site.receiver.as_ref().map(|v| renumber(v, &globalize));
+        call.callable = call
+            .callable
+            .as_ref()
+            .map(|v| link_value(v, module, views, classes, imports));
         // Function-free by construction (`entry_shape`): nothing to renumber.
         call.entry_values = site.entry_values.clone();
         call.argument_count = site.argument_count;
@@ -314,6 +433,11 @@ pub(crate) fn link_sites(
             _ => {}
         }
         match linked {
+            Linked::Initializer(initializer) => {
+                call.callable = Some(AbsValue::atom(Atom::ModuleValue {
+                    initializer: initializer as u32,
+                }));
+            }
             Linked::Function(callee, how) => {
                 if let Some(CallResolution::Method { assumption, .. }) = &how {
                     resolution.methods_resolved += 1;
@@ -359,6 +483,7 @@ pub(crate) struct ModuleExports {
 pub(crate) enum ExportEntry {
     /// A function of this module, by index.
     Function(usize),
+    Initializer(usize),
     /// An object service: function properties by name, as function indices.
     Object(BTreeMap<String, usize>),
     /// A class of this module, by start offset.
@@ -488,9 +613,16 @@ impl Analyzer {
                 ExportTarget::Function(start) => index
                     .get(&start)
                     .map_or(ExportEntry::NotAFunction, |&i| ExportEntry::Function(i)),
+                ExportTarget::Initializer(start) => index
+                    .get(&start)
+                    .map_or(ExportEntry::NotAFunction, |&i| ExportEntry::Initializer(i)),
                 ExportTarget::Class(start) => ExportEntry::Class(start),
                 ExportTarget::Local(symbol) => {
-                    if let Some(start) = table.local_function(symbol) {
+                    if let Some(start) = table.initializers.get(&symbol) {
+                        index
+                            .get(start)
+                            .map_or(ExportEntry::NotAFunction, |&i| ExportEntry::Initializer(i))
+                    } else if let Some(start) = table.local_function(symbol) {
                         index
                             .get(&start)
                             .map_or(ExportEntry::NotAFunction, |&i| ExportEntry::Function(i))
@@ -531,7 +663,7 @@ impl Analyzer {
             .values()
             .flatten()
             .flat_map(|entry| match entry {
-                ExportEntry::Function(i) => vec![*i],
+                ExportEntry::Function(i) | ExportEntry::Initializer(i) => vec![*i],
                 ExportEntry::Object(methods) => methods.values().copied().collect(),
                 _ => Vec::new(),
             })
@@ -549,6 +681,33 @@ impl Analyzer {
             })
             .collect();
         Ok(LoweredModule {
+            value_imports: table
+                .imports()
+                .filter_map(|(symbol, import)| {
+                    if import.type_only {
+                        return None;
+                    }
+                    let name = match &import.kind {
+                        bindings::ImportKind::Named(name) => name.clone(),
+                        bindings::ImportKind::Default => "default".to_owned(),
+                        bindings::ImportKind::Namespace => return None,
+                    };
+                    Some((
+                        crate::values::key(symbol),
+                        CallTarget::Imported {
+                            module: import.module.clone(),
+                            name,
+                            member: None,
+                        },
+                    ))
+                })
+                .collect(),
+            initializers: index
+                .iter()
+                .filter_map(|(start, index)| {
+                    (start & crate::module_values::INITIALIZER_BIT != 0).then_some(*index)
+                })
+                .collect(),
             suppressions,
             functions,
             calls,
@@ -583,7 +742,7 @@ impl Analyzer {
         let mut counts = AnalysisCounts::default();
         let mut resolution = ResolutionCounts::default();
         let mut unlinked: Vec<(usize, EffectId, String)> = Vec::new();
-        let calls: Vec<Vec<LocalCall>> = module
+        let mut calls: Vec<Vec<LocalCall>> = module
             .calls
             .iter()
             .enumerate()
@@ -611,7 +770,13 @@ impl Analyzer {
             .collect();
         let names: Vec<String> = module.functions.iter().map(|f| f.name.clone()).collect();
         let (solved, _) = solve(&facts, &names);
+        let entries = module.entries(0);
+        let original_count = module.functions.len();
         let mut functions = module.functions;
+        for (function, sites) in entries {
+            functions.push(function);
+            calls.push(sites);
+        }
         for (index, effect, detail) in unlinked {
             if let Some(effect) = functions[index].effect_mut(effect)
                 && let midwrite_core::ir::EffectKind::Unknown { detail: text, .. } =
@@ -621,6 +786,15 @@ impl Analyzer {
             }
         }
         inline_calls_with(&mut functions, &calls, None, Some(&solved), &self.options);
+        functions = functions
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, f)| {
+                (!module.initializers.contains(&index)
+                    && (index < original_count || f.has_recognized_effects()))
+                .then_some(f)
+            })
+            .collect();
         Ok((
             FileIr {
                 path: path.to_owned(),

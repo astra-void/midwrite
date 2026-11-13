@@ -76,6 +76,9 @@ struct Declarator {
 /// File-level facts about bindings, collected once per file.
 #[derive(Debug, Default)]
 pub(crate) struct SymbolTable {
+    pub cardinality: crate::cardinality::Cardinality,
+    pub closures: HashMap<u32, crate::closures::Layout>,
+    pub initializers: HashMap<SymbolId, u32>,
     imports: HashMap<SymbolId, ImportBinding>,
     declarators: HashMap<SymbolId, Declarator>,
     /// Functions declared in this file that a plain call can name: function
@@ -167,6 +170,9 @@ impl SymbolTable {
         // Resolve property values that name a function of this file, now
         // that every function is known.
         let mut table = collector.table;
+        table.cardinality = crate::cardinality::Cardinality::collect(program, scoping);
+        table.closures = crate::closures::collect(program, scoping);
+        table.initializers = crate::module_values::collect(program, scoping);
         for (symbol, name, value) in collector.object_properties {
             let start = match value {
                 PropertyValue::Function(start) => Some(start),
@@ -397,6 +403,12 @@ impl SymbolTable {
     /// How `symbol` was imported, if it is an import binding.
     pub fn import(&self, symbol: SymbolId) -> Option<&ImportBinding> {
         self.imports.get(&symbol)
+    }
+
+    pub fn imports(&self) -> impl Iterator<Item = (SymbolId, &ImportBinding)> {
+        self.imports
+            .iter()
+            .map(|(symbol, import)| (*symbol, import))
     }
 
     /// Whether `symbol` holds a URL string or `URL`, never a `Request`
@@ -1154,9 +1166,39 @@ pub(crate) fn resolve(
     locals: &LocalBindings,
 ) -> Resolved {
     let written = ident.name.as_str().to_owned();
+    resolve_binding(
+        written,
+        resolve_reference(scoping, ident),
+        scoping,
+        table,
+        locals,
+    )
+}
+
+pub(crate) fn resolve_symbol(
+    symbol: SymbolId,
+    scoping: &Scoping,
+    table: &SymbolTable,
+    locals: &LocalBindings,
+) -> Resolved {
+    resolve_binding(
+        scoping.symbol_name(symbol).to_owned(),
+        Some(symbol),
+        scoping,
+        table,
+        locals,
+    )
+}
+
+fn resolve_binding(
+    written: String,
+    mut symbol: Option<SymbolId>,
+    scoping: &Scoping,
+    table: &SymbolTable,
+    locals: &LocalBindings,
+) -> Resolved {
     let mut name = written.clone();
     let mut aliases = Vec::new();
-    let mut symbol = resolve_reference(scoping, ident);
 
     for _ in 0..MAX_ALIAS_DEPTH {
         let Some(current) = symbol else {

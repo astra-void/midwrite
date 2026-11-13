@@ -21,8 +21,12 @@ pub(crate) enum ExportTarget {
     /// A function without a binding of its own, by start offset
     /// (`export default async function () {}`).
     Function(u32),
+    Initializer(u32),
     /// `export { name } from "module"`; `name` is `default` for the default export.
-    ReExport { module: String, name: String },
+    ReExport {
+        module: String,
+        name: String,
+    },
     /// A class declaration, by start offset.
     Class(u32),
     /// Something that is certainly not a function Midwrite can summarize
@@ -145,6 +149,11 @@ pub(crate) fn collect(program: &Program<'_>, scoping: &Scoping) -> RawExports {
                             if function.body.is_some() =>
                         {
                             ExportTarget::Function(function.span.start)
+                        }
+                        Some(expression) if crate::module_values::eligible(expression) => {
+                            ExportTarget::Initializer(crate::module_values::initializer_id(
+                                expression,
+                            ))
                         }
                         _ => ExportTarget::Other,
                     },

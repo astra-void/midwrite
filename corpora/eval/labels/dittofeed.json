@@ -842,6 +842,46 @@
    "classification": "intended-risk",
    "crossRecord": true,
    "notes": "computeAssignments commits its ComputeAssignments period (computePropertiesIncremental.ts:3576-3583, periods.ts:264), and processAssignments later commits a separate ProcessAssignments period (:4283-4290). These are independent rows tracked per step. If processAssignments fails, its bookmark stays put (it is read per step at :4147-4149), so the next run reprocesses from there. Unprocessed assignments are also tracked separately in the ClickHouse processed table, so the pipeline converges by design."
+  },
+  {
+   "findingId": "933e380a6fe7be7d",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/broadcasts/activities.ts",
+   "line": 433,
+   "function": "sendMessages",
+   "classification": "true-positive",
+   "notes": "The exported sendMessages calls the provider sender at broadcasts/activities.ts:360, waits for sends at :368, and only then publishes delivery events with submitBatch at :413. The retry policy is explicit (broadcastWorkflowV2.ts:154-160), but the resend guard getUnmessagedUsers/searchDeliveries (:176-186) depends on the very delivery events absent after a send/publish failure. Thus retry can resend an already delivered message; a deterministic tracking messageId does not make the provider call idempotent. This follows the more recent source-grounded true-positive judgment 4b0058e6a225b154. The older 8af63194255c32d4 intended-risk label disagrees; it is preserved and flagged for human review. This is not a new independent bug or a runtime-confirmed duplicate delivery.",
+   "review": {
+    "by": "Codex source review in the implementation chat",
+    "date": "2026-11-13",
+    "blind": false,
+    "humanReviewed": false,
+    "runtimeReproduced": false
+   },
+   "duplicateOf": [
+    "4b0058e6a225b154",
+    "8af63194255c32d4"
+   ]
+  },
+  {
+   "findingId": "5e0ac5ccb0740877",
+   "code": "MW1005",
+   "file": "packages/backend-lib/src/journeys/userWorkflow/activities.ts",
+   "line": 394,
+   "function": "sendMessageV2",
+   "classification": "intended-risk",
+   "notes": "sendMessageV2 calls sender at userWorkflow/activities.ts:259 and publishes submitTrack at :385, so the delivery/recording window is real. The journey explicitly configures per-node retryCount (userWorkflow.ts:948-958); the activity distinguishes final attempts and returns a skipped result after exhaustion (:270-300), and events reuse the messageId (:244-252,:375-385; apps/track.ts:25). Retain the existing intended-risk interpretation for this retry-aware, at-least-once journey activity rather than asserting a new bug without a stricter delivery contract. This does not establish provider-side deduplication or exactly-once delivery. The existing KP01 auditor/labeler disagreement remains open; the new export context duplicates ece472399ebf7efb and 0a33bc81d8b3fa98.",
+   "review": {
+    "by": "Codex source review in the implementation chat",
+    "date": "2026-11-13",
+    "blind": false,
+    "humanReviewed": false,
+    "runtimeReproduced": false
+   },
+   "duplicateOf": [
+    "ece472399ebf7efb",
+    "0a33bc81d8b3fa98"
+   ]
   }
  ],
  "corrections": [
@@ -986,6 +1026,37 @@
     "ece472399ebf7efb"
    ],
    "issue": "The auditor calls the provider-send/event-publish window unhandled, while the finding labeler calls it intended-risk. The 2026-11-12 pattern correction makes the existing MW1005 match visible; neither judgment was changed. Hazard recall counts the detected window, not a confirmed bug. Human review remains outstanding."
+  },
+  {
+   "findingId": "933e380a6fe7be7d",
+   "relatedFindings": [
+    "4b0058e6a225b154",
+    "8af63194255c32d4"
+   ],
+   "issue": "The same broadcast send/event window has conflicting existing TP and intended-risk labels. The new source review follows the more recent TP: delivery-based resend filtering cannot detect a completed send whose event was never published. Old labels are preserved; human review should settle the delivery contract and the older disagreement.",
+   "review": {
+    "by": "Codex source review in the implementation chat",
+    "date": "2026-11-13",
+    "blind": false,
+    "humanReviewed": false,
+    "runtimeReproduced": false
+   }
+  },
+  {
+   "findingId": "5e0ac5ccb0740877",
+   "knownPositive": "dittofeed-KP01",
+   "relatedFindings": [
+    "ece472399ebf7efb",
+    "0a33bc81d8b3fa98"
+   ],
+   "issue": "This export context retains the existing intended-risk label for a journey with explicit per-node retry configuration. The auditor calls the window unhandled; delivery semantics/accepted duplicates require human review. Neither event message IDs nor retries prove provider-side deduplication.",
+   "review": {
+    "by": "Codex source review in the implementation chat",
+    "date": "2026-11-13",
+    "blind": false,
+    "humanReviewed": false,
+    "runtimeReproduced": false
+   }
   }
  ]
 }

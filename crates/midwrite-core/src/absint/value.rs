@@ -18,7 +18,15 @@ use std::fmt;
 
 use serde::Serialize;
 
-use crate::ir::Literal;
+use crate::ir::{DbHandle, Literal};
+
+/// An immutable lexical binding as seen when its closure is created.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+pub struct CapturedValue {
+    pub value: AbsValue,
+    pub handle: Option<DbHandle>,
+    pub default: Option<Literal>,
+}
 
 /// Largest number of atoms a value holds before it is widened to `Top`.
 pub const MAX_ATOMS: usize = 6;
@@ -36,6 +44,15 @@ pub enum Atom {
     /// A function of the function table (frontends choose the numbering:
     /// a start offset while lowering, a table index after linking).
     Function { id: u32 },
+    /// A function with its lexical environment. Captures are passed in
+    /// hidden parameter slots after the function's declared parameters.
+    Closure {
+        id: u32,
+        parameters: u32,
+        captures: Box<[CapturedValue]>,
+    },
+    /// A stable module binding initialized by an analyzed expression.
+    ModuleValue { initializer: u32 },
     /// A class constructor (same numbering conventions as functions).
     Class { id: u32 },
     /// An object allocated at a site of the current function's heap.
@@ -145,6 +162,8 @@ impl fmt::Display for Atom {
                 Literal::Undefined => write!(f, "undefined"),
             },
             Self::Function { id } => write!(f, "fn#{id}"),
+            Self::Closure { id, captures, .. } => write!(f, "closure#{id}[{}]", captures.len()),
+            Self::ModuleValue { initializer } => write!(f, "module#{initializer}"),
             Self::Class { id } => write!(f, "class#{id}"),
             Self::Object { id } => write!(f, "obj#{id}"),
             Self::Record { props, open } => {
@@ -420,7 +439,57 @@ fn substitute_atom(atom: &Atom, f: &dyn Fn(&Atom) -> Option<AbsValue>) -> AbsVal
                 .collect(),
             open: *open,
         }),
+        Atom::Closure {
+            id,
+            parameters,
+            captures,
+        } => closure_value(
+            *id,
+            *parameters,
+            captures
+                .iter()
+                .map(|capture| CapturedValue {
+                    value: capture.value.substitute(f),
+                    handle: capture.handle.clone(),
+                    default: capture.default.clone(),
+                })
+                .collect(),
+        ),
         other => AbsValue::atom(other.clone()),
+    }
+}
+
+/// Keep recursive factory composition finite, independently of call depth.
+pub fn closure_value(id: u32, parameters: u32, mut captures: Box<[CapturedValue]>) -> AbsValue {
+    fn depth(value: &AbsValue) -> usize {
+        value
+            .atoms()
+            .iter()
+            .map(|atom| match atom {
+                Atom::Closure { captures, .. } => {
+                    1 + captures.iter().map(|c| depth(&c.value)).max().unwrap_or(0)
+                }
+                Atom::Record { props, .. } => {
+                    props.iter().map(|(_, v)| depth(v)).max().unwrap_or(0)
+                }
+                _ => 0,
+            })
+            .max()
+            .unwrap_or(0)
+    }
+    if captures.len() > MAX_RECORD_PROPS {
+        AbsValue::top()
+    } else {
+        for capture in &mut captures {
+            if depth(&capture.value) >= MAX_FIELD_DEPTH {
+                capture.value = AbsValue::top();
+            }
+        }
+        AbsValue::atom(Atom::Closure {
+            id,
+            parameters,
+            captures,
+        })
     }
 }
 

@@ -1,0 +1,215 @@
+{
+  "schemaVersion": 1,
+  "kind": "midwrite.finding-review",
+  "date": "2026-11-13",
+  "reviewer": {
+    "by": "Codex source review in the implementation chat",
+    "date": "2026-11-13",
+    "blind": false,
+    "humanReviewed": false,
+    "runtimeReproduced": false
+  },
+  "before": "2026-11-13-closure-findings-labeled.json",
+  "after": "2026-11-13-cardinality-guards.json",
+  "removedInfeasibleFindings": [
+    "930f362854dc67c5",
+    "9303f5935fcd8c8a",
+    "e34fc613ab846935"
+  ],
+  "newlySelectedFeasiblePairs": [
+    {
+      "project": "kan",
+      "findingId": "5e48f8c6e0002b7e",
+      "code": "MW1004",
+      "file": "apps/web/src/pages/api/partner/webhook.ts",
+      "line": 161,
+      "function": "default",
+      "classification": "true-positive",
+      "notes": "The retained workspace plan update at webhook.ts:299 can commit before removed-slot deactivation at :323. A shrink example with m=3 existing slots and n=2 kept slots reaches both; choose a linked kept slot and an unlinked removed slot. Unlike the eliminated insert/removal pair, no growth-only insertion is required. No shared transaction or compensation connects these writes. This is the export context of the feasible pair now reported as d0fbcec7ea72a273.",
+      "review": {
+        "by": "Codex source review in the implementation chat",
+        "date": "2026-11-13",
+        "blind": false,
+        "humanReviewed": false,
+        "runtimeReproduced": false
+      },
+      "relatedFindings": [
+        "d0fbcec7ea72a273"
+      ],
+      "sourceLines": [
+        299,
+        317,
+        323
+      ],
+      "sourceSha256": "9d43933373d2aee0b8fcd1ab5796a353faf168a5af792e03dbb35827e4cc351b"
+    },
+    {
+      "project": "kan",
+      "findingId": "8b23b88ead359cc8",
+      "code": "MW1004",
+      "file": "apps/web/src/pages/api/partner/webhook.ts",
+      "line": 321,
+      "function": "<anonymous@162:3>",
+      "classification": "true-positive",
+      "notes": "A downgrade with m=3 existing slots and n=2 keeps and updates linked workspace plans (:299), then cancels access for a removed linked workspace (:321). The member pause inside cancelWorkspaceAccess is an independent root DB write (utils/workspace.ts:31-40). Both branches are feasible when removed workspaces have no other active subscription. A failure can leave retained plans changed and removed access still active; no shared transaction rolls back the earlier work.",
+      "review": {
+        "by": "Codex source review in the implementation chat",
+        "date": "2026-11-13",
+        "blind": false,
+        "humanReviewed": false,
+        "runtimeReproduced": false
+      },
+      "sourceLines": [
+        277,
+        299,
+        317,
+        321
+      ],
+      "sourceSha256": "9d43933373d2aee0b8fcd1ab5796a353faf168a5af792e03dbb35827e4cc351b"
+    },
+    {
+      "project": "kan",
+      "findingId": "d0fbcec7ea72a273",
+      "code": "MW1004",
+      "file": "apps/web/src/pages/api/partner/webhook.ts",
+      "line": 322,
+      "function": "<anonymous@162:3>",
+      "classification": "true-positive",
+      "notes": "A downgrade with m=3, n=2 updates retained linked workspace plans at :299 before deactivating removed subscription rows at :323. Both sets are nonempty, and these are separate commits. Unlike 930f362854dc67c5, the first write is an unconditional kept-workspace update, not a growth-only insertion. A failure can leave the removed subscription active after kept plans changed.",
+      "review": {
+        "by": "Codex source review in the implementation chat",
+        "date": "2026-11-13",
+        "blind": false,
+        "humanReviewed": false,
+        "runtimeReproduced": false
+      },
+      "sourceLines": [
+        277,
+        299,
+        317,
+        323
+      ],
+      "sourceSha256": "9d43933373d2aee0b8fcd1ab5796a353faf168a5af792e03dbb35827e4cc351b"
+    },
+    {
+      "project": "kan",
+      "findingId": "574be59f041f0e7e-2",
+      "code": "MW1004",
+      "file": "apps/web/src/pages/api/partner/webhook.ts",
+      "line": 369,
+      "function": "<anonymous@162:3>",
+      "classification": "true-positive",
+      "notes": "The migrate branch updates retained subscription entitlements and partnerLicenseKey at :358 before linked workspace plans at :370, in Promise.all with no shared transaction. One can commit while the other fails. The writes are analogous to 574be59f041f0e7e in the upgrade/downgrade branch, not an infeasible growth/shrink combination. Retrying with prev_license_key can omit already-renamed subscriptions, so a 500 response is not a proof of recovery.",
+      "review": {
+        "by": "Codex source review in the implementation chat",
+        "date": "2026-11-13",
+        "blind": false,
+        "humanReviewed": false,
+        "runtimeReproduced": false
+      },
+      "relatedFindings": [
+        "574be59f041f0e7e"
+      ],
+      "sourceLines": [
+        337,
+        357,
+        358,
+        369,
+        370
+      ],
+      "sourceSha256": "9d43933373d2aee0b8fcd1ab5796a353faf168a5af792e03dbb35827e4cc351b"
+    },
+    {
+      "project": "kan",
+      "findingId": "0d73861bb07f90db-2",
+      "code": "MW1004",
+      "file": "apps/web/src/pages/api/partner/webhook.ts",
+      "line": 378,
+      "function": "<anonymous@162:3>",
+      "classification": "true-positive",
+      "notes": "Migration can update retained workspace plans (:370) then create additional slots (:378): existing count m=1 and target tier size n=2 satisfies the growth condition. A failed insertion leaves the changed plan without the extra slot. Subscription rows may already have been renamed to the new license key, while a retry still looks up prev_license_key and can return early with no old rows. This is analogous to the upgrade growth window 0d73861bb07f90db.",
+      "review": {
+        "by": "Codex source review in the implementation chat",
+        "date": "2026-11-13",
+        "blind": false,
+        "humanReviewed": false,
+        "runtimeReproduced": false
+      },
+      "relatedFindings": [
+        "0d73861bb07f90db"
+      ],
+      "sourceLines": [
+        337,
+        338,
+        340,
+        370,
+        374,
+        378
+      ],
+      "sourceSha256": "9d43933373d2aee0b8fcd1ab5796a353faf168a5af792e03dbb35827e4cc351b"
+    },
+    {
+      "project": "kan",
+      "findingId": "8b23b88ead359cc8-2",
+      "code": "MW1004",
+      "file": "apps/web/src/pages/api/partner/webhook.ts",
+      "line": 392,
+      "function": "<anonymous@162:3>",
+      "classification": "true-positive",
+      "notes": "Migration with m=3, n=2 updates retained workspace plans (:370), skips growth, then pauses members of a removed linked workspace through cancellation (:392). The kept and removed sets can both be nonempty. The independent root-handle writes have no encompassing transaction or rollback. This is the migrate counterpart of the feasible shrink window 8b23b88ead359cc8.",
+      "review": {
+        "by": "Codex source review in the implementation chat",
+        "date": "2026-11-13",
+        "blind": false,
+        "humanReviewed": false,
+        "runtimeReproduced": false
+      },
+      "relatedFindings": [
+        "8b23b88ead359cc8"
+      ],
+      "sourceLines": [
+        350,
+        354,
+        370,
+        388,
+        392
+      ],
+      "sourceSha256": "9d43933373d2aee0b8fcd1ab5796a353faf168a5af792e03dbb35827e4cc351b"
+    },
+    {
+      "project": "kan",
+      "findingId": "d0fbcec7ea72a273-2",
+      "code": "MW1004",
+      "file": "apps/web/src/pages/api/partner/webhook.ts",
+      "line": 393,
+      "function": "<anonymous@162:3>",
+      "classification": "true-positive",
+      "notes": "Migration with m=3, n=2 updates retained linked workspace plans (:370), skips growth, then deactivates removed subscriptions (:394). Both changes are required by the same migration but commit independently. A failure leaves a mixed entitlement/allocation state; this is the migrate counterpart of d0fbcec7ea72a273, not an insertion followed by an impossible shrink.",
+      "review": {
+        "by": "Codex source review in the implementation chat",
+        "date": "2026-11-13",
+        "blind": false,
+        "humanReviewed": false,
+        "runtimeReproduced": false
+      },
+      "relatedFindings": [
+        "d0fbcec7ea72a273"
+      ],
+      "sourceLines": [
+        350,
+        354,
+        370,
+        388,
+        393,
+        394
+      ],
+      "sourceSha256": "9d43933373d2aee0b8fcd1ab5796a353faf168a5af792e03dbb35827e4cc351b"
+    }
+  ],
+  "limitations": [
+    "Source-only review, not blind or independent human validation.",
+    "No corpus application was executed.",
+    "Newly selected contexts and event branches are not seven confirmed independent bugs.",
+    "Historical labels are preserved; only seven new development labels were added."
+  ]
+}

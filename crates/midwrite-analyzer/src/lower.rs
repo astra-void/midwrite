@@ -56,6 +56,7 @@ use crate::values::{
 pub(crate) enum Body<'e, 'a> {
     Statements(&'e [Statement<'a>]),
     Arrow(&'e ArrowFunctionBody<'a>),
+    Expression(&'e Expression<'a>),
 }
 
 pub(crate) struct Lowered {
@@ -89,12 +90,17 @@ pub(crate) enum ClassRef {
 }
 
 /// An argument of a resolved call, for summaries.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum FactArg {
     Other,
     /// A function of this module (start offset).
     Function(u32),
     Param(u32),
+    Closure {
+        function: u32,
+        parameters: u32,
+        captures: Box<[FactArg]>,
+    },
 }
 
 /// A call whose target the frontend resolved (possibly only after linking).
@@ -154,7 +160,10 @@ impl FactTable {
             .filter(|call| {
                 preserve_calls
                     || !refuted
-                    || call.args.iter().any(|a| matches!(a, FactArg::Param(_)))
+                    || call
+                        .args
+                        .iter()
+                        .any(|a| matches!(a, FactArg::Param(_) | FactArg::Closure { .. }))
             })
             .map(|call| {
                 let target = match self.target_index.get(&call.target) {
@@ -234,6 +243,8 @@ pub(crate) struct LocalCallSite {
     /// The unknown effect exists only to mark the call (`return f()` in an
     /// `async` function); it is dropped when the call is not summarized.
     pub placeholder: bool,
+    /// An unawaited call whose value is used only to resolve a later call.
+    pub value_only: bool,
     /// Database handles passed as arguments, by position.
     pub arguments: Vec<Option<CallArgument>>,
     /// Abstract values of the arguments (functions by start offset).
@@ -271,6 +282,10 @@ pub(crate) enum CallTarget {
     },
     /// The function the caller passes for this parameter.
     Param(u32),
+    /// The function returned by an earlier call in this frame.
+    Returned(u64),
+    /// A closure or stable module value, resolved after linking.
+    Value(AbsValue),
     /// Method `name` found by dispatch on a receiver of class `class`.
     Method {
         class: ClassRef,
@@ -293,6 +308,7 @@ fn may_fall_through(body: Body<'_, '_>) -> bool {
         Body::Statements(statements) => statements,
         Body::Arrow(ArrowFunctionBody::FunctionBody(block)) => &block.statements[..],
         Body::Arrow(_) => return false,
+        Body::Expression(_) => return false,
     };
     !matches!(
         statements.last(),
@@ -383,6 +399,7 @@ pub(crate) fn lower_function(
             }
         }
         Body::Arrow(body) => joins.visit_arrow_function_body(body),
+        Body::Expression(expression) => joins.visit_expression(expression),
     }
     let mut locals = LocalBindings::default();
     if let Some(params) = params {
@@ -454,6 +471,9 @@ pub(crate) fn lower_function(
         fact_inputs: std::cell::RefCell::new(std::collections::BTreeMap::new()),
         derived_inputs: HashMap::new(),
         loop_depth: 0,
+        module_initializer: matches!(body, Body::Expression(_)),
+        invalid_module_read: std::cell::Cell::new(false),
+        capture_defaults: HashMap::new(),
     };
     if is_generator {
         lowerer
@@ -463,7 +483,25 @@ pub(crate) fn lower_function(
     if let Some(params) = params {
         lowerer.bind_parameters(params);
     }
+    if let Some(layout) = recognizer.table.closures.get(&span.start) {
+        for (slot, symbol) in layout.symbols.iter().enumerate() {
+            let index = layout.parameters + slot as u32;
+            let value = AbsValue::atom(Atom::Param { index });
+            lowerer.vs.env_mut().set(key(*symbol), value.clone());
+            lowerer.param_snapshots.insert(*symbol, value);
+            lowerer.locals.params.insert(
+                *symbol,
+                (index, recognizer.scoping.symbol_name(*symbol).to_owned()),
+            );
+        }
+    }
     lowerer.body(body);
+    if lowerer.invalid_module_read.get() {
+        lowerer
+            .facts
+            .refute("reads a module binding before initialization".to_owned());
+        lowerer.returns = AbsValue::top();
+    }
     lowerer.out.shrink_to_fit();
     lowerer.transactions.shrink_to_fit();
     let mut returns = std::mem::take(&mut lowerer.returns);
@@ -547,9 +585,12 @@ impl Consumer {
 }
 
 pub(crate) struct Lowerer<'c> {
+    pub(crate) invalid_module_read: std::cell::Cell<bool>,
+    pub(crate) capture_defaults: HashMap<oxc_syntax::symbol::SymbolId, (u32, Literal)>,
+    pub(crate) module_initializer: bool,
     pub(crate) recognizer: &'c Recognizer<'c>,
     lines: &'c LineIndex<'c>,
-    locals: LocalBindings,
+    pub(crate) locals: LocalBindings,
     joined_collections: HashSet<oxc_syntax::symbol::SymbolId>,
     joined_maps: HashSet<u32>,
     joined_bindings: HashSet<oxc_syntax::symbol::SymbolId>,
@@ -616,13 +657,19 @@ pub(crate) struct Lowerer<'c> {
     /// skipped when the walk reaches them.
     early_news: std::collections::HashSet<u32>,
     /// The function's span (closures inside it are its own).
-    span: Span,
+    pub(crate) span: Span,
 }
 
 impl<'a> Lowerer<'_> {
     fn body(&mut self, body: Body<'_, 'a>) {
         match body {
             Body::Statements(statements) => self.statements(statements),
+            Body::Expression(expression) => {
+                self.visit_expression(expression);
+                let value = self.eval(expression);
+                self.returns.join(&self.vs.heap.export(&value));
+                self.exit(ExitKind::Return, expression.span(), None, None);
+            }
             Body::Arrow(ArrowFunctionBody::FunctionBody(block)) => {
                 self.statements(&block.statements);
             }
@@ -946,6 +993,15 @@ impl<'a> Lowerer<'_> {
             let value = self.eval(init);
             self.binding_snapshot = self.snapshot_source(init);
             self.bind_pattern(&declarator.id, value);
+            if declaration.kind.is_const()
+                && let BindingPattern::BindingIdentifier(id) = &declarator.id
+                && let Some(symbol) = id.symbol_id.get()
+                && let Expression::Identifier(source) = init.get_inner_expression()
+                && let Some(source) = resolve_reference(self.recognizer.scoping, source)
+                && let Some(default) = self.capture_defaults.get(&source).cloned()
+            {
+                self.capture_defaults.insert(symbol, default);
+            }
             self.binding_snapshot = false;
             // Read once, where the function runs it once.
             if self.loop_depth == 0
@@ -1295,14 +1351,14 @@ impl<'a> Lowerer<'_> {
         // The receiver of a method call is evaluated once, before the
         // arguments (as JavaScript does).
         let receiver = self.receiver_value(call);
+        self.visit_expression(&call.callee);
         let resolved = self.resolve_target(call, receiver.as_ref());
-        let summarize =
-            resolved.is_some() && consumer.is_some_and(Consumer::summarizes_local_calls);
+        let value_only = consumer.is_none();
+        let summarize = resolved.is_some() && consumer.is_none_or(Consumer::summarizes_local_calls);
         let mut argument_effects = Vec::new();
         if summarize {
             // Arguments run before the call; operations in them that only
             // run when awaited are placeholders the callee's summary decides.
-            self.visit_expression(&call.callee);
             for (index, argument) in call.arguments.iter().enumerate() {
                 match argument.as_expression() {
                     Some(expression) => {
@@ -1317,7 +1373,9 @@ impl<'a> Lowerer<'_> {
                 }
             }
         } else {
-            walk::walk_call_expression(self, call);
+            for argument in &call.arguments {
+                self.visit_argument(argument);
+            }
         }
         let mut values = Vec::with_capacity(call.arguments.len());
         for argument in &call.arguments {
@@ -1343,9 +1401,10 @@ impl<'a> Lowerer<'_> {
             })
             .collect();
         self.note_call(call, resolved.as_ref(), &values, receiver.as_ref());
-        let Some(consumer) = consumer else {
+        if value_only && !summarize {
             return self.opaque();
-        };
+        }
+        let consumer = consumer.unwrap_or(Consumer::SyncReturn);
         // A modeled builtin is not an unknown call, except where Phase 4
         // recorded it (awaited and concurrent positions keep their
         // behavior; see docs/architecture/value-analysis.md).
@@ -1389,6 +1448,7 @@ impl<'a> Lowerer<'_> {
             effect: EffectId(self.next_effect - 1),
             target: resolved.target,
             placeholder: !consumer.records_unknown(),
+            value_only,
             arguments,
             values: exported,
             receiver,
@@ -1583,9 +1643,46 @@ impl<'a> Lowerer<'_> {
     fn fact_arg(value: &AbsValue) -> FactArg {
         match value.single() {
             Some(Atom::Function { id }) => FactArg::Function(*id),
+            Some(Atom::Closure {
+                id,
+                parameters,
+                captures,
+            }) => FactArg::Closure {
+                function: *id,
+                parameters: *parameters,
+                captures: captures
+                    .iter()
+                    .map(|capture| Self::fact_arg(&capture.value))
+                    .collect(),
+            },
             Some(Atom::Param { index }) => FactArg::Param(*index),
             _ => FactArg::Other,
         }
+    }
+
+    fn callback_fact(value: &AbsValue, label: String) -> Option<FactCall> {
+        let (id, args) = match value.single()? {
+            Atom::Function { id } => (*id, Vec::new()),
+            Atom::Closure {
+                id,
+                parameters,
+                captures,
+            } => {
+                let mut args = vec![FactArg::Other; *parameters as usize];
+                args.extend(
+                    captures
+                        .iter()
+                        .map(|capture| Self::fact_arg(&capture.value)),
+                );
+                (*id, args)
+            }
+            _ => return None,
+        };
+        Some(FactCall {
+            target: CallTarget::Local(id),
+            args,
+            label,
+        })
     }
 
     /// Objects in `values` may be changed by the code they are passed to.
@@ -1596,7 +1693,7 @@ impl<'a> Lowerer<'_> {
         for value in values {
             self.vs.escape(value);
             closure |= value.atoms().iter().any(|atom| {
-                matches!(atom, Atom::Function { id }
+                matches!(atom, Atom::Function { id } | Atom::Closure { id, .. }
                     if *id > self.span.start && *id < self.span.end)
             });
         }
@@ -1652,18 +1749,44 @@ impl<'a> Lowerer<'_> {
         call: &CallExpression<'a>,
         receiver: Option<&AbsValue>,
     ) -> Option<ResolvedTarget> {
+        if let Expression::Identifier(ident) = call.callee.get_inner_expression()
+            && let Some(symbol) = resolve_reference(self.recognizer.scoping, ident)
+        {
+            if self.recognizer.table.promise_resolver(symbol) {
+                return None;
+            }
+            if let Some((index, _)) = self.locals.params.get(&symbol) {
+                return Some(ResolvedTarget::new(CallTarget::Param(*index)));
+            }
+        }
+        if self.module_initializer
+            && let Expression::Identifier(ident) = call.callee.get_inner_expression()
+            && self.eval_ident(ident).is_top()
+        {
+            return None;
+        }
         if let Some(target) = self.call_target(call) {
+            if let CallTarget::Local(start) = target {
+                let value = self.function_value(start, 0);
+                if matches!(value.single(), Some(Atom::Closure { .. })) {
+                    return Some(ResolvedTarget::new(CallTarget::Value(value)));
+                }
+            }
             return Some(ResolvedTarget::new(target));
         }
         match call.callee.get_inner_expression() {
             Expression::ArrowFunctionExpression(function) => Some(ResolvedTarget {
                 immediate: true,
-                ..ResolvedTarget::new(CallTarget::Local(function.span.start))
+                ..ResolvedTarget::new(CallTarget::Value(
+                    self.function_value(function.span.start, 0),
+                ))
             }),
             Expression::FunctionExpression(function) if function.body.is_some() => {
                 Some(ResolvedTarget {
                     immediate: true,
-                    ..ResolvedTarget::new(CallTarget::Local(function.span.start))
+                    ..ResolvedTarget::new(CallTarget::Value(
+                        self.function_value(function.span.start, 0),
+                    ))
                 })
             }
             Expression::Super(_) => self.this_class.map(|this| {
@@ -1674,9 +1797,23 @@ impl<'a> Lowerer<'_> {
             }),
             Expression::Identifier(ident) => match self.eval_ident(ident).single() {
                 Some(Atom::Function { id }) => Some(ResolvedTarget::new(CallTarget::Local(*id))),
+                Some(Atom::Closure { .. } | Atom::ModuleValue { .. }) => Some(ResolvedTarget::new(
+                    CallTarget::Value(self.eval_ident(ident)),
+                )),
                 Some(Atom::Param { index }) => Some(ResolvedTarget::new(CallTarget::Param(*index))),
+                Some(Atom::CallResult { site }) => {
+                    Some(ResolvedTarget::new(CallTarget::Returned(*site)))
+                }
                 _ => None,
             },
+            Expression::CallExpression(_) | Expression::AwaitExpression(_) => {
+                match self.eval(&call.callee).single() {
+                    Some(Atom::CallResult { site }) => {
+                        Some(ResolvedTarget::new(CallTarget::Returned(*site)))
+                    }
+                    _ => None,
+                }
+            }
             Expression::StaticMemberExpression(member) => {
                 let name = member.property.name.as_str().to_owned();
                 match member.object.get_inner_expression() {
@@ -1868,13 +2005,11 @@ impl<'a> Lowerer<'_> {
                     && let Some(value) = values.get(index)
                 {
                     match value.single() {
-                        Some(Atom::Function { id }) => {
+                        Some(Atom::Function { .. } | Atom::Closure { .. }) => {
                             let label = self.recognizer.callee_label(&call.callee);
-                            self.facts.calls.push(FactCall {
-                                target: CallTarget::Local(*id),
-                                args: Vec::new(),
-                                label,
-                            });
+                            self.facts
+                                .calls
+                                .push(Self::callback_fact(value, label).expect("known callback"));
                             if when == Callback::Deferred {
                                 self.escape_values(std::slice::from_ref(value));
                             }
@@ -2165,14 +2300,17 @@ impl<'a> Lowerer<'_> {
             .as_expression()?
             .get_inner_expression()
         {
-            Expression::ArrowFunctionExpression(function) => {
-                Some(CallTarget::Local(function.span.start))
-            }
-            Expression::FunctionExpression(function) if function.body.is_some() => {
-                Some(CallTarget::Local(function.span.start))
-            }
+            Expression::ArrowFunctionExpression(function) => Some(CallTarget::Value(
+                self.function_value(function.span.start, 0),
+            )),
+            Expression::FunctionExpression(function) if function.body.is_some() => Some(
+                CallTarget::Value(self.function_value(function.span.start, 0)),
+            ),
             Expression::Identifier(ident) => match self.eval_ident(ident).single() {
                 Some(Atom::Function { id }) => Some(CallTarget::Local(*id)),
+                Some(Atom::Closure { .. } | Atom::ModuleValue { .. }) => {
+                    Some(CallTarget::Value(self.eval_ident(ident)))
+                }
                 Some(Atom::Param { index }) => Some(CallTarget::Param(*index)),
                 _ => None,
             },
@@ -2265,6 +2403,7 @@ impl<'a> Lowerer<'_> {
                 effect: EffectId(this.next_effect - 1),
                 target,
                 placeholder,
+                value_only: false,
                 arguments: Vec::new(),
                 values: vec![AbsValue::top()],
                 receiver: None,
@@ -2295,6 +2434,16 @@ impl<'a> Lowerer<'_> {
     /// understood implies nothing.
     fn facts(&self, condition: &Expression<'a>, truthy: bool) -> Vec<Fact> {
         let condition = condition.get_inner_expression();
+        let mut facts =
+            self.recognizer
+                .table
+                .cardinality
+                .facts(condition, truthy, self.recognizer.scoping);
+        facts.extend(self.syntactic_facts(condition, truthy));
+        facts
+    }
+
+    fn syntactic_facts(&self, condition: &Expression<'a>, truthy: bool) -> Vec<Fact> {
         if let Some(literal) = literal_value(condition) {
             return never_unless(literal.is_truthy() == truthy);
         }
@@ -3078,11 +3227,7 @@ impl<'a> Visit<'a> for Lowerer<'_> {
                                 && let Some(value) = values.get(index)
                             {
                                 match value.single() {
-                                    Some(Atom::Function { id }) => self.facts.calls.push(FactCall {
-                                        target: CallTarget::Local(*id),
-                                        args: Vec::new(),
-                                        label: label.clone(),
-                                    }),
+                                    Some(Atom::Function { .. } | Atom::Closure { .. }) => self.facts.calls.push(Self::callback_fact(value, label.clone()).expect("known callback")),
                                     Some(Atom::Param { index }) => {
                                         self.facts.param(*index).invoked = true;
                                     }

@@ -1,6 +1,6 @@
 // @expect MW1004 line=6 function=createCategories
-// @expect MW9001 line=12 function=createTeam
-// A private helper read into another binding: kept.
+// A private helper read into another binding: its standalone warning is
+// kept, but the stable module alias is now resolved at its transaction call.
 async function createCategories(db: Database, teamId: string) {
   const parents = await db.insert(categories).values([{ teamId }]).returning({ id: categories.id });
   await db.insert(categories).values(parents.map((p) => ({ teamId, parentId: p.id })));

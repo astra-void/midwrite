@@ -15,7 +15,7 @@ use oxc_ast::ast::{
 };
 use oxc_syntax::symbol::SymbolId;
 
-use midwrite_core::absint::{AbsValue, Atom, Env, Heap, ObjectKind, Provenance};
+use midwrite_core::absint::{AbsValue, Atom, CapturedValue, Env, Heap, ObjectKind, Provenance};
 use midwrite_core::ir::Literal;
 
 use crate::bindings::{literal_value, resolve_reference};
@@ -142,6 +142,12 @@ impl<'a> Lowerer<'_> {
             let mut value = AbsValue::atom(Atom::Param { index });
             if let Some(initializer) = &param.initializer {
                 value.join(&self.eval(initializer));
+                if let BindingPattern::BindingIdentifier(id) = &param.pattern
+                    && let Some(symbol) = id.symbol_id.get()
+                    && let Some(literal) = literal_value(initializer.get_inner_expression())
+                {
+                    self.capture_defaults.insert(symbol, (index, literal));
+                }
             }
             self.binding_snapshot = true;
             self.bind_pattern(&param.pattern, value);
@@ -253,7 +259,6 @@ impl<'a> Lowerer<'_> {
     /// The abstract value of an identifier.
     pub(crate) fn eval_ident(&self, ident: &IdentifierReference<'_>) -> AbsValue {
         let scoping = self.recognizer.scoping;
-        let table = self.recognizer.table;
         let Some(symbol) = resolve_reference(scoping, ident) else {
             return if ident.name == "undefined" {
                 AbsValue::lit(Literal::Undefined)
@@ -261,6 +266,20 @@ impl<'a> Lowerer<'_> {
                 AbsValue::top()
             };
         };
+        self.eval_symbol(symbol, 0)
+    }
+
+    fn eval_symbol(&self, symbol: SymbolId, depth: usize) -> AbsValue {
+        let table = self.recognizer.table;
+        let scoping = self.recognizer.scoping;
+        if self.module_initializer
+            && self.is_module_level(symbol)
+            && scoping.symbol_span(symbol).start > self.span.start
+            && !scoping.symbol_flags(symbol).is_function()
+        {
+            self.invalid_module_read.set(true);
+            return AbsValue::top();
+        }
         if table.captured_write(symbol) {
             return AbsValue::top();
         }
@@ -268,13 +287,18 @@ impl<'a> Lowerer<'_> {
             return value.clone();
         }
         if let Some(start) = table.local_function(symbol) {
-            return AbsValue::atom(Atom::Function { id: start });
+            return self.function_value(start, depth);
         }
         if let Some(start) = table.class_of(symbol) {
             return AbsValue::atom(Atom::Class { id: start });
         }
         if let Some(literal) = table.literal(symbol) {
             return AbsValue::lit(literal.clone());
+        }
+        if let Some(initializer) = table.initializers.get(&symbol) {
+            return AbsValue::atom(Atom::ModuleValue {
+                initializer: *initializer,
+            });
         }
         if table.import(symbol).is_some() || self.is_module_level(symbol) {
             return AbsValue::atom(Atom::Static {
@@ -283,6 +307,81 @@ impl<'a> Lowerer<'_> {
         }
         // A variable of an enclosing function, or not assigned yet.
         AbsValue::top()
+    }
+
+    pub(crate) fn function_value(&self, start: u32, depth: usize) -> AbsValue {
+        let Some(layout) = self
+            .recognizer
+            .table
+            .closures
+            .get(&start)
+            .filter(|l| !l.symbols.is_empty())
+        else {
+            return AbsValue::atom(Atom::Function { id: start });
+        };
+        if depth >= midwrite_core::absint::value::MAX_FIELD_DEPTH {
+            return AbsValue::top();
+        }
+        let captures = layout
+            .symbols
+            .iter()
+            .map(|symbol| {
+                if self.recognizer.scoping.symbol_span(*symbol).start > start
+                    && !self.recognizer.scoping.symbol_flags(*symbol).is_function()
+                    && self.vs.env.get(&key(*symbol)).is_none()
+                {
+                    return CapturedValue {
+                        value: AbsValue::top(),
+                        handle: None,
+                        default: None,
+                    };
+                }
+                let value = self.eval_symbol(*symbol, depth + 1);
+                // Objects are shared references, not creation-time snapshots.
+                // Their later mutation is not tracked across escaped closures.
+                let value = if value
+                    .atoms()
+                    .iter()
+                    .any(|a| matches!(a, Atom::Object { .. } | Atom::Record { .. }))
+                {
+                    AbsValue::top()
+                } else {
+                    value
+                };
+                let (value, default) = match self.capture_defaults.get(symbol) {
+                    Some((index, default)) => (
+                        AbsValue::atom(Atom::Param { index: *index }),
+                        Some(default.clone()),
+                    ),
+                    None => (value, None),
+                };
+                let handle = self.recognizer.captured_handle(*symbol, &self.locals);
+                let handle = match (value.single(), handle) {
+                    (Some(Atom::Param { index }), None) => {
+                        Some(midwrite_core::ir::DbHandle::Parameter {
+                            index: *index,
+                            name: self.recognizer.scoping.symbol_name(*symbol).to_owned(),
+                            configured: false,
+                        })
+                    }
+                    (
+                        Some(Atom::Param { index }),
+                        Some(midwrite_core::ir::DbHandle::Root { name }),
+                    ) => Some(midwrite_core::ir::DbHandle::Parameter {
+                        index: *index,
+                        name,
+                        configured: true,
+                    }),
+                    (_, handle) => handle,
+                };
+                CapturedValue {
+                    value,
+                    default,
+                    handle,
+                }
+            })
+            .collect();
+        midwrite_core::absint::value::closure_value(start, layout.parameters, captures)
     }
 
     pub(crate) fn is_module_level(&self, symbol: SymbolId) -> bool {
@@ -311,12 +410,10 @@ impl<'a> Lowerer<'_> {
                 }),
             Expression::ObjectExpression(object) => self.eval_object(object),
             Expression::ArrayExpression(array) => self.eval_array(array),
-            Expression::ArrowFunctionExpression(function) => AbsValue::atom(Atom::Function {
-                id: function.span.start,
-            }),
-            Expression::FunctionExpression(function) => AbsValue::atom(Atom::Function {
-                id: function.span.start,
-            }),
+            Expression::ArrowFunctionExpression(function) => {
+                self.function_value(function.span.start, 0)
+            }
+            Expression::FunctionExpression(function) => self.function_value(function.span.start, 0),
             Expression::StaticMemberExpression(member) => {
                 let base = self.eval(&member.object);
                 self.vs.heap.read(&base, member.property.name.as_str())

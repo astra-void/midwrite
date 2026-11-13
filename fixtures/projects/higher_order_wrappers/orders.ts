@@ -50,3 +50,4 @@ export async function recursive(id: string) {
 // @expect MW1001 line=26 confidence=medium function=deeplyWrapped
 // @expect MW1001 line=38 confidence=high function=tracedTransaction
 // @expect MW1004 line=45 confidence=medium function=recursive
+// @expect MW9001 line=45 function=recursive

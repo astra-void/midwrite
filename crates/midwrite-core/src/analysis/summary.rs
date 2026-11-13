@@ -60,12 +60,12 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::rc::Rc;
 
 use crate::absint::summary::Solved;
-use crate::absint::{AbsValue, Atom};
+use crate::absint::{AbsValue, Atom, CapturedValue};
 use crate::ir::{
     Arm, Branch, CallId, CallResolution, CallScope, CallSite, DbHandle, DeferredHttpMethod, Effect,
     EffectId, EffectKind, Execution, Exit, ExitKind, Fact, FactInput, FunctionIr, Handler, Literal,
-    Loop, Node, Recognition, SummaryOrigin, Switch, TransactionId, TransactionInfo,
-    TransactionScope, Try, UnknownReason,
+    Loop, Node, Recognition, RecognitionBasis, SummaryOrigin, Switch, TransactionId,
+    TransactionInfo, TransactionScope, Try, UnknownReason,
 };
 use crate::location::{FileId, Location};
 
@@ -93,6 +93,15 @@ pub struct LocalCall {
     /// `return notify(id)` in an `async` function, which is not otherwise an
     /// unknown effect). It is removed when the call is not summarized.
     pub placeholder: bool,
+    /// Resolve only the value of an unawaited synchronous inert factory;
+    /// do not introduce its body as an awaited effect scope.
+    pub value_only: bool,
+    /// The target is the function returned by this earlier call-result site.
+    pub returned_callee: Option<u64>,
+    /// A closure or module-initialized callable, including lexical values.
+    pub callable: Option<AbsValue>,
+    /// Invoke the value of a module export as an entry definition.
+    pub entrypoint: bool,
     /// The arguments by position: the database handle each passes, or
     /// `None` when it is not a recognized handle (or is a spread).
     pub arguments: Vec<Option<CallArgument>>,
@@ -139,6 +148,10 @@ impl LocalCall {
             effect,
             callee,
             placeholder,
+            value_only: false,
+            returned_callee: None,
+            callable: None,
+            entrypoint: false,
             arguments: Vec::new(),
             parameter: None,
             values: Vec::new(),
@@ -370,29 +383,32 @@ fn set_handle(kind: &mut EffectKind, new: DbHandle) {
 /// stands for.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 struct Context {
-    callbacks: BTreeMap<u32, usize>,
+    callbacks: BTreeMap<u32, AbsValue>,
 }
 
 impl Context {
-    fn key(&self) -> Vec<(u32, usize)> {
-        self.callbacks.iter().map(|(p, f)| (*p, *f)).collect()
+    fn key(&self) -> Vec<(u32, AbsValue)> {
+        self.callbacks
+            .iter()
+            .map(|(p, f)| (*p, f.clone()))
+            .collect()
     }
 }
 
 /// (callee, remaining depth, callback context).
-type MemoKey = (usize, usize, Vec<(u32, usize)>);
+type MemoKey = (usize, usize, Vec<(u32, AbsValue)>);
 
 /// (callee, callback context): the depth-canonical key.
-type CanonicalKey = (usize, Vec<(u32, usize)>);
+type CanonicalKey = (usize, Vec<(u32, AbsValue)>);
 
 /// A memo request of a call site: (callee, callback context used).
-type Request = (usize, Vec<(u32, usize)>);
+type Request = (usize, Vec<(u32, AbsValue)>);
 
 /// The expansions in progress, outermost first: (function, callback
 /// context). A call is recursive when it would expand one of them again.
 /// The same function with other callbacks (`retry(() => retry(save))`) is
 /// a different expansion; the depth bound still ends any chain of them.
-type Stack = Vec<(usize, Vec<(u32, usize)>)>;
+type Stack = Vec<(usize, Vec<(u32, AbsValue)>)>;
 
 struct Inliner<'a> {
     /// The functions as lowered, before any inlining.
@@ -409,7 +425,7 @@ struct Inliner<'a> {
     /// from its `needed` depth on.
     canonical: HashMap<CanonicalKey, Rc<Summary>>,
     /// Distinct non-empty callback contexts retained in the cache per callee.
-    contexts: HashMap<usize, HashSet<Vec<(u32, usize)>>>,
+    contexts: HashMap<usize, HashSet<Vec<(u32, AbsValue)>>>,
     stats: InlineStats,
     /// Per expansion in progress (innermost last): call sites it
     /// summarized itself, and the memo requests of its call sites.
@@ -437,6 +453,7 @@ struct Summary {
 
 /// Identifier allocation for the function being expanded.
 struct Ids {
+    initialization_blocked: bool,
     next_effect: u32,
     next_call: u32,
     transactions: Vec<TransactionInfo>,
@@ -462,6 +479,7 @@ struct Ids {
 
 /// A function with its calls expanded.
 struct Expanded {
+    initialization_blocked: bool,
     function: FunctionIr,
     /// Some call it makes, directly or through its callees, lies beyond the
     /// depth bound, so the summary may miss operations.
@@ -482,6 +500,77 @@ struct Outcome {
 }
 
 impl<'a> Inliner<'a> {
+    /// Evaluate only proven-inert module initializers. This interprets the
+    /// lowered value graph; it never runs application initialization code.
+    fn resolve_value(
+        &mut self,
+        value: &AbsValue,
+        stack: &mut Stack,
+        depth: usize,
+        remaining: usize,
+        blocked: &mut bool,
+    ) -> AbsValue {
+        if value.is_top() || remaining == 0 {
+            return AbsValue::top();
+        }
+        let mut result = AbsValue::bottom();
+        for atom in value.atoms() {
+            let part = match atom {
+                Atom::ModuleValue { initializer } => {
+                    let index = *initializer as usize;
+                    if index >= self.originals.len()
+                        || self.options.max_call_depth == 0
+                        || stack.iter().any(|(f, _)| *f == index)
+                        || !self.inert_here(index, &Context::default())
+                    {
+                        *blocked = true;
+                        AbsValue::top()
+                    } else {
+                        let summary = self.summary(index, stack, depth, &Context::default());
+                        if summary.expanded.initialization_blocked {
+                            *blocked = true;
+                            return AbsValue::top();
+                        }
+                        stack.push((index, Vec::new()));
+                        let value = summary
+                            .expanded
+                            .function
+                            .returns
+                            .as_deref()
+                            .map_or_else(AbsValue::top, |v| {
+                                self.resolve_value(v, stack, depth, remaining - 1, blocked)
+                            });
+                        stack.pop();
+                        value
+                    }
+                }
+                Atom::Closure {
+                    id,
+                    parameters,
+                    captures,
+                } => {
+                    let captures = captures
+                        .iter()
+                        .map(|capture| CapturedValue {
+                            value: self.resolve_value(
+                                &capture.value,
+                                stack,
+                                depth,
+                                remaining - 1,
+                                blocked,
+                            ),
+                            handle: capture.handle.clone(),
+                            default: capture.default.clone(),
+                        })
+                        .collect();
+                    crate::absint::value::closure_value(*id, *parameters, captures)
+                }
+                _ => AbsValue::atom(atom.clone()),
+            };
+            result.join(&part);
+        }
+        result
+    }
     fn file_of(&self, index: usize) -> Option<FileId> {
         self.files.and_then(|files| files.ids.get(index).copied())
     }
@@ -514,6 +603,7 @@ impl<'a> Inliner<'a> {
             .unwrap_or_default();
         if sites.is_empty() {
             return Expanded {
+                initialization_blocked: false,
                 function: original.clone(),
                 cut: false,
                 recursive: false,
@@ -539,6 +629,7 @@ impl<'a> Inliner<'a> {
             }
         });
         let mut ids = Ids {
+            initialization_blocked: false,
             next_effect: original
                 .effects()
                 .iter()
@@ -583,6 +674,7 @@ impl<'a> Inliner<'a> {
             substitute_call_results(&mut function, &ids.call_results);
         }
         Expanded {
+            initialization_blocked: ids.initialization_blocked,
             function,
             cut: ids.cut,
             recursive: ids.recursive,
@@ -768,12 +860,12 @@ impl<'a> Inliner<'a> {
                 continue;
             }
             match value.single() {
-                Some(Atom::Function { id }) => {
-                    callbacks.insert(slot, *id as usize);
+                Some(Atom::Function { .. } | Atom::Closure { .. }) => {
+                    callbacks.insert(slot, value.clone());
                 }
                 Some(Atom::Param { index: parameter }) => {
                     if let Some(function) = context.callbacks.get(parameter) {
-                        callbacks.insert(slot, *function);
+                        callbacks.insert(slot, function.clone());
                     }
                 }
                 _ => {}
@@ -797,11 +889,36 @@ impl<'a> Inliner<'a> {
             }
             let slot = u32::try_from(slot).unwrap_or(u32::MAX);
             match callee_context.callbacks.get(&slot) {
-                Some(function) => self.solved(*function).is_some_and(Solved::is_inert),
+                Some(function) => self.callable_inert(function, 0),
                 // Not a known function: what runs is unknown. (No argument
                 // at all: calling `undefined` throws; still not inert.)
                 None => false,
             }
+        })
+    }
+
+    fn callable_inert(&self, value: &AbsValue, depth: usize) -> bool {
+        if depth >= crate::absint::value::MAX_FIELD_DEPTH {
+            return false;
+        }
+        let (id, parameters, captures) = match value.single() {
+            Some(Atom::Function { id }) => (*id, 0, &[][..]),
+            Some(Atom::Closure {
+                id,
+                parameters,
+                captures,
+            }) => (*id, *parameters, captures.as_ref()),
+            _ => return false,
+        };
+        let Some(solved) = self.solved(id as usize).filter(|s| s.is_inert()) else {
+            return false;
+        };
+        solved.params.iter().enumerate().all(|(slot, used)| {
+            !used.may_run()
+                || (slot as u32)
+                    .checked_sub(parameters)
+                    .and_then(|slot| captures.get(slot as usize))
+                    .is_some_and(|capture| self.callable_inert(&capture.value, depth + 1))
         })
     }
 
@@ -818,6 +935,76 @@ impl<'a> Inliner<'a> {
         context: &Context,
         ids: &mut Ids,
     ) -> Outcome {
+        let mut effective = site.clone();
+        // Earlier factory results may themselves be callbacks passed on to
+        // another helper. Resolve those before choosing a callback context.
+        for value in &mut effective.values {
+            *value = value.substitute(&|atom| match atom {
+                Atom::CallResult { site } => ids.call_results.get(site).cloned(),
+                Atom::Param { index } => context.callbacks.get(index).cloned(),
+                _ => None,
+            });
+            *value = self.resolve_value(value, stack, depth, 16, &mut ids.initialization_blocked);
+        }
+        let callable = effective
+            .callable
+            .clone()
+            .or_else(|| {
+                effective
+                    .returned_callee
+                    .and_then(|site| ids.call_results.get(&site).cloned())
+            })
+            .or_else(|| {
+                effective
+                    .parameter
+                    .and_then(|slot| context.callbacks.get(&slot).cloned())
+            })
+            .map(|value| {
+                value.substitute(&|atom| match atom {
+                    Atom::Param { index } => context.callbacks.get(index).cloned(),
+                    _ => None,
+                })
+            })
+            .map(|value| {
+                self.resolve_value(&value, stack, depth, 16, &mut ids.initialization_blocked)
+            });
+        let dynamic_index = match callable.as_ref().and_then(AbsValue::single) {
+            Some(Atom::Function { id }) => Some(*id as usize),
+            Some(Atom::Closure {
+                id,
+                parameters,
+                captures,
+            }) => {
+                let arity = *parameters as usize;
+                effective.values.truncate(arity);
+                effective.arguments.truncate(arity);
+                effective.entry_values.truncate(arity);
+                let missing = if effective.argument_count.is_some() {
+                    AbsValue::lit(Literal::Undefined)
+                } else {
+                    AbsValue::top()
+                };
+                effective.values.resize(arity, missing.clone());
+                effective.arguments.resize(arity, None);
+                effective.entry_values.resize(arity, missing);
+                for capture in captures {
+                    effective.values.push(capture.value.clone());
+                    // Only immutable primitives decide a delayed closure's
+                    // branches. Objects remain shared, mutable references.
+                    effective.entry_values.push(match capture.value.single() {
+                        Some(Atom::Lit { .. }) => capture.value.clone(),
+                        _ => AbsValue::top(),
+                    });
+                    effective
+                        .arguments
+                        .push(capture.handle.clone().map(captured_argument));
+                }
+                effective.argument_count = Some(effective.values.len() as u32);
+                Some(*id as usize)
+            }
+            _ => None,
+        };
+        let site = &effective;
         let not_summarized = |this: &mut Self, reason: Option<String>| {
             this.stats.not_summarized += 1;
             if site.placeholder {
@@ -839,27 +1026,31 @@ impl<'a> Inliner<'a> {
         // bound: its body is code of a caller already being expanded, and
         // the wrapper that runs it was already counted. The stack still
         // ends any cycle of callbacks.
-        let callback = site.callee.is_none();
-        let index = match (site.callee, site.parameter) {
+        let callback = site.parameter.is_some() || site.entrypoint;
+        let index = match (dynamic_index.or(site.callee), site.parameter) {
             (Some(index), _) => index,
-            (None, Some(parameter)) => match context.callbacks.get(&parameter) {
-                Some(index) => {
-                    self.stats.callbacks += 1;
-                    *index
-                }
-                None => {
-                    return not_summarized(
-                        self,
-                        Some(format!(
-                            "`{}` calls parameter {} of this function; which function it runs is decided by each caller",
-                            effect.label,
-                            parameter + 1
-                        )),
-                    );
-                }
-            },
-            (None, None) => return not_summarized(self, None),
+            (None, Some(parameter)) => {
+                return not_summarized(
+                    self,
+                    Some(format!(
+                        "`{}` calls parameter {} of this function; which function it runs is decided by each caller",
+                        effect.label,
+                        parameter + 1
+                    )),
+                );
+            }
+            (None, None) => {
+                return not_summarized(
+                    self,
+                    site.returned_callee.map(|_| {
+                        "the earlier call's result is not a single known function".to_owned()
+                    }),
+                );
+            }
         };
+        if site.parameter.is_some() {
+            self.stats.callbacks += 1;
+        }
         let originals: &'a [FunctionIr] = self.originals;
         let callee = &originals[index];
         let declared = match (self.file_of(caller), self.file_of(index)) {
@@ -888,6 +1079,31 @@ impl<'a> Inliner<'a> {
             })
             .unwrap_or_default();
         let inert = self.options.max_call_depth > 0 && self.inert_here(index, &callee_context);
+        if site.value_only {
+            // Plain calls remain outside effect summaries. A synchronous,
+            // inert factory can nevertheless tell us which function a later
+            // awaited call runs. An async factory returns a promise here.
+            if inert && !callee.is_async {
+                let summary = (depth > 0
+                    && !stack
+                        .iter()
+                        .any(|(f, used)| *f == index && *used == callee_context.key()))
+                .then(|| self.summary(index, stack, depth - 1, &callee_context));
+                if let Some(summary) = &summary {
+                    ids.initialization_blocked |= summary.expanded.initialization_blocked;
+                    ids.needed = ids.needed.max(summary.expanded.needed + 1);
+                    ids.exact |= summary.expanded.exact;
+                }
+                let returned = summary
+                    .as_ref()
+                    .and_then(|s| s.expanded.function.returns.as_deref());
+                let mut outcome =
+                    self.inert_call(caller, index, effect, site, awaited, ids, returned);
+                outcome.node = None;
+                return outcome;
+            }
+            return not_summarized(self, None);
+        }
         let solved_here = self.solved(index);
         let not_inert = || -> String {
             match solved_here.map(|solved| &solved.inert) {
@@ -903,7 +1119,7 @@ impl<'a> Inliner<'a> {
             .any(|(f, used)| *f == index && *used == callee_context.key())
         {
             if inert {
-                return self.inert_call(caller, index, effect, site, awaited, ids);
+                return self.inert_call(caller, index, effect, site, awaited, ids, None);
             }
             ids.recursive = true;
             format!("{declared}, but the call is recursive; recursive calls are not summarized")
@@ -912,7 +1128,7 @@ impl<'a> Inliner<'a> {
             // exact depth only.
             ids.exact = true;
             if inert {
-                return self.inert_call(caller, index, effect, site, awaited, ids);
+                return self.inert_call(caller, index, effect, site, awaited, ids, None);
             }
             ids.cut = true;
             format!(
@@ -927,10 +1143,19 @@ impl<'a> Inliner<'a> {
                 top.push((index, used));
             }
             let expanded = &summary.expanded;
+            ids.initialization_blocked |= expanded.initialization_blocked;
             ids.needed = ids.needed.max(expanded.needed + 1);
             ids.exact |= expanded.exact;
             if inert && !expanded.function.has_recognized_effects() {
-                return self.inert_call(caller, index, effect, site, awaited, ids);
+                return self.inert_call(
+                    caller,
+                    index,
+                    effect,
+                    site,
+                    awaited,
+                    ids,
+                    expanded.function.returns.as_deref(),
+                );
             }
             ids.cut |= expanded.cut;
             ids.recursive |= expanded.recursive;
@@ -958,7 +1183,7 @@ impl<'a> Inliner<'a> {
                     effect,
                     site,
                     ids,
-                    !callee_context.callbacks.is_empty(),
+                    site.entrypoint || !callee_context.callbacks.is_empty(),
                 );
                 if has_recognized_nodes(&call.body) {
                     self.count_summarized();
@@ -994,6 +1219,7 @@ impl<'a> Inliner<'a> {
     }
 
     /// An empty call scope for a call of an inert callee.
+    #[allow(clippy::too_many_arguments)]
     fn inert_call(
         &mut self,
         caller: usize,
@@ -1002,6 +1228,7 @@ impl<'a> Inliner<'a> {
         site: &LocalCall,
         awaited: Vec<u32>,
         ids: &mut Ids,
+        returned: Option<&AbsValue>,
     ) -> Outcome {
         self.count_summarized();
         self.stats.inert += 1;
@@ -1014,14 +1241,26 @@ impl<'a> Inliner<'a> {
             let frame = u64::from(call.0) + 1;
             let values = &site.values;
             let receiver = site.receiver.clone();
-            let returned = callee
-                .returns
-                .as_deref()
-                .map_or_else(AbsValue::top, |value| {
-                    value.substitute(&|atom| {
-                        frame_atom(atom, frame, values, receiver.as_ref(), None)
-                    })
-                });
+            let mut returned =
+                returned
+                    .or(callee.returns.as_deref())
+                    .map_or_else(AbsValue::top, |value| {
+                        value.substitute(&|atom| {
+                            frame_atom(
+                                atom,
+                                frame,
+                                values,
+                                receiver.as_ref(),
+                                None,
+                                &site.arguments,
+                                0,
+                                site.argument_count,
+                            )
+                        })
+                    });
+            if !returns_on_all_paths(&callee.body) {
+                returned.join(&AbsValue::lit(Literal::Undefined));
+            }
             ids.call_results.insert(result, returned);
         }
         let callee_location = match (self.file_of(caller), self.file_of(index)) {
@@ -1154,10 +1393,13 @@ impl<'a> Inliner<'a> {
             });
         }
         if let Some(result) = site_info.result {
-            let returned = callee
+            let mut returned = callee
                 .returns
                 .as_deref()
                 .map_or_else(AbsValue::top, |value| remap.value(value));
+            if !returns_on_all_paths(&callee.body) {
+                returned.join(&AbsValue::lit(Literal::Undefined));
+            }
             ids.call_results.insert(result, returned);
         }
         CallScope {
@@ -1175,24 +1417,61 @@ impl<'a> Inliner<'a> {
     }
 }
 
+/// Conservative normal-return coverage. Loops and try/finally are left
+/// unknown; a possible implicit `undefined` must not become a known callable.
+fn returns_on_all_paths(nodes: &[Node]) -> bool {
+    nodes.iter().any(|node| match node {
+        Node::Exit(exit) => matches!(exit.kind, ExitKind::Return | ExitKind::Throw),
+        Node::Branch(branch) => {
+            !branch.arms.is_empty()
+                && branch
+                    .arms
+                    .iter()
+                    .all(|arm| returns_on_all_paths(&arm.body))
+        }
+        _ => false,
+    })
+}
+
+fn captured_argument(handle: DbHandle) -> CallArgument {
+    let label = match &handle {
+        DbHandle::Root { name } | DbHandle::Parameter { name, .. } => name.clone(),
+        DbHandle::Transaction { id } => format!("transaction {}", id.0),
+    };
+    CallArgument {
+        handle,
+        recognition: Recognition {
+            basis: RecognitionBasis::Parameter,
+            receiver: label.clone(),
+            detail: "recognized database handle preserved by a lexical capture".to_owned(),
+        },
+        label,
+    }
+}
+
 /// An atom of a callee's frame, seen from the caller: parameters and the
 /// receiver become the caller's argument values, the callee's effect results
 /// the copied effects, and the callee's call results and opaque values get
 /// identities unique to this instantiation (`frame`).
+#[allow(clippy::too_many_arguments)]
 fn frame_atom(
     atom: &Atom,
     frame: u64,
     values: &[AbsValue],
     receiver: Option<&AbsValue>,
     effect_ids: Option<&EffectIds<'_>>,
+    arguments: &[Option<CallArgument>],
+    transaction_base: u32,
+    argument_count: Option<u32>,
 ) -> Option<AbsValue> {
     match atom {
-        Atom::Param { index } => Some(
-            values
-                .get(*index as usize)
-                .cloned()
-                .unwrap_or_else(AbsValue::top),
-        ),
+        Atom::Param { index } => Some(values.get(*index as usize).cloned().unwrap_or_else(|| {
+            if argument_count.is_some_and(|count| *index >= count) {
+                AbsValue::lit(Literal::Undefined)
+            } else {
+                AbsValue::top()
+            }
+        })),
         Atom::This => Some(receiver.cloned().unwrap_or_else(AbsValue::top)),
         Atom::EffectResult { effect } => Some(match effect_ids.and_then(|m| m.get(*effect)) {
             Some(new) => AbsValue::atom(Atom::EffectResult { effect: new }),
@@ -1204,6 +1483,61 @@ fn frame_atom(
         Atom::Opaque { id } => Some(AbsValue::atom(Atom::Opaque {
             id: mix(frame, *id),
         })),
+        Atom::Closure {
+            id,
+            parameters,
+            captures,
+        } => Some(crate::absint::value::closure_value(
+            *id,
+            *parameters,
+            captures
+                .iter()
+                .map(|capture| CapturedValue {
+                    value: {
+                        let value = capture.value.substitute(&|a| {
+                            frame_atom(
+                                a,
+                                frame,
+                                values,
+                                receiver,
+                                effect_ids,
+                                arguments,
+                                transaction_base,
+                                argument_count,
+                            )
+                        });
+                        let value = if value.single() == Some(&Atom::lit(Literal::Undefined)) {
+                            capture
+                                .default
+                                .as_ref()
+                                .map_or(value.clone(), |default| AbsValue::lit(default.clone()))
+                        } else {
+                            value
+                        };
+                        if value
+                            .atoms()
+                            .iter()
+                            .any(|a| matches!(a, Atom::Object { .. } | Atom::Record { .. }))
+                        {
+                            AbsValue::top()
+                        } else {
+                            value
+                        }
+                    },
+                    handle: match &capture.handle {
+                        Some(DbHandle::Parameter { index, .. }) => arguments
+                            .get(*index as usize)
+                            .and_then(|a| a.as_ref())
+                            .map(|a| a.handle.clone()),
+                        Some(DbHandle::Transaction { id }) => Some(DbHandle::Transaction {
+                            id: TransactionId(transaction_base + id.0),
+                        }),
+                        handle => handle.clone(),
+                    },
+                    default: capture.default.clone(),
+                })
+                .collect(),
+        )),
         _ => None,
     }
 }
@@ -1385,6 +1719,9 @@ impl Remap<'_> {
                 self.values,
                 self.receiver,
                 Some(&self.effect_ids),
+                self.arguments,
+                self.transaction_base,
+                self.argument_count,
             )
         })
     }
@@ -1617,6 +1954,9 @@ impl Remap<'_> {
                         self.values,
                         self.receiver,
                         Some(&self.effect_ids),
+                        self.arguments,
+                        self.transaction_base,
+                        self.argument_count,
                     )
                 })
             });
@@ -1728,6 +2068,9 @@ impl Remap<'_> {
                             self.values,
                             self.receiver,
                             Some(&self.effect_ids),
+                            self.arguments,
+                            self.transaction_base,
+                            self.argument_count,
                         )
                     }))),
                 };

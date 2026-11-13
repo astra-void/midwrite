@@ -52,7 +52,7 @@ impl ParamUse {
 }
 
 /// An argument of a resolved call, as far as summaries care.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ArgFact {
     /// Anything that is neither a known function nor a parameter.
     Other,
@@ -60,6 +60,24 @@ pub enum ArgFact {
     Function(usize),
     /// Parameter `index` of the calling function, passed on.
     Param(u32),
+    /// Callback plus the actual values occupying its hidden capture slots.
+    Closure {
+        function: usize,
+        parameters: u32,
+        captures: Box<[ArgFact]>,
+    },
+}
+
+impl ArgFact {
+    pub fn references_function(&self, index: usize) -> bool {
+        match self {
+            Self::Function(function) => *function == index,
+            Self::Closure {
+                function, captures, ..
+            } => *function == index || captures.iter().any(|c| c.references_function(index)),
+            _ => false,
+        }
+    }
 }
 
 /// A call whose target the frontend resolved to a function of the table.
@@ -232,43 +250,68 @@ fn evaluate(
         }
         for (slot, argument) in call.args.iter().enumerate() {
             let used = callee.param(slot);
-            match *argument {
-                ArgFact::Function(function) if used.may_run() => {
-                    if inert.is_ok()
-                        && let Some(Err(reason)) = solved
-                            .get(function)
-                            .and_then(Option::as_ref)
-                            .map(|s| &s.inert)
-                    {
-                        inert = Err(shorten(format!(
-                            "passes `{}` to `{}`, which may run it, and it is not inert: {reason}",
-                            name(function),
-                            call.label
-                        )));
-                    }
-                }
-                ArgFact::Param(parameter) => {
-                    let parameter = parameter as usize;
-                    if parameter >= params.len() {
-                        params.resize(parameter + 1, ParamUse::default());
-                    }
-                    params[parameter].join(used);
-                }
-                _ => {}
-            }
-            // A value that is not a function, passed for a parameter the
-            // callee invokes: what runs is unknown.
-            if inert.is_ok() && matches!(argument, ArgFact::Other) && used.invoked {
-                inert = Err(shorten(format!(
-                    "`{}` calls its parameter {}, and `{}` passes a value that is not a known function for it",
-                    name(call.callee),
-                    slot + 1,
-                    call.label
-                )));
-            }
+            apply_argument(
+                argument,
+                used,
+                solved,
+                names,
+                &call.label,
+                &mut inert,
+                &mut params,
+            );
         }
     }
     (inert, params)
+}
+
+fn apply_argument(
+    argument: &ArgFact,
+    used: ParamUse,
+    solved: &[Option<Solved>],
+    names: &[String],
+    label: &str,
+    inert: &mut Result<(), String>,
+    params: &mut Vec<ParamUse>,
+) {
+    match argument {
+        ArgFact::Param(parameter) => {
+            let parameter = *parameter as usize;
+            if parameter >= params.len() {
+                params.resize(parameter + 1, ParamUse::default());
+            }
+            params[parameter].join(used);
+        }
+        ArgFact::Function(function) | ArgFact::Closure { function, .. } if used.may_run() => {
+            if let Some(summary) = solved.get(*function).and_then(Option::as_ref) {
+                if inert.is_ok()
+                    && let Err(reason) = &summary.inert
+                {
+                    *inert = Err(shorten(format!(
+                        "passes `{}` to `{label}`, which may run it, and it is not inert: {reason}",
+                        names.get(*function).map_or("?", String::as_str)
+                    )));
+                }
+                if let ArgFact::Closure {
+                    parameters,
+                    captures,
+                    ..
+                } = argument
+                {
+                    for (slot, capture) in captures.iter().enumerate() {
+                        let mut capture_use = summary.param(*parameters as usize + slot);
+                        capture_use.awaited &= used.awaited;
+                        apply_argument(capture, capture_use, solved, names, label, inert, params);
+                    }
+                }
+            }
+        }
+        ArgFact::Other if inert.is_ok() && used.invoked => {
+            *inert = Err(shorten(format!(
+                "`{label}` calls a parameter whose value is not a known function"
+            )));
+        }
+        _ => {}
+    }
 }
 
 /// Strongly connected components of the call graph, callees before
@@ -284,9 +327,21 @@ fn tarjan(facts: &[FunctionFacts]) -> Vec<Vec<usize>> {
             for call in &fact.calls {
                 out.push(call.callee);
                 for argument in &call.args {
-                    if let ArgFact::Function(function) = argument {
-                        out.push(*function);
+                    fn edges(argument: &ArgFact, out: &mut Vec<usize>) {
+                        match argument {
+                            ArgFact::Function(function) => out.push(*function),
+                            ArgFact::Closure {
+                                function, captures, ..
+                            } => {
+                                out.push(*function);
+                                for capture in captures {
+                                    edges(capture, out);
+                                }
+                            }
+                            _ => {}
+                        }
                     }
+                    edges(argument, &mut out);
                 }
             }
             out

@@ -22,7 +22,7 @@ pub mod value;
 pub use env::Env;
 pub use heap::{Heap, ObjectKind};
 pub use relation::{RelationKind, ValueRelation};
-pub use value::{AbsValue, Atom, Input, Joined, Provenance};
+pub use value::{AbsValue, Atom, CapturedValue, Input, Joined, Provenance};
 
 #[cfg(test)]
 mod properties {
@@ -54,7 +54,7 @@ mod properties {
     const SEEDS: [u64; 4] = [0x5eed_0001, 0x5eed_0002, 0xc0ff_ee00, 0x0dd_ba11];
 
     fn atom(rng: &mut Rng) -> Atom {
-        match rng.below(7) {
+        match rng.below(9) {
             0 => Atom::Param {
                 index: rng.below(3) as u32,
             },
@@ -66,6 +66,21 @@ mod properties {
                 id: rng.below(3) as u32,
             },
             4 => Atom::This,
+            6 => Atom::Closure {
+                id: rng.below(3) as u32,
+                parameters: 1,
+                captures: vec![super::CapturedValue {
+                    value: AbsValue::atom(Atom::Param {
+                        index: rng.below(3) as u32,
+                    }),
+                    handle: None,
+                    default: None,
+                }]
+                .into(),
+            },
+            7 => Atom::ModuleValue {
+                initializer: rng.below(3) as u32,
+            },
             5 => {
                 let base = atom(rng);
                 AbsValue::atom(base)
@@ -201,9 +216,14 @@ mod properties {
                         .map(|_| CallFact {
                             callee: rng.below(n as u64) as usize,
                             args: (0..rng.below(3))
-                                .map(|_| match rng.below(3) {
+                                .map(|_| match rng.below(4) {
                                     0 => ArgFact::Other,
                                     1 => ArgFact::Function(rng.below(n as u64) as usize),
+                                    2 => ArgFact::Closure {
+                                        function: rng.below(n as u64) as usize,
+                                        parameters: 0,
+                                        captures: vec![ArgFact::Param(rng.below(2) as u32)].into(),
+                                    },
                                     _ => ArgFact::Param(rng.below(2) as u32),
                                 })
                                 .collect(),

@@ -182,6 +182,9 @@ impl Linker<'_> {
         let entries = self.modules[module].exports.named.get(name).cloned();
         match entries.as_deref() {
             Some([ExportEntry::Function(index)]) => Export::Function(self.offsets[module] + index),
+            Some([ExportEntry::Initializer(index)]) => {
+                Export::Initializer(self.offsets[module] + index)
+            }
             Some([ExportEntry::Object(methods)]) => Export::Object(
                 methods
                     .iter()
@@ -380,6 +383,7 @@ pub(crate) fn analyze(
     };
     let mut facts: Vec<FunctionFacts> = Vec::with_capacity(total);
     let mut names_of: Vec<String> = Vec::with_capacity(total);
+    let mut return_values = Vec::with_capacity(total);
     let mut values = ValueStats::default();
     // Unknown-effect details for calls that could not be linked.
     let mut unlinked: Vec<(usize, midwrite_core::ir::EffectId, String)> = Vec::new();
@@ -387,6 +391,21 @@ pub(crate) fn analyze(
         values.add(&module.stats);
         for (function_index, sites) in module.calls.iter().enumerate() {
             let global = offsets[module_index] + function_index;
+            let globalize = |id: u32| id.checked_add(offsets[module_index] as u32);
+            return_values.push(
+                module.functions[function_index]
+                    .returns
+                    .as_ref()
+                    .map(|value| {
+                        Box::new(crate::link_value(
+                            &crate::renumber(value, &globalize),
+                            module_index,
+                            &views,
+                            &classes,
+                            &mut linker,
+                        ))
+                    }),
+            );
             let mut details = Vec::new();
             calls.push(link_sites(
                 module_index,
@@ -436,8 +455,30 @@ pub(crate) fn analyze(
         module.index = HashMap::new();
     }
     let lengths: Vec<usize> = modules.iter().map(|m| m.functions.len()).collect();
-    for module in &mut modules {
+    let mut entry_files = Vec::new();
+    let entries: Vec<_> = modules
+        .iter()
+        .enumerate()
+        .flat_map(|(index, module)| {
+            module
+                .entries(offsets[index])
+                .into_iter()
+                .map(move |entry| (index, entry))
+        })
+        .collect();
+    for (index, module) in modules.iter_mut().enumerate() {
+        // Return values, like call arguments, must name functions in the
+        // project table rather than in their declaring module.
+        for (local, function) in module.functions.iter_mut().enumerate() {
+            function.returns = return_values[offsets[index] + local].take();
+        }
         functions.append(&mut module.functions);
+    }
+    for (module, (function, sites)) in entries {
+        functions.push(function);
+        calls.push(sites);
+        file_ids.push(FileId(module as u32));
+        entry_files.push(module);
     }
     for (function, effect, detail) in unlinked {
         if let Some(effect) = functions[function].effect_mut(effect)
@@ -474,6 +515,11 @@ pub(crate) fn analyze(
     for (module_index, length) in lengths.iter().enumerate() {
         per_file.push((module_index, functions.by_ref().take(*length).collect()));
     }
+    for (module, function) in entry_files.into_iter().zip(functions) {
+        if function.has_recognized_effects() {
+            per_file[module].1.push(function);
+        }
+    }
     let suppressions: HashMap<_, _> = names
         .iter()
         .zip(&modules)
@@ -489,6 +535,9 @@ pub(crate) fn analyze(
         let mut counts = AnalysisCounts::default();
         let mut pairs = Vec::new();
         for (local, function) in file_functions.iter().enumerate() {
+            if modules[module_index].initializers.contains(&local) {
+                continue;
+            }
             if resolve_parameters(function).has_recognized_effects() {
                 counts.functions_with_effects += 1;
             }
@@ -503,7 +552,8 @@ pub(crate) fn analyze(
             let mut outcomes = outcomes.into_iter();
             pairs.extend(result.diagnostics.into_iter().filter_map(|diagnostic| {
                 let outcome = outcomes.next();
-                if atomic_helpers.contains(&(offsets[module_index] + local))
+                if local < lengths[module_index]
+                    && atomic_helpers.contains(&(offsets[module_index] + local))
                     && diagnostic.code
                         == midwrite_core::diagnostic::DiagnosticCode::IndependentDbCommits
                 {
@@ -535,7 +585,13 @@ pub(crate) fn analyze(
         let analysis = FileAnalysis {
             ir: FileIr {
                 path: names[module_index].clone(),
-                functions: file_functions,
+                functions: file_functions
+                    .into_iter()
+                    .enumerate()
+                    .filter_map(|(index, f)| {
+                        (!modules[module_index].initializers.contains(&index)).then_some(f)
+                    })
+                    .collect(),
                 sources,
             },
             diagnostics,
@@ -740,7 +796,7 @@ fn transaction_only_helpers(
                 .iter()
                 .flat_map(|f| &f.calls)
                 .flat_map(|c| &c.args)
-                .any(|a| *a == midwrite_core::absint::summary::ArgFact::Function(current));
+                .any(|a| a.references_function(current));
             // Every invocation is observed: with `closedWorld`, as call facts
             // (which are kept for every body then); for a private helper, as
             // one linked call site per direct-call reference to its binding.

@@ -566,6 +566,10 @@ impl Engine<'_> {
         body: crate::lower::Body<'_, '_>,
     ) -> Vec<Flow> {
         match body {
+            crate::lower::Body::Expression(expression) => {
+                let mut state = state;
+                vec![Flow::Return(self.expr(frame, &mut state, expression))]
+            }
             crate::lower::Body::Statements(statements) => self.statements(frame, state, statements),
             crate::lower::Body::Arrow(ArrowFunctionBody::FunctionBody(body)) => {
                 self.statements(frame, state, &body.statements)
@@ -657,6 +661,7 @@ impl Engine<'_> {
         };
         captures.visit_formal_parameters(f.params);
         match f.body {
+            crate::lower::Body::Expression(expression) => captures.visit_expression(expression),
             crate::lower::Body::Statements(statements) => {
                 for s in statements {
                     captures.visit_statement(s);

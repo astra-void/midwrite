@@ -2165,6 +2165,22 @@
    "function": "run",
    "classification": "intended-risk",
    "notes": "A drip email sequence: welcome email (onboarding.ts:41), a 3-day wait.for (:58), then a conditional activation nudge (:67). Missing the second marketing email after a failure is best-effort by design."
+  },
+  {
+   "findingId": "4fda8babb4a80988",
+   "code": "MW1004",
+   "file": "apps/worker/src/processors/transactions/update-account-base-currency.ts",
+   "line": 93,
+   "function": "UpdateAccountBaseCurrencyProcessor.process",
+   "classification": "intended-risk",
+   "notes": "The account update at process:58 commits before the transaction batches at process:93 (transactions.ts:2081). The window is real. The transactions queue retries jobs three times (transactions.config.ts:14), BaseProcessor.handle rethrows retryable failures (base.ts:245-246), and shouldProcess defaults to true (base.ts:319-321). Retrying overwrites the same account and transaction base values; there is no increment or completion guard skipping the failed batch. Classify as a retried recomputation job, not an impossible window or a guaranteed permanent inconsistency. Exhausted retries or non-retryable errors can still leave stale derived values.",
+   "review": {
+    "by": "Codex source review in the implementation chat",
+    "date": "2026-11-13",
+    "blind": false,
+    "humanReviewed": false,
+    "runtimeReproduced": false
+   }
   }
  ],
  "corrections": [
