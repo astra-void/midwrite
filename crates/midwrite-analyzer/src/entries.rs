@@ -55,6 +55,9 @@ pub enum EntryKind {
     ClassMethod,
     /// A function-valued property of an exported object literal.
     ObjectProperty,
+    /// The resolver of a tRPC procedure in a router object
+    /// (`router({ name: procedure.input(s).mutation(async ({ ctx, input }) => …) })`).
+    TrpcProcedure,
 }
 
 impl EntryKind {
@@ -66,6 +69,7 @@ impl EntryKind {
             Self::WrappedCallback => "wrapped-callback",
             Self::ClassMethod => "class-method",
             Self::ObjectProperty => "object-property",
+            Self::TrpcProcedure => "trpc-procedure",
         }
     }
 }
@@ -389,6 +393,59 @@ impl Lister<'_> {
         }
     }
 
+    /// The tRPC procedures of a router object passed as argument `index` of
+    /// the call initializing `name`: properties whose value is a builder
+    /// chain ending in `.mutation(fn)`, `.query(fn)` or `.subscription(fn)`
+    /// with an inline resolver.
+    fn procedures(
+        &mut self,
+        name: &str,
+        index: usize,
+        object: &oxc_ast::ast::ObjectExpression<'_>,
+    ) {
+        for property in &object.properties {
+            let ObjectPropertyKind::ObjectProperty(p) = property else {
+                continue;
+            };
+            if p.computed {
+                continue;
+            }
+            let Some(key) = key_name(&p.key) else {
+                continue;
+            };
+            let Expression::CallExpression(call) = p.value.get_inner_expression() else {
+                continue;
+            };
+            let Expression::StaticMemberExpression(member) = call.callee.get_inner_expression()
+            else {
+                continue;
+            };
+            let kind = member.property.name.as_str();
+            if !is_trpc_resolver_callee(&call.callee) {
+                continue;
+            }
+            let [argument] = call.arguments.as_slice() else {
+                continue;
+            };
+            let (span, is_async) = match argument.as_expression().map(|e| e.get_inner_expression())
+            {
+                Some(Expression::ArrowFunctionExpression(a)) => (a.span, a.r#async),
+                Some(Expression::FunctionExpression(f)) => (f.span, f.r#async),
+                _ => continue,
+            };
+            self.push(
+                format!("{name}/arg[{index}]/property[{key}]/arg[0]"),
+                EntryKind::TrpcProcedure,
+                format!("{name}.{key} ({kind})"),
+                span,
+                is_async,
+            );
+            if let Some(last) = self.entries.last_mut() {
+                last.wrapper = callee_text(&call.callee);
+            }
+        }
+    }
+
     fn binding(&mut self, name: &str, init: &Expression<'_>) {
         match init.get_inner_expression() {
             Expression::ArrowFunctionExpression(a) => {
@@ -405,6 +462,10 @@ impl Lister<'_> {
                     let Some(e) = argument.as_expression() else {
                         continue;
                     };
+                    if let Expression::ObjectExpression(object) = e.get_inner_expression() {
+                        self.procedures(name, index, object);
+                        continue;
+                    }
                     let (span, is_async) = match e.get_inner_expression() {
                         Expression::ArrowFunctionExpression(a) => (a.span, a.r#async),
                         Expression::FunctionExpression(f) => (f.span, f.r#async),
@@ -412,6 +473,9 @@ impl Lister<'_> {
                     };
                     let kind = if self.use_server {
                         EntryKind::ServerAction
+                    } else if is_trpc_resolver_callee(&call.callee) {
+                        // `export const p = procedure.input(s).mutation(fn)`.
+                        EntryKind::TrpcProcedure
                     } else {
                         EntryKind::WrappedCallback
                     };
@@ -632,15 +696,56 @@ fn transaction_helpers(
     out
 }
 
+/// `<builder>.mutation` / `.query` / `.subscription` where the builder is a
+/// tRPC procedure chain (`procedure.input(s)`, `t.procedure.use(mw)`, or a
+/// binding named like `protectedProcedure`).
+pub(crate) fn is_trpc_resolver_callee(callee: &Expression<'_>) -> bool {
+    let Expression::StaticMemberExpression(member) = callee.get_inner_expression() else {
+        return false;
+    };
+    if !matches!(
+        member.property.name.as_str(),
+        "mutation" | "query" | "subscription"
+    ) {
+        return false;
+    }
+    let mut cur = member.object.get_inner_expression();
+    loop {
+        match cur {
+            Expression::CallExpression(call) => match call.callee.get_inner_expression() {
+                Expression::StaticMemberExpression(m) => {
+                    if matches!(
+                        m.property.name.as_str(),
+                        "input" | "use" | "output" | "meta"
+                    ) {
+                        return true;
+                    }
+                    cur = m.object.get_inner_expression();
+                }
+                _ => return false,
+            },
+            Expression::StaticMemberExpression(m) => {
+                return m.property.name == "procedure";
+            }
+            Expression::Identifier(id) => {
+                return id.name.as_str().to_ascii_lowercase().ends_with("procedure");
+            }
+            _ => return false,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn index(files: &[(&str, &str)]) -> Vec<ModuleFacts> {
+        // One directory per call: tests run in parallel.
+        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
         let dir = std::env::temp_dir().join(format!(
             "midwrite-entries-{}-{}",
             std::process::id(),
-            files.len()
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
         ));
         let _ = std::fs::remove_dir_all(&dir);
         for (name, text) in files {
@@ -710,6 +815,50 @@ mod tests {
             ]
         );
         assert_eq!(route.skipped.len(), 1, "{:?}", route.skipped);
+    }
+
+    #[test]
+    fn trpc_procedures_are_listed_with_their_resolvers() {
+        let modules = index(&[(
+            "src/routers/orders.ts",
+            "import { createTRPCRouter, protectedProcedure, publicProcedure, t } from \"../trpc\";\n\
+             import { z } from \"zod\";\n\
+             import { other } from \"./other\";\n\
+             const named = async () => {};\n\
+             export const ordersRouter = createTRPCRouter({\n\
+               create: protectedProcedure.input(z.object({ id: z.string() })).mutation(async ({ ctx, input }) => {}),\n\
+               list: publicProcedure.query(async ({ ctx }) => []),\n\
+               raw: t.procedure.query(() => 1),\n\
+               named: protectedProcedure.mutation(named),\n\
+               nested: other,\n\
+               notTrpc: cache.query(async () => {}),\n\
+             });\n\
+             export const single = protectedProcedure.input(z.string()).mutation(async ({ input }) => {});\n",
+        )]);
+        let entries: Vec<_> = modules[0]
+            .entries
+            .iter()
+            .map(|e| (e.selector.rsplit('#').next().unwrap().to_owned(), e.kind))
+            .collect();
+        assert_eq!(
+            entries,
+            vec![
+                (
+                    "ordersRouter/arg[0]/property[create]/arg[0]".to_owned(),
+                    EntryKind::TrpcProcedure
+                ),
+                (
+                    "ordersRouter/arg[0]/property[list]/arg[0]".to_owned(),
+                    EntryKind::TrpcProcedure
+                ),
+                (
+                    "ordersRouter/arg[0]/property[raw]/arg[0]".to_owned(),
+                    EntryKind::TrpcProcedure
+                ),
+                ("single/arg[0]".to_owned(), EntryKind::TrpcProcedure),
+            ]
+        );
+        assert_eq!(modules[0].entries[0].name, "ordersRouter.create (mutation)");
     }
 
     #[test]

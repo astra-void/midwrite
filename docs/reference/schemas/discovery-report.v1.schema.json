@@ -853,7 +853,8 @@
             "exported-function",
             "wrapped-callback",
             "class-method",
-            "object-property"
+            "object-property",
+            "trpc-procedure"
           ]
         },
         "name": {
@@ -1740,7 +1741,8 @@
             "exported-function",
             "wrapped-callback",
             "class-method",
-            "object-property"
+            "object-property",
+            "trpc-procedure"
           ]
         },
         "invocation": {
@@ -2215,7 +2217,8 @@
               "exported-function",
               "wrapped-callback",
               "class-method",
-              "object-property"
+              "object-property",
+              "trpc-procedure"
             ]
           }
         },

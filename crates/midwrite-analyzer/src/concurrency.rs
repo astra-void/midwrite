@@ -1890,6 +1890,12 @@ impl<'r> Lowerer<'r> {
         index: usize,
     ) -> WrapperFacts {
         let label = callee_text(callee).unwrap_or_else(|| "<expression>".to_owned());
+        if crate::entries::is_trpc_resolver_callee(callee) {
+            return wrapper::unknown(
+                &label,
+                "a tRPC procedure resolver: @trpc/server calls it with `{ ctx, input }` once the procedure's middleware (`.use(…)`) lets the call through and its `.input(…)` parser accepts the request; neither the middleware nor the context it builds is modeled",
+            );
+        }
         let analyze = |info: &FnInfo<'_>, module: &Module<'_>| -> WrapperFacts {
             match &info.body {
                 FnBody::Block(body) => wrapper::analyze(

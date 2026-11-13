@@ -85,6 +85,7 @@ a caller outside the module can reach, each as a source selector:
 | `wrapped-callback` | `file#name/arg[i]` | a callback passed to the call that initializes an export |
 | `class-method` | `file#Class/method[m]`, `/static[m]` | methods of an exported class |
 | `object-property` | `file#obj/property[p]` | function-valued properties of an exported object |
+| `trpc-procedure` | `file#router/arg[0]/property[p]/arg[0]`, `file#name/arg[0]` | the inline resolver of a tRPC procedure (`procedure.input(s).mutation(fn)`, `.query`, `.subscription`) in a router object or exported on its own; its middleware, context and input parser are not modeled yet, so it is reported as not extractable with that reason |
 
 `export default`, export lists and re-exports are recorded as skipped with
 the reason. "Exported" does not mean "externally callable": how
