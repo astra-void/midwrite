@@ -1,0 +1,117 @@
+# Checks what a user gets from the published release, on a clean runner per
+# platform (DEV-164). It never builds Midwrite: it installs the npm packages
+# and downloads the GitHub release archives exactly as the README tells users
+# to, then smoke-tests them.
+#
+# For each platform it records:
+# * `npm install --save-dev midwrite@VERSION` succeeds and installs the
+#   matching @midwrite/cli-<os>-<cpu> package;
+# * `npx midwrite --version` prints VERSION and `npx midwrite check` reports
+#   the known hazards of fixtures/vulnerable (exit status 1, diagnostics);
+# * the release archive matches its published .sha256 file, and its binary
+#   is compared with the npm package's binary (identical or not: npm
+#   packages are published by hand, possibly from another build run);
+# and once, on Linux, that @midwrite/replay installs and its entry points
+# import.
+#
+# The release-status page (docs/development/release-status.md) cites the run.
+name: install-check
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Published version to check (without the v)"
+        required: true
+        default: "0.1.0"
+
+permissions:
+  contents: read
+
+jobs:
+  platform:
+    name: ${{ matrix.npm }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-15, target: aarch64-apple-darwin, npm: darwin-arm64, archive: tar.gz }
+          - { os: macos-15-intel, target: x86_64-apple-darwin, npm: darwin-x64, archive: tar.gz }
+          - { os: ubuntu-24.04, target: x86_64-unknown-linux-musl, npm: linux-x64, archive: tar.gz }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl, npm: linux-arm64, archive: tar.gz }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, npm: win32-x64, archive: zip }
+          - { os: windows-11-arm, target: aarch64-pc-windows-msvc, npm: win32-arm64, archive: zip }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # Only the fixture is used from the checkout; nothing is built.
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: fixtures/vulnerable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: npm install in an empty project
+        run: |
+          mkdir "$RUNNER_TEMP/app" && cd "$RUNNER_TEMP/app"
+          npm init -y > /dev/null
+          npm install --save-dev "midwrite@$VERSION" --no-audit --no-fund
+          test "$(node -p "require('@midwrite/cli-${{ matrix.npm }}/package.json').version")" = "$VERSION"
+      - name: Smoke test through npx
+        run: |
+          cd "$RUNNER_TEMP/app"
+          npx midwrite --version | tee version.txt
+          grep -qx "midwrite $VERSION" version.txt
+          set +e
+          npx midwrite check "$GITHUB_WORKSPACE/fixtures/vulnerable" --format json > check.json
+          code=$?
+          set -e
+          test "$code" -eq 1
+          node -e "const d = require('./check.json'); if (!d.diagnostics.length) throw new Error('no diagnostics'); console.log(d.diagnostics.length, 'diagnostics')"
+      - name: Release archive checksum and binary comparison
+        run: |
+          mkdir "$RUNNER_TEMP/release" && cd "$RUNNER_TEMP/release"
+          name="midwrite-$VERSION-${{ matrix.target }}.${{ matrix.archive }}"
+          gh release download "v$VERSION" -R "$GITHUB_REPOSITORY" -p "$name" -p "$name.sha256"
+          expected=$(cut -d' ' -f1 "$name.sha256")
+          actual=$(python3 -c "import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$name")
+          echo "archive sha256 $actual (published $expected)"
+          test "$expected" = "$actual"
+          if [[ "${{ matrix.archive }}" == zip ]]; then
+            python3 -c "import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall('x')" "$name"
+          else
+            mkdir x && tar -xzf "$name" -C x
+          fi
+          exe=midwrite; [[ "$RUNNER_OS" == Windows ]] && exe=midwrite.exe
+          archived=$(find x -name "$exe" -type f | head -1)
+          npm_bin="$RUNNER_TEMP/app/node_modules/@midwrite/cli-${{ matrix.npm }}/bin/$exe"
+          a=$(python3 -c "import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$archived")
+          n=$(python3 -c "import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$npm_bin")
+          same=false; [[ "$a" == "$n" ]] && same=true
+          "$archived" --version
+          echo "{\"platform\":\"${{ matrix.npm }}\",\"archiveSha256\":\"$actual\",\"archiveBinarySha256\":\"$a\",\"npmBinarySha256\":\"$n\",\"identical\":$same}" | tee "$RUNNER_TEMP/result.json"
+          echo "| ${{ matrix.npm }} | ok | \`${a:0:12}\` | \`${n:0:12}\` | $same |" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: install-check-${{ matrix.npm }}
+          path: ${{ runner.temp }}/result.json
+
+  replay-client:
+    runs-on: ubuntu-24.04
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install @midwrite/replay and import its entry points
+        run: |
+          mkdir app && cd app
+          npm init -y > /dev/null
+          npm install "@midwrite/replay@$VERSION" --no-audit --no-fund
+          node --input-type=module -e "for (const p of ['', '/pg', '/source', '/event-log']) { const m = await import('@midwrite/replay' + p); console.log('@midwrite/replay' + p, Object.keys(m).length, 'exports'); }"
