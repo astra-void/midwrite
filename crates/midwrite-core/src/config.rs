@@ -62,6 +62,33 @@ pub struct Config {
     /// Leave false for libraries or projects with external/dynamic callers.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub closed_world: bool,
+    /// What the analysis cannot see about a class of the project: the
+    /// classes its fields hold, and the functions whose awaited result is
+    /// one of its instances (a proxy or RPC stub). Asserted, not verified.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub class_contracts: Vec<ClassContract>,
+}
+
+/// A declared fact about one class ([`Config::class_contracts`]).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ClassContract {
+    /// The file that declares the class, as diagnostics show it.
+    pub file: String,
+    /// The class's name in that file.
+    pub class: String,
+    /// Fields (`#name` for private names) and the class of the same file
+    /// whose instance each always holds (a constructor parameter property,
+    /// for example).
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub fields: std::collections::BTreeMap<String, String>,
+    /// Functions, by name, whose awaited result is an instance of the class.
+    /// The class must be exported from its file when a call is in another
+    /// file.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub returned_by: Vec<String>,
+    /// Where the asserted facts come from (file and line).
+    pub evidence: String,
 }
 
 fn default_true() -> bool {
@@ -83,6 +110,7 @@ impl Default for Config {
             exclude: Vec::new(),
             recovery_contracts: Vec::new(),
             closed_world: false,
+            class_contracts: Vec::new(),
             builtin_effects: true,
         }
     }
@@ -313,6 +341,39 @@ impl Config {
                     ));
                 }
                 _ => {}
+            }
+        }
+        for (index, contract) in self.class_contracts.iter().enumerate() {
+            let at = format!("classContracts[{index}]");
+            if contract.file.is_empty() || !is_identifier(&contract.class) {
+                return Err(format!(
+                    "{at}: `file` must be set and `class` must be an identifier"
+                ));
+            }
+            if contract.evidence.trim().is_empty() {
+                return Err(format!(
+                    "{at}: `evidence` must say where the facts come from"
+                ));
+            }
+            if contract.fields.is_empty() && contract.returned_by.is_empty() {
+                return Err(format!("{at}: declares neither `fields` nor `returnedBy`"));
+            }
+            for (field, class) in &contract.fields {
+                if !is_identifier(field.strip_prefix('#').unwrap_or(field)) || !is_identifier(class)
+                {
+                    return Err(format!(
+                        "{at}: `fields.{field}` must map a field name to a class name"
+                    ));
+                }
+            }
+            if let Some(name) = contract
+                .returned_by
+                .iter()
+                .find(|name| !is_identifier(name))
+            {
+                return Err(format!(
+                    "{at}: `returnedBy` entry `{name}` is not a function name"
+                ));
             }
         }
         for method in &self.transaction_methods {

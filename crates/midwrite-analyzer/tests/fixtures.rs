@@ -97,8 +97,9 @@ fn every_fixture_matches_its_expectations() {
     // Multi-file projects are checked as projects by `tests/projects.rs`,
     // replay harnesses by `tests/traces.rs`, model-checking projects by the
     // CLI's `model_check.rs`; the applications under `apps/`, the runtime
-    // scenarios, the model inputs and the evaluation sets have their own
-    // topic tests and the evaluation scripts.
+    // scenarios, the model inputs, the evaluation sets and the projects that
+    // need their own `classContracts` (`tests/class_contracts.rs`) have their
+    // own topic tests and the evaluation scripts.
     let files: Vec<PathBuf> = discover(&[fixtures_dir()])
         .expect("fixtures exist")
         .into_iter()
@@ -110,6 +111,7 @@ fn every_fixture_matches_its_expectations() {
                 && !file.starts_with(fixtures_dir().join("scenarios"))
                 && !file.starts_with(fixtures_dir().join("model"))
                 && !file.starts_with(fixtures_dir().join("eval"))
+                && !file.starts_with(fixtures_dir().join("class_contracts"))
         })
         .collect();
     assert!(

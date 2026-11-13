@@ -17,6 +17,19 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use oxc_syntax::symbol::SymbolId;
+
+/// The class every instance of a class holds in one of its fields.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum FieldClass {
+    /// `#client = new X()`, or `this.client = new X()` in the constructor:
+    /// the binding `X` names (resolved when lowering).
+    Constructed(SymbolId),
+    /// Declared in `midwrite.json` (`classContracts[].fields`): a class
+    /// of the same module, by name.
+    Declared(String),
+}
+
 /// What a class extends.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum SuperRef {
@@ -53,6 +66,14 @@ pub(crate) struct ClassInfo {
     /// Names assigned dynamically on instances or the prototype; `"*"` when
     /// `Object.defineProperty`/`assign`/`setPrototypeOf` touches them.
     pub dynamic: BTreeSet<String>,
+    /// Fields (`#name` for private names) that always hold an instance of
+    /// one class: initialized with `new X()` and never assigned, or
+    /// assigned once, with `new X()`, at the top of the constructor; only
+    /// fields that code outside the class cannot assign (`private`,
+    /// `readonly`, `#name`).
+    pub field_classes: BTreeMap<String, FieldClass>,
+    /// Assignments to `this.name` / `this.#name` inside the class.
+    pub this_writes: BTreeMap<String, usize>,
 }
 
 impl ClassInfo {

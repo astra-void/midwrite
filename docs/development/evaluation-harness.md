@@ -1381,3 +1381,61 @@ the reason. No existing label changed.
 The earlier blind labeler called the two midday findings false positives.
 Their causes are not analyzer facts, so the patch stays parked until those
 two labels are checked by the DEV-162 human review.
+
+## Field dispatch and class contracts (2026-11-13, DEV-179)
+
+Record: [`reports/eval/2026-11-13-class-contracts.json`](../../reports/eval/2026-11-13-class-contracts.json),
+binary built from `360fe07` plus this change, scored with the sets of
+`360fe07`. The target was zero's audited KP02–KP05 (dev), not a held-out
+result.
+
+**What changed.**
+
+* **Field dispatch.** `this.f.m()` and `this.#f.m()` dispatch to the class
+  the field always holds. The field must be initialized with `new X()`, or
+  assigned once with `new X()` at the top of the constructor, and must be
+  `private`, `readonly` or `#private`. A public field, or a field assigned
+  again elsewhere, is not followed.
+* **`classContracts`** in the configuration declare what the analysis
+  cannot see: the class a field holds (a constructor parameter property),
+  and the functions whose awaited result is an instance of a class (a
+  `Proxy` or RPC stub). See
+  [configuration](../reference/configuration.md#class-contracts).
+* **Instance receivers.** A binding that holds a declared or constructed
+  instance is dispatched to its class, even when it is named like a
+  database receiver (`db`).
+
+Fixtures: [`fixtures/vulnerable/class_field_dispatch.ts`](../../fixtures/vulnerable/class_field_dispatch.ts)
+and `fixtures/class_contracts/rpc_stub`, which is checked by
+`crates/midwrite-analyzer/tests/class_contracts.rs` with and without the
+contract.
+
+**zero.** [`corpora/configs/zero.json`](../../corpora/configs/zero.json)
+now declares the database Durable Object chain: `getZeroDB` → `DbRpcDO`,
+whose `mainDo` field holds `ZeroDB`, which writes through `this.db`.
+
+* KP02–KP05 are recovered, and zero recall goes from 4/10 to 8/10.
+* Eight findings appear. A separate blind AI labeler, which saw only the
+  source, labeled them 5 intended-risk and 3 false-positive. The
+  intended-risk ones are best-effort cleanups and revocations, and a
+  subscription that a cron re-enqueues. The false positives are a branch
+  that cannot run after the delete, and two cases where a null default
+  connection is a supported state.
+* The labeler noted three borderline cases: `15b8fc69066c8199` could be
+  true-positive, and `f5bd749ae025608e` / `a27a27f3a651d800` could be
+  intended-risk.
+* One intended-risk finding at `auth.ts:257` (`6372758b463e75d6`) is
+  replaced by a pair at the same line.
+
+The code alone changes no dev or held-out finding. Every difference comes
+from the zero contract. The user chose to ship the contract despite the
+lower dev precision. Unlike the parked field-client patch (DEV-178), it
+recovers four audited windows.
+
+| measure | before | code only | with the zero contract |
+| --- | ---: | ---: | ---: |
+| dev hazards | 426 | 426 | 433 |
+| dev hazard precision | 402/418 (96.2%) | 402/418 | 406/425 (95.5%) |
+| dev bug precision | 175/418 | 175/418 | 175/425 |
+| dev recall | 153/169 | 153/169 | 157/169 |
+| held-out hazard precision | 30/32 | 30/32 | 30/32, gate PASS |

@@ -500,6 +500,81 @@
    "classification": "intended-risk",
    "notes": "A failure after setupPubSubTopic (google-subscription.factory.ts:287, topic plus IAM) and before createPubSubSubscription (line 290) leaves a topic with no push subscription. It is recovered: gmail_sub_age is written only on success (line 300), the scheduled job requeues connections with no key (main.ts:1040-1050, and brain.ts:11 says failures are retried by the scheduled renewal), and subscribe re-runs idempotently (resourceExists checks, IAM set merge, modifyPushConfig).",
    "crossRecord": true
+  },
+  {
+   "findingId": "7841422e985d503d",
+   "code": "MW1001",
+   "file": "apps/server/src/lib/auth.ts",
+   "line": 155,
+   "function": "connectionHandlerHook",
+   "classification": "intended-risk",
+   "notes": "The connection upsert (apps/server/src/main.ts:452-470) commits before env.subscribe_queue.send at apps/server/src/lib/auth.ts:155, but a lost send is recovered: the cron at main.ts:1035-1063 re-enqueues every Google connection without a gmail_sub_age entry, which is written only after a successful subscription (google-subscription.factory.ts:300); the hook also re-runs on every account create/update (auth.ts:264-271). (2026-11-13 blind AI label; not independently human-validated.)"
+  },
+  {
+   "findingId": "15b8fc69066c8199",
+   "code": "MW1002",
+   "file": "apps/server/src/lib/auth.ts",
+   "line": 215,
+   "function": "beforeDelete",
+   "classification": "intended-risk",
+   "notes": "Autumn product cancellation (apps/server/src/lib/auth.ts:209-223) runs before db.deleteUser() at :256, and its failures are caught and logged so deletion proceeds: billing cancellation is best-effort. If the deleteUser transaction (main.ts:391-400) fails, the account remains with cancelled products; repeating the deletion re-runs the same sequence. (2026-11-13 blind AI label; not independently human-validated.)"
+  },
+  {
+   "findingId": "e177988d4597bf98",
+   "code": "MW1002",
+   "file": "apps/server/src/lib/auth.ts",
+   "line": 229,
+   "function": "beforeDelete",
+   "classification": "intended-risk",
+   "notes": "Token revocation (apps/server/src/lib/auth.ts:225-247) runs under Promise.allSettled with every rejection mapped to false and ignored (:248-254), so revocation is best-effort by design; if the deleteUser transaction at :256 then fails, the connection rows remain with revoked tokens, which re-auth or a repeated delete recovers. (2026-11-13 blind AI label; not independently human-validated.)"
+  },
+  {
+   "findingId": "10a16346e0a993eb",
+   "code": "MW1001",
+   "file": "apps/server/src/lib/auth.ts",
+   "line": 257,
+   "function": "beforeDelete",
+   "classification": "intended-risk",
+   "notes": "The deleteUser transaction (apps/server/src/main.ts:391-400) removes the connection rows, then clearMailboxChatData runs per connection at apps/server/src/lib/auth.ts:257; clearMailboxChatData is documented 'Never throws' and swallows errors (chat-attachments.ts:205-215), a best-effort cleanup. An interruption leaves orphaned chat data that nothing reconciles. (2026-11-13 blind AI label; not independently human-validated.)"
+  },
+  {
+   "findingId": "f5bd749ae025608e",
+   "code": "MW1004",
+   "file": "apps/server/src/routes/imap-oauth.ts",
+   "line": 172,
+   "function": "<anonymous@88:31>",
+   "classification": "false-positive",
+   "fpCause": "state after the first change is a normal supported state",
+   "notes": "The window state, an IMAP connection with user.defaultConnectionId still null, is an ordinary supported state: findActiveConnection falls back to findFirstConnection (apps/server/src/main.ts:261-271), and the OAuth path createConnection (main.ts:452-470) never sets a default. Re-running the callback is idempotent (upsert at main.ts:509-551) and sets the default if still missing (imap-oauth.ts:171-172). (2026-11-13 blind AI label; not independently human-validated.)"
+  },
+  {
+   "findingId": "a086d9b7ac6a9c44",
+   "code": "MW1001",
+   "file": "apps/server/src/trpc/routes/connections.ts",
+   "line": 58,
+   "function": "<anonymous@53:15>",
+   "classification": "intended-risk",
+   "notes": "The connection row is deleted (apps/server/src/main.ts:277-284) before clearMailboxChatData(connectionId) at apps/server/src/trpc/routes/connections.ts:58, which is documented 'Never throws' and swallows its own failures (chat-attachments.ts:205-215): best-effort cleanup. No sweep exists for deleted connections, so an interruption leaves orphaned chat data. (2026-11-13 blind AI label; not independently human-validated.)"
+  },
+  {
+   "findingId": "027e43829d94da8f",
+   "code": "MW1002",
+   "file": "apps/server/src/trpc/routes/connections.ts",
+   "line": 58,
+   "function": "<anonymous@53:15>",
+   "classification": "false-positive",
+   "fpCause": "path infeasible",
+   "notes": "updateUser at apps/server/src/trpc/routes/connections.ts:61 runs only if connectionId === activeConnection.id, which cannot hold: findActiveConnection inner-joins connection.id = user.defaultConnectionId (main.ts:261-271) and that row was deleted at :57, so it falls back to findFirstConnection, a different row because deleteConnection refuses to remove the last connection (main.ts:279-281). (2026-11-13 blind AI label; not independently human-validated.)"
+  },
+  {
+   "findingId": "a27a27f3a651d800",
+   "code": "MW1004",
+   "file": "apps/server/src/trpc/routes/imap.ts",
+   "line": 187,
+   "function": "<anonymous@132:15>",
+   "classification": "false-positive",
+   "fpCause": "state after the first change is a normal supported state",
+   "notes": "After the upsertImapConnection transaction (apps/server/src/main.ts:509-551) a missing defaultConnectionId is a normal state: findActiveConnection falls back to the first connection (main.ts:270) and the OAuth createConnection path never sets a default. Retrying imap.create is idempotent and re-applies the default when still null (imap.ts:186-187). (2026-11-13 blind AI label; not independently human-validated.)"
   }
  ],
  "corrections": [
@@ -515,6 +590,23 @@
     "f6f2acbf43e9c978"
    ],
    "reason": "Labeled findings first exposed by the effect-coverage commit b96f446 (not present in reports/eval/2026-11-12-label-corrections.json). Existing classifications were not changed. Source-only AI review, not human review or runtime confirmation."
+  },
+  {
+   "date": "2026-11-13",
+   "by": "AI agent (Claude), blind source-only labeler separate from analyzer tuning; did not see knownPositives, existing labels or reports",
+   "humanReviewed": false,
+   "type": "new-findings-reviewed",
+   "findings": [
+    "7841422e985d503d",
+    "15b8fc69066c8199",
+    "e177988d4597bf98",
+    "10a16346e0a993eb",
+    "f5bd749ae025608e",
+    "a086d9b7ac6a9c44",
+    "027e43829d94da8f",
+    "a27a27f3a651d800"
+   ],
+   "reason": "Findings exposed by the DEV-179 classContracts declaration for zero's database Durable Object stub (getZeroDB -> DbRpcDO -> ZeroDB): operations through the stub became visible. The labeler noted that 15b8fc69066c8199 could defensibly be true-positive, and f5bd749ae025608e / a27a27f3a651d800 intended-risk. Existing classifications were not changed. Source-only AI review, not human review or runtime confirmation."
   }
  ],
  "reviewQueue": [

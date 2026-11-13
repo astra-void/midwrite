@@ -43,7 +43,7 @@ use midwrite_core::location::{LineIndex, Location};
 
 use crate::bindings::{ImportKind, LocalBindings, Origin, literal_value, resolve_reference};
 use crate::builtins::{self, Builtin, Callback};
-use crate::classes::ReceiverKind;
+use crate::classes::{FieldClass, ReceiverKind};
 use crate::recognize::{
     Builder, Classified, DbAccess, Marker, Recognizer, compact, truncate, unwind,
 };
@@ -1163,6 +1163,85 @@ impl<'a> Lowerer<'_> {
     /// Lower a call. `consumer` is `None` when the call's result is not
     /// awaited, returned or otherwise consumed by this function.
     fn call(&mut self, call: &CallExpression<'a>, consumer: Option<Consumer>) {
+        self.call_unwrapped(call, consumer);
+        if let Some(class) = self.declared_instance(call) {
+            let id = self.class_id(class);
+            let value = self
+                .vs
+                .heap_mut()
+                .allocate(call.span.start, ObjectKind::Instance { class: id });
+            self.call_values
+                .insert(call.span.start, AbsValue::atom(value));
+        }
+    }
+
+    /// Whether the receiver of `obj.m(...)` is a binding that holds an
+    /// instance of a class of the project.
+    fn instance_receiver(&self, call: &CallExpression<'a>) -> bool {
+        let Expression::StaticMemberExpression(member) = call.callee.get_inner_expression() else {
+            return false;
+        };
+        let Expression::Identifier(object) = member.object.get_inner_expression() else {
+            return false;
+        };
+        match self.eval_ident(object).single() {
+            Some(Atom::Object { id }) => self
+                .vs
+                .heap
+                .get(*id)
+                .is_some_and(|o| matches!(o.kind, ObjectKind::Instance { .. })),
+            _ => false,
+        }
+    }
+
+    /// `classContracts[].returnedBy`: a call of a function (declared or
+    /// imported here) by that name returns an instance of the class.
+    fn declared_instance(&self, call: &CallExpression<'a>) -> Option<ClassRef> {
+        let Expression::Identifier(callee) = call.callee.get_inner_expression() else {
+            return None;
+        };
+        let symbol = resolve_reference(self.recognizer.scoping, callee)?;
+        let table = self.recognizer.table;
+        if table.import(symbol).is_none() && table.local_function(symbol).is_none() {
+            return None;
+        }
+        let path = table.path();
+        let contract = self.recognizer.config.class_contracts.iter().find(|c| {
+            c.returned_by
+                .iter()
+                .any(|name| name == callee.name.as_str())
+        })?;
+        if contract.file == path {
+            let start = table
+                .classes()
+                .iter()
+                .find(|(_, info)| info.name == contract.class)
+                .map(|(start, _)| *start)?;
+            return Some(ClassRef::Local(start));
+        }
+        Some(ClassRef::Imported {
+            module: relative_specifier(path, &contract.file),
+            name: contract.class.clone(),
+        })
+    }
+
+    /// The heap identifier of a class (imported classes are numbered in
+    /// [`Self::imported_classes`]).
+    fn class_id(&mut self, class: ClassRef) -> u32 {
+        match class {
+            ClassRef::Local(start) => start,
+            imported => {
+                if let Some((id, _)) = self.imported_classes.iter().find(|(_, c)| **c == imported) {
+                    return *id;
+                }
+                let id = IMPORTED_CLASS | u32::try_from(self.imported_classes.len()).unwrap_or(0);
+                self.imported_classes.insert(id, imported);
+                id
+            }
+        }
+    }
+
+    fn call_unwrapped(&mut self, call: &CallExpression<'a>, consumer: Option<Consumer>) {
         let chain = unwind_call(call);
         // Operations that start by themselves are not ordered by an
         // argument position: they keep the Phase 4 execution.
@@ -1170,7 +1249,18 @@ impl<'a> Lowerer<'_> {
             None | Some(Consumer::Argument) => Execution::FireAndForget,
             Some(consumer) => consumer.execution(),
         };
-        let value = match self.recognizer.classify(&chain, &self.locals) {
+        let mut classified = self.recognizer.classify(&chain, &self.locals);
+        // A binding named like a database receiver (`db`) that holds an
+        // instance of a project class (`classContracts[].returnedBy`, `new
+        // C()`) is that object: its methods are dispatched, not Drizzle's.
+        if matches!(
+            classified,
+            Classified::Db { .. } | Classified::DbUnknown { .. } | Classified::Transaction { .. }
+        ) && self.instance_receiver(call)
+        {
+            classified = Classified::NotRecognized;
+        }
+        let value = match classified {
             Classified::Db {
                 builder,
                 marker,
@@ -1860,6 +1950,24 @@ impl<'a> Lowerer<'_> {
                             })
                         })
                     }
+                    // `this.client.m()` / `this.#client.m()`: the class the
+                    // field always holds (`ClassInfo::field_classes`).
+                    Expression::StaticMemberExpression(field)
+                        if matches!(
+                            field.object.get_inner_expression(),
+                            Expression::ThisExpression(_)
+                        ) =>
+                    {
+                        self.field_dispatch(field.property.name.as_str(), name)
+                    }
+                    Expression::PrivateFieldExpression(field)
+                        if matches!(
+                            field.object.get_inner_expression(),
+                            Expression::ThisExpression(_)
+                        ) =>
+                    {
+                        self.field_dispatch(&format!("#{}", field.field.name), name)
+                    }
                     Expression::ThisExpression(_) => self.this_class.map(|this| ResolvedTarget {
                         receiver: Some(AbsValue::atom(Atom::This)),
                         ..ResolvedTarget::new(CallTarget::Method {
@@ -1922,6 +2030,49 @@ impl<'a> Lowerer<'_> {
             }
             _ => None,
         }
+    }
+
+    /// Method `name` of the class that field `field` of `this` always holds
+    /// in an instance method of the current class.
+    fn field_dispatch(&self, field: &str, name: String) -> Option<ResolvedTarget> {
+        let this = self.this_class.filter(|this| !this.is_static)?;
+        let table = self.recognizer.table;
+        let class = match table.classes().get(&this.class)?.field_classes.get(field)? {
+            FieldClass::Constructed(symbol) => {
+                if let Some(start) = table.class_of(*symbol) {
+                    ClassRef::Local(start)
+                } else {
+                    let import = table.import(*symbol).filter(|i| !i.type_only)?;
+                    let name = match &import.kind {
+                        ImportKind::Named(name) => name.clone(),
+                        ImportKind::Default => "default".to_owned(),
+                        ImportKind::Namespace => return None,
+                    };
+                    ClassRef::Imported {
+                        module: import.module.clone(),
+                        name,
+                    }
+                }
+            }
+            FieldClass::Declared(class) => ClassRef::Local(
+                table
+                    .classes()
+                    .iter()
+                    .find(|(_, info)| info.name == *class)
+                    .map(|(start, _)| *start)?,
+            ),
+        };
+        Some(ResolvedTarget {
+            receiver: Some(AbsValue::atom(Atom::Field {
+                base: Box::new(Atom::This),
+                name: field.into(),
+            })),
+            ..ResolvedTarget::new(CallTarget::Method {
+                class,
+                name,
+                receiver: ReceiverKind::Exact { escaped: false },
+            })
+        })
     }
 
     /// The modeled builtin a call names, if any.
@@ -4065,4 +4216,35 @@ fn effect_mut(nodes: &mut [Node], id: EffectId) -> Option<&mut Effect> {
         }
     }
     None
+}
+
+/// An import specifier for `to` written in `from` (both as diagnostics show
+/// them): `apps/a/x.ts` → `apps/b/y.ts` is `../b/y`.
+fn relative_specifier(from: &str, to: &str) -> String {
+    let from_dir: Vec<&str> = from.split('/').collect();
+    let from_dir = &from_dir[..from_dir.len().saturating_sub(1)];
+    let to_parts: Vec<&str> = to.split('/').collect();
+    let common = from_dir
+        .iter()
+        .zip(&to_parts)
+        .take_while(|(a, b)| a == b)
+        .count();
+    let mut parts: Vec<String> = Vec::new();
+    for _ in common..from_dir.len() {
+        parts.push("..".to_owned());
+    }
+    if parts.is_empty() {
+        parts.push(".".to_owned());
+    }
+    for part in &to_parts[common..] {
+        parts.push((*part).to_owned());
+    }
+    let mut specifier = parts.join("/");
+    for extension in [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"] {
+        if let Some(stripped) = specifier.strip_suffix(extension) {
+            specifier = stripped.to_owned();
+            break;
+        }
+    }
+    specifier
 }

@@ -11,6 +11,14 @@ output formats.
 
 ### Added
 
+- Methods called on a field are followed into the class the field always
+  holds: a `private`, `readonly` or `#private` field initialized with
+  `new X()` or assigned once with it in the constructor. `classContracts`
+  in `midwrite.json` declare the rest: the class a field holds, and the
+  functions whose awaited result is an instance of a class (a `Proxy` or
+  RPC stub). With a contract for zero's database Durable Object, its
+  audited windows KP02–KP05 are found
+  ([configuration](docs/reference/configuration.md#class-contracts)).
 - A write whose `RETURNING` row is bound (`const [row] = await
   db.update(t)...returning()`, also `delete` and `insert ...
   onConflictDoNothing()`) no longer counts as a committed change on paths

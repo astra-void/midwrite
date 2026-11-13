@@ -61,5 +61,14 @@
     {"receiver":"env.VECTORIZE","method":"upsert","category":"other"},
     {"receiver":"env.VECTORIZE_MESSAGE","method":"upsert","category":"other"}
   ],
-  "exclude": ["*.test.ts","*.spec.ts","*.d.ts","tests","testing","evals","scripts","migrations","drizzle.config.ts"]
+  "exclude": ["*.test.ts","*.spec.ts","*.d.ts","tests","testing","evals","scripts","migrations","drizzle.config.ts"],
+  "classContracts": [
+    {
+      "file": "apps/server/src/main.ts",
+      "class": "DbRpcDO",
+      "fields": {"mainDo": "ZeroDB"},
+      "returnedBy": ["getZeroDB"],
+      "evidence": "apps/server/src/lib/server-utils.ts:14-19: getZeroDB returns scopedRpc<DbRpcDO> over the ZERO_DB Durable Object stub, whose setMetaData (apps/server/src/main.ts:241-243) returns new DbRpcDO(this, userId); apps/server/src/lib/scoped-rpc.ts:10-33 forwards each method call to that target. DbRpcDO's constructor stores the ZeroDB instance in mainDo (main.ts:80-83)."
+    }
+  ]
 }

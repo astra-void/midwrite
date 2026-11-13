@@ -553,7 +553,18 @@ impl Analyzer {
             suppression::Suppressions::parse(source, &parsed.program.comments, &lines)?;
 
         let semantic = SemanticBuilder::new().build(&parsed.program).semantic;
-        let table = bindings::SymbolTable::collect(&parsed.program, semantic.scoping(), sdk);
+        let mut table = bindings::SymbolTable::collect(&parsed.program, semantic.scoping(), sdk);
+        for contract in self
+            .config
+            .class_contracts
+            .iter()
+            .filter(|c| c.file == path)
+        {
+            for (field, class) in &contract.fields {
+                table.declare_field_class(&contract.class, field, class);
+            }
+        }
+        table.set_path(path);
         let recognizer = recognize::Recognizer {
             config: &self.config,
             scoping: semantic.scoping(),

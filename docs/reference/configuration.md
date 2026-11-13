@@ -40,6 +40,7 @@ their own `extraction` section ([model-check](../user-guide/model-check.md#scena
 | `recoveryContracts[]` | `[]` | function-level recovery mechanisms, below |
 | `builtinEffects` | `true` | recognize writes of well-known SDK clients without an `externalEffects` entry (below); `false` turns them off |
 | `closedWorld` | `false` | project analysis may use observed transaction arguments to refine standalone helpers; enable only when all callers are analyzed and there are no external or dynamic callers |
+| `classContracts[]` | `[]` | what the analysis cannot see about a project class: the classes its fields hold and the functions that return its instances (below) |
 
 ## Built-in SDK effects
 
@@ -115,6 +116,44 @@ not return from the enclosing function. The API's [documented invocation
 and return behavior](https://open-telemetry.github.io/opentelemetry-js/interfaces/_opentelemetry_api._opentelemetry_api.Tracer.html)
 is the basis; tracing itself is not treated as a consistency effect. The
 callback's returned value is currently unknown to the value analysis.
+
+## Class contracts
+
+A method called on a field is followed into the class the field always
+holds. Midwrite works this out by itself when two conditions hold:
+
+* The field is initialized with `new X()` (`#client = new X()`), or is
+  assigned once, with `new X()`, at the top of the constructor.
+* Code outside the class cannot assign it: it is `private`, `readonly` or
+  `#private`.
+
+Otherwise, and for objects that come from code Midwrite cannot follow (a
+`Proxy`, an RPC stub, a constructor parameter), declare the fact:
+
+```json
+"classContracts": [{
+  "file": "apps/server/src/main.ts",
+  "class": "DbRpcDO",
+  "fields": { "mainDo": "ZeroDB" },
+  "returnedBy": ["getZeroDB"],
+  "evidence": "server-utils.ts:14 returns scopedRpc<DbRpcDO>; main.ts:242 setMetaData returns new DbRpcDO(this, userId)"
+}]
+```
+
+| key | meaning |
+| --- | --- |
+| `file`, `class` | the class, by its file as diagnostics show it and its name there |
+| `fields` | field (`#name` for private names) → the class of the same file whose instance it always holds |
+| `returnedBy` | functions, by name, whose awaited result is an instance of the class; a call in another file needs the class to be exported |
+| `evidence` | required: where the facts come from |
+
+A binding that holds such an instance is that object, even when it has a
+database receiver's name (`db`). Its method calls are dispatched to the
+class, not read as Drizzle calls. Each call through a declared stub runs
+the method as if it were local. A Durable Object or other RPC boundary is
+not modeled further: a call that commits inside the object and then fails
+to answer is seen as an ordinary failure after that commit. Contracts are
+asserted, not verified, like the rest of the configuration.
 
 ## Narrowing HTTP effects
 

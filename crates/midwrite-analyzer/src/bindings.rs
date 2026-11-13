@@ -6,7 +6,7 @@
 //! `drizzle(...)` call, a transaction callback parameter, or something that
 //! clearly is not a database handle (a literal, a `new` expression, ...).
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use midwrite_core::ir::Literal;
 use oxc_ast::ast::{
@@ -18,7 +18,7 @@ use oxc_ast::ast::{
 };
 use oxc_syntax::scope::ScopeId;
 
-use crate::classes::{ClassInfo, SuperRef};
+use crate::classes::{ClassInfo, FieldClass, SuperRef};
 use oxc_ast_visit::{Visit, walk};
 use oxc_semantic::Scoping;
 use oxc_syntax::scope::ScopeFlags;
@@ -76,6 +76,8 @@ struct Declarator {
 /// File-level facts about bindings, collected once per file.
 #[derive(Debug, Default)]
 pub(crate) struct SymbolTable {
+    /// The module's path as diagnostics show it ([`Self::set_path`]).
+    path: String,
     pub cardinality: crate::cardinality::Cardinality,
     pub closures: HashMap<u32, crate::closures::Layout>,
     pub initializers: HashMap<SymbolId, u32>,
@@ -335,6 +337,24 @@ impl SymbolTable {
     /// The class (start offset) a binding names.
     pub fn class_of(&self, symbol: SymbolId) -> Option<u32> {
         self.class_symbols.get(&symbol).copied()
+    }
+
+    /// The module's path as diagnostics show it (empty until set).
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    pub fn set_path(&mut self, path: &str) {
+        path.clone_into(&mut self.path);
+    }
+
+    /// `classContracts[].fields`: field `field` of the class named `class`
+    /// holds an instance of the class named `holds` of this module.
+    pub fn declare_field_class(&mut self, class: &str, field: &str, holds: &str) {
+        for info in self.classes.values_mut().filter(|info| info.name == class) {
+            info.field_classes
+                .insert(field.to_owned(), FieldClass::Declared(holds.to_owned()));
+        }
     }
 
     pub fn classes(&self) -> &HashMap<u32, ClassInfo> {
@@ -628,6 +648,31 @@ impl<'a> Visit<'a> for Collector<'_> {
         if let AssignmentTarget::AssignmentTargetIdentifier(ident) = &it.left {
             self.note_write(ident);
         }
+        let this_field = match &it.left {
+            AssignmentTarget::StaticMemberExpression(member)
+                if matches!(
+                    member.object.get_inner_expression(),
+                    Expression::ThisExpression(_)
+                ) =>
+            {
+                Some(member.property.name.as_str().to_owned())
+            }
+            AssignmentTarget::PrivateFieldExpression(member)
+                if matches!(
+                    member.object.get_inner_expression(),
+                    Expression::ThisExpression(_)
+                ) =>
+            {
+                Some(format!("#{}", member.field.name))
+            }
+            _ => None,
+        };
+        if let Some(field) = this_field
+            && let Some(class) = self.class_stack.last()
+            && let Some(info) = self.table.classes.get_mut(class)
+        {
+            *info.this_writes.entry(field).or_default() += 1;
+        }
         if let AssignmentTarget::StaticMemberExpression(member) = &it.left {
             let property = member.property.name.as_str().to_owned();
             match member.object.get_inner_expression() {
@@ -856,6 +901,76 @@ impl<'a> Visit<'a> for Collector<'_> {
             };
             self.supers.push((start, pending));
         }
+        // Candidates for `field_classes`, decided after the body is walked
+        // (when every assignment of `this.<field>` has been counted).
+        let mut constructed: Vec<(String, SymbolId, bool)> = Vec::new();
+        let mut sealed: BTreeSet<String> = BTreeSet::new();
+        for element in &it.body.body {
+            if let ClassElement::PropertyDefinition(property) = element
+                && !property.r#static
+                && !property.computed
+            {
+                let name = match property.key.private_name() {
+                    Some(private) => Some(format!("#{private}")),
+                    None => property
+                        .key
+                        .static_name()
+                        .map(|name| name.display().to_string()),
+                };
+                if let Some(name) = name {
+                    let private = property.key.private_name().is_some()
+                        || property.readonly
+                        || matches!(
+                            property.accessibility,
+                            Some(oxc_ast::ast::TSAccessibility::Private)
+                        );
+                    if private {
+                        sealed.insert(name.clone());
+                    }
+                    if let Some(symbol) = property.value.as_ref().and_then(|v| self.constructed(v))
+                    {
+                        constructed.push((name, symbol, false));
+                    }
+                }
+            }
+            if let ClassElement::MethodDefinition(method) = element
+                && method.kind == MethodDefinitionKind::Constructor
+                && let Some(body) = &method.value.body
+            {
+                for statement in &body.statements {
+                    let oxc_ast::ast::Statement::ExpressionStatement(statement) = statement else {
+                        continue;
+                    };
+                    let Expression::AssignmentExpression(assignment) =
+                        statement.expression.get_inner_expression()
+                    else {
+                        continue;
+                    };
+                    let field = match &assignment.left {
+                        AssignmentTarget::StaticMemberExpression(member)
+                            if matches!(
+                                member.object.get_inner_expression(),
+                                Expression::ThisExpression(_)
+                            ) =>
+                        {
+                            member.property.name.as_str().to_owned()
+                        }
+                        AssignmentTarget::PrivateFieldExpression(member)
+                            if matches!(
+                                member.object.get_inner_expression(),
+                                Expression::ThisExpression(_)
+                            ) =>
+                        {
+                            format!("#{}", member.field.name)
+                        }
+                        _ => continue,
+                    };
+                    if let Some(symbol) = self.constructed(&assignment.right) {
+                        constructed.push((field, symbol, true));
+                    }
+                }
+            }
+        }
         for element in &it.body.body {
             match element {
                 ClassElement::MethodDefinition(method) => {
@@ -925,6 +1040,26 @@ impl<'a> Visit<'a> for Collector<'_> {
         self.class_stack.push(start);
         walk::walk_class(self, it);
         self.class_stack.pop();
+        if let Some(info) = self.table.classes.get_mut(&start) {
+            for (field, symbol, in_constructor) in constructed {
+                let writes = info.this_writes.get(&field).copied().unwrap_or(0);
+                // The constructor's own assignment is the only one; an
+                // initialized field is never assigned.
+                let single = if in_constructor {
+                    writes == 1
+                } else {
+                    writes == 0
+                };
+                let sealed = field.starts_with('#') || sealed.contains(&field);
+                let untouched = !info.dynamic.contains("*")
+                    && (in_constructor || !info.dynamic.contains(&field));
+                if single && sealed && untouched {
+                    info.field_classes
+                        .entry(field)
+                        .or_insert(FieldClass::Constructed(symbol));
+                }
+            }
+        }
     }
 }
 
@@ -955,6 +1090,17 @@ fn contains_call(expression: &Expression<'_>) -> bool {
 }
 
 impl Collector<'_> {
+    /// `new X(...)` with `X` a binding: that binding.
+    fn constructed(&self, expression: &Expression<'_>) -> Option<SymbolId> {
+        let Expression::NewExpression(new) = expression.get_inner_expression() else {
+            return None;
+        };
+        let Expression::Identifier(callee) = new.callee.get_inner_expression() else {
+            return None;
+        };
+        resolve_reference(self.scoping, callee)
+    }
+
     /// An identifier written here: remember it when the write happens in a
     /// function nested in the one that declares the binding.
     /// `expression` is only tested for truthiness or nullishness.
