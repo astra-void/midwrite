@@ -2181,6 +2181,43 @@
     "humanReviewed": false,
     "runtimeReproduced": false
    }
+  },
+  {
+   "findingId": "a3fef12e919b461d",
+   "code": "MW1005",
+   "file": "apps/api/src/rest/routers/invoices.ts",
+   "line": 563,
+   "function": "<anonymous@406:3>",
+   "classification": "intended-risk",
+   "notes": "On the `!updatedInvoice` branch (apps/api/src/rest/routers/invoices.ts:556), `job.remove()` at :563 is a compensating cleanup for the job enqueued at :529, labeled \"Best effort cleanup\" at :566. updateInvoice (packages/db/src/queries/invoices.ts:1112) returns nothing only when no invoice row matches, and an orphaned schedule-invoice job then exits as a no-op (apps/worker/src/processors/invoices/schedule-invoice.ts:28-31), so a leftover job is an accepted, harmless state. (2026-11-13 blind AI label; not independently human-validated.)"
+  },
+  {
+   "findingId": "e4e1d4a86ba0fbc5",
+   "code": "MW1005",
+   "file": "apps/api/src/trpc/routers/invoice.ts",
+   "line": 552,
+   "function": "<anonymous@450:15>",
+   "classification": "intended-risk",
+   "notes": "The old job is removed at apps/api/src/trpc/routers/invoice.ts:513 only after the new job exists (comments at :504-505, :515-516). On the `!data` branch (:545) the invoice row no longer matches; if the process stops before the best-effort cleanup at :552 (try/catch with logging at :555-558), the leftover new job is skipped by the processor's missing-invoice check (schedule-invoice.ts:28-31). (2026-11-13 blind AI label; not independently human-validated.)"
+  },
+  {
+   "findingId": "18eb219a4b6be215",
+   "code": "MW1005",
+   "file": "apps/api/src/trpc/routers/invoice.ts",
+   "line": 705,
+   "function": "<anonymous@644:15>",
+   "classification": "intended-risk",
+   "notes": "In updateSchedule, `newJob.remove()` at apps/api/src/trpc/routers/invoice.ts:705 is an explicit compensating cleanup (comment at :700) whose errors are caught and logged (:705-709). The `!updatedInvoice` branch means the invoice row no longer matches, and any job left behind by a failure before the removal is a no-op in schedule-invoice.ts:28-31; the processor also skips stale job IDs (:57-66). (2026-11-13 blind AI label; not independently human-validated.)"
+  },
+  {
+   "findingId": "5cded3e81f9a7b4f",
+   "code": "MW1001",
+   "file": "apps/worker/src/processors/transactions/process-attachment.ts",
+   "line": 114,
+   "function": "ProcessTransactionAttachmentProcessor.process",
+   "classification": "false-positive",
+   "fpCause": "callee branch infeasible for the arguments passed",
+   "notes": "updateTransaction deletes accountingSyncRecords only when `dataToUpdate.status !== undefined` (packages/db/src/queries/transactions.ts:1563-1566); the call at apps/worker/src/processors/transactions/process-attachment.ts:93-98 passes only id, teamId, taxRate and taxType, so the delete never runs on this path. The later triggerJob at :114 is also in a try/catch marked non-critical (:128-134). (2026-11-13 blind AI label; not independently human-validated.)"
   }
  ],
  "corrections": [
@@ -2329,6 +2366,19 @@
     "bedbe8685bdc49ef"
    ],
    "reason": "Labeled every remaining unlabeled midday finding so midday precision is no longer a sample. Cross-record pairs whose window exists are marked crossRecord and were not called false-positive for that reason; false positives carry an fpCause. Existing classifications were not changed. Source-only AI review, not human review or runtime confirmation."
+  },
+  {
+   "date": "2026-11-13",
+   "by": "AI agent (Claude), blind source-only labeler separate from analyzer tuning; did not see knownPositives, existing labels or reports",
+   "humanReviewed": false,
+   "type": "new-findings-reviewed",
+   "findings": [
+    "a3fef12e919b461d",
+    "e4e1d4a86ba0fbc5",
+    "18eb219a4b6be215",
+    "5cded3e81f9a7b4f"
+   ],
+   "reason": "Findings exposed by DEV-180 (a write whose bound RETURNING row is missing changed nothing): at the same lines, pairs whose first write is infeasible on that path disappeared and other pairs became the representative findings. Existing classifications were not changed. Source-only AI review, not human review or runtime confirmation."
   }
  ],
  "reviewQueue": [

@@ -22,13 +22,13 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::diagnostic::{Confidence, DiagnosticCode, PathCertainty, Policy};
 use crate::ir::{
-    CallId, DbHandle, Effect, EffectId, EffectKind, Execution, Exit, FunctionIr, SummaryOrigin,
-    TransactionId,
+    CallId, DbHandle, Effect, EffectId, EffectKind, Execution, Exit, Fact, FunctionIr,
+    SummaryOrigin, TransactionId,
 };
 use crate::location::{Location, Sources};
 
 use super::AnalysisOptions;
-use super::paths::{Decision, EffectContext, Event, Trace};
+use super::paths::{Decision, EffectContext, Event, Trace, decision_facts};
 
 /// An effect together with its position on a trace.
 #[derive(Clone, Copy, Debug)]
@@ -906,6 +906,9 @@ pub(super) fn replay<'ir>(function: &'ir FunctionIr, trace: &Trace<'ir>) -> Fact
                     .filter(|&id| function.transaction(id).parent.is_none())
                     .collect();
                 match &effect.kind {
+                    // A write this trace shows changed no row (its bound
+                    // `RETURNING` row is falsy here) persists nothing.
+                    EffectKind::DatabaseWrite { .. } if changed_nothing(effect, trace) => {}
                     EffectKind::DatabaseWrite { handle, .. } => match handle {
                         DbHandle::Transaction { id } if open.contains(id) => {
                             let root = root_of(*id);
@@ -949,6 +952,35 @@ pub(super) fn replay<'ir>(function: &'ir FunctionIr, trace: &Trace<'ir>) -> Fact
         }
     }
     facts
+}
+
+/// Whether the facts of `trace` contradict a fact that holds whenever
+/// `effect` changed a row ([`Effect::nonempty`]).
+fn changed_nothing(effect: &Effect, trace: &Trace<'_>) -> bool {
+    // Only an operation that runs once on this trace and is awaited where
+    // it is: a repeated or concurrent one (a loop, an array callback, a
+    // helper called from them) has one binding for several executions.
+    if effect.nonempty.is_empty()
+        || effect.execution != Execution::Awaited
+        || trace
+            .iter()
+            .filter(|event| matches!(event, Event::Effect { effect: other, .. } if std::ptr::eq(*other, effect)))
+            .count()
+            != 1
+    {
+        return false;
+    }
+    let contradicts = |facts: &[Fact]| {
+        facts.iter().any(|prior| {
+            !matches!(prior, Fact::Never)
+                && effect.nonempty.iter().any(|fact| fact.contradicts(prior))
+        })
+    };
+    trace.iter().any(|event| match event {
+        Event::Decision(decision) => contradicts(&decision_facts(decision)),
+        Event::Returned(exit) => contradicts(&exit.facts),
+        _ => false,
+    })
 }
 
 /// Whether `id` is `ancestor` or nested (transitively) inside it.

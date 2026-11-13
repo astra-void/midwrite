@@ -11,6 +11,13 @@ output formats.
 
 ### Added
 
+- A write whose `RETURNING` row is bound (`const [row] = await
+  db.update(t)...returning()`, also `delete` and `insert ...
+  onConflictDoNothing()`) no longer counts as a committed change on paths
+  where the row is missing, including through a helper that returns the
+  row. This does not apply to upserts, loops or callbacks. Three midday
+  false positives give way to other pairs at the same lines
+  ([evaluation harness](docs/development/evaluation-harness.md#writes-whose-returning-row-is-missing-2026-11-13-dev-180)).
 - Properties of a returned object now decide a caller's branch through
   spreads (`{ ...r, consumed: true }`), `return f(...)`, effect-free helpers
   whose every return sets the property, type assertions, and truthiness or

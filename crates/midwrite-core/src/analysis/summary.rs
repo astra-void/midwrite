@@ -2180,6 +2180,9 @@ impl Remap<'_> {
                     // caller's; not copied.
                     references: Box::default(),
                     provenance,
+                    // Renamed like return facts: `$ret` becomes the caller's
+                    // binding of the result.
+                    nonempty: effect.nonempty.iter().map(|fact| self.fact(fact)).collect(),
                 })
             }
             Node::Transaction(scope) => {

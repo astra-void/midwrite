@@ -24,10 +24,22 @@
       "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
       "files": {
         "corpora/configs/petdex.json": "8bbd000947b372caca7ab409b02aae777f9071aeab43a11948d4e9196433a930",
-        "corpora/eval/labels/petdex.json": "402aca6e64fce4e53aceb0aad5c6bc089bca3037e5b00cd8cef1b6ba6d6e5194"
+        "corpora/eval/labels/petdex.json": "0fc0eb7ba158331e73ec1fdca305fa05a4cdf2e7742e795836a1533761686914"
       },
-      "frozenAtUtc": "2026-11-12T05:39:30Z",
-      "history": []
+      "frozenAtUtc": "2026-11-13T06:19:22Z",
+      "history": [
+        {
+          "previous": {
+            "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+            "files": {
+              "corpora/configs/petdex.json": "8bbd000947b372caca7ab409b02aae777f9071aeab43a11948d4e9196433a930",
+              "corpora/eval/labels/petdex.json": "402aca6e64fce4e53aceb0aad5c6bc089bca3037e5b00cd8cef1b6ba6d6e5194"
+            },
+            "frozenAtUtc": "2026-11-12T05:39:30Z"
+          },
+          "reason": "2026-11-13 label for one new finding (135c580767456c38-2) exposed by the DEV-180 analyzer change, from a blind source-only AI labeler; no existing label changed, not a change made to raise a score"
+        }
+      ]
     },
     "next-saas-stripe-starter": {
       "revision": "c6df229ae73c207e87356d5e592779c511a9b56d",

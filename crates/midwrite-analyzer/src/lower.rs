@@ -471,6 +471,8 @@ pub(crate) fn lower_function(
         fact_inputs: std::cell::RefCell::new(std::collections::BTreeMap::new()),
         derived_inputs: HashMap::new(),
         loop_depth: 0,
+        row_effects: Vec::new(),
+        return_rows: Vec::new(),
         module_initializer: matches!(body, Body::Expression(_)),
         invalid_module_read: std::cell::Cell::new(false),
         capture_defaults: HashMap::new(),
@@ -496,6 +498,7 @@ pub(crate) fn lower_function(
         }
     }
     lowerer.body(body);
+    lowerer.mark_returned_rows(may_fall_through(body));
     if lowerer.invalid_module_read.get() {
         lowerer
             .facts
@@ -613,6 +616,13 @@ pub(crate) struct Lowerer<'c> {
     derived_inputs: HashMap<oxc_syntax::symbol::SymbolId, FactInput>,
     /// Depth of loop bodies being lowered.
     loop_depth: usize,
+    /// Writes whose first `RETURNING` row is bound to a variable
+    /// (`const [row] = await db.update(t)...returning()`), with it.
+    row_effects: Vec<(EffectId, String)>,
+    /// Each `return` of the function (not of a callback): the variable it
+    /// returns when it returns a bound row (`return row`, `return row ??
+    /// null`).
+    return_rows: Vec<(Location, Option<String>)>,
     next_inline_call: u32,
     transactions: Vec<TransactionInfo>,
     next_effect: u32,
@@ -715,6 +725,11 @@ impl<'a> Lowerer<'_> {
                 self.push_branch(BranchKind::If, statement.test.span(), statement.span, arms);
             }
             Statement::ReturnStatement(statement) => {
+                if self.callback_depth == 0 {
+                    let row = self.returned_row(statement.argument.as_ref());
+                    let location = self.location(statement.span);
+                    self.return_rows.push((location, row));
+                }
                 match &statement.argument {
                     Some(argument) => self.returned(argument),
                     None if self.callback_depth == 0 => {
@@ -991,8 +1006,10 @@ impl<'a> Lowerer<'_> {
             {
                 self.pending_result = Some((call.span.start, variable, Some(symbol)));
             }
+            let before = self.out.len();
             self.visit_expression(init);
             self.pending_result = saved;
+            self.note_returned_row(declaration, &declarator.id, init, before);
             let value = self.eval(init);
             self.binding_snapshot = self.snapshot_source(init);
             self.bind_pattern(&declarator.id, value);
@@ -2237,6 +2254,124 @@ impl<'a> Lowerer<'_> {
     /// What a function-level `return` implies about the returned value,
     /// as facts about [`RETURN_VARIABLE`]: literal properties of a returned
     /// object literal (no spread, no accessors), or a returned literal.
+    /// `const [row] = await db.update(t)...returning()` (also `delete`, and
+    /// `insert` with `onConflictDoNothing`): `row` is truthy whenever the
+    /// write changed a row, so a path where it is falsy changed nothing.
+    /// `before` is the length of the output before the initializer.
+    fn note_returned_row(
+        &mut self,
+        declaration: &VariableDeclaration<'a>,
+        pattern: &BindingPattern<'a>,
+        init: &Expression<'a>,
+        before: usize,
+    ) {
+        // One execution per binding: in a loop or a callback (an array
+        // callback runs once per element) one row's emptiness says nothing
+        // about another iteration's write.
+        if self.loop_depth > 0
+            || self.callback_depth > 0
+            || !declaration.kind.is_const()
+            || !returns_changed_rows(init)
+        {
+            return;
+        }
+        let BindingPattern::ArrayPattern(array) = pattern else {
+            return;
+        };
+        let Some(Some(BindingPattern::BindingIdentifier(id))) = array.elements.first() else {
+            return;
+        };
+        let Some(symbol) = id.symbol_id.get() else {
+            return;
+        };
+        let Some(Variable::Free(variable)) = self.binding_variable(symbol, &id.name) else {
+            return;
+        };
+        // Exactly the one write the initializer performs, at this level
+        // (argument calls such as `eq(...)` may add unknown effects).
+        let nested = self.out[before..]
+            .iter()
+            .any(|node| !matches!(node, Node::Effect(_)));
+        let mut writes = self.out[before..].iter_mut().filter_map(|node| match node {
+            Node::Effect(effect) if matches!(effect.kind, EffectKind::DatabaseWrite { .. }) => {
+                Some(effect)
+            }
+            _ => None,
+        });
+        let Some(effect) = writes.next() else {
+            return;
+        };
+        if nested || writes.next().is_some() {
+            return;
+        }
+        effect.nonempty.push(Fact::Truthy {
+            variable: variable.clone(),
+            value: true,
+        });
+        let id = effect.id;
+        self.row_effects.push((id, variable));
+    }
+
+    /// The bound-row variable a `return` returns: `row`, `row ?? null`,
+    /// `row ?? undefined`, `row || null`.
+    fn returned_row(&self, argument: Option<&Expression<'a>>) -> Option<String> {
+        let mut expression = argument?.get_inner_expression();
+        if let Expression::LogicalExpression(logical) = expression {
+            let nullish = match logical.right.get_inner_expression() {
+                Expression::NullLiteral(_) => true,
+                Expression::Identifier(id) => id.name == "undefined",
+                _ => false,
+            };
+            if !nullish
+                || !matches!(
+                    logical.operator,
+                    LogicalOperator::Coalesce | LogicalOperator::Or
+                )
+            {
+                return None;
+            }
+            expression = logical.left.get_inner_expression();
+        }
+        let Expression::Identifier(id) = expression else {
+            return None;
+        };
+        match self.variable(id)? {
+            Variable::Free(variable) => Some(variable),
+            Variable::Constant(_) => None,
+        }
+    }
+
+    /// A write with a bound `RETURNING` row in a function whose every
+    /// `return` after it returns that row (and that cannot fall off its
+    /// end): the function's result is falsy exactly when the write changed
+    /// nothing, so `$ret` truthy also holds whenever it changed a row. A
+    /// caller testing its binding of the result decides it.
+    fn mark_returned_rows(&mut self, falls_through: bool) {
+        let rows = std::mem::take(&mut self.row_effects);
+        if falls_through || rows.is_empty() {
+            return;
+        }
+        for (effect, variable) in rows {
+            let mut scan = RowScan {
+                effect,
+                variable: &variable,
+                returns: &self.return_rows,
+                seen: false,
+                ok: true,
+            };
+            scan.nodes(&self.out, false);
+            if scan.seen
+                && scan.ok
+                && let Some(target) = effect_mut(&mut self.out, effect)
+            {
+                target.nonempty.push(Fact::Truthy {
+                    variable: RETURN_VARIABLE.to_owned(),
+                    value: true,
+                });
+            }
+        }
+    }
+
     fn returned_value_facts(&self, argument: Option<&Expression<'a>>) -> Vec<Fact> {
         let ret = RETURN_VARIABLE.to_owned();
         let Some(argument) = argument else {
@@ -3028,6 +3163,7 @@ impl<'a> Lowerer<'_> {
             summary: None,
             references: references.into_boxed_slice(),
             provenance: provenance.map(Box::new),
+            nonempty: Vec::new(),
         }));
     }
 
@@ -3815,4 +3951,118 @@ impl<'e, 'a> TargetIdentifiers<'e, 'a> {
             }
         }
     }
+}
+
+/// `await <db write chain>.returning()` whose rows are exactly the rows the
+/// write changed: `update` and `delete`, and `insert` that skips conflicting
+/// rows (`onConflictDoNothing`). An upsert returns rows it did not insert.
+fn returns_changed_rows(init: &Expression<'_>) -> bool {
+    let Expression::AwaitExpression(awaited) = init.get_inner_expression() else {
+        return false;
+    };
+    let mut names = Vec::new();
+    let mut expression = awaited.argument.get_inner_expression();
+    while let Expression::CallExpression(call) = expression {
+        let Expression::StaticMemberExpression(member) = call.callee.get_inner_expression() else {
+            break;
+        };
+        names.push(member.property.name.as_str());
+        expression = member.object.get_inner_expression();
+    }
+    let has = |name: &str| names.contains(&name);
+    names.first() == Some(&"returning")
+        && !has("onConflictDoUpdate")
+        && (has("update") || has("delete") || (has("insert") && has("onConflictDoNothing")))
+}
+
+/// Finds a write in a function body and checks every `return` that may
+/// follow it (in source order, conservatively including later sibling
+/// arms) against the row variable it binds. A write inside a loop, or
+/// a `return` of anything else, fails the check.
+struct RowScan<'s> {
+    effect: EffectId,
+    variable: &'s str,
+    returns: &'s [(Location, Option<String>)],
+    seen: bool,
+    ok: bool,
+}
+
+impl RowScan<'_> {
+    fn nodes(&mut self, nodes: &[Node], in_loop: bool) {
+        for node in nodes {
+            match node {
+                Node::Effect(effect) if effect.id == self.effect => {
+                    self.seen = true;
+                    self.ok &= !in_loop;
+                }
+                Node::Exit(exit) if self.seen && exit.kind == ExitKind::Return => {
+                    let returned = self
+                        .returns
+                        .iter()
+                        .find(|(location, _)| *location == exit.location)
+                        .and_then(|(_, row)| row.as_deref());
+                    self.ok &= returned == Some(self.variable);
+                }
+                Node::Branch(branch) => {
+                    for arm in &branch.arms {
+                        self.nodes(&arm.body, in_loop);
+                    }
+                }
+                Node::Switch(switch) => {
+                    for case in &switch.cases {
+                        self.nodes(&case.body, in_loop);
+                    }
+                }
+                Node::Try(try_node) => {
+                    self.nodes(&try_node.block, in_loop);
+                    if let Some(handler) = &try_node.handler {
+                        self.nodes(&handler.body, in_loop);
+                    }
+                    if let Some(finalizer) = &try_node.finalizer {
+                        self.nodes(finalizer, in_loop);
+                    }
+                }
+                Node::Loop(lp) => self.nodes(&lp.body, true),
+                // Returns of callbacks and of inlined calls are not this
+                // function's; a write inside them is not this binding's.
+                _ => {}
+            }
+        }
+    }
+}
+
+/// The effect `id` among `nodes`, outside callbacks and inlined calls.
+fn effect_mut(nodes: &mut [Node], id: EffectId) -> Option<&mut Effect> {
+    for node in nodes {
+        let found = match node {
+            Node::Effect(effect) if effect.id == id => return Some(effect),
+            Node::Branch(branch) => branch
+                .arms
+                .iter_mut()
+                .find_map(|arm| effect_mut(&mut arm.body, id)),
+            Node::Switch(switch) => switch
+                .cases
+                .iter_mut()
+                .find_map(|case| effect_mut(&mut case.body, id)),
+            Node::Try(try_node) => effect_mut(&mut try_node.block, id)
+                .or_else(|| {
+                    try_node
+                        .handler
+                        .as_mut()
+                        .and_then(|handler| effect_mut(&mut handler.body, id))
+                })
+                .or_else(|| {
+                    try_node
+                        .finalizer
+                        .as_mut()
+                        .and_then(|finalizer| effect_mut(finalizer, id))
+                }),
+            Node::Loop(lp) => effect_mut(&mut lp.body, id),
+            _ => None,
+        };
+        if found.is_some() {
+            return found;
+        }
+    }
+    None
 }

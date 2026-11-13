@@ -59,6 +59,7 @@ impl Builder {
             summary: None,
             references: Box::default(),
             provenance: None,
+            nonempty: Vec::new(),
         })
     }
 

@@ -1306,3 +1306,78 @@ where the token is `null`, which is the path where the update matched no row.
 Midwrite does not model "an empty `RETURNING` result means nothing was
 written", so the continuation patch stays parked. The new pair is unlabeled:
 it was not given a label here.
+
+## Writes whose RETURNING row is missing (2026-11-13, DEV-180)
+
+Record: [`reports/eval/2026-11-13-empty-returning-writes.json`](../../reports/eval/2026-11-13-empty-returning-writes.json),
+binary built from `dcad6fb` plus this change, scored with the sets of
+`dcad6fb`. The target was the dev pair that replaced the DEV-175 target
+under the parked continuation patch (midday `47d042c897a2541f`), not a
+held-out result.
+
+**What changed.** `UPDATE ... RETURNING` and `DELETE ... RETURNING` return
+exactly the rows they changed. An insert that skips conflicts
+(`onConflictDoNothing`) returns nothing when it skipped. When such a
+write's first row is bound (`const [row] = await
+db.update(t)...returning()`), the write records `row is truthy` as a fact
+that holds whenever it changed something. A trace whose facts contradict it
+(`if (!row) ...`) gets no commit from that write. When every `return` after
+the write returns that row (`return row`, `return row ?? null`) and the
+function cannot fall off its end, the same holds for the function's
+result. A caller that tests its binding of the result (`if (token)`)
+decides the write. The rule does not apply in these cases:
+
+* an upsert (`onConflictDoUpdate`), which returns rows it did not insert;
+* a binding inside a loop or a callback;
+* an operation that is not awaited where it runs, or that occurs more than
+  once on the trace.
+
+In those cases one binding stands for several executions. The first
+version had no such guard and dropped two midday true positives in
+`Promise.all(validInvites.map(...))`, where one element's empty insert
+said nothing about another element's write.
+
+Fixtures: [`fixtures/safe/empty_returning_write.ts`](../../fixtures/safe/empty_returning_write.ts)
+and [`fixtures/vulnerable/returning_write_still_reported.ts`](../../fixtures/vulnerable/returning_write_still_reported.ts).
+The second covers:
+
+* a present row;
+* an untested result;
+* an upsert;
+* a helper that may return `null` after writing;
+* an array callback.
+
+**Scores.**
+
+* **midday.** Three false positives and one intended risk disappear, at
+  `invoice.ts:552`, `invoice.ts:705`, `rest/routers/invoices.ts:563` and
+  `process-attachment.ts:114`. On each path, the first "write" was an
+  update that matched no row. At the same lines, other pairs become the
+  representative finding: three are intended-risk and one is a
+  false-positive (`5cded3e81f9a7b4f`, a delete that only runs for an
+  argument this call does not pass).
+* **petdex**, held-out at `dcad6fb`. False positive `5c207dae68e2a103` is
+  replaced at the same line by false positive `135c580767456c38-2`.
+
+A separate blind AI labeler, which saw only the source, labeled the five
+new findings. The held-out label was added with a refreeze that records
+the reason. No existing label changed.
+
+| measure | before | after |
+| --- | ---: | ---: |
+| dev hazards | 426 | 426 |
+| dev hazard precision | 400/418 | 402/418 |
+| dev bug precision | 175/418 | 175/418 |
+| dev recall | 153/169 | 153/169 |
+| held-out hazard precision | 30/32 | 30/32, gate PASS |
+
+**The parked continuation patch on top (DEV-176).** The pair at
+`runtime.ts:194` is gone. The patch now adds three dev findings:
+
+* kan `card.ts:620`, blind-labeled true-positive;
+* midday `runtime.ts:214`, a best-effort `lastSeenAt` write;
+* midday `customers.ts:102`, an enrichment cleanup in a `catch`.
+
+The earlier blind labeler called the two midday findings false positives.
+Their causes are not analyzer facts, so the patch stays parked until those
+two labels are checked by the DEV-162 human review.

@@ -185,6 +185,7 @@ impl LoweredModule {
                     summary: None,
                     references: Box::default(),
                     provenance: None,
+                    nonempty: Vec::new(),
                 };
                 let mut call = LocalCall::new(EffectId(0), None, false);
                 call.callable = Some(AbsValue::atom(Atom::ModuleValue {

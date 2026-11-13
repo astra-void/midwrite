@@ -352,6 +352,12 @@ pub struct Effect {
     /// `None` for unknown effects and when no values were computed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provenance: Option<Box<Provenance>>,
+    /// Facts that hold whenever the operation changed at least one row: a
+    /// write whose `RETURNING` rows are bound (`const [row] = await
+    /// db.update(t)...returning()`) changed nothing on a path whose facts
+    /// contradict one of them (`if (!row) ...`). Empty when unknown.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub nonempty: Vec<Fact>,
 }
 
 impl Effect {

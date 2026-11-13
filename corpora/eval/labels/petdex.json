@@ -416,9 +416,30 @@
    "function": "takedownPet",
    "classification": "intended-risk",
    "notes": "After the pet is deleted in one batch/transaction (takedown.ts:155-176), R2 objects are removed (takedown.ts:208) and then the owner is emailed (takedown.ts:238). Both are explicitly best-effort. Step 6 is commented 'Best-effort R2 cleanup ... errors are logged but don't fail the takedown' (lines 197-211), and the email sits in a silent try/catch (lines 229-247). A missed takedown email is accepted."
+  },
+  {
+   "findingId": "135c580767456c38-2",
+   "code": "MW1004",
+   "file": "src/lib/submission-review.ts",
+   "line": 249,
+   "function": "reviewSubmission",
+   "classification": "false-positive",
+   "fpCause": "first change not persisted",
+   "notes": "The path goes through the throw at src/lib/submission-review.ts:347-348, reached only when finishReview's update (:330-345) matches no row, i.e. the review row inserted at :133 is already gone; the catch-block call at :249 runs the same update, which changes nothing and throws again. The claimed state (insert kept, update pending) does not exist on this path; nothing in src/ deletes submission_reviews (schema at src/lib/db/schema.ts:191). (2026-11-13 blind AI label; not independently human-validated.)"
   }
  ],
- "corrections": [],
+ "corrections": [
+  {
+   "date": "2026-11-13",
+   "by": "AI agent (Claude), blind source-only labeler separate from analyzer tuning; did not see knownPositives, existing labels or reports",
+   "humanReviewed": false,
+   "type": "new-findings-reviewed",
+   "findings": [
+    "135c580767456c38-2"
+   ],
+   "reason": "Findings exposed by DEV-180 (a write whose bound RETURNING row is missing changed nothing): at the same lines, pairs whose first write is infeasible on that path disappeared and other pairs became the representative findings. Existing classifications were not changed. Source-only AI review, not human review or runtime confirmation."
+  }
+ ],
  "reviewQueue": [
   {
    "knownPositive": "petdex-KP02",
