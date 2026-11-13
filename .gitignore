@@ -22,6 +22,8 @@ node_modules/
 
 # Release binaries saved for before/after comparisons.
 /reports/baseline/
+# Human review packets quote third-party corpus source (scripts/human-review.py).
+/reports/review/packet/
 # The request, retry-wrapper and worlds applications link the workspace
 # application's packages locally (`npm ci` creates their own elsewhere);
 # Python bytecode of scripts.

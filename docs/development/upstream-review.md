@@ -27,6 +27,10 @@ reported issue is not maintainer confirmation. Human review and executed
 reproductions remain future evidence; the gate met here is the count of
 upstream reports. Other candidates with unresolved intent/recovery are
 explicitly `needs-triage`, not counted as confirmed bugs or safe results.
+On 2026-11-13 all four issues were still open with no maintainer reply
+([status](../../corpora/review/upstream-status.json)), so every report is
+unconfirmed. The four reports are tier-1 items of the
+[human review](human-review.md) sample.
 
 ## Repositories and complete scan results
 

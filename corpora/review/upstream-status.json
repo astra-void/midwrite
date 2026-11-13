@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "kind": "midwrite.upstream-status",
+  "$comment": "Public state of the upstream reports. maintainerConfirmed stays null until a maintainer says in the issue that the failure is real (true) or not (false); set it by hand with a link to that comment. An open issue without a reply is unconfirmed.",
+  "checkedAt": "2026-11-13T03:40:09Z",
+  "reports": [
+    {
+      "report": "reports/upstream/issues/chatbot-partial-delete.json",
+      "url": "https://github.com/vercel/chatbot/issues/1567",
+      "state": "OPEN",
+      "stateReason": null,
+      "closedAt": null,
+      "labels": [],
+      "comments": 0,
+      "maintainerConfirmed": null
+    },
+    {
+      "report": "reports/upstream/issues/kan-checkout-retry.json",
+      "url": "https://github.com/kanbn/kan/issues/697",
+      "state": "OPEN",
+      "stateReason": null,
+      "closedAt": null,
+      "labels": [],
+      "comments": 0,
+      "maintainerConfirmed": null
+    },
+    {
+      "report": "reports/upstream/issues/openstatus-partial-signup.json",
+      "url": "https://github.com/openstatusHQ/openstatus/issues/3077",
+      "state": "OPEN",
+      "stateReason": null,
+      "closedAt": null,
+      "labels": [],
+      "comments": 0,
+      "maintainerConfirmed": null
+    },
+    {
+      "report": "reports/upstream/issues/rybbit-email-claims.json",
+      "url": "https://github.com/rybbit-io/rybbit/issues/1355",
+      "state": "OPEN",
+      "stateReason": null,
+      "closedAt": null,
+      "labels": [],
+      "comments": 0,
+      "maintainerConfirmed": null
+    }
+  ]
+}

@@ -149,7 +149,9 @@ before the change (one in midday) stays stale.
   agents doing each job were separate, and the auditors never saw
   Midwrite's output. That is not independent human review. Treat the
   numbers as provisional until a person has reviewed the labels; record
-  disagreements in the label file's `corrections`.
+  disagreements in the label file's `corrections`. The fixed review sample,
+  record format and adjudication steps are in
+  [human review](human-review.md) (DEV-162).
 * The audits were capped at 30 entries, highest confidence first. kan
   reached the cap and reported more windows of the same kind, so its recall
   denominator is a sample.

@@ -87,6 +87,8 @@ jobs:
           python-version: "3.12"
       - name: Test the evaluation gate
         run: python3 -m unittest discover -s scripts -p 'test_eval.py'
+      - name: Test the human review tooling
+        run: python3 -m unittest discover -s scripts -p 'test_human_review.py'
       - name: Build the static analyzer (release)
         run: cargo build --release --locked -p midwrite-cli
       - name: Check whether independent held-out projects remain

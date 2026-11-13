@@ -78,6 +78,10 @@ implementer or by AI sessions. The levels of separation that do exist:
 
 AI evaluation is not review. Statements in these documents that a result
 is "verified" refer to the measurements above, never to human review.
+The protocol for a human review, a fixed sample of 172 labels and upstream
+reports with a checked record format, is in
+[human review](../development/human-review.md). As of 2026-11-13 no item has
+been reviewed.
 
 ## Static-finding review
 
