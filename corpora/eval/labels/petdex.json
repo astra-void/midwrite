@@ -16,6 +16,15 @@
    "by": "AI agent (Claude), finding-by-finding source review, separate from the auditor; did not see knownPositives",
    "date": "2026-11-12",
    "humanReviewed": false
+  },
+  "aiReview": {
+   "date": "2026-11-13",
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ],
+   "itemsReviewed": 36,
+   "scope": "the DEV-162 sample, not every label"
   }
  },
  "knownPositives": [
@@ -271,7 +280,7 @@
    "file": "src/lib/request-candidates.ts",
    "line": 305,
    "function": "approveCandidate",
-   "classification": "true-positive",
+   "classification": "unclear",
    "notes": "approveCandidate marks the chosen candidate approved (request-candidates.ts:289), then auto-rejects pending sibling candidates in a separate autocommitted statement (request-candidates.ts:305). If it fails in between, one candidate is approved while siblings stay 'pending' and the request is not fulfilled. A retry returns not_pending, because the candidate status is checked at request-candidates.ts:271, so the function cannot be re-run to finish. No reconciliation exists. Note: there is no in-repo caller (it is likely used by the separate admin app).",
    "crossRecord": true
   },
@@ -281,7 +290,7 @@
    "file": "src/lib/request-candidates.ts",
    "line": 321,
    "function": "approveCandidate",
-   "classification": "true-positive",
+   "classification": "unclear",
    "notes": "After the candidate is approved (request-candidates.ts:289) and siblings are rejected (request-candidates.ts:305), the petRequests row is marked fulfilled in another independent statement (request-candidates.ts:321). If it fails before line 321, the request stays 'open' with no fulfilledPetSlug even though a winning candidate is recorded. A retry is blocked by the candidate.status !== 'pending' guard (line 271), and nothing reconciles requests against approved candidates.",
    "crossRecord": true
   },
@@ -404,7 +413,7 @@
    "file": "src/lib/submission-review.ts",
    "line": 249,
    "function": "reviewSubmission",
-   "classification": "false-positive",
+   "classification": "intended-risk",
    "notes": "This path needs the first finishReview (line 151) to reach the `!review` throw at submission-review.ts:347-348. That happens only when the UPDATE at line 330 matched no row, so nothing was persisted by the 'first' operation. The catch at line 245 then calls finishReview again (line 249) on the same review id. No partial state exists between the two.",
    "fpCause": "first change not persisted"
   },
@@ -438,6 +447,147 @@
     "135c580767456c38-2"
    ],
    "reason": "Findings exposed by DEV-180 (a write whose bound RETURNING row is missing changed nothing): at the same lines, pairs whose first write is infeasible on that path disappeared and other pairs became the representative findings. Existing classifications were not changed. Source-only AI review, not human review or runtime confirmation."
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "6946f8ab26c2cbfa",
+   "previous": {
+    "findingId": "6946f8ab26c2cbfa",
+    "code": "MW1004",
+    "file": "src/lib/request-candidates.ts",
+    "line": 305,
+    "function": "approveCandidate",
+    "classification": "true-positive",
+    "notes": "approveCandidate marks the chosen candidate approved (request-candidates.ts:289), then auto-rejects pending sibling candidates in a separate autocommitted statement (request-candidates.ts:305). If it fails in between, one candidate is approved while siblings stay 'pending' and the request is not fulfilled. A retry returns not_pending, because the candidate status is checked at request-candidates.ts:271, so the function cannot be re-run to finish. No reconciliation exists. Note: there is no in-repo caller (it is likely used by the separate admin app).",
+    "crossRecord": true
+   },
+   "classification": "unclear",
+   "reason": "Inside approveCandidate the window is genuine: the candidate is set to approved with no transaction before the siblings are rejected. A retry would then hit the not_pending guard and leave the siblings pending. However, nothing in the checkout calls approveCandidate (no route or script imports it), so I cannot find a reachable path at this revision. | approveCandidate approves the candidate in one autocommit update and then rejects the pending siblings in a separate one, with no transaction. A failure in between leaves an approved candidate beside still-pending siblings, and a retry cannot finish because the function returns not_pending for the already-approved candidate. No caller of approveCandidate exists in this checkout, so the window is latent rather than reachable today.",
+   "evidence": [
+    ".corpora/petdex/src/lib/request-candidates.ts:271",
+    ".corpora/petdex/src/lib/request-candidates.ts:289",
+    ".corpora/petdex/src/lib/request-candidates.ts:305",
+    "src/lib/request-candidates.ts:271",
+    "src/lib/request-candidates.ts:289",
+    "src/lib/request-candidates.ts:305"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "e22a74407ad5d615",
+   "previous": {
+    "findingId": "e22a74407ad5d615",
+    "code": "MW1004",
+    "file": "src/lib/request-candidates.ts",
+    "line": 321,
+    "function": "approveCandidate",
+    "classification": "true-positive",
+    "notes": "After the candidate is approved (request-candidates.ts:289) and siblings are rejected (request-candidates.ts:305), the petRequests row is marked fulfilled in another independent statement (request-candidates.ts:321). If it fails before line 321, the request stays 'open' with no fulfilledPetSlug even though a winning candidate is recorded. A retry is blocked by the candidate.status !== 'pending' guard (line 271), and nothing reconciles requests against approved candidates.",
+    "crossRecord": true
+   },
+   "classification": "unclear",
+   "reason": "If approveCandidate ran, the candidates could be resolved while pet_requests stays open with no fulfilledPetSlug, and the not_pending guard would block a repair by retry. No code in the checkout calls approveCandidate, so the path does not look reachable at this revision. | The sibling-reject update and the petRequests 'fulfilled' update commit independently. A failure in between leaves the candidates resolved while the request stays open, and the not_pending guard blocks a retry. approveCandidate has no caller in this checkout, so the hazard is latent.",
+   "evidence": [
+    ".corpora/petdex/src/lib/request-candidates.ts:271",
+    ".corpora/petdex/src/lib/request-candidates.ts:305",
+    ".corpora/petdex/src/lib/request-candidates.ts:321",
+    "src/lib/request-candidates.ts:271",
+    "src/lib/request-candidates.ts:305",
+    "src/lib/request-candidates.ts:321"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "5c207dae68e2a103",
+   "previous": {
+    "findingId": "5c207dae68e2a103",
+    "code": "MW1004",
+    "file": "src/lib/submission-review.ts",
+    "line": 249,
+    "function": "reviewSubmission",
+    "classification": "false-positive",
+    "notes": "This path needs the first finishReview (line 151) to reach the `!review` throw at submission-review.ts:347-348. That happens only when the UPDATE at line 330 matched no row, so nothing was persisted by the 'first' operation. The catch at line 245 then calls finishReview again (line 249) on the same review id. No partial state exists between the two.",
+    "fpCause": "first change not persisted"
+   },
+   "classification": "intended-risk",
+   "reason": "At line 249 the catch block finalizes a review whose 'running' row, and possibly an applySubmissionAction approve/reject, already committed. If that finishReview also fails, the row stays 'running', which the stale-running burial handles. Separately, if applySubmissionAction approves the pet and then a post-approval step throws, this path records applied=false although the status already changed. That leaves the review record inaccurate rather than missing. | reviewSubmission inserts a 'running' review row, and only later does the catch block's finishReview at about line 249 mark it failed. A crash in between leaves a 'running' row, which non-forced calls then reuse. The scripts/review-pending-submissions job's buryStaleRunningReviews marks stale running reviews as failed/hold for manual review, which reconciles this.",
+   "evidence": [
+    ".corpora/petdex/scripts/review-pending-submissions.ts:108",
+    ".corpora/petdex/src/lib/submission-review.ts:120",
+    ".corpora/petdex/src/lib/submission-review.ts:133",
+    ".corpora/petdex/src/lib/submission-review.ts:249",
+    "scripts/review-pending-submissions.ts:108",
+    "src/lib/submission-review.ts:133",
+    "src/lib/submission-review.ts:210",
+    "src/lib/submission-review.ts:249"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI review, DEV-162",
+   "humanReviewed": false,
+   "type": "ai-confirmed",
+   "items": [
+    "09885b2a387721a9",
+    "09885b2a387721a9-2",
+    "135c580767456c38",
+    "21aa19bc7eedd7ca",
+    "26c8b8e69f66b1c1",
+    "2de339dacc3f67b9",
+    "2ea8e04a5e4ab4c5",
+    "32d25228029aea72",
+    "4e30e5bf44efcfc9",
+    "56d2e924ccafcb33",
+    "674e1cbfb4f991ed",
+    "9ca89e6d9d2cade8",
+    "bf17618044d421e3",
+    "c9c3146672bb0292",
+    "cad32ae8bbbbbb6d",
+    "d4250a3efa87910f",
+    "d4250a3efa87910f-2",
+    "d5c98e10158af7a8",
+    "ea67ec43951c18b9",
+    "f19cae57980901db",
+    "fbe4de706e93f1a8",
+    "petdex-KP01",
+    "petdex-KP02",
+    "petdex-KP03",
+    "petdex-KP04",
+    "petdex-KP05",
+    "petdex-KP06",
+    "petdex-KP07",
+    "petdex-KP08",
+    "petdex-KP09",
+    "petdex-KP10",
+    "petdex-KP11",
+    "petdex-KP12"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ],
+   "reason": "The ai review verdict matches the existing label; the label is unchanged."
   }
  ],
  "reviewQueue": [

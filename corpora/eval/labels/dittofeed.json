@@ -16,6 +16,15 @@
    "by": "AI agent (Claude), finding-by-finding source review, separate from the auditor; did not see knownPositives",
    "date": "2026-11-05",
    "humanReviewed": false
+  },
+  "aiReview": {
+   "date": "2026-11-13",
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ],
+   "itemsReviewed": 9,
+   "scope": "the DEV-162 sample, not every label"
   }
  },
  "knownPositives": [
@@ -541,7 +550,7 @@
    "file": "packages/backend-lib/src/integrations/hubspot/activities.ts",
    "line": 170,
    "function": "refreshToken",
-   "classification": "unclear",
+   "classification": "intended-risk",
    "notes": "The first operation is a HubSpot OAuth token exchange. Source alone does not establish whether receiving a new token invalidates an older credential or creates consistency-relevant provider state. Do not treat POST alone as proof of a business mutation. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
   },
   {
@@ -550,7 +559,7 @@
    "file": "packages/backend-lib/src/integrations/hubspot/activities.ts",
    "line": 232,
    "function": "refreshToken",
-   "classification": "unclear",
+   "classification": "false-positive",
    "notes": "The proposed path combines a successful database token upsert with an AxiosError/BAD_REFRESH_TOKEN-only catch branch. This appears to mix incompatible success and failure paths, but confirming the exact exception provenance needs a stronger error/result model. Excluded from precision pending review. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
   },
   {
@@ -559,7 +568,7 @@
    "file": "packages/backend-lib/src/integrations/hubspot/activities.ts",
    "line": 797,
    "function": "updateHubspotEmails",
-   "classification": "unclear",
+   "classification": "intended-risk",
    "notes": "The code concurrently creates new HubSpot email records and updates existing ones in a retried integration activity. The source shows separate effects, but does not establish whether provider-side identity/reconciliation makes retry converge. No independent provider review performed. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
   },
   {
@@ -981,6 +990,112 @@
     "1c385fd8b09fbecd"
    ],
    "reason": "Reviewed newly exposed findings after source-analysis coverage fixes on the development set. Existing finding classifications were retained. Source-only AI review, not blind review or runtime confirmation; uncertain provider/error semantics remain unclear."
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "9f8483db635fdba6",
+   "previous": {
+    "findingId": "9f8483db635fdba6",
+    "code": "MW1002",
+    "file": "packages/backend-lib/src/integrations/hubspot/activities.ts",
+    "line": 170,
+    "function": "refreshToken",
+    "classification": "unclear",
+    "notes": "The first operation is a HubSpot OAuth token exchange. Source alone does not establish whether receiving a new token invalidates an older credential or creates consistency-relevant provider state. Do not treat POST alone as proof of a business mutation. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+   },
+   "classification": "intended-risk",
+   "reason": "The HubSpot token-refresh POST can succeed and the following upsert of the new tokens fail. refreshToken runs as a Temporal activity inside the periodic hubspotWorkflow (default retry policy). The stored refresh token is unchanged, so the refresh is simply repeated on retry or on the next poll. | The HubSpot token refresh POST can succeed and then the upsert can fail, so the new access token is lost. refreshToken is a Temporal activity (proxyActivities, default retry policy) and the stored refresh token is still there, so the retried activity refreshes again and persists the result.",
+   "evidence": [
+    ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:170",
+    ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:185",
+    ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspotWorkflow.ts:119",
+    ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspotWorkflow.ts:17"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "3b62eaf4c168a13e",
+   "previous": {
+    "findingId": "3b62eaf4c168a13e",
+    "code": "MW1004",
+    "file": "packages/backend-lib/src/integrations/hubspot/activities.ts",
+    "line": 232,
+    "function": "refreshToken",
+    "classification": "unclear",
+    "notes": "The proposed path combines a successful database token upsert with an AxiosError/BAD_REFRESH_TOKEN-only catch branch. This appears to mix incompatible success and failure paths, but confirming the exact exception provenance needs a stronger error/result model. Excluded from precision pending review. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+   },
+   "classification": "false-positive",
+   "reason": "The integration-disable update at line 232 is reached only when the caught error is an AxiosError, which can come only from the axios call before the upsert. Errors from or after the upsert (unwrap, or the 'No result returned from upsert' Error) are not AxiosErrors and are rethrown at line 213. A committed upsert and the disable are therefore mutually exclusive. | The path needs the upsert's `!result` throw (a plain Error, after which nothing was written) to be caught as an AxiosError. A plain Error fails the `instanceof AxiosError` check and is rethrown at line 213, so the integration-disable update at 232 is unreachable after an upsert. The update at 232 runs only when the axios refresh itself failed, and then no upsert happened.",
+   "evidence": [
+    ".corpora/dittofeed/packages/backend-lib/src/db.ts:152",
+    ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:185",
+    ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:212",
+    ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:232"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "44476238f5f66c9d",
+   "previous": {
+    "findingId": "44476238f5f66c9d",
+    "code": "MW1005",
+    "file": "packages/backend-lib/src/integrations/hubspot/activities.ts",
+    "line": 797,
+    "function": "updateHubspotEmails",
+    "classification": "unclear",
+    "notes": "The code concurrently creates new HubSpot email records and updates existing ones in a retried integration activity. The source shows separate effects, but does not establish whether provider-side identity/reconciliation makes retry converge. No independent provider review performed. (2026-11-12 Codex AI source review after development fixes; not blind or independently human-validated.)"
+   },
+   "classification": "intended-risk",
+   "reason": "The per-email create POSTs start at line 753 and run concurrently with the batch status update in Promise.all at line 796, so one can succeed while another fails. The activity is retried by Temporal (default policy) and recomputes the desired state from events and a fresh HubSpot search, and the status update is idempotent. Caveat: matching by timestamp sends an existing email with an unchanged status to the create branch (line 607), so a retry can duplicate already-created emails. | The per-email create POSTs start eagerly in the flatMap and run concurrently with the batch status update, so one can succeed while another fails. updateHubspotEmails is a retried Temporal activity, and each run recomputes creates and updates by comparing against the emails a fresh HubSpot search returns, so the sync is a reconciliation that converges. Search lag could still produce a duplicate.",
+   "evidence": [
+    ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:602",
+    ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:607",
+    ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:753",
+    ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:796",
+    ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:797",
+    ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspotUserWorkflow.ts:20",
+    ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspotUserWorkflow.ts:25"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI review, DEV-162",
+   "humanReviewed": false,
+   "type": "ai-confirmed",
+   "items": [
+    "29694cf677dd7e5d",
+    "dittofeed-KP01",
+    "dittofeed-KP02",
+    "dittofeed-KP03",
+    "dittofeed-KP04",
+    "ed4a3babab01f114"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ],
+   "reason": "The ai review verdict matches the existing label; the label is unchanged."
   }
  ],
  "reviewQueue": [

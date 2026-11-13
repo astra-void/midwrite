@@ -1,0 +1,1690 @@
+{
+  "schemaVersion": 1,
+  "kind": "midwrite.human-review-record",
+  "reviewer": {
+    "name": "blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1)",
+    "kind": "ai",
+    "independence": "Separate AI agents, not the pass-1 reviewers, that saw only the source and each finding's operations for the 26 items where pass 1 disagreed with the existing label; they did not see the labels, pass 1, reports or review files. Not human review (DEV-162 scope changed by the project owner on 2026-11-13).",
+    "toolsUsed": "Claude subagents reading source files"
+  },
+  "attestation": false,
+  "sampleSha256": "0b775dcbc90504c2c1a6e738e8297b95a908018f30f6c237c98c2c7b11bd508c",
+  "midwriteRevision": "2dc0c9f",
+  "started": "2026-11-13",
+  "completed": "2026-11-13",
+  "items": [
+    {
+      "item": "midday:finding:be6bb7027f1f6b89",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The status update to 'pending' commits before the review-request email goes out, so a failure in render or resend leaves the app pending with no email. The email sits in a try/catch commented 'Log error but don't fail the mutation', which makes it a deliberate best-effort side effect.",
+      "codeRefs": [
+        ".corpora/midday/apps/api/src/trpc/routers/oauth-applications.ts:341",
+        ".corpora/midday/apps/api/src/trpc/routers/oauth-applications.ts:368",
+        ".corpora/midday/apps/api/src/trpc/routers/oauth-applications.ts:375",
+        ".corpora/midday/packages/db/src/queries/oauth-applications.ts:376"
+      ]
+    },
+    {
+      "item": "midday:finding:30dcdd2ef00f2705",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "createTransaction inserts the row and its attachments with no transaction, and only then are the enrich and match jobs enqueued, unguarded. If the enqueue fails or the process crashes, the transaction stays with enrichmentCompleted=false and nothing re-enqueues it: getTransactionsForEnrichment only runs for IDs it is given, and no sweeper exists. The reported path pairs `!result` taking the then branch with `transaction?.id` being truthy, which cannot both happen, but the window is real on the normal non-null path.",
+      "codeRefs": [
+        ".corpora/midday/packages/db/src/queries/transactions.ts:1852",
+        ".corpora/midday/apps/api/src/trpc/routers/transactions.ts:133",
+        ".corpora/midday/apps/api/src/trpc/routers/transactions.ts:139",
+        ".corpora/midday/packages/db/src/queries/transaction-enrichment.ts:58"
+      ]
+    },
+    {
+      "item": "midday:finding:7152316730e65b31",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The sync record is upserted as 'synced' with an empty syncedAttachmentMapping before sync-accounting-attachments is enqueued. A triggerJob error is swallowed by the batch catch. The next export recovers it: categorizeTransactions treats attachments missing from the mapping as new and sends them to toSyncAttachments, so the recovery is idempotent (it needs a re-export or a job retry).",
+      "codeRefs": [
+        ".corpora/midday/apps/worker/src/processors/accounting/export-transactions.ts:281",
+        ".corpora/midday/apps/worker/src/processors/accounting/export-transactions.ts:329",
+        ".corpora/midday/apps/worker/src/processors/accounting/export-transactions.ts:544",
+        ".corpora/midday/packages/db/src/queries/accounting-sync.ts:70"
+      ]
+    },
+    {
+      "item": "midday:finding:7152316730e65b31-2",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:30b45470f9206870",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The document_uploaded notification goes out before the document row is updated, so the notification can exist without the update. The notification reports an upload that has already happened, and the code wraps it in try/catch as non-fatal. Processing failures are retried by the documents queue (3 attempts) or marked failed.",
+      "codeRefs": [
+        ".corpora/midday/apps/worker/src/processors/documents/process-document.ts:45",
+        ".corpora/midday/apps/worker/src/processors/documents/process-document.ts:57",
+        ".corpora/midday/apps/worker/src/processors/documents/process-document.ts:118",
+        ".corpora/midday/apps/worker/src/queues/documents.config.ts:17"
+      ]
+    },
+    {
+      "item": "midday:finding:f67d93b946c14519",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The process-document enqueue is a non-awaited promise that runs independently of inbox status and is explicitly 'non-critical'. The update at 429 is itself a best-effort fallback, run only after the batch-process-matching enqueue has failed. The pairing is not semantically coupled. A real stuck 'analyzing' item needs a double failure (the matching enqueue and the fallback update), and that is only logged.",
+      "codeRefs": [
+        ".corpora/midday/apps/worker/src/processors/inbox/process-attachment.ts:374",
+        ".corpora/midday/apps/worker/src/processors/inbox/process-attachment.ts:393",
+        ".corpora/midday/apps/worker/src/processors/inbox/process-attachment.ts:421",
+        ".corpora/midday/apps/worker/src/processors/inbox/process-attachment.ts:429"
+      ]
+    },
+    {
+      "item": "midday:finding:d6cc779a0da27f5a",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The inbox_new notification (best-effort, in try/catch) is sent before lastAccessed is updated. If the update fails, the next scheduled sync fetches again from the old lastAccessed. Attachments already recorded are skipped by the referenceId dedup, and createInbox handles referenceId conflicts, so re-sync recovers apart from a possible duplicate notification.",
+      "codeRefs": [
+        ".corpora/midday/apps/worker/src/processors/inbox/sync-scheduler.ts:254",
+        ".corpora/midday/apps/worker/src/processors/inbox/sync-scheduler.ts:283",
+        ".corpora/midday/apps/worker/src/processors/inbox/sync-scheduler.ts:139",
+        ".corpora/midday/apps/worker/src/processors/inbox/sync-scheduler.ts:67"
+      ]
+    },
+    {
+      "item": "midday:finding:92e76f3400624b30",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The inbox row is created with status 'processing' and only updated after OCR, so a failure in between leaves the intermediate row. That state is intended. Non-retryable errors set it to 'pending' in the catch, timeouts rethrow for a queue retry (3 attempts), and a retry finds the row through getInboxByFilePath and resumes.",
+      "codeRefs": [
+        ".corpora/midday/apps/worker/src/processors/inbox/process-attachment.ts:68",
+        ".corpora/midday/apps/worker/src/processors/inbox/process-attachment.ts:149",
+        ".corpora/midday/apps/worker/src/processors/inbox/process-attachment.ts:317",
+        ".corpora/midday/apps/worker/src/processors/inbox/process-attachment.ts:507"
+      ]
+    },
+    {
+      "item": "midday:finding:41b76f15d5a434ea-2",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The 'analyzing' marker at 161 commits on its own, and line 211 is a best-effort compensating reset to 'pending' that runs on error. The suggestion and match writes themselves are atomic inside persistInboxSuggestionWorkflow's transaction. Only a crash, or a failure of the reset itself, leaves the item stuck in 'analyzing': matching queries select only pending/no_match and nothing sweeps stale items. The code accepts that explicitly as best effort.",
+      "codeRefs": [
+        ".corpora/midday/packages/db/src/queries/inbox-matching.ts:161",
+        ".corpora/midday/packages/db/src/queries/inbox-matching.ts:186",
+        ".corpora/midday/packages/db/src/queries/inbox-matching.ts:211",
+        ".corpora/midday/packages/db/src/queries/transaction-matching.ts:915"
+      ]
+    },
+    {
+      "item": "midday:finding:de2c2b657c4a7d57",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:a94d0af4e1b61bde",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "Line 563 removes the orphaned scheduled job only after updateInvoice returned no row, after the draft insert and the delayed enqueue. If the removal fails or the process crashes, the job remains. ScheduleInvoiceProcessor skips invoices that are missing, not 'scheduled', or carry a mismatched scheduledJobId, so the orphan is harmless, and the cleanup is documented as best effort.",
+      "codeRefs": [
+        ".corpora/midday/apps/api/src/rest/routers/invoices.ts:529",
+        ".corpora/midday/apps/api/src/rest/routers/invoices.ts:556",
+        ".corpora/midday/apps/api/src/rest/routers/invoices.ts:563",
+        ".corpora/midday/apps/worker/src/processors/invoices/schedule-invoice.ts:28"
+      ]
+    },
+    {
+      "item": "midday:finding:9c06fc48f83b54bc",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:1d41717fb64b983c",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:e49a741bc94128ee",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:8d3d33cc4ab5a6eb",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:2591c96dad4f1812",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:3b74ca15611c4770",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "calculateInboxSuggestions at line 48 commits the 'analyzing' marker and then, separately, either the transactional suggestion workflow or a 'pending' update. Errors are compensated by its best-effort reset, and the per-item failure is caught by allSettled. Only a crash or a failure of the reset leaves the item stuck in 'analyzing'. That is a narrow residual state that the code accepts explicitly.",
+      "codeRefs": [
+        ".corpora/midday/apps/worker/src/processors/inbox/batch-process-matching.ts:48",
+        ".corpora/midday/packages/db/src/queries/inbox-matching.ts:161",
+        ".corpora/midday/packages/db/src/queries/inbox-matching.ts:177",
+        ".corpora/midday/packages/db/src/queries/inbox-matching.ts:211"
+      ]
+    },
+    {
+      "item": "midday:finding:dc5ad0d481bf0d62",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "Same call site as the previous item: inside calculateInboxSuggestions, the independently committed 'analyzing' marker is followed by persistInboxSuggestionWorkflow, which runs in its own transaction, or by the 'pending' update. On error the catch resets the item to 'pending'. Only a crash mid-call leaves it stranded in 'analyzing', and the code accepts that as best effort.",
+      "codeRefs": [
+        ".corpora/midday/apps/worker/src/processors/inbox/batch-process-matching.ts:48",
+        ".corpora/midday/packages/db/src/queries/inbox-matching.ts:161",
+        ".corpora/midday/packages/db/src/queries/inbox-matching.ts:186",
+        ".corpora/midday/packages/db/src/queries/inbox-matching.ts:197"
+      ]
+    },
+    {
+      "item": "midday:finding:b87d2c7bc6f87592",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:a101c4ca65ed78ae",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "Forward matching commits status 'analyzing' at 59 before the transactional persistInboxSuggestionWorkflow. Line 171 is the compensating reset to 'pending', which runs only if the workflow did not persist. A crash between the two strands the item in 'analyzing', because findInboxMatches only selects pending/no_match, but the error path is handled deliberately on a best-effort basis.",
+      "codeRefs": [
+        ".corpora/midday/apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:59",
+        ".corpora/midday/apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:65",
+        ".corpora/midday/apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:171",
+        ".corpora/midday/packages/db/src/queries/transaction-matching.ts:915"
+      ]
+    },
+    {
+      "item": "midday:finding:b5c28dcf88a37554",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "Same window as the previous item: the 'analyzing' update and the suggestion/match workflow commit separately, and the reset at 171 is guarded by workflowPersisted and shouldResetInboxToPendingAfterSuggestionFailure. The residual risk is only a crash or a failure of the reset, which is logged and otherwise accepted.",
+      "codeRefs": [
+        ".corpora/midday/apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:59",
+        ".corpora/midday/apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:154",
+        ".corpora/midday/apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:171",
+        ".corpora/midday/apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:178"
+      ]
+    },
+    {
+      "item": "midday:finding:a125b2ac5b61bd26",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:3ff46231b276492b",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:84fdd9d28315fdaf",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "This is the legacy trigger.dev copy of the forward-match loop: 'analyzing' commits at 55, then the transactional persistInboxSuggestionWorkflow runs, and line 154 is the best-effort compensating reset to 'pending' when the workflow did not persist. Only a crash or a failed reset leaves the item stuck in 'analyzing'.",
+      "codeRefs": [
+        ".corpora/midday/packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:55",
+        ".corpora/midday/packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:61",
+        ".corpora/midday/packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:154",
+        ".corpora/midday/packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:161"
+      ]
+    },
+    {
+      "item": "midday:finding:ab486c34ea1d199b",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "Same location and pattern as the previous item: the 'analyzing' marker and the suggestion workflow commit independently. Errors are compensated by the guarded reset at 154, and the residual stuck-'analyzing' state needs a crash or a failure of the reset itself.",
+      "codeRefs": [
+        ".corpora/midday/packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:55",
+        ".corpora/midday/packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:137",
+        ".corpora/midday/packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:154",
+        ".corpora/midday/packages/db/src/queries/inbox-matching.ts:142"
+      ]
+    },
+    {
+      "item": "midday:finding:4bac58c25319b3c3",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:9b320b7325f23fe2",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:1158bbb561efdd18",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:825372822f9064c5",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:246c976e5813fb6e",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:904e58b51537360a",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:a1967f526e88ec8d",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:e7c9a8566c0c0444",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:92e76f3400624b30-2",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:36ff8ff9eee85e2b",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:77cf2a7e7b4bc26d",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:2a4e4d24c3990939",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:dfb0cd536b3056e5",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:58f0f19da26dfe33",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:88652c7450f06c81",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:be31ac8ec5c04658",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:24098d398d68b6a1",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:64fe61d229d6534c",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:f2338bc951472a2a",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:d67d30ae478ea4c7",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:d2dcc44e38d7a7f4",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:known-positive:midday-KP23",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:known-positive:midday-KP09",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:known-positive:midday-KP03",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:221cf564aa4c6cea",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:5cfe7f6140d9417b",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:5b00a075f33349a8",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "The magic-link send at line 189 is followed by a DB change (softDelete at 200) only when `status` is falsy, which means the link was not sent, so no sent email can be left without its DB counterpart. On success nothing else is written. The related windows in this mutation are not at this location: the Stripe seat increment at 109 runs before the seat check and the invite insert, and an invite row persists if signInMagicLink throws.",
+      "codeRefs": [
+        ".corpora/kan/packages/api/src/routers/member.ts:189",
+        ".corpora/kan/packages/api/src/routers/member.ts:194",
+        ".corpora/kan/packages/api/src/routers/member.ts:200",
+        ".corpora/kan/packages/api/src/routers/member.ts:109"
+      ]
+    },
+    {
+      "item": "kan:finding:b977c8352e96c174",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:930f362854dc67c5",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "The partner webhook makes several independent autocommit writes with no transaction. For example, 'deactivate' downgrades workspaces and pauses members through cancelWorkspaceAccess before it marks the slots canceled, and 'upgrade'/'migrate' update kept slots and rekey them before they create or deactivate the others. A partner redelivery is not a dependable fix: the upgrade branch looks slots up by prev_license_key, and the kept slots were already rekeyed to the new key, so a retry would re-activate the slots that should have been removed. Nothing reconciles this.",
+      "codeRefs": [
+        ".corpora/kan/apps/web/src/pages/api/partner/webhook.ts:238",
+        ".corpora/kan/apps/web/src/pages/api/partner/webhook.ts:253",
+        ".corpora/kan/apps/web/src/pages/api/partner/webhook.ts:285",
+        ".corpora/kan/apps/web/src/pages/api/partner/webhook.ts:317"
+      ]
+    },
+    {
+      "item": "kan:finding:8b23b88ead359cc8",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:6ee9f5e8e12c956e",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:1b49bb4b6c55bd06",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:9df7042816167f8d",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:f322f5de643c442a",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:f9dbd0f549717e01",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:1c0d0247455aa96b-2",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:e97c1ea6b8fd1f96",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:78277bcac011ef8a",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:dc5ff6bf22a815b0",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:274dc589fee7e643",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:76fd8d56ba9154f5-2",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:known-positive:kan-KP18",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:known-positive:kan-KP30",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:known-positive:kan-KP24",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:known-positive:dittofeed-KP01",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:known-positive:dittofeed-KP02",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:known-positive:dittofeed-KP03",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:known-positive:dittofeed-KP04",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:finding:29694cf677dd7e5d",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:finding:9f8483db635fdba6",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The HubSpot token refresh POST can succeed and then the upsert can fail, so the new access token is lost. refreshToken is a Temporal activity (proxyActivities, default retry policy) and the stored refresh token is still there, so the retried activity refreshes again and persists the result.",
+      "codeRefs": [
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:170",
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:185",
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspotWorkflow.ts:17",
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspotWorkflow.ts:119"
+      ]
+    },
+    {
+      "item": "dittofeed:finding:3b62eaf4c168a13e",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "The path needs the upsert's `!result` throw (a plain Error, after which nothing was written) to be caught as an AxiosError. A plain Error fails the `instanceof AxiosError` check and is rethrown at line 213, so the integration-disable update at 232 is unreachable after an upsert. The update at 232 runs only when the axios refresh itself failed, and then no upsert happened.",
+      "codeRefs": [
+        ".corpora/dittofeed/packages/backend-lib/src/db.ts:152",
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:212",
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:232"
+      ]
+    },
+    {
+      "item": "dittofeed:finding:44476238f5f66c9d",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The per-email create POSTs start eagerly in the flatMap and run concurrently with the batch status update, so one can succeed while another fails. updateHubspotEmails is a retried Temporal activity, and each run recomputes creates and updates by comparing against the emails a fresh HubSpot search returns, so the sync is a reconciliation that converges. Search lag could still produce a duplicate.",
+      "codeRefs": [
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:753",
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:797",
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:602",
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspotUserWorkflow.ts:25"
+      ]
+    },
+    {
+      "item": "dittofeed:finding:ed4a3babab01f114",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:finding:4b0058e6a225b154",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:finding:ca3df0fc226b0b55",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:finding:068753260a2b6e61",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:finding:c03554c3fe7ca3b8",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:finding:6951a63d3fb7b3f6",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:finding:9b4b0ac33d181043",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:finding:a4a880f65a586c00",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:known-positive:dittofeed-KP10",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:known-positive:dittofeed-KP06",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:known-positive:dittofeed-KP15",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:a7266452b468cb90",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:c5d91a80615a7b92",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:53181a727bd06fbe",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:ba3ab99185c7cfed",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:5e8c9e804cce020a",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:daed97e3f219a569",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:85aecdebf5465eac",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:8476ea21da24169b",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:ca6441fb2f6b4979",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:c0dba6e7042301d7",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:6de9e53f57bb2edf",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:60fface403ab2ac2",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:41cd6bd1955037a7",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:d8a04c789e318a5a",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:7348a713f7f97fa9",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:07ac7cc64c3409cc",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:b084454e0f0328df",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:b5b2a5c87858bbb8",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:9e7e1a21e4ccf383",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:8ca1ab73a5e612e0",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:known-positive:zero-KP06",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:known-positive:zero-KP03",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:known-positive:zero-KP05",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "vercel-chatbot:finding:907a84b237552744",
+      "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "vercel-chatbot:finding:434057130492cb86",
+      "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "vercel-chatbot:finding:98be7ef3c8958ebb",
+      "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "vercel-chatbot:finding:00989cb619160167",
+      "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "vercel-chatbot:known-positive:vercel-chatbot-KP06",
+      "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "vercel-chatbot:known-positive:vercel-chatbot-KP04",
+      "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "vercel-chatbot:known-positive:vercel-chatbot-KP07",
+      "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "nextjs-billing:finding:7619089948932cea",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "nextjs-billing:finding:20260b839ea7a0ec",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The Lemon Squeezy pause is performed before the local subscriptions update. If that update fails, the DB still shows the subscription as active. Lemon Squeezy then sends a subscription_* webhook, and processWebhookEvent upserts status, statusFormatted and endsAt from the provider, which reconciles the row. That upsert hard-codes isPaused to false, though, so the pause flag itself is not restored.",
+      "codeRefs": [
+        ".corpora/nextjs-billing/src/app/actions.ts:377",
+        ".corpora/nextjs-billing/src/app/actions.ts:385",
+        ".corpora/nextjs-billing/src/lib/webhook.ts:126"
+      ]
+    },
+    {
+      "item": "nextjs-billing:finding:f0f7b851368b8e17",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "nextjs-billing:finding:c114c4a1140e26fc",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "nextjs-billing:finding:b6cf38aa870df5cb",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The raw webhook event row is inserted with processed=false before processing, so a failure leaves an unprocessed event row without the subscription upsert. That is the inbox pattern by design. The handler then returns an error, Lemon Squeezy redelivers, and the idempotent upsert on lemonSqueezyId applies the change on the next delivery.",
+      "codeRefs": [
+        ".corpora/nextjs-billing/src/app/api/webhook/route.ts:47",
+        ".corpora/nextjs-billing/src/app/api/webhook/route.ts:49",
+        ".corpora/nextjs-billing/src/lib/webhook.ts:31",
+        ".corpora/nextjs-billing/src/lib/webhook.ts:126"
+      ]
+    },
+    {
+      "item": "nextjs-billing:finding:3d2adcfc238ab4d5",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "nextjs-billing:finding:38e751c103d6a61f",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "nextjs-billing:known-positive:nextjs-billing-KP01",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "nextjs-billing:known-positive:nextjs-billing-KP02",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "nextjs-billing:known-positive:nextjs-billing-KP03",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:finding:09885b2a387721a9",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:finding:09885b2a387721a9-2",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:finding:d4250a3efa87910f",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:finding:d4250a3efa87910f-2",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:finding:674e1cbfb4f991ed",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:finding:c9c3146672bb0292",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:finding:32d25228029aea72",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:finding:2ea8e04a5e4ab4c5",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:finding:6946f8ab26c2cbfa",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "unclear",
+      "blind": true,
+      "rationale": "approveCandidate approves the candidate in one autocommit update and then rejects the pending siblings in a separate one, with no transaction. A failure in between leaves an approved candidate beside still-pending siblings, and a retry cannot finish because the function returns not_pending for the already-approved candidate. No caller of approveCandidate exists in this checkout, so the window is latent rather than reachable today.",
+      "codeRefs": [
+        ".corpora/petdex/src/lib/request-candidates.ts:271",
+        ".corpora/petdex/src/lib/request-candidates.ts:289",
+        ".corpora/petdex/src/lib/request-candidates.ts:305"
+      ]
+    },
+    {
+      "item": "petdex:finding:e22a74407ad5d615",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "unclear",
+      "blind": true,
+      "rationale": "The sibling-reject update and the petRequests 'fulfilled' update commit independently. A failure in between leaves the candidates resolved while the request stays open, and the not_pending guard blocks a retry. approveCandidate has no caller in this checkout, so the hazard is latent.",
+      "codeRefs": [
+        ".corpora/petdex/src/lib/request-candidates.ts:305",
+        ".corpora/petdex/src/lib/request-candidates.ts:321",
+        ".corpora/petdex/src/lib/request-candidates.ts:271"
+      ]
+    },
+    {
+      "item": "petdex:finding:cad32ae8bbbbbb6d",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:finding:bf17618044d421e3",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:finding:4e30e5bf44efcfc9",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:finding:26c8b8e69f66b1c1",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:finding:9ca89e6d9d2cade8",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:finding:fbe4de706e93f1a8",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:finding:21aa19bc7eedd7ca",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:finding:ea67ec43951c18b9",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:finding:2de339dacc3f67b9",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:finding:135c580767456c38",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:finding:d5c98e10158af7a8",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:finding:f19cae57980901db",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:finding:5c207dae68e2a103",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "reviewSubmission inserts a 'running' review row, and only later does the catch block's finishReview at about line 249 mark it failed. A crash in between leaves a 'running' row, which non-forced calls then reuse. The scripts/review-pending-submissions job's buryStaleRunningReviews marks stale running reviews as failed/hold for manual review, which reconciles this.",
+      "codeRefs": [
+        ".corpora/petdex/src/lib/submission-review.ts:133",
+        ".corpora/petdex/src/lib/submission-review.ts:249",
+        ".corpora/petdex/src/lib/submission-review.ts:120",
+        ".corpora/petdex/scripts/review-pending-submissions.ts:108"
+      ]
+    },
+    {
+      "item": "petdex:finding:56d2e924ccafcb33",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP01",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP02",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP03",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP04",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP05",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP06",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP07",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP08",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP09",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP10",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP11",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP12",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "next-saas-stripe-starter:finding:c4c7830260eda71d",
+      "revision": "c6df229ae73c207e87356d5e592779c511a9b56d",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "In the beforeDelete hook, the subscription rows are deleted and then the organization is deleted as a separate autocommit statement, with no transaction. If the second fails, the account deletion aborts and the solo organization survives without its subscription rows. That includes a subscription still active but set to cancel (cancelAt or cancelAtPeriodEnd), so the organization loses its plan early. The user retrying the deletion converges, but nothing does that automatically.",
+      "codeRefs": [
+        ".corpora/next-saas-stripe-starter/lib/auth/delete-account.ts:76",
+        ".corpora/next-saas-stripe-starter/lib/auth/delete-account.ts:80",
+        ".corpora/next-saas-stripe-starter/lib/auth/server.ts:35"
+      ]
+    },
+    {
+      "item": "next-saas-stripe-starter:known-positive:next-saas-stripe-starter-KP01",
+      "revision": "c6df229ae73c207e87356d5e592779c511a9b56d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "next-saas-stripe-starter:known-positive:next-saas-stripe-starter-KP02",
+      "revision": "c6df229ae73c207e87356d5e592779c511a9b56d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "next-saas-stripe-starter:known-positive:next-saas-stripe-starter-KP03",
+      "revision": "c6df229ae73c207e87356d5e592779c511a9b56d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "chatbot:upstream-report:chatbot-partial-delete",
+      "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "rybbit:upstream-report:rybbit-email-claims",
+      "revision": "4288204761ed2fc801fcaa0b3bbfacd1b8cc3936",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "openstatus:upstream-report:openstatus-partial-signup",
+      "revision": "36288495c8544d4498986be7d72c37ee7e666837",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:upstream-report:kan-checkout-retry",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    }
+  ]
+}

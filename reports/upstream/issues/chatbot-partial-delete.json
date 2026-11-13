@@ -3,5 +3,24 @@
   "title": "Chat deletion can permanently remove messages before returning a failure",
   "bodyFile": "reports/upstream/issues/chatbot-partial-delete.md",
   "status": "reported",
-  "url": "https://github.com/vercel/chatbot/issues/1567"
+  "url": "https://github.com/vercel/chatbot/issues/1567",
+  "aiReview": {
+    "hazard": "real",
+    "actionable": "unhandled-bug",
+    "reviewers": [
+      "blind AI reviewer, pass 1 (six Claude subagents, one per batch)"
+    ],
+    "date": "2026-11-13",
+    "records": [
+      "corpora/review/records/ai-pass-1.json",
+      "corpora/review/records/ai-pass-2.json"
+    ],
+    "rationale": "The report's sequence holds: deleteChatById and deleteAllChatsByUserId issue the vote, message, stream and chat deletes as separate statements on the root postgres-js handle with no transaction; the catch only rethrows and the FKs have no cascade, so a failure after the message delete leaves the chat without its messages and votes, and nothing restores them.",
+    "codeRefs": [
+      ".corpora/upstream/chatbot/app/(chat)/api/chat/route.ts:467",
+      ".corpora/upstream/chatbot/lib/db/queries.ts:101",
+      ".corpora/upstream/chatbot/lib/db/queries.ts:105",
+      ".corpora/upstream/chatbot/lib/db/queries.ts:128"
+    ]
+  }
 }

@@ -6,10 +6,12 @@ agents is not independent validation. This page describes how a person
 reviews a fixed sample of those labels and reports, and how the result
 becomes an adjudicated label set without any label changing silently.
 
-**Status (2026-11-13): the sample and tooling exist; no item has been
-reviewed by a person yet.** Until a summary from a completed record is
-committed, every published number is AI-label agreement, not human-validated
-precision.
+**Status (2026-11-13): no person has reviewed anything.** On 2026-11-13
+the project owner changed the scope of DEV-162: human review is not
+required, and the tier-1 sample was re-reviewed by independent blind AI
+reviewers instead (see [Blind AI review](#blind-ai-review-2026-11-13)).
+Every published number is still AI-labeled: none is human-validated
+precision. A later human review can use the same sample and tooling.
 
 ## What gets reviewed
 
@@ -168,3 +170,69 @@ a report is separate from maintainer confirmation, and both are recorded.
 Never present the AI-label agreement rate as human-validated precision, and
 never present a reviewer's agreement with the AI labels as a precision
 figure: report human precision from the human verdicts.
+
+## Blind AI review (2026-11-13)
+
+Records:
+
+* [`corpora/review/records/ai-pass-1.json`](../../corpora/review/records/ai-pass-1.json)
+  and [`ai-pass-2.json`](../../corpora/review/records/ai-pass-2.json);
+* summary: [`reports/review/2026-11-13-ai-review-summary.json`](../../reports/review/2026-11-13-ai-review-summary.json);
+* rescoring: [`reports/eval/2026-11-13-ai-review-rescore.json`](../../reports/eval/2026-11-13-ai-review-rescore.json).
+
+Both records carry `reviewer.kind: "ai"` and no attestation. `check`
+accepts them. They are summarized under `aiReview…` keys, never
+`human…`, and they are applied only through `adjudicate --ai`.
+
+**Procedure, fixed before any verdict was seen.**
+
+1. **Pass 1.** Six separate AI agents reviewed one batch each, covering
+   all 109 tier-1 items. Each agent saw only the pinned source and each
+   item's operations and path. For a finding no longer reported, it saw
+   the location instead. It did not see the existing labels, the reports,
+   the review files or the other agents' verdicts.
+2. **Pass 2.** The 26 items where pass 1 disagreed with the existing label
+   went to two different agents, under the same blinding.
+3. **Adjudication.** A label changed only when both reviewers agreed with
+   each other and disagreed with it. Each change is an `ai-adjudication`
+   correction that keeps the previous label, with `humanReviewed: false`.
+   Confirmed labels are listed in `ai-confirmed`. The three held-out files
+   that changed were refrozen with the reason.
+
+**Results.**
+
+| | items |
+| --- | ---: |
+| pass 1 agrees with the existing label | 83 of 109 |
+| changed (both passes agree against the label) | 23 |
+| kept (pass 2 disagreed with pass 1) | 3 |
+
+* **The 23 changes.** Fourteen midday dev labels: ten false positives were
+  real windows, accepted by retries, compensation or best-effort design,
+  and several `unclear` labels were decided. In kan, one false positive
+  is a real non-idempotent webhook window. In dittofeed, three `unclear`
+  labels were decided. On the held-out sets:
+  * nextjs-billing: one true-positive became intended-risk;
+  * petdex: one false-positive became intended-risk, and two true
+    positives became `unclear`, because the function has no caller in the
+    checkout;
+  * next-saas-stripe-starter: one intended-risk became true-positive.
+* **The 3 kept** are midday `f67d93b946c14519`, kan `5b00a075f33349a8`
+  and nextjs-billing `b6cf38aa870df5cb`.
+* **Audited windows.** Pass 1 confirmed all 18 held-out audited windows
+  (and the dev ones in the sample).
+* **Upstream reports.** It also found that all four upstream reports'
+  failure sequences hold as written, recorded as `aiReview` in each
+  issue file. Maintainers have not confirmed any of them.
+
+| measure | before | after |
+| --- | ---: | ---: |
+| dev hazard precision | 413/436 | 421/443 |
+| dev bug precision | 180/436 | 181/443 |
+| dev unclear | 8 | 1 |
+| held-out hazard precision | 30/32 | 28/30 (2 now `unclear`), gate PASS |
+| held-out bug precision | 3/32 | 1/30 |
+| held-out recall | 8/19 | 7/18 |
+
+These are AI judgments checked by more AI judgments. They are more
+independent than single labels, but they are not human validation.

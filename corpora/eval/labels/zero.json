@@ -16,6 +16,15 @@
    "by": "AI agent (Claude), finding-by-finding source review, separate from the auditor; did not see knownPositives",
    "date": "2026-11-05",
    "humanReviewed": false
+  },
+  "aiReview": {
+   "date": "2026-11-13",
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ],
+   "itemsReviewed": 16,
+   "scope": "the DEV-162 sample, not every label"
   }
  },
  "knownPositives": [
@@ -607,6 +616,35 @@
     "a27a27f3a651d800"
    ],
    "reason": "Findings exposed by the DEV-179 classContracts declaration for zero's database Durable Object stub (getZeroDB -> DbRpcDO -> ZeroDB): operations through the stub became visible. The labeler noted that 15b8fc69066c8199 could defensibly be true-positive, and f5bd749ae025608e / a27a27f3a651d800 intended-risk. Existing classifications were not changed. Source-only AI review, not human review or runtime confirmation."
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI review, DEV-162",
+   "humanReviewed": false,
+   "type": "ai-confirmed",
+   "items": [
+    "07ac7cc64c3409cc",
+    "41cd6bd1955037a7",
+    "53181a727bd06fbe",
+    "5e8c9e804cce020a",
+    "60fface403ab2ac2",
+    "6de9e53f57bb2edf",
+    "7348a713f7f97fa9",
+    "8476ea21da24169b",
+    "85aecdebf5465eac",
+    "a7266452b468cb90",
+    "ba3ab99185c7cfed",
+    "c0dba6e7042301d7",
+    "c5d91a80615a7b92",
+    "ca6441fb2f6b4979",
+    "d8a04c789e318a5a",
+    "daed97e3f219a569"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ],
+   "reason": "The ai review verdict matches the existing label; the label is unchanged."
   }
  ],
  "reviewQueue": [

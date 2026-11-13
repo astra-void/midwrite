@@ -80,8 +80,11 @@ AI evaluation is not review. Statements in these documents that a result
 is "verified" refer to the measurements above, never to human review.
 The protocol for a human review, a fixed sample of 172 labels and upstream
 reports with a checked record format, is in
-[human review](../development/human-review.md). As of 2026-11-13 no item has
-been reviewed.
+[human review](../development/human-review.md). On 2026-11-13 the project
+owner replaced the human review with a two-pass blind AI review of the 109
+tier-1 items. It changed 23 labels where two independent reviewers agreed,
+and the changes are recorded as `ai-adjudication`. No item has been
+reviewed by a person.
 
 ## Static-finding review
 

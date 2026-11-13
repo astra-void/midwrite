@@ -3,5 +3,24 @@
   "title": "Checkout webhook retry skips missing subscription after workspace creation commits",
   "bodyFile": "reports/upstream/issues/kan-checkout-retry.md",
   "status": "reported",
-  "url": "https://github.com/kanbn/kan/issues/697"
+  "url": "https://github.com/kanbn/kan/issues/697",
+  "aiReview": {
+    "hazard": "real",
+    "actionable": "unhandled-bug",
+    "reviewers": [
+      "blind AI reviewer, pass 1 (six Claude subagents, one per batch)"
+    ],
+    "date": "2026-11-13",
+    "records": [
+      "corpora/review/records/ai-pass-1.json",
+      "corpora/review/records/ai-pass-2.json"
+    ],
+    "rationale": "The report's sequence holds: for a new workspace the webhook calls workspaceRepo.create then subscriptionRepo.create on the root db with no transaction; if the subscription insert fails, redelivery finds the workspace, skips both creates and returns 200, and nothing else creates the subscription row.",
+    "codeRefs": [
+      ".corpora/upstream/kan-source/apps/web/src/pages/api/stripe/create_checkout_session.ts:118",
+      ".corpora/upstream/kan-source/apps/web/src/pages/api/stripe/webhook.ts:67",
+      ".corpora/upstream/kan-source/apps/web/src/pages/api/stripe/webhook.ts:87",
+      ".corpora/upstream/kan-source/packages/db/src/repository/workspace.repo.ts:104"
+    ]
+  }
 }

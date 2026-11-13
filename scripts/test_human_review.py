@@ -37,12 +37,19 @@ class ValidateTests(unittest.TestCase):
     def test_accepts_a_complete_human_record(self):
         self.assertEqual(HR.validate(record([entry("p:finding:1")]), self.sample, complete=True), [])
 
-    def test_rejects_a_non_human_reviewer_and_missing_attestation(self):
+    def test_rejects_an_unknown_reviewer_kind_and_missing_attestation(self):
+        rec = record([entry("p:finding:1")], attestation=False)
+        problems = HR.validate(rec, self.sample)
+        self.assertTrue(any("attestation" in p for p in problems))
+        rec["reviewer"]["kind"] = "bot"
+        self.assertTrue(any("'human' or 'ai'" in p for p in HR.validate(rec, self.sample)))
+
+    def test_an_ai_record_needs_no_attestation_and_cannot_attest(self):
         rec = record([entry("p:finding:1")], attestation=False)
         rec["reviewer"]["kind"] = "ai"
-        problems = HR.validate(rec, self.sample)
-        self.assertTrue(any("kind 'human'" in p for p in problems))
-        self.assertTrue(any("attestation" in p for p in problems))
+        self.assertEqual(HR.validate(rec, self.sample), [])
+        rec["attestation"] = True
+        self.assertTrue(any("cannot attest" in p for p in HR.validate(rec, self.sample)))
 
     def test_requires_rationale_code_refs_and_the_sampled_revision(self):
         bad = entry("p:finding:1", rationale="", codeRefs=[], revision="other")
@@ -146,6 +153,42 @@ class AdjudicateTests(unittest.TestCase):
         resolution = {"p:finding:1": {"classification": "intended-risk", "by": "C", "rationale": "retried"}}
         _, _, changed, unresolved = HR.adjudicate(self.sample, [a, b], resolution, [], "2026-11-20")
         self.assertEqual((changed, unresolved), (["p:finding:1"], []))
+
+
+class AiAdjudicateTests(AdjudicateTests):
+    def ai(self, entries, name):
+        rec = record(entries, name=name, attestation=False)
+        rec["reviewer"]["kind"] = "ai"
+        return rec
+
+    def test_one_ai_reviewer_disagreeing_keeps_the_label(self):
+        first = self.ai([entry("p:finding:1", hazard="not-real", actionable="not-applicable")], "A")
+        labels, _, changed, unresolved = HR.adjudicate(self.sample, [first], {}, [], "2026-11-20", ai=True)
+        self.assertEqual((changed, unresolved), ([], ["p:finding:1"]))
+        data = next(iter(labels.values()))
+        self.assertEqual(data["findings"][0]["classification"], "true-positive")
+        self.assertNotIn("humanReview", data["labeling"])
+
+    def test_two_agreeing_ai_reviewers_change_the_label_as_ai_adjudication(self):
+        first = self.ai([entry("p:finding:1", hazard="not-real", actionable="not-applicable"),
+                         entry("p:finding:2", actionable="accepted-or-mitigated")], "A")
+        second = self.ai([entry("p:finding:1", hazard="not-real", actionable="not-applicable")], "B")
+        labels, _, changed, unresolved = HR.adjudicate(self.sample, [first, second], {}, [], "2026-11-20", ai=True)
+        self.assertEqual((changed, unresolved), (["p:finding:1"], []))
+        data = next(iter(labels.values()))
+        self.assertEqual(data["findings"][0]["classification"], "false-positive")
+        correction = next(c for c in data["corrections"] if c.get("findingId") == "1")
+        self.assertEqual(correction["type"], "ai-adjudication")
+        self.assertFalse(correction["humanReviewed"])
+        self.assertIn("aiReview", data["labeling"])
+        confirmed = next(c for c in data["corrections"] if c["type"] == "ai-confirmed")
+        self.assertEqual(confirmed["items"], ["2"])
+
+    def test_disagreeing_ai_reviewers_keep_the_label(self):
+        first = self.ai([entry("p:finding:1", hazard="not-real", actionable="not-applicable")], "A")
+        second = self.ai([entry("p:finding:1", actionable="accepted-or-mitigated")], "B")
+        _, _, changed, unresolved = HR.adjudicate(self.sample, [first, second], {}, [], "2026-11-20", ai=True)
+        self.assertEqual((changed, unresolved), ([], ["p:finding:1"]))
 
 
 class SampleTests(unittest.TestCase):

@@ -11,6 +11,12 @@ output formats.
 
 ### Added
 
+- A two-pass blind AI re-review of the DEV-162 tier-1 sample (109 labels
+  and the four upstream reports). It replaces the planned human review at
+  the project owner's decision. 23 labels changed where two independent AI
+  reviewers agreed against them, recorded as `ai-adjudication` with
+  `humanReviewed: false`. The held-out hazard precision is now 28/30
+  ([human review](docs/development/human-review.md#blind-ai-review-2026-11-13)).
 - `.then`, `.catch` and `.finally` callbacks of an awaited promise run in
   the caller's sequence (`p` then `cb`, `try { p } catch { cb }`, `try {
   p } finally { cb }`), with the callback lowered in place

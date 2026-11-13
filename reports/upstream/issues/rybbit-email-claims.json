@@ -3,5 +3,24 @@
   "title": "Crash after claiming an email can permanently suppress lifecycle and trial-grace delivery",
   "bodyFile": "reports/upstream/issues/rybbit-email-claims.md",
   "status": "reported",
-  "url": "https://github.com/rybbit-io/rybbit/issues/1355"
+  "url": "https://github.com/rybbit-io/rybbit/issues/1355",
+  "aiReview": {
+    "hazard": "real",
+    "actionable": "unhandled-bug",
+    "reviewers": [
+      "blind AI reviewer, pass 1 (six Claude subagents, one per batch)"
+    ],
+    "date": "2026-11-13",
+    "records": [
+      "corpora/review/records/ai-pass-1.json",
+      "corpora/review/records/ai-pass-2.json"
+    ],
+    "rationale": "The report's sequence holds: sendBundle and TrialGraceEmails.sendDue commit the lifecycleEmailLog claim before sending and roll it back only in-process, so a crash leaves a row treated as delivered with no lease or reclaim; usage-limit flags are persisted before the send and a rejected send is only logged.",
+    "codeRefs": [
+      ".corpora/upstream/rybbit-source/server/src/services/lifecycleEmails/lifecycleEmailService.ts:291",
+      ".corpora/upstream/rybbit-source/server/src/services/trialGrace/trialGraceEmails.ts:127",
+      ".corpora/upstream/rybbit-source/server/src/services/usageService.ts:463",
+      ".corpora/upstream/rybbit-source/server/src/services/usageService.ts:482"
+    ]
+  }
 }

@@ -15,6 +15,15 @@
   "findings": {
    "by": "Phase 2 corpus review (corpora/labels/midday.json)",
    "humanReviewed": false
+  },
+  "aiReview": {
+   "date": "2026-11-13",
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ],
+   "itemsReviewed": 24,
+   "scope": "the DEV-162 sample, not every label"
   }
  },
  "knownPositives": [
@@ -532,12 +541,12 @@
   },
   {
    "findingId": "be6bb7027f1f6b89",
-   "classification": "unclear",
+   "classification": "intended-risk",
    "notes": "Application set to review-pending, then a review-request email to a fixed reviewer address. Whether pending applications are also visible elsewhere was not determined."
   },
   {
    "findingId": "30dcdd2ef00f2705",
-   "classification": "unclear",
+   "classification": "true-positive",
    "notes": "Manual transaction created, then an enrichment job. Enrichment is optional data; whether other jobs re-enrich was not determined."
   },
   {
@@ -547,7 +556,7 @@
   },
   {
    "findingId": "7152316730e65b31",
-   "classification": "unclear",
+   "classification": "intended-risk",
    "notes": "Worker job: sync record upserted, then the attachment-sync job enqueued for the same transaction. BullMQ retries and the later 'already synced with changes' step may repair it; not determined."
   },
   {
@@ -672,7 +681,7 @@
   },
   {
    "findingId": "30b45470f9206870",
-   "classification": "false-positive",
+   "classification": "intended-risk",
    "notes": "An 'uploaded' activity notification before processing updates: the notification does not describe the later update, so no state is owed."
   },
   {
@@ -682,7 +691,7 @@
   },
   {
    "findingId": "d6cc779a0da27f5a",
-   "classification": "false-positive",
+   "classification": "intended-risk",
    "notes": "'New inbox items' notification before an account bookkeeping update; the notification does not imply that update."
   },
   {
@@ -702,7 +711,7 @@
   },
   {
    "findingId": "92e76f3400624b30",
-   "classification": "unclear",
+   "classification": "intended-risk",
    "notes": "Worker job: inbox created, then updated with processed data; whether a retry duplicates or resumes was not determined."
   },
   {
@@ -727,7 +736,7 @@
   },
   {
    "findingId": "41b76f15d5a434ea-2",
-   "classification": "unclear",
+   "classification": "intended-risk",
    "notes": "Error-recovery path of calculateInboxSuggestions; the pairing (status update, then a reset that deletes attachments) was not fully understood."
   },
   {
@@ -809,7 +818,7 @@
    "file": "apps/api/src/rest/routers/invoices.ts",
    "line": 563,
    "function": "<anonymous@406:3>",
-   "classification": "false-positive",
+   "classification": "intended-risk",
    "notes": "rest/routers/invoices.ts:556-575: job.remove() runs only when updateInvoice returned no row, so the update matched nothing and committed no change. The remove is the compensation for the triggerJob at 528. The claimed commit-then-effect state does not exist. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
   },
   {
@@ -1124,7 +1133,7 @@
    "file": "apps/worker/src/processors/inbox/batch-process-matching.ts",
    "line": 46,
    "function": "BatchProcessMatchingProcessor.process",
-   "classification": "false-positive",
+   "classification": "intended-risk",
    "notes": "The delete on transactionAttachments only runs when status === 'deleted' (inbox.ts:1086-1100). On this path, updateInbox is only ever called with 'analyzing', 'pending' or 'suggested_match' (inbox-matching.ts:118-130, 161-165, 177-181, 211-215), and triggerMatchingNotification never calls it. The second operation therefore never happens here."
   },
   {
@@ -1133,7 +1142,7 @@
    "file": "apps/worker/src/processors/inbox/batch-process-matching.ts",
    "line": 46,
    "function": "BatchProcessMatchingProcessor.process",
-   "classification": "false-positive",
+   "classification": "intended-risk",
    "notes": "The delete on transactionMatchSuggestions (inbox.ts:1133) is inside the same status === 'deleted' branch (inbox.ts:1086). The batch-matching path never passes that status (inbox-matching.ts:118-130, 161-215), so this path cannot happen."
   },
   {
@@ -1406,7 +1415,7 @@
    "file": "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts",
    "line": 171,
    "function": "MatchTransactionsBidirectionalProcessor.process",
-   "classification": "false-positive",
+   "classification": "intended-risk",
    "notes": "updateInbox at match-transactions-bidirectional.ts:171 passes the literal status 'pending'; the transactionAttachments DELETE (inbox.ts:1100) is reached only under status === 'deleted' (inbox.ts:1086).",
    "fpCause": "callee branch infeasible for literal argument"
   },
@@ -1416,7 +1425,7 @@
    "file": "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts",
    "line": 171,
    "function": "MatchTransactionsBidirectionalProcessor.process",
-   "classification": "false-positive",
+   "classification": "intended-risk",
    "notes": "The transactionMatchSuggestions DELETE (inbox.ts:1133) is inside the status === 'deleted' branch (inbox.ts:1086); the call at match-transactions-bidirectional.ts:171 passes 'pending'.",
    "fpCause": "callee branch infeasible for literal argument"
   },
@@ -2115,7 +2124,7 @@
    "file": "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts",
    "line": 154,
    "function": "run",
-   "classification": "false-positive",
+   "classification": "intended-risk",
    "notes": "The second updateInbox call (match-transactions-bidirectional.ts:154-158) passes the literal status 'pending'. The delete(transactionAttachments) at inbox.ts:1100 runs only when data.status === 'deleted' (inbox.ts:1086), so it cannot run on this path.",
    "fpCause": "callee branch infeasible for literal argument"
   },
@@ -2125,7 +2134,7 @@
    "file": "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts",
    "line": 154,
    "function": "run",
-   "classification": "false-positive",
+   "classification": "intended-risk",
    "notes": "The callee (match-transactions-bidirectional.ts:154) receives the literal status 'pending'. The delete(transactionMatchSuggestions) at inbox.ts:1133 sits inside the data.status === 'deleted' branch (inbox.ts:1086), which cannot be taken for that literal.",
    "fpCause": "callee branch infeasible for literal argument"
   },
@@ -2501,6 +2510,452 @@
     "b87d2c7bc6f87592-2"
    ],
    "reason": "Findings exposed by DEV-176 (awaited .then/.catch/.finally callbacks run in sequence). Two blind labelers labeled each finding independently; for findings with an earlier blind label, the label is the majority of the three, a rule fixed before the new labels were seen. 241df941b096275d: Two new blind labels said intended-risk; an earlier blind label (2026-11-13, before DEV-175) said false-positive. Majority of three, decided before the labels were seen. b87d2c7bc6f87592-2: Three blind labels (two new, one earlier) agree. Existing classifications were not changed. Source-only AI review, not human review or runtime confirmation."
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "be6bb7027f1f6b89",
+   "previous": {
+    "findingId": "be6bb7027f1f6b89",
+    "classification": "unclear",
+    "notes": "Application set to review-pending, then a review-request email to a fixed reviewer address. Whether pending applications are also visible elsewhere was not determined."
+   },
+   "classification": "intended-risk",
+   "reason": "The status update commits before the review-request email is sent, so a Resend failure or a crash leaves the status 'pending' with no email. The send is wrapped in try/catch that only logs (\"don't fail the mutation\"), so the email is best-effort by design. The reported path is self-contradictory: getTeamsByUserId's `!result` branch returns [], so currentTeam would be undefined. The window still exists on the normal path. | The status update to 'pending' commits before the review-request email goes out, so a failure in render or resend leaves the app pending with no email. The email sits in a try/catch commented 'Log error but don't fail the mutation', which makes it a deliberate best-effort side effect.",
+   "evidence": [
+    ".corpora/midday/apps/api/src/trpc/routers/oauth-applications.ts:341",
+    ".corpora/midday/apps/api/src/trpc/routers/oauth-applications.ts:368",
+    ".corpora/midday/apps/api/src/trpc/routers/oauth-applications.ts:375",
+    ".corpora/midday/packages/db/src/queries/oauth-applications.ts:376",
+    "apps/api/src/trpc/routers/oauth-applications.ts:341",
+    "apps/api/src/trpc/routers/oauth-applications.ts:368",
+    "apps/api/src/trpc/routers/oauth-applications.ts:375",
+    "packages/db/src/queries/oauth-applications.ts:376"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "30dcdd2ef00f2705",
+   "previous": {
+    "findingId": "30dcdd2ef00f2705",
+    "classification": "unclear",
+    "notes": "Manual transaction created, then an enrichment job. Enrichment is optional data; whether other jobs re-enrich was not determined."
+   },
+   "classification": "true-positive",
+   "reason": "createTransaction inserts the manual transaction and its attachments with no transaction around them. triggerJob('enrich-transactions') then rethrows on a queue error, so the mutation fails while the row persists, unenriched and never sent to forward matching. Nothing re-enqueues it, and a client retry would create a duplicate. The listed `!result`-then condition at 1870 contradicts `transaction?.id`, but the window exists when the insert returns a row. | createTransaction inserts the row and its attachments with no transaction, and only then are the enrich and match jobs enqueued, unguarded. If the enqueue fails or the process crashes, the transaction stays with enrichmentCompleted=false and nothing re-enqueues it: getTransactionsForEnrichment only runs for IDs it is given, and no sweeper exists. The reported path pairs `!result` taking the then branch with `transaction?.id` being truthy, which cannot both happen, but the window is real on the normal non-null path.",
+   "evidence": [
+    ".corpora/midday/apps/api/src/trpc/routers/transactions.ts:133",
+    ".corpora/midday/apps/api/src/trpc/routers/transactions.ts:139",
+    ".corpora/midday/packages/db/src/queries/transaction-enrichment.ts:58",
+    ".corpora/midday/packages/db/src/queries/transactions.ts:1852",
+    "apps/api/src/trpc/routers/transactions.ts:133",
+    "apps/api/src/trpc/routers/transactions.ts:139",
+    "packages/db/src/queries/transactions.ts:1852",
+    "packages/job-client/src/index.ts:76"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "7152316730e65b31",
+   "previous": {
+    "findingId": "7152316730e65b31",
+    "classification": "unclear",
+    "notes": "Worker job: sync record upserted, then the attachment-sync job enqueued for the same transaction. BullMQ retries and the later 'already synced with changes' step may repair it; not determined."
+   },
+   "classification": "intended-risk",
+   "reason": "The sync record is upserted as 'synced' with an empty syncedAttachmentMapping before the attachment job is enqueued. After a crash, a BullMQ retry (accounting attempts: 4) or a later re-export puts the item in toSyncAttachments, because its attachments are missing from the mapping, and enqueues them again. One caveat: if triggerJob throws, the batch catch rewrites every record in the batch to 'failed', so a later re-export would create the provider voucher again. | The sync record is upserted as 'synced' with an empty syncedAttachmentMapping before sync-accounting-attachments is enqueued. A triggerJob error is swallowed by the batch catch. The next export recovers it: categorizeTransactions treats attachments missing from the mapping as new and sends them to toSyncAttachments, so the recovery is idempotent (it needs a re-export or a job retry).",
+   "evidence": [
+    ".corpora/midday/apps/worker/src/processors/accounting/export-transactions.ts:281",
+    ".corpora/midday/apps/worker/src/processors/accounting/export-transactions.ts:329",
+    ".corpora/midday/apps/worker/src/processors/accounting/export-transactions.ts:544",
+    ".corpora/midday/packages/db/src/queries/accounting-sync.ts:70",
+    "apps/worker/src/processors/accounting/export-transactions.ts:281",
+    "apps/worker/src/processors/accounting/export-transactions.ts:329",
+    "apps/worker/src/processors/accounting/export-transactions.ts:425",
+    "apps/worker/src/processors/accounting/export-transactions.ts:544"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "30b45470f9206870",
+   "previous": {
+    "findingId": "30b45470f9206870",
+    "classification": "false-positive",
+    "notes": "An 'uploaded' activity notification before processing updates: the notification does not describe the later update, so no state is owed."
+   },
+   "classification": "intended-risk",
+   "reason": "The 'document_uploaded' activity is enqueued before the document row is updated, so a crash in between leaves the notification without the status change. The notification is explicitly best-effort (try/catch, 'Don't fail the entire process'). It describes an upload that already happened, and the job is retried (documents attempts: 3), with a final-failure handler that marks the document failed. | The document_uploaded notification goes out before the document row is updated, so the notification can exist without the update. The notification reports an upload that has already happened, and the code wraps it in try/catch as non-fatal. Processing failures are retried by the documents queue (3 attempts) or marked failed.",
+   "evidence": [
+    ".corpora/midday/apps/worker/src/processors/documents/process-document.ts:118",
+    ".corpora/midday/apps/worker/src/processors/documents/process-document.ts:45",
+    ".corpora/midday/apps/worker/src/processors/documents/process-document.ts:57",
+    ".corpora/midday/apps/worker/src/queues/documents.config.ts:17",
+    "apps/worker/src/processors/documents/process-document.ts:118",
+    "apps/worker/src/processors/documents/process-document.ts:45",
+    "apps/worker/src/processors/documents/process-document.ts:56",
+    "apps/worker/src/queues/documents.config.ts:192"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "d6cc779a0da27f5a",
+   "previous": {
+    "findingId": "d6cc779a0da27f5a",
+    "classification": "false-positive",
+    "notes": "'New inbox items' notification before an account bookkeeping update; the notification does not imply that update."
+   },
+   "classification": "intended-risk",
+   "reason": "The process-attachment jobs and the inbox_new notification are enqueued before lastAccessed is advanced, so a crash leaves the account's cursor unchanged. The next scheduled sync re-fetches from the old cursor, and already-ingested attachments are filtered out by referenceId. The notification is best-effort in try/catch, so the worst outcome is a duplicate notification. | The inbox_new notification (best-effort, in try/catch) is sent before lastAccessed is updated. If the update fails, the next scheduled sync fetches again from the old lastAccessed. Attachments already recorded are skipped by the referenceId dedup, and createInbox handles referenceId conflicts, so re-sync recovers apart from a possible duplicate notification.",
+   "evidence": [
+    ".corpora/midday/apps/worker/src/processors/inbox/sync-scheduler.ts:139",
+    ".corpora/midday/apps/worker/src/processors/inbox/sync-scheduler.ts:254",
+    ".corpora/midday/apps/worker/src/processors/inbox/sync-scheduler.ts:283",
+    ".corpora/midday/apps/worker/src/processors/inbox/sync-scheduler.ts:67",
+    "apps/worker/src/processors/inbox/sync-scheduler.ts:139",
+    "apps/worker/src/processors/inbox/sync-scheduler.ts:254",
+    "apps/worker/src/processors/inbox/sync-scheduler.ts:283"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "92e76f3400624b30",
+   "previous": {
+    "findingId": "92e76f3400624b30",
+    "classification": "unclear",
+    "notes": "Worker job: inbox created, then updated with processed data; whether a retry duplicates or resumes was not determined."
+   },
+   "classification": "intended-risk",
+   "reason": "createInbox commits the item as 'processing' before OCR and the 'other' update, so a crash leaves it in 'processing'. The job is retried (inbox attempts: 3), and the retry finds the existing row through getInboxByFilePath and resumes. Thrown errors are caught, and the item is set to 'pending'. | The inbox row is created with status 'processing' and only updated after OCR, so a failure in between leaves the intermediate row. That state is intended. Non-retryable errors set it to 'pending' in the catch, timeouts rethrow for a queue retry (3 attempts), and a retry finds the row through getInboxByFilePath and resumes.",
+   "evidence": [
+    ".corpora/midday/apps/worker/src/processors/inbox/process-attachment.ts:149",
+    ".corpora/midday/apps/worker/src/processors/inbox/process-attachment.ts:317",
+    ".corpora/midday/apps/worker/src/processors/inbox/process-attachment.ts:507",
+    ".corpora/midday/apps/worker/src/processors/inbox/process-attachment.ts:68",
+    "apps/worker/src/processors/inbox/process-attachment.ts:149",
+    "apps/worker/src/processors/inbox/process-attachment.ts:317",
+    "apps/worker/src/processors/inbox/process-attachment.ts:507",
+    "apps/worker/src/processors/inbox/process-attachment.ts:68"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "41b76f15d5a434ea-2",
+   "previous": {
+    "findingId": "41b76f15d5a434ea-2",
+    "classification": "unclear",
+    "notes": "Error-recovery path of calculateInboxSuggestions; the pairing (status update, then a reset that deletes attachments) was not fully understood."
+   },
+   "classification": "intended-risk",
+   "reason": "The inbox is set to 'analyzing' in its own commit. The reset to 'pending' at 211 is a best-effort compensation in the catch, so a crash (or a failure of the reset itself) leaves the item stuck in 'analyzing', which automatic matching then skips. Errors are compensated, and the user-triggered retryMatching enqueues batch-process-matching, which recalculates for explicit inboxIds. | The 'analyzing' marker at 161 commits on its own, and line 211 is a best-effort compensating reset to 'pending' that runs on error. The suggestion and match writes themselves are atomic inside persistInboxSuggestionWorkflow's transaction. Only a crash, or a failure of the reset itself, leaves the item stuck in 'analyzing': matching queries select only pending/no_match and nothing sweeps stale items. The code accepts that explicitly as best effort.",
+   "evidence": [
+    ".corpora/midday/packages/db/src/queries/inbox-matching.ts:161",
+    ".corpora/midday/packages/db/src/queries/inbox-matching.ts:186",
+    ".corpora/midday/packages/db/src/queries/inbox-matching.ts:211",
+    ".corpora/midday/packages/db/src/queries/transaction-matching.ts:915",
+    "apps/api/src/trpc/routers/inbox.ts:262",
+    "packages/db/src/queries/inbox-matching.ts:161",
+    "packages/db/src/queries/inbox-matching.ts:197",
+    "packages/db/src/queries/inbox-matching.ts:211"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "a94d0af4e1b61bde",
+   "previous": {
+    "findingId": "a94d0af4e1b61bde",
+    "code": "MW1001",
+    "file": "apps/api/src/rest/routers/invoices.ts",
+    "line": 563,
+    "function": "<anonymous@406:3>",
+    "classification": "false-positive",
+    "notes": "rest/routers/invoices.ts:556-575: job.remove() runs only when updateInvoice returned no row, so the update matched nothing and committed no change. The remove is the compensation for the triggerJob at 528. The claimed commit-then-effect state does not exist. (Labeled 2026-11-06 by a separate AI agent: a new finding after the DEV-148 built-in SDK effects.)"
+   },
+   "classification": "intended-risk",
+   "reason": "draftInvoice commits, then the schedule job is enqueued. Only if updateInvoice then affects no row (a concurrent delete) is the orphaned job removed, best-effort, and a crash or error can skip that removal. An orphaned schedule-invoice job does nothing: the processor returns when the invoice is missing, not 'scheduled', or the job id does not match scheduledJobId. | Line 563 removes the orphaned scheduled job only after updateInvoice returned no row, after the draft insert and the delayed enqueue. If the removal fails or the process crashes, the job remains. ScheduleInvoiceProcessor skips invoices that are missing, not 'scheduled', or carry a mismatched scheduledJobId, so the orphan is harmless, and the cleanup is documented as best effort.",
+   "evidence": [
+    ".corpora/midday/apps/api/src/rest/routers/invoices.ts:529",
+    ".corpora/midday/apps/api/src/rest/routers/invoices.ts:556",
+    ".corpora/midday/apps/api/src/rest/routers/invoices.ts:563",
+    ".corpora/midday/apps/worker/src/processors/invoices/schedule-invoice.ts:28",
+    "apps/api/src/rest/routers/invoices.ts:449",
+    "apps/api/src/rest/routers/invoices.ts:563",
+    "apps/worker/src/processors/invoices/schedule-invoice.ts:27",
+    "apps/worker/src/processors/invoices/schedule-invoice.ts:37"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "3b74ca15611c4770",
+   "previous": {
+    "findingId": "3b74ca15611c4770",
+    "code": "MW1004",
+    "file": "apps/worker/src/processors/inbox/batch-process-matching.ts",
+    "line": 46,
+    "function": "BatchProcessMatchingProcessor.process",
+    "classification": "false-positive",
+    "notes": "The delete on transactionAttachments only runs when status === 'deleted' (inbox.ts:1086-1100). On this path, updateInbox is only ever called with 'analyzing', 'pending' or 'suggested_match' (inbox-matching.ts:118-130, 161-165, 177-181, 211-215), and triggerMatchingNotification never calls it. The second operation therefore never happens here."
+   },
+   "classification": "intended-risk",
+   "reason": "For each item, calculateInboxSuggestions commits 'analyzing' before the suggestion transaction or the 'pending' reset, so a crash can leave the item in 'analyzing'. Thrown errors are compensated in its catch. A stalled job is retried with the same explicit inboxIds, and retryMatching re-runs it. Writes for different inbox items are independent. | calculateInboxSuggestions at line 48 commits the 'analyzing' marker and then, separately, either the transactional suggestion workflow or a 'pending' update. Errors are compensated by its best-effort reset, and the per-item failure is caught by allSettled. Only a crash or a failure of the reset leaves the item stuck in 'analyzing'. That is a narrow residual state that the code accepts explicitly.",
+   "evidence": [
+    ".corpora/midday/apps/worker/src/processors/inbox/batch-process-matching.ts:48",
+    ".corpora/midday/packages/db/src/queries/inbox-matching.ts:161",
+    ".corpora/midday/packages/db/src/queries/inbox-matching.ts:177",
+    ".corpora/midday/packages/db/src/queries/inbox-matching.ts:211",
+    "apps/worker/src/processors/inbox/batch-process-matching.ts:46",
+    "packages/db/src/queries/inbox-matching.ts:161",
+    "packages/db/src/queries/inbox-matching.ts:186",
+    "packages/db/src/queries/inbox-matching.ts:211"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "dc5ad0d481bf0d62",
+   "previous": {
+    "findingId": "dc5ad0d481bf0d62",
+    "code": "MW1004",
+    "file": "apps/worker/src/processors/inbox/batch-process-matching.ts",
+    "line": 46,
+    "function": "BatchProcessMatchingProcessor.process",
+    "classification": "false-positive",
+    "notes": "The delete on transactionMatchSuggestions (inbox.ts:1133) is inside the same status === 'deleted' branch (inbox.ts:1086). The batch-matching path never passes that status (inbox-matching.ts:118-130, 161-215), so this path cannot happen."
+   },
+   "classification": "intended-risk",
+   "reason": "Same window as the other finding at this location: 'analyzing' is committed separately from the suggestion or match transaction (or the 'pending' reset), so only a crash leaves the item in 'analyzing'. Errors are compensated, and batch-process-matching with explicit inboxIds (a job retry or user retryMatching) recalculates it. | Same call site as the previous item: inside calculateInboxSuggestions, the independently committed 'analyzing' marker is followed by persistInboxSuggestionWorkflow, which runs in its own transaction, or by the 'pending' update. On error the catch resets the item to 'pending'. Only a crash mid-call leaves it stranded in 'analyzing', and the code accepts that as best effort.",
+   "evidence": [
+    ".corpora/midday/apps/worker/src/processors/inbox/batch-process-matching.ts:48",
+    ".corpora/midday/packages/db/src/queries/inbox-matching.ts:161",
+    ".corpora/midday/packages/db/src/queries/inbox-matching.ts:186",
+    ".corpora/midday/packages/db/src/queries/inbox-matching.ts:197",
+    "apps/api/src/trpc/routers/inbox.ts:262",
+    "apps/worker/src/processors/inbox/batch-process-matching.ts:48",
+    "packages/db/src/queries/inbox-matching.ts:161",
+    "packages/db/src/queries/inbox-matching.ts:32"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "a101c4ca65ed78ae",
+   "previous": {
+    "findingId": "a101c4ca65ed78ae",
+    "code": "MW1004",
+    "file": "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts",
+    "line": 171,
+    "function": "MatchTransactionsBidirectionalProcessor.process",
+    "classification": "false-positive",
+    "notes": "updateInbox at match-transactions-bidirectional.ts:171 passes the literal status 'pending'; the transactionAttachments DELETE (inbox.ts:1100) is reached only under status === 'deleted' (inbox.ts:1086).",
+    "fpCause": "callee branch infeasible for literal argument"
+   },
+   "classification": "intended-risk",
+   "reason": "The forward match commits 'analyzing' before persistInboxSuggestionWorkflow. The reset to 'pending' at 171 is best-effort compensation, so a crash leaves the item in 'analyzing', and findInboxMatches and getPendingInboxForMatching then exclude it. Errors are compensated, and the user's retryMatching (batch-process-matching with an explicit inboxId) recovers stuck items. | Forward matching commits status 'analyzing' at 59 before the transactional persistInboxSuggestionWorkflow. Line 171 is the compensating reset to 'pending', which runs only if the workflow did not persist. A crash between the two strands the item in 'analyzing', because findInboxMatches only selects pending/no_match, but the error path is handled deliberately on a best-effort basis.",
+   "evidence": [
+    ".corpora/midday/apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:171",
+    ".corpora/midday/apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:59",
+    ".corpora/midday/apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:65",
+    ".corpora/midday/packages/db/src/queries/transaction-matching.ts:915",
+    "apps/api/src/trpc/routers/inbox.ts:262",
+    "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:171",
+    "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:59",
+    "packages/db/src/queries/transaction-matching.ts:915"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "b5c28dcf88a37554",
+   "previous": {
+    "findingId": "b5c28dcf88a37554",
+    "code": "MW1004",
+    "file": "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts",
+    "line": 171,
+    "function": "MatchTransactionsBidirectionalProcessor.process",
+    "classification": "false-positive",
+    "notes": "The transactionMatchSuggestions DELETE (inbox.ts:1133) is inside the status === 'deleted' branch (inbox.ts:1086); the call at match-transactions-bidirectional.ts:171 passes 'pending'.",
+    "fpCause": "callee branch infeasible for literal argument"
+   },
+   "classification": "intended-risk",
+   "reason": "Same window: the 'analyzing' update and the suggestion or match transaction (or its 'pending' compensation) commit separately. Only a crash, or a failed reset that is caught and logged, leaves the item stuck. Automatic matching then skips it, but manual retryMatching recovers it. | Same window as the previous item: the 'analyzing' update and the suggestion/match workflow commit separately, and the reset at 171 is guarded by workflowPersisted and shouldResetInboxToPendingAfterSuggestionFailure. The residual risk is only a crash or a failure of the reset, which is logged and otherwise accepted.",
+   "evidence": [
+    ".corpora/midday/apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:154",
+    ".corpora/midday/apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:171",
+    ".corpora/midday/apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:178",
+    ".corpora/midday/apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:59",
+    "apps/api/src/trpc/routers/inbox.ts:262",
+    "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:177",
+    "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:59",
+    "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:65"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "84fdd9d28315fdaf",
+   "previous": {
+    "findingId": "84fdd9d28315fdaf",
+    "code": "MW1004",
+    "file": "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts",
+    "line": 154,
+    "function": "run",
+    "classification": "false-positive",
+    "notes": "The second updateInbox call (match-transactions-bidirectional.ts:154-158) passes the literal status 'pending'. The delete(transactionAttachments) at inbox.ts:1100 runs only when data.status === 'deleted' (inbox.ts:1086), so it cannot run on this path.",
+    "fpCause": "callee branch infeasible for literal argument"
+   },
+   "classification": "intended-risk",
+   "reason": "In the trigger.dev task, 'analyzing' is committed before persistInboxSuggestionWorkflow, and the reset to 'pending' at 154 runs only in the catch, so a crash leaves the item in 'analyzing'. Automatic matching then excludes it. Errors are compensated, and manual retryMatching recalculates the item. | This is the legacy trigger.dev copy of the forward-match loop: 'analyzing' commits at 55, then the transactional persistInboxSuggestionWorkflow runs, and line 154 is the best-effort compensating reset to 'pending' when the workflow did not persist. Only a crash or a failed reset leaves the item stuck in 'analyzing'.",
+   "evidence": [
+    ".corpora/midday/packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:154",
+    ".corpora/midday/packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:161",
+    ".corpora/midday/packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:55",
+    ".corpora/midday/packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:61",
+    "apps/api/src/trpc/routers/inbox.ts:262",
+    "packages/db/src/queries/transaction-matching.ts:915",
+    "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:154",
+    "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:55"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "ab486c34ea1d199b",
+   "previous": {
+    "findingId": "ab486c34ea1d199b",
+    "code": "MW1004",
+    "file": "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts",
+    "line": 154,
+    "function": "run",
+    "classification": "false-positive",
+    "notes": "The callee (match-transactions-bidirectional.ts:154) receives the literal status 'pending'. The delete(transactionMatchSuggestions) at inbox.ts:1133 sits inside the data.status === 'deleted' branch (inbox.ts:1086), which cannot be taken for that literal.",
+    "fpCause": "callee branch infeasible for literal argument"
+   },
+   "classification": "intended-risk",
+   "reason": "Same window as the other finding at this location: the status write and the suggestion transaction or compensating reset commit independently. Only a crash, or a reset failure that is caught and logged, leaves the item in 'analyzing'. A user-triggered retryMatching recovers it. | Same location and pattern as the previous item: the 'analyzing' marker and the suggestion workflow commit independently. Errors are compensated by the guarded reset at 154, and the residual stuck-'analyzing' state needs a crash or a failure of the reset itself.",
+   "evidence": [
+    ".corpora/midday/packages/db/src/queries/inbox-matching.ts:142",
+    ".corpora/midday/packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:137",
+    ".corpora/midday/packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:154",
+    ".corpora/midday/packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:55",
+    "apps/api/src/trpc/routers/inbox.ts:262",
+    "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:160",
+    "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:55",
+    "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:61"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI review, DEV-162",
+   "humanReviewed": false,
+   "type": "ai-confirmed",
+   "items": [
+    "1d41717fb64b983c",
+    "2591c96dad4f1812",
+    "3ff46231b276492b",
+    "7152316730e65b31-2",
+    "8d3d33cc4ab5a6eb",
+    "9c06fc48f83b54bc",
+    "a125b2ac5b61bd26",
+    "b87d2c7bc6f87592",
+    "de2c2b657c4a7d57",
+    "e49a741bc94128ee"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ],
+   "reason": "The ai review verdict matches the existing label; the label is unchanged."
   }
  ],
  "reviewQueue": [

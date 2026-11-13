@@ -6,10 +6,22 @@
       "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
       "files": {
         "corpora/configs/nextjs-billing.json": "ab3ba41a8d03a70048294a62b7863c9e5730c673d9adeaecce566aeac8de484b",
-        "corpora/eval/labels/nextjs-billing.json": "76f1250e7ad636f299e347f04572976b288e23d82ca5e242ba842d9838ba755d"
+        "corpora/eval/labels/nextjs-billing.json": "4de539d1d65c5c2e24354be7833255cbb0cf7a79e0767f94c0ccda585565493b"
       },
-      "frozenAtUtc": "2026-11-12T04:17:00Z",
-      "history": []
+      "frozenAtUtc": "2026-11-13T09:40:48Z",
+      "history": [
+        {
+          "previous": {
+            "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+            "files": {
+              "corpora/configs/nextjs-billing.json": "ab3ba41a8d03a70048294a62b7863c9e5730c673d9adeaecce566aeac8de484b",
+              "corpora/eval/labels/nextjs-billing.json": "76f1250e7ad636f299e347f04572976b288e23d82ca5e242ba842d9838ba755d"
+            },
+            "frozenAtUtc": "2026-11-12T04:17:00Z"
+          },
+          "reason": "DEV-162 blind AI adjudication (corpora/review/records/ai-pass-1.json, corpora/review/records/ai-pass-2.json): two independent blind AI reviewers agreed against the label; not a change made to raise a score"
+        }
+      ]
     },
     "react-starter-kit": {
       "revision": "dbdb0d4991bbaae1671ff62180089f2733dd406a",
@@ -24,9 +36,9 @@
       "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
       "files": {
         "corpora/configs/petdex.json": "8bbd000947b372caca7ab409b02aae777f9071aeab43a11948d4e9196433a930",
-        "corpora/eval/labels/petdex.json": "0fc0eb7ba158331e73ec1fdca305fa05a4cdf2e7742e795836a1533761686914"
+        "corpora/eval/labels/petdex.json": "0e5bc8e4be07879f7c2153da61e77aa3bf9e2f89fd9d802e731d44c750aa5ae4"
       },
-      "frozenAtUtc": "2026-11-13T06:19:22Z",
+      "frozenAtUtc": "2026-11-13T09:40:48Z",
       "history": [
         {
           "previous": {
@@ -38,6 +50,17 @@
             "frozenAtUtc": "2026-11-12T05:39:30Z"
           },
           "reason": "2026-11-13 label for one new finding (135c580767456c38-2) exposed by the DEV-180 analyzer change, from a blind source-only AI labeler; no existing label changed, not a change made to raise a score"
+        },
+        {
+          "previous": {
+            "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+            "files": {
+              "corpora/configs/petdex.json": "8bbd000947b372caca7ab409b02aae777f9071aeab43a11948d4e9196433a930",
+              "corpora/eval/labels/petdex.json": "0fc0eb7ba158331e73ec1fdca305fa05a4cdf2e7742e795836a1533761686914"
+            },
+            "frozenAtUtc": "2026-11-13T06:19:22Z"
+          },
+          "reason": "DEV-162 blind AI adjudication (corpora/review/records/ai-pass-1.json, corpora/review/records/ai-pass-2.json): two independent blind AI reviewers agreed against the label; not a change made to raise a score"
         }
       ]
     },
@@ -45,10 +68,22 @@
       "revision": "c6df229ae73c207e87356d5e592779c511a9b56d",
       "files": {
         "corpora/configs/next-saas-stripe-starter.json": "e0c8f0869bafd380c3d392a30b7a720bf6b8db8b6a6bf6d0ebf69b34201b1a6b",
-        "corpora/eval/labels/next-saas-stripe-starter.json": "ac9b2e3b4fe6f83d55260e7581e78ba7d26f4e06838a68cc49d7cd6b397f9363"
+        "corpora/eval/labels/next-saas-stripe-starter.json": "5be617ecab4293f8c8fc5416d1202197e064701176b0afb0d3532d956320959d"
       },
-      "frozenAtUtc": "2026-11-12T05:39:30Z",
-      "history": []
+      "frozenAtUtc": "2026-11-13T09:40:48Z",
+      "history": [
+        {
+          "previous": {
+            "revision": "c6df229ae73c207e87356d5e592779c511a9b56d",
+            "files": {
+              "corpora/configs/next-saas-stripe-starter.json": "e0c8f0869bafd380c3d392a30b7a720bf6b8db8b6a6bf6d0ebf69b34201b1a6b",
+              "corpora/eval/labels/next-saas-stripe-starter.json": "ac9b2e3b4fe6f83d55260e7581e78ba7d26f4e06838a68cc49d7cd6b397f9363"
+            },
+            "frozenAtUtc": "2026-11-12T05:39:30Z"
+          },
+          "reason": "DEV-162 blind AI adjudication (corpora/review/records/ai-pass-1.json, corpora/review/records/ai-pass-2.json): two independent blind AI reviewers agreed against the label; not a change made to raise a score"
+        }
+      ]
     }
   },
   "retired": [

@@ -16,6 +16,15 @@
    "by": "AI agent (Claude), finding-by-finding source review, separate from the auditor; did not see knownPositives",
    "date": "2026-11-12",
    "humanReviewed": false
+  },
+  "aiReview": {
+   "date": "2026-11-13",
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ],
+   "itemsReviewed": 9,
+   "scope": "the DEV-162 sample, not every label"
   }
  },
  "knownPositives": [
@@ -78,7 +87,7 @@
    "file": "src/app/actions.ts",
    "line": 377,
    "function": "pauseUserSubscription",
-   "classification": "true-positive",
+   "classification": "intended-risk",
    "notes": "updateSubscription(id, {pause:{mode:'void'}}) at actions.ts:377 pauses billing at Lemon Squeezy before the DB update at actions.ts:385-393 sets isPaused, and a failure in between leaves isPaused=false. The webhook upsert does not repair this: it hard-codes isPaused: false (webhook.ts:117), so subscription_updated can reconcile status/statusFormatted/endsAt but never isPaused. isPaused drives the UI: actions-dropdown.tsx:52/67 keeps offering 'Pause payments' and never shows 'Unpause payments', and status.tsx:24 relies on it. Nothing else in the app restores the flag. (The webhook overwriting isPaused with false is a separate defect on the normal path too.)"
   },
   {
@@ -127,7 +136,58 @@
    "notes": "On the subscription_* path, the subscription upsert (webhook.ts:126-129) commits before the event row is marked processed (webhook.ts:144-150), so a crash in between leaves an applied subscription with an event row still at processed=false. The route then returns no 200 (route.ts:49-51). Lemon Squeezy redelivers, and the redelivery re-applies the idempotent upsert and marks its own new row processed. The leftover stale flag is never read anywhere in src (grep finds no reader of processed/processingError), so it has no functional effect."
   }
  ],
- "corrections": [],
+ "corrections": [
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "20260b839ea7a0ec",
+   "previous": {
+    "findingId": "20260b839ea7a0ec",
+    "code": "MW1002",
+    "file": "src/app/actions.ts",
+    "line": 377,
+    "function": "pauseUserSubscription",
+    "classification": "true-positive",
+    "notes": "updateSubscription(id, {pause:{mode:'void'}}) at actions.ts:377 pauses billing at Lemon Squeezy before the DB update at actions.ts:385-393 sets isPaused, and a failure in between leaves isPaused=false. The webhook upsert does not repair this: it hard-codes isPaused: false (webhook.ts:117), so subscription_updated can reconcile status/statusFormatted/endsAt but never isPaused. isPaused drives the UI: actions-dropdown.tsx:52/67 keeps offering 'Pause payments' and never shows 'Unpause payments', and status.tsx:24 relies on it. Nothing else in the app restores the flag. (The webhook overwriting isPaused with false is a separate defect on the normal path too.)"
+   },
+   "classification": "intended-risk",
+   "reason": "The provider pause at line 377 commits before the DB update at line 385. SDK errors throw through the onError hook, so the window is a crash or DB failure after a successful pause. The subscription_updated webhook upserts status and endsAt afterwards. The webhook always writes isPaused=false, but that bug exists without this window too. | The Lemon Squeezy pause is performed before the local subscriptions update. If that update fails, the DB still shows the subscription as active. Lemon Squeezy then sends a subscription_* webhook, and processWebhookEvent upserts status, statusFormatted and endsAt from the provider, which reconciles the row. That upsert hard-codes isPaused to false, though, so the pause flag itself is not restored.",
+   "evidence": [
+    ".corpora/nextjs-billing/src/app/actions.ts:377",
+    ".corpora/nextjs-billing/src/app/actions.ts:385",
+    ".corpora/nextjs-billing/src/config/lemonsqueezy.ts:25",
+    ".corpora/nextjs-billing/src/lib/webhook.ts:117",
+    ".corpora/nextjs-billing/src/lib/webhook.ts:126"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI review, DEV-162",
+   "humanReviewed": false,
+   "type": "ai-confirmed",
+   "items": [
+    "38e751c103d6a61f",
+    "3d2adcfc238ab4d5",
+    "7619089948932cea",
+    "c114c4a1140e26fc",
+    "f0f7b851368b8e17",
+    "nextjs-billing-KP01",
+    "nextjs-billing-KP02",
+    "nextjs-billing-KP03"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ],
+   "reason": "The ai review verdict matches the existing label; the label is unchanged."
+  }
+ ],
  "reviewQueue": [
   {
    "knownPositive": "nextjs-billing-KP02",

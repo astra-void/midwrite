@@ -16,6 +16,15 @@
    "by": "AI agent (Claude), finding-by-finding source review, separate from the auditor; did not see knownPositives",
    "date": "2026-11-12",
    "humanReviewed": false
+  },
+  "aiReview": {
+   "date": "2026-11-13",
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ],
+   "itemsReviewed": 4,
+   "scope": "the DEV-162 sample, not every label"
   }
  },
  "knownPositives": [
@@ -69,12 +78,59 @@
    "file": "lib/auth/delete-account.ts",
    "line": 80,
    "function": "prepareAccountDeletion",
-   "classification": "intended-risk",
+   "classification": "true-positive",
    "notes": "The window is real: db is a Neon Pool drizzle client (lib/db/index.ts:17-23) and the two deletes are separate autocommit statements with no transaction (delete-account.ts:76-78 deletes subscription rows, 80-82 deletes organization rows). If the organization delete fails, the solo org's subscription rows are already gone. prepareAccountDeletion is Better Auth's deleteUser.beforeDelete hook (lib/auth/server.ts:33-35), so the throw also aborts the user deletion and the user keeps an org with no local subscription record; at most that is a scheduled-to-end subscription, because lines 56-73 reject any running one. The client shows the error and leaves the dialog open (components/dashboard/settings/delete-account-card.tsx:47-54), and a retry converges: memberships still exist, the running-subscription count is 0, the subscription delete is a no-op and the org delete completes. The subscription-first order looks deliberate (comment at line 75: referenceId has no FK). Leftover risk: a user who gives up after the error keeps an org without its record of a still-paid subscription that was due to end.",
    "crossRecord": true
   }
  ],
- "corrections": [],
+ "corrections": [
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "c4c7830260eda71d",
+   "previous": {
+    "findingId": "c4c7830260eda71d",
+    "code": "MW1004",
+    "file": "lib/auth/delete-account.ts",
+    "line": 80,
+    "function": "prepareAccountDeletion",
+    "classification": "intended-risk",
+    "notes": "The window is real: db is a Neon Pool drizzle client (lib/db/index.ts:17-23) and the two deletes are separate autocommit statements with no transaction (delete-account.ts:76-78 deletes subscription rows, 80-82 deletes organization rows). If the organization delete fails, the solo org's subscription rows are already gone. prepareAccountDeletion is Better Auth's deleteUser.beforeDelete hook (lib/auth/server.ts:33-35), so the throw also aborts the user deletion and the user keeps an org with no local subscription record; at most that is a scheduled-to-end subscription, because lines 56-73 reject any running one. The client shows the error and leaves the dialog open (components/dashboard/settings/delete-account-card.tsx:47-54), and a retry converges: memberships still exist, the running-subscription count is 0, the subscription delete is a no-op and the org delete completes. The subscription-first order looks deliberate (comment at line 75: referenceId has no FK). Leftover risk: a user who gives up after the error keeps an org without its record of a still-paid subscription that was due to end.",
+    "crossRecord": true
+   },
+   "classification": "true-positive",
+   "reason": "The subscription delete and the organization delete are separate commits. A failure in between leaves a live solo organization whose subscription rows are gone, while its Stripe subscription may still run to period end with cancelAt set. reconcileSubscription and the webhooks only work on existing rows. The state converges only if the user retries account deletion, which is idempotent and still reachable because the org survives. | In the beforeDelete hook, the subscription rows are deleted and then the organization is deleted as a separate autocommit statement, with no transaction. If the second fails, the account deletion aborts and the solo organization survives without its subscription rows. That includes a subscription still active but set to cancel (cancelAt or cancelAtPeriodEnd), so the organization loses its plan early. The user retrying the deletion converges, but nothing does that automatically.",
+   "evidence": [
+    ".corpora/next-saas-stripe-starter/app/(app)/dashboard/billing/page.tsx:42",
+    ".corpora/next-saas-stripe-starter/lib/auth/delete-account.ts:56",
+    ".corpora/next-saas-stripe-starter/lib/auth/delete-account.ts:76",
+    ".corpora/next-saas-stripe-starter/lib/auth/delete-account.ts:80",
+    ".corpora/next-saas-stripe-starter/lib/auth/server.ts:35"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI review, DEV-162",
+   "humanReviewed": false,
+   "type": "ai-confirmed",
+   "items": [
+    "next-saas-stripe-starter-KP01",
+    "next-saas-stripe-starter-KP02",
+    "next-saas-stripe-starter-KP03"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ],
+   "reason": "The ai review verdict matches the existing label; the label is unchanged."
+  }
+ ],
  "reviewQueue": [
   {
    "knownPositive": "next-saas-stripe-starter-KP02",

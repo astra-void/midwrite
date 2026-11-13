@@ -1,0 +1,712 @@
+{
+  "schemaVersion": 1,
+  "kind": "midwrite.ai-review-summary",
+  "$comment": "Blind AI review (DEV-162 scope changed by the project owner on 2026-11-13): not human review, and its precision is not human-validated.",
+  "sampleSha256": "0b775dcbc90504c2c1a6e738e8297b95a908018f30f6c237c98c2c7b11bd508c",
+  "reviewers": [
+    {
+      "name": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "kind": "ai",
+      "independence": "Separate AI agents that saw only the application source at the pinned revision and each finding's operations; they did not see the existing labels, eval reports, review files or each other's verdicts. Not human review (DEV-162 scope changed by the project owner on 2026-11-13).",
+      "started": "2026-11-13",
+      "completed": "2026-11-13",
+      "midwriteRevision": "2dc0c9f"
+    }
+  ],
+  "itemsReviewed": 109,
+  "itemsInSample": 172,
+  "strata": {
+    "dev-unclear": {
+      "tier": 1,
+      "items": 9,
+      "reviewed": 9,
+      "agree": 0,
+      "hazardAgree": 0,
+      "blind": 9,
+      "agreement": {
+        "value": 0.0,
+        "hits": 0,
+        "total": 9,
+        "wilson95": [
+          0.0,
+          0.299
+        ]
+      },
+      "hazardAgreement": {
+        "value": 0.0,
+        "hits": 0,
+        "total": 9,
+        "wilson95": [
+          0.0,
+          0.299
+        ]
+      }
+    },
+    "dev-false-positive": {
+      "tier": 1,
+      "items": 41,
+      "reviewed": 41,
+      "agree": 30,
+      "hazardAgree": 30,
+      "blind": 41,
+      "agreement": {
+        "value": 0.732,
+        "hits": 30,
+        "total": 41,
+        "wilson95": [
+          0.581,
+          0.843
+        ]
+      },
+      "hazardAgreement": {
+        "value": 0.732,
+        "hits": 30,
+        "total": 41,
+        "wilson95": [
+          0.581,
+          0.843
+        ]
+      }
+    },
+    "dev-true-positive": {
+      "tier": 2,
+      "items": 22,
+      "reviewed": 0,
+      "agree": 0,
+      "hazardAgree": 0,
+      "blind": 0,
+      "agreement": {
+        "value": null,
+        "hits": 0,
+        "total": 0,
+        "wilson95": null
+      },
+      "hazardAgreement": {
+        "value": null,
+        "hits": 0,
+        "total": 0,
+        "wilson95": null
+      }
+    },
+    "dev-intended-risk": {
+      "tier": 2,
+      "items": 26,
+      "reviewed": 0,
+      "agree": 0,
+      "hazardAgree": 0,
+      "blind": 0,
+      "agreement": {
+        "value": null,
+        "hits": 0,
+        "total": 0,
+        "wilson95": null
+      },
+      "hazardAgreement": {
+        "value": null,
+        "hits": 0,
+        "total": 0,
+        "wilson95": null
+      }
+    },
+    "dev-known-positive": {
+      "tier": 2,
+      "items": 15,
+      "reviewed": 0,
+      "agree": 0,
+      "hazardAgree": 0,
+      "blind": 0,
+      "agreement": {
+        "value": null,
+        "hits": 0,
+        "total": 0,
+        "wilson95": null
+      },
+      "hazardAgreement": {
+        "value": null,
+        "hits": 0,
+        "total": 0,
+        "wilson95": null
+      }
+    },
+    "corrected": {
+      "tier": 1,
+      "items": 5,
+      "reviewed": 5,
+      "agree": 5,
+      "hazardAgree": 5,
+      "blind": 5,
+      "agreement": {
+        "value": 1.0,
+        "hits": 5,
+        "total": 5,
+        "wilson95": [
+          0.566,
+          1.0
+        ]
+      },
+      "hazardAgreement": {
+        "value": 1.0,
+        "hits": 5,
+        "total": 5,
+        "wilson95": [
+          0.566,
+          1.0
+        ]
+      }
+    },
+    "held-out-finding": {
+      "tier": 1,
+      "items": 32,
+      "reviewed": 32,
+      "agree": 26,
+      "hazardAgree": 29,
+      "blind": 32,
+      "agreement": {
+        "value": 0.812,
+        "hits": 26,
+        "total": 32,
+        "wilson95": [
+          0.647,
+          0.911
+        ]
+      },
+      "hazardAgreement": {
+        "value": 0.906,
+        "hits": 29,
+        "total": 32,
+        "wilson95": [
+          0.758,
+          0.968
+        ]
+      }
+    },
+    "held-out-known-positive": {
+      "tier": 1,
+      "items": 18,
+      "reviewed": 18,
+      "agree": 18,
+      "hazardAgree": 18,
+      "blind": 18,
+      "agreement": {
+        "value": 1.0,
+        "hits": 18,
+        "total": 18,
+        "wilson95": [
+          0.824,
+          1.0
+        ]
+      },
+      "hazardAgreement": {
+        "value": 1.0,
+        "hits": 18,
+        "total": 18,
+        "wilson95": [
+          0.824,
+          1.0
+        ]
+      }
+    },
+    "upstream-report": {
+      "tier": 1,
+      "items": 4,
+      "reviewed": 4,
+      "agree": 4,
+      "hazardAgree": 4,
+      "blind": 4,
+      "agreement": {
+        "value": 1.0,
+        "hits": 4,
+        "total": 4,
+        "wilson95": [
+          0.51,
+          1.0
+        ]
+      },
+      "hazardAgreement": {
+        "value": 1.0,
+        "hits": 4,
+        "total": 4,
+        "wilson95": [
+          0.51,
+          1.0
+        ]
+      }
+    }
+  },
+  "confusion": {
+    "$comment": "rows: AI label, columns: human verdict (findings only)",
+    "unclear": {
+      "intended-risk": 6,
+      "true-positive": 1,
+      "false-positive": 2
+    },
+    "false-positive": {
+      "false-positive": 31,
+      "intended-risk": 10,
+      "true-positive": 2
+    },
+    "intended-risk": {
+      "intended-risk": 26,
+      "true-positive": 2
+    },
+    "true-positive": {
+      "intended-risk": 1,
+      "unclear": 2
+    }
+  },
+  "heldOutPrecision": {
+    "complete": true,
+    "reviewedHeldOutFindings": 32,
+    "heldOutFindings": 32,
+    "aiReviewHazardPrecision": {
+      "value": 0.967,
+      "hits": 29,
+      "total": 30,
+      "wilson95": [
+        0.833,
+        0.994
+      ]
+    },
+    "aiReviewBugPrecision": {
+      "value": 0.067,
+      "hits": 2,
+      "total": 30,
+      "wilson95": [
+        0.018,
+        0.213
+      ]
+    },
+    "aiLabelHazardPrecision": {
+      "value": 0.938,
+      "hits": 30,
+      "total": 32,
+      "wilson95": [
+        0.799,
+        0.983
+      ]
+    },
+    "aiLabelBugPrecision": {
+      "value": 0.094,
+      "hits": 3,
+      "total": 32,
+      "wilson95": [
+        0.032,
+        0.242
+      ]
+    }
+  },
+  "disagreementsWithAiLabels": [
+    {
+      "item": "midday:finding:be6bb7027f1f6b89",
+      "stratum": "dev-unclear",
+      "ai": "unclear",
+      "human": "intended-risk",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "The status update commits before the review-request email is sent, so a Resend failure or a crash leaves the status 'pending' with no email. The send is wrapped in try/catch that only logs (\"don't fail the mutation\"), so the email is best-effort by design. The reported path is self-contradictory: getTeamsByUserId's `!result` branch returns [], so currentTeam would be undefined. The window still exists on the normal path.",
+      "codeRefs": [
+        "apps/api/src/trpc/routers/oauth-applications.ts:341",
+        "apps/api/src/trpc/routers/oauth-applications.ts:368",
+        "apps/api/src/trpc/routers/oauth-applications.ts:375",
+        "packages/db/src/queries/oauth-applications.ts:376"
+      ]
+    },
+    {
+      "item": "midday:finding:30dcdd2ef00f2705",
+      "stratum": "dev-unclear",
+      "ai": "unclear",
+      "human": "true-positive",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "createTransaction inserts the manual transaction and its attachments with no transaction around them. triggerJob('enrich-transactions') then rethrows on a queue error, so the mutation fails while the row persists, unenriched and never sent to forward matching. Nothing re-enqueues it, and a client retry would create a duplicate. The listed `!result`-then condition at 1870 contradicts `transaction?.id`, but the window exists when the insert returns a row.",
+      "codeRefs": [
+        "apps/api/src/trpc/routers/transactions.ts:133",
+        "apps/api/src/trpc/routers/transactions.ts:139",
+        "packages/db/src/queries/transactions.ts:1852",
+        "packages/job-client/src/index.ts:76"
+      ]
+    },
+    {
+      "item": "midday:finding:7152316730e65b31",
+      "stratum": "dev-unclear",
+      "ai": "unclear",
+      "human": "intended-risk",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "The sync record is upserted as 'synced' with an empty syncedAttachmentMapping before the attachment job is enqueued. After a crash, a BullMQ retry (accounting attempts: 4) or a later re-export puts the item in toSyncAttachments, because its attachments are missing from the mapping, and enqueues them again. One caveat: if triggerJob throws, the batch catch rewrites every record in the batch to 'failed', so a later re-export would create the provider voucher again.",
+      "codeRefs": [
+        "apps/worker/src/processors/accounting/export-transactions.ts:281",
+        "apps/worker/src/processors/accounting/export-transactions.ts:329",
+        "apps/worker/src/processors/accounting/export-transactions.ts:425",
+        "apps/worker/src/processors/accounting/export-transactions.ts:544"
+      ]
+    },
+    {
+      "item": "midday:finding:30b45470f9206870",
+      "stratum": "dev-false-positive",
+      "ai": "false-positive",
+      "human": "intended-risk",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "The 'document_uploaded' activity is enqueued before the document row is updated, so a crash in between leaves the notification without the status change. The notification is explicitly best-effort (try/catch, 'Don't fail the entire process'). It describes an upload that already happened, and the job is retried (documents attempts: 3), with a final-failure handler that marks the document failed.",
+      "codeRefs": [
+        "apps/worker/src/processors/documents/process-document.ts:45",
+        "apps/worker/src/processors/documents/process-document.ts:56",
+        "apps/worker/src/processors/documents/process-document.ts:118",
+        "apps/worker/src/queues/documents.config.ts:192"
+      ]
+    },
+    {
+      "item": "midday:finding:f67d93b946c14519",
+      "stratum": "dev-unclear",
+      "ai": "unclear",
+      "human": "false-positive",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "The fire-and-forget process-document job works on the documents table. The inbox 'pending' update at 429 is compensation for a failed batch-process-matching enqueue and has nothing to do with process-document. Having the process-document job without that reset breaks no invariant, and the reset's own failure is caught and logged.",
+      "codeRefs": [
+        "apps/worker/src/processors/inbox/process-attachment.ts:374",
+        "apps/worker/src/processors/inbox/process-attachment.ts:407",
+        "apps/worker/src/processors/inbox/process-attachment.ts:429"
+      ]
+    },
+    {
+      "item": "midday:finding:d6cc779a0da27f5a",
+      "stratum": "dev-false-positive",
+      "ai": "false-positive",
+      "human": "intended-risk",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "The process-attachment jobs and the inbox_new notification are enqueued before lastAccessed is advanced, so a crash leaves the account's cursor unchanged. The next scheduled sync re-fetches from the old cursor, and already-ingested attachments are filtered out by referenceId. The notification is best-effort in try/catch, so the worst outcome is a duplicate notification.",
+      "codeRefs": [
+        "apps/worker/src/processors/inbox/sync-scheduler.ts:139",
+        "apps/worker/src/processors/inbox/sync-scheduler.ts:254",
+        "apps/worker/src/processors/inbox/sync-scheduler.ts:283"
+      ]
+    },
+    {
+      "item": "midday:finding:92e76f3400624b30",
+      "stratum": "dev-unclear",
+      "ai": "unclear",
+      "human": "intended-risk",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "createInbox commits the item as 'processing' before OCR and the 'other' update, so a crash leaves it in 'processing'. The job is retried (inbox attempts: 3), and the retry finds the existing row through getInboxByFilePath and resumes. Thrown errors are caught, and the item is set to 'pending'.",
+      "codeRefs": [
+        "apps/worker/src/processors/inbox/process-attachment.ts:68",
+        "apps/worker/src/processors/inbox/process-attachment.ts:149",
+        "apps/worker/src/processors/inbox/process-attachment.ts:317",
+        "apps/worker/src/processors/inbox/process-attachment.ts:507"
+      ]
+    },
+    {
+      "item": "midday:finding:41b76f15d5a434ea-2",
+      "stratum": "dev-unclear",
+      "ai": "unclear",
+      "human": "intended-risk",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "The inbox is set to 'analyzing' in its own commit. The reset to 'pending' at 211 is a best-effort compensation in the catch, so a crash (or a failure of the reset itself) leaves the item stuck in 'analyzing', which automatic matching then skips. Errors are compensated, and the user-triggered retryMatching enqueues batch-process-matching, which recalculates for explicit inboxIds.",
+      "codeRefs": [
+        "packages/db/src/queries/inbox-matching.ts:161",
+        "packages/db/src/queries/inbox-matching.ts:197",
+        "packages/db/src/queries/inbox-matching.ts:211",
+        "apps/api/src/trpc/routers/inbox.ts:262"
+      ]
+    },
+    {
+      "item": "midday:finding:a94d0af4e1b61bde",
+      "stratum": "dev-false-positive",
+      "ai": "false-positive",
+      "human": "intended-risk",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "draftInvoice commits, then the schedule job is enqueued. Only if updateInvoice then affects no row (a concurrent delete) is the orphaned job removed, best-effort, and a crash or error can skip that removal. An orphaned schedule-invoice job does nothing: the processor returns when the invoice is missing, not 'scheduled', or the job id does not match scheduledJobId.",
+      "codeRefs": [
+        "apps/api/src/rest/routers/invoices.ts:449",
+        "apps/api/src/rest/routers/invoices.ts:563",
+        "apps/worker/src/processors/invoices/schedule-invoice.ts:27",
+        "apps/worker/src/processors/invoices/schedule-invoice.ts:37"
+      ]
+    },
+    {
+      "item": "midday:finding:3b74ca15611c4770",
+      "stratum": "dev-false-positive",
+      "ai": "false-positive",
+      "human": "intended-risk",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "For each item, calculateInboxSuggestions commits 'analyzing' before the suggestion transaction or the 'pending' reset, so a crash can leave the item in 'analyzing'. Thrown errors are compensated in its catch. A stalled job is retried with the same explicit inboxIds, and retryMatching re-runs it. Writes for different inbox items are independent.",
+      "codeRefs": [
+        "apps/worker/src/processors/inbox/batch-process-matching.ts:46",
+        "packages/db/src/queries/inbox-matching.ts:161",
+        "packages/db/src/queries/inbox-matching.ts:186",
+        "packages/db/src/queries/inbox-matching.ts:211"
+      ]
+    },
+    {
+      "item": "midday:finding:dc5ad0d481bf0d62",
+      "stratum": "dev-false-positive",
+      "ai": "false-positive",
+      "human": "intended-risk",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "Same window as the other finding at this location: 'analyzing' is committed separately from the suggestion or match transaction (or the 'pending' reset), so only a crash leaves the item in 'analyzing'. Errors are compensated, and batch-process-matching with explicit inboxIds (a job retry or user retryMatching) recalculates it.",
+      "codeRefs": [
+        "apps/worker/src/processors/inbox/batch-process-matching.ts:48",
+        "packages/db/src/queries/inbox-matching.ts:161",
+        "packages/db/src/queries/inbox-matching.ts:32",
+        "apps/api/src/trpc/routers/inbox.ts:262"
+      ]
+    },
+    {
+      "item": "midday:finding:a101c4ca65ed78ae",
+      "stratum": "dev-false-positive",
+      "ai": "false-positive",
+      "human": "intended-risk",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "The forward match commits 'analyzing' before persistInboxSuggestionWorkflow. The reset to 'pending' at 171 is best-effort compensation, so a crash leaves the item in 'analyzing', and findInboxMatches and getPendingInboxForMatching then exclude it. Errors are compensated, and the user's retryMatching (batch-process-matching with an explicit inboxId) recovers stuck items.",
+      "codeRefs": [
+        "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:59",
+        "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:171",
+        "packages/db/src/queries/transaction-matching.ts:915",
+        "apps/api/src/trpc/routers/inbox.ts:262"
+      ]
+    },
+    {
+      "item": "midday:finding:b5c28dcf88a37554",
+      "stratum": "dev-false-positive",
+      "ai": "false-positive",
+      "human": "intended-risk",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "Same window: the 'analyzing' update and the suggestion or match transaction (or its 'pending' compensation) commit separately. Only a crash, or a failed reset that is caught and logged, leaves the item stuck. Automatic matching then skips it, but manual retryMatching recovers it.",
+      "codeRefs": [
+        "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:59",
+        "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:65",
+        "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:177",
+        "apps/api/src/trpc/routers/inbox.ts:262"
+      ]
+    },
+    {
+      "item": "midday:finding:84fdd9d28315fdaf",
+      "stratum": "dev-false-positive",
+      "ai": "false-positive",
+      "human": "intended-risk",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "In the trigger.dev task, 'analyzing' is committed before persistInboxSuggestionWorkflow, and the reset to 'pending' at 154 runs only in the catch, so a crash leaves the item in 'analyzing'. Automatic matching then excludes it. Errors are compensated, and manual retryMatching recalculates the item.",
+      "codeRefs": [
+        "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:55",
+        "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:154",
+        "packages/db/src/queries/transaction-matching.ts:915",
+        "apps/api/src/trpc/routers/inbox.ts:262"
+      ]
+    },
+    {
+      "item": "midday:finding:ab486c34ea1d199b",
+      "stratum": "dev-false-positive",
+      "ai": "false-positive",
+      "human": "intended-risk",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "Same window as the other finding at this location: the status write and the suggestion transaction or compensating reset commit independently. Only a crash, or a reset failure that is caught and logged, leaves the item in 'analyzing'. A user-triggered retryMatching recovers it.",
+      "codeRefs": [
+        "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:55",
+        "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:61",
+        "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:160",
+        "apps/api/src/trpc/routers/inbox.ts:262"
+      ]
+    },
+    {
+      "item": "kan:finding:5b00a075f33349a8",
+      "stratum": "dev-false-positive",
+      "ai": "false-positive",
+      "human": "true-positive",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "In cloud mode the Stripe seat is incremented at line 109 and the invited member row is committed at line 173 before signInMagicLink at line 189. If signInMagicLink throws, neither is undone. On the !status branch the member is soft-deleted, but the Stripe seat is never decremented, so the customer is billed for a seat with no member. Separately, sendMagicLink swallows email-send errors, so an invite row can persist with no email sent.",
+      "codeRefs": [
+        ".corpora/kan/packages/api/src/routers/member.ts:109",
+        ".corpora/kan/packages/api/src/routers/member.ts:173",
+        ".corpora/kan/packages/api/src/routers/member.ts:189",
+        ".corpora/kan/packages/api/src/routers/member.ts:200"
+      ]
+    },
+    {
+      "item": "kan:finding:930f362854dc67c5",
+      "stratum": "dev-false-positive",
+      "ai": "false-positive",
+      "human": "true-positive",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "The partner webhook runs many independent subscription and workspace writes with no transaction (slot updates, createAndLinkSlots, then deactivation of removed slots). A failure partway returns 500 and leaves a mixed state. A retry is not idempotent: with prev_license_key, kept slots have already moved to the new key, so the retry's lookup by the old key finds only the slots that should have been removed and keeps or revives them as active.",
+      "codeRefs": [
+        ".corpora/kan/apps/web/src/pages/api/partner/webhook.ts:265",
+        ".corpora/kan/apps/web/src/pages/api/partner/webhook.ts:285",
+        ".corpora/kan/apps/web/src/pages/api/partner/webhook.ts:317",
+        ".corpora/kan/apps/web/src/pages/api/partner/webhook.ts:61"
+      ]
+    },
+    {
+      "item": "dittofeed:finding:9f8483db635fdba6",
+      "stratum": "dev-unclear",
+      "ai": "unclear",
+      "human": "intended-risk",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "The HubSpot token-refresh POST can succeed and the following upsert of the new tokens fail. refreshToken runs as a Temporal activity inside the periodic hubspotWorkflow (default retry policy). The stored refresh token is unchanged, so the refresh is simply repeated on retry or on the next poll.",
+      "codeRefs": [
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:170",
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:185",
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspotWorkflow.ts:119"
+      ]
+    },
+    {
+      "item": "dittofeed:finding:3b62eaf4c168a13e",
+      "stratum": "dev-unclear",
+      "ai": "unclear",
+      "human": "false-positive",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "The integration-disable update at line 232 is reached only when the caught error is an AxiosError, which can come only from the axios call before the upsert. Errors from or after the upsert (unwrap, or the 'No result returned from upsert' Error) are not AxiosErrors and are rethrown at line 213. A committed upsert and the disable are therefore mutually exclusive.",
+      "codeRefs": [
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:185",
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:212",
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:232",
+        ".corpora/dittofeed/packages/backend-lib/src/db.ts:152"
+      ]
+    },
+    {
+      "item": "dittofeed:finding:44476238f5f66c9d",
+      "stratum": "dev-unclear",
+      "ai": "unclear",
+      "human": "intended-risk",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "The per-email create POSTs start at line 753 and run concurrently with the batch status update in Promise.all at line 796, so one can succeed while another fails. The activity is retried by Temporal (default policy) and recomputes the desired state from events and a fresh HubSpot search, and the status update is idempotent. Caveat: matching by timestamp sends an existing email with an unchanged status to the create branch (line 607), so a retry can duplicate already-created emails.",
+      "codeRefs": [
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:753",
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:796",
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:607",
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspotUserWorkflow.ts:20"
+      ]
+    },
+    {
+      "item": "nextjs-billing:finding:20260b839ea7a0ec",
+      "stratum": "held-out-finding",
+      "ai": "true-positive",
+      "human": "intended-risk",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "The provider pause at line 377 commits before the DB update at line 385. SDK errors throw through the onError hook, so the window is a crash or DB failure after a successful pause. The subscription_updated webhook upserts status and endsAt afterwards. The webhook always writes isPaused=false, but that bug exists without this window too.",
+      "codeRefs": [
+        ".corpora/nextjs-billing/src/app/actions.ts:377",
+        ".corpora/nextjs-billing/src/app/actions.ts:385",
+        ".corpora/nextjs-billing/src/lib/webhook.ts:117",
+        ".corpora/nextjs-billing/src/config/lemonsqueezy.ts:25"
+      ]
+    },
+    {
+      "item": "nextjs-billing:finding:b6cf38aa870df5cb",
+      "stratum": "held-out-finding",
+      "ai": "intended-risk",
+      "human": "true-positive",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "The event row (random id, processed=false) commits before the subscription upsert. A crash causes a non-200 and Lemon Squeezy redelivers, but under a new id, so the old row is never processed. A DB error in the upsert is caught at lines 130-133, the event is marked processed with an error, and 200 is returned. In that case the subscription change is lost with no retry, and no code reads or replays stored events.",
+      "codeRefs": [
+        ".corpora/nextjs-billing/src/lib/webhook.ts:29",
+        ".corpora/nextjs-billing/src/lib/webhook.ts:126",
+        ".corpora/nextjs-billing/src/lib/webhook.ts:130",
+        ".corpora/nextjs-billing/src/app/api/webhook/route.ts:49"
+      ]
+    },
+    {
+      "item": "petdex:finding:6946f8ab26c2cbfa",
+      "stratum": "held-out-finding",
+      "ai": "true-positive",
+      "human": "unclear",
+      "hazard": "unclear",
+      "actionable": "unclear",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "Inside approveCandidate the window is genuine: the candidate is set to approved with no transaction before the siblings are rejected. A retry would then hit the not_pending guard and leave the siblings pending. However, nothing in the checkout calls approveCandidate (no route or script imports it), so I cannot find a reachable path at this revision.",
+      "codeRefs": [
+        "src/lib/request-candidates.ts:271",
+        "src/lib/request-candidates.ts:289",
+        "src/lib/request-candidates.ts:305"
+      ]
+    },
+    {
+      "item": "petdex:finding:e22a74407ad5d615",
+      "stratum": "held-out-finding",
+      "ai": "true-positive",
+      "human": "unclear",
+      "hazard": "unclear",
+      "actionable": "unclear",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "If approveCandidate ran, the candidates could be resolved while pet_requests stays open with no fulfilledPetSlug, and the not_pending guard would block a repair by retry. No code in the checkout calls approveCandidate, so the path does not look reachable at this revision.",
+      "codeRefs": [
+        "src/lib/request-candidates.ts:271",
+        "src/lib/request-candidates.ts:305",
+        "src/lib/request-candidates.ts:321"
+      ]
+    },
+    {
+      "item": "petdex:finding:5c207dae68e2a103",
+      "stratum": "held-out-finding",
+      "ai": "false-positive",
+      "human": "intended-risk",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "At line 249 the catch block finalizes a review whose 'running' row, and possibly an applySubmissionAction approve/reject, already committed. If that finishReview also fails, the row stays 'running', which the stale-running burial handles. Separately, if applySubmissionAction approves the pet and then a post-approval step throws, this path records applied=false although the status already changed. That leaves the review record inaccurate rather than missing.",
+      "codeRefs": [
+        "src/lib/submission-review.ts:133",
+        "src/lib/submission-review.ts:210",
+        "src/lib/submission-review.ts:249",
+        "scripts/review-pending-submissions.ts:108"
+      ]
+    },
+    {
+      "item": "next-saas-stripe-starter:finding:c4c7830260eda71d",
+      "stratum": "held-out-finding",
+      "ai": "intended-risk",
+      "human": "true-positive",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "reviewer": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+      "rationale": "The subscription delete and the organization delete are separate commits. A failure in between leaves a live solo organization whose subscription rows are gone, while its Stripe subscription may still run to period end with cancelAt set. reconcileSubscription and the webhooks only work on existing rows. The state converges only if the user retries account deletion, which is idempotent and still reachable because the org survives.",
+      "codeRefs": [
+        ".corpora/next-saas-stripe-starter/lib/auth/delete-account.ts:56",
+        ".corpora/next-saas-stripe-starter/lib/auth/delete-account.ts:76",
+        ".corpora/next-saas-stripe-starter/lib/auth/delete-account.ts:80",
+        ".corpora/next-saas-stripe-starter/app/(app)/dashboard/billing/page.tsx:42"
+      ]
+    }
+  ],
+  "disagreementsBetweenReviewers": []
+}

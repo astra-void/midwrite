@@ -1,0 +1,2080 @@
+{
+  "schemaVersion": 1,
+  "kind": "midwrite.human-review-record",
+  "reviewer": {
+    "name": "blind AI reviewer, pass 1 (six Claude subagents, one per batch)",
+    "kind": "ai",
+    "independence": "Separate AI agents that saw only the application source at the pinned revision and each finding's operations; they did not see the existing labels, eval reports, review files or each other's verdicts. Not human review (DEV-162 scope changed by the project owner on 2026-11-13).",
+    "toolsUsed": "Claude subagents reading source files"
+  },
+  "attestation": false,
+  "sampleSha256": "0b775dcbc90504c2c1a6e738e8297b95a908018f30f6c237c98c2c7b11bd508c",
+  "midwriteRevision": "2dc0c9f",
+  "started": "2026-11-13",
+  "completed": "2026-11-13",
+  "items": [
+    {
+      "item": "midday:finding:be6bb7027f1f6b89",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The status update commits before the review-request email is sent, so a Resend failure or a crash leaves the status 'pending' with no email. The send is wrapped in try/catch that only logs (\"don't fail the mutation\"), so the email is best-effort by design. The reported path is self-contradictory: getTeamsByUserId's `!result` branch returns [], so currentTeam would be undefined. The window still exists on the normal path.",
+      "codeRefs": [
+        "apps/api/src/trpc/routers/oauth-applications.ts:341",
+        "apps/api/src/trpc/routers/oauth-applications.ts:368",
+        "apps/api/src/trpc/routers/oauth-applications.ts:375",
+        "packages/db/src/queries/oauth-applications.ts:376"
+      ]
+    },
+    {
+      "item": "midday:finding:30dcdd2ef00f2705",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "createTransaction inserts the manual transaction and its attachments with no transaction around them. triggerJob('enrich-transactions') then rethrows on a queue error, so the mutation fails while the row persists, unenriched and never sent to forward matching. Nothing re-enqueues it, and a client retry would create a duplicate. The listed `!result`-then condition at 1870 contradicts `transaction?.id`, but the window exists when the insert returns a row.",
+      "codeRefs": [
+        "apps/api/src/trpc/routers/transactions.ts:133",
+        "apps/api/src/trpc/routers/transactions.ts:139",
+        "packages/db/src/queries/transactions.ts:1852",
+        "packages/job-client/src/index.ts:76"
+      ]
+    },
+    {
+      "item": "midday:finding:7152316730e65b31",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The sync record is upserted as 'synced' with an empty syncedAttachmentMapping before the attachment job is enqueued. After a crash, a BullMQ retry (accounting attempts: 4) or a later re-export puts the item in toSyncAttachments, because its attachments are missing from the mapping, and enqueues them again. One caveat: if triggerJob throws, the batch catch rewrites every record in the batch to 'failed', so a later re-export would create the provider voucher again.",
+      "codeRefs": [
+        "apps/worker/src/processors/accounting/export-transactions.ts:281",
+        "apps/worker/src/processors/accounting/export-transactions.ts:329",
+        "apps/worker/src/processors/accounting/export-transactions.ts:425",
+        "apps/worker/src/processors/accounting/export-transactions.ts:544"
+      ]
+    },
+    {
+      "item": "midday:finding:7152316730e65b31-2",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "The step-1 upsert (a 'failed' record for transaction A) and the step-2 attachment-sync trigger (an already-synced transaction B) act on disjoint transactions, and no invariant ties them. If a step-2 trigger fails, the job throws and is retried, and categorizeTransactions recomputes the work from the persisted records.",
+      "codeRefs": [
+        "apps/worker/src/processors/accounting/export-transactions.ts:281",
+        "apps/worker/src/processors/accounting/export-transactions.ts:451",
+        "apps/worker/src/processors/accounting/export-transactions.ts:456",
+        "apps/worker/src/processors/accounting/export-transactions.ts:531"
+      ]
+    },
+    {
+      "item": "midday:finding:30b45470f9206870",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The 'document_uploaded' activity is enqueued before the document row is updated, so a crash in between leaves the notification without the status change. The notification is explicitly best-effort (try/catch, 'Don't fail the entire process'). It describes an upload that already happened, and the job is retried (documents attempts: 3), with a final-failure handler that marks the document failed.",
+      "codeRefs": [
+        "apps/worker/src/processors/documents/process-document.ts:45",
+        "apps/worker/src/processors/documents/process-document.ts:56",
+        "apps/worker/src/processors/documents/process-document.ts:118",
+        "apps/worker/src/queues/documents.config.ts:192"
+      ]
+    },
+    {
+      "item": "midday:finding:f67d93b946c14519",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "The fire-and-forget process-document job works on the documents table. The inbox 'pending' update at 429 is compensation for a failed batch-process-matching enqueue and has nothing to do with process-document. Having the process-document job without that reset breaks no invariant, and the reset's own failure is caught and logged.",
+      "codeRefs": [
+        "apps/worker/src/processors/inbox/process-attachment.ts:374",
+        "apps/worker/src/processors/inbox/process-attachment.ts:407",
+        "apps/worker/src/processors/inbox/process-attachment.ts:429"
+      ]
+    },
+    {
+      "item": "midday:finding:d6cc779a0da27f5a",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The process-attachment jobs and the inbox_new notification are enqueued before lastAccessed is advanced, so a crash leaves the account's cursor unchanged. The next scheduled sync re-fetches from the old cursor, and already-ingested attachments are filtered out by referenceId. The notification is best-effort in try/catch, so the worst outcome is a duplicate notification.",
+      "codeRefs": [
+        "apps/worker/src/processors/inbox/sync-scheduler.ts:139",
+        "apps/worker/src/processors/inbox/sync-scheduler.ts:254",
+        "apps/worker/src/processors/inbox/sync-scheduler.ts:283"
+      ]
+    },
+    {
+      "item": "midday:finding:92e76f3400624b30",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "createInbox commits the item as 'processing' before OCR and the 'other' update, so a crash leaves it in 'processing'. The job is retried (inbox attempts: 3), and the retry finds the existing row through getInboxByFilePath and resumes. Thrown errors are caught, and the item is set to 'pending'.",
+      "codeRefs": [
+        "apps/worker/src/processors/inbox/process-attachment.ts:68",
+        "apps/worker/src/processors/inbox/process-attachment.ts:149",
+        "apps/worker/src/processors/inbox/process-attachment.ts:317",
+        "apps/worker/src/processors/inbox/process-attachment.ts:507"
+      ]
+    },
+    {
+      "item": "midday:finding:41b76f15d5a434ea-2",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The inbox is set to 'analyzing' in its own commit. The reset to 'pending' at 211 is a best-effort compensation in the catch, so a crash (or a failure of the reset itself) leaves the item stuck in 'analyzing', which automatic matching then skips. Errors are compensated, and the user-triggered retryMatching enqueues batch-process-matching, which recalculates for explicit inboxIds.",
+      "codeRefs": [
+        "packages/db/src/queries/inbox-matching.ts:161",
+        "packages/db/src/queries/inbox-matching.ts:197",
+        "packages/db/src/queries/inbox-matching.ts:211",
+        "apps/api/src/trpc/routers/inbox.ts:262"
+      ]
+    },
+    {
+      "item": "midday:finding:de2c2b657c4a7d57",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "The only storage write before classify-document is the HEIC upload, and after it processedMimetype is 'image/jpeg', so execution always takes the image branch and returns at line 330, before line 472. The only other earlier external effect is the best-effort, independent document_uploaded notification.",
+      "codeRefs": [
+        "apps/worker/src/processors/documents/process-document.ts:147",
+        "apps/worker/src/processors/documents/process-document.ts:167",
+        "apps/worker/src/processors/documents/process-document.ts:305",
+        "apps/worker/src/processors/documents/process-document.ts:472"
+      ]
+    },
+    {
+      "item": "midday:finding:a94d0af4e1b61bde",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "draftInvoice commits, then the schedule job is enqueued. Only if updateInvoice then affects no row (a concurrent delete) is the orphaned job removed, best-effort, and a crash or error can skip that removal. An orphaned schedule-invoice job does nothing: the processor returns when the invoice is missing, not 'scheduled', or the job id does not match scheduledJobId.",
+      "codeRefs": [
+        "apps/api/src/rest/routers/invoices.ts:449",
+        "apps/api/src/rest/routers/invoices.ts:563",
+        "apps/worker/src/processors/invoices/schedule-invoice.ts:27",
+        "apps/worker/src/processors/invoices/schedule-invoice.ts:37"
+      ]
+    },
+    {
+      "item": "midday:finding:9c06fc48f83b54bc",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "job.remove() runs only when updateInvoice returned no row, so no database change committed before it. The only earlier effects are queue operations, and a leftover job is skipped by the processor's status and jobId guards.",
+      "codeRefs": [
+        "apps/api/src/trpc/routers/invoice.ts:537",
+        "apps/api/src/trpc/routers/invoice.ts:545",
+        "apps/api/src/trpc/routers/invoice.ts:552",
+        "apps/worker/src/processors/invoices/schedule-invoice.ts:37"
+      ]
+    },
+    {
+      "item": "midday:finding:1d41717fb64b983c",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "newJob.remove() is reached only when updateInvoice updated nothing (!updatedInvoice), so no database change precedes it. If cleanup fails, the orphaned job is ignored as stale by the processor's scheduledJobId check.",
+      "codeRefs": [
+        "apps/api/src/trpc/routers/invoice.ts:692",
+        "apps/api/src/trpc/routers/invoice.ts:699",
+        "apps/api/src/trpc/routers/invoice.ts:705",
+        "apps/worker/src/processors/invoices/schedule-invoice.ts:62"
+      ]
+    },
+    {
+      "item": "midday:finding:e49a741bc94128ee",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "On the reported path `!uploadedData` is true, so the upload produced nothing before the fallback update. More generally, the overwrite with the converted JPEG is not linked to any document column: updateDocumentByPath sets only title, summary and status. A crash after the upload is handled by the job retry, which completes the document through the fallback.",
+      "codeRefs": [
+        "apps/worker/src/processors/documents/process-document.ts:147",
+        "apps/worker/src/processors/documents/process-document.ts:155",
+        "apps/worker/src/processors/documents/process-document.ts:184"
+      ]
+    },
+    {
+      "item": "midday:finding:8d3d33cc4ab5a6eb",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "The path is infeasible. After a successful HEIC upload, processedMimetype is set to 'image/jpeg', so the `startsWith(\"image/\")` check takes the then branch and returns after classify-image. classify-document at 472 is never reached after the upload.",
+      "codeRefs": [
+        "apps/worker/src/processors/documents/process-document.ts:147",
+        "apps/worker/src/processors/documents/process-document.ts:167",
+        "apps/worker/src/processors/documents/process-document.ts:305",
+        "apps/worker/src/processors/documents/process-document.ts:472"
+      ]
+    },
+    {
+      "item": "midday:finding:2591c96dad4f1812",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "On the reported path uploadedAttachments is empty, so every upload returned no data and nothing was stored. More generally, a crash after an upload leaves lastAccessed unchanged, and the next sync re-uploads (upsert: true) and enqueues the work, so it heals itself.",
+      "codeRefs": [
+        "apps/worker/src/processors/inbox/sync-scheduler.ts:207",
+        "apps/worker/src/processors/inbox/sync-scheduler.ts:214",
+        "apps/worker/src/processors/inbox/sync-scheduler.ts:239",
+        "apps/worker/src/processors/inbox/sync-scheduler.ts:283"
+      ]
+    },
+    {
+      "item": "midday:finding:3b74ca15611c4770",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "For each item, calculateInboxSuggestions commits 'analyzing' before the suggestion transaction or the 'pending' reset, so a crash can leave the item in 'analyzing'. Thrown errors are compensated in its catch. A stalled job is retried with the same explicit inboxIds, and retryMatching re-runs it. Writes for different inbox items are independent.",
+      "codeRefs": [
+        "apps/worker/src/processors/inbox/batch-process-matching.ts:46",
+        "packages/db/src/queries/inbox-matching.ts:161",
+        "packages/db/src/queries/inbox-matching.ts:186",
+        "packages/db/src/queries/inbox-matching.ts:211"
+      ]
+    },
+    {
+      "item": "midday:finding:dc5ad0d481bf0d62",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "Same window as the other finding at this location: 'analyzing' is committed separately from the suggestion or match transaction (or the 'pending' reset), so only a crash leaves the item in 'analyzing'. Errors are compensated, and batch-process-matching with explicit inboxIds (a job retry or user retryMatching) recalculates it.",
+      "codeRefs": [
+        "apps/worker/src/processors/inbox/batch-process-matching.ts:48",
+        "packages/db/src/queries/inbox-matching.ts:161",
+        "packages/db/src/queries/inbox-matching.ts:32",
+        "apps/api/src/trpc/routers/inbox.ts:262"
+      ]
+    },
+    {
+      "item": "midday:finding:b87d2c7bc6f87592",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "The path is infeasible. The enrichment branch needs isNewCustomer (no input.id), and a new customer has no existing customerTags, so tagIdsToDelete is empty and the delete never runs. Tags and enrichmentStatus are also independent fields.",
+      "codeRefs": [
+        "apps/api/src/trpc/routers/customers.ts:66",
+        "apps/api/src/trpc/routers/customers.ts:82",
+        "packages/db/src/queries/customers.ts:445",
+        "packages/db/src/queries/customers.ts:453"
+      ]
+    },
+    {
+      "item": "midday:finding:a101c4ca65ed78ae",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The forward match commits 'analyzing' before persistInboxSuggestionWorkflow. The reset to 'pending' at 171 is best-effort compensation, so a crash leaves the item in 'analyzing', and findInboxMatches and getPendingInboxForMatching then exclude it. Errors are compensated, and the user's retryMatching (batch-process-matching with an explicit inboxId) recovers stuck items.",
+      "codeRefs": [
+        "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:59",
+        "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:171",
+        "packages/db/src/queries/transaction-matching.ts:915",
+        "apps/api/src/trpc/routers/inbox.ts:262"
+      ]
+    },
+    {
+      "item": "midday:finding:b5c28dcf88a37554",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "Same window: the 'analyzing' update and the suggestion or match transaction (or its 'pending' compensation) commit separately. Only a crash, or a failed reset that is caught and logged, leaves the item stuck. Automatic matching then skips it, but manual retryMatching recovers it.",
+      "codeRefs": [
+        "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:59",
+        "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:65",
+        "apps/worker/src/processors/inbox/match-transactions-bidirectional.ts:177",
+        "apps/api/src/trpc/routers/inbox.ts:262"
+      ]
+    },
+    {
+      "item": "midday:finding:a125b2ac5b61bd26",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "The path is infeasible. updateInbox at 130 runs only when inboxData is truthy (line 129), and createInbox at 149 runs only when `!inboxData`. inboxData is not reassigned in between, so the two writes never happen in the same run.",
+      "codeRefs": [
+        "apps/worker/src/processors/inbox/process-attachment.ts:129",
+        "apps/worker/src/processors/inbox/process-attachment.ts:130",
+        "apps/worker/src/processors/inbox/process-attachment.ts:144",
+        "apps/worker/src/processors/inbox/process-attachment.ts:149"
+      ]
+    },
+    {
+      "item": "midday:finding:3ff46231b276492b",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "createSystemCategoriesForTeam is module-private. Its only caller passes the transaction handle inside createTeam's db.transaction, so the parent and child category inserts commit atomically with the team.",
+      "codeRefs": [
+        "packages/db/src/queries/teams.ts:153",
+        "packages/db/src/queries/teams.ts:227",
+        "packages/db/src/queries/teams.ts:245",
+        "packages/db/src/queries/teams.ts:280"
+      ]
+    },
+    {
+      "item": "midday:finding:84fdd9d28315fdaf",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "In the trigger.dev task, 'analyzing' is committed before persistInboxSuggestionWorkflow, and the reset to 'pending' at 154 runs only in the catch, so a crash leaves the item in 'analyzing'. Automatic matching then excludes it. Errors are compensated, and manual retryMatching recalculates the item.",
+      "codeRefs": [
+        "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:55",
+        "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:154",
+        "packages/db/src/queries/transaction-matching.ts:915",
+        "apps/api/src/trpc/routers/inbox.ts:262"
+      ]
+    },
+    {
+      "item": "midday:finding:ab486c34ea1d199b",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "Same window as the other finding at this location: the status write and the suggestion transaction or compensating reset commit independently. Only a crash, or a reset failure that is caught and logged, leaves the item in 'analyzing'. A user-triggered retryMatching recovers it.",
+      "codeRefs": [
+        "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:55",
+        "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:61",
+        "packages/jobs/src/tasks/inbox/match-transactions-bidirectional.ts:160",
+        "apps/api/src/trpc/routers/inbox.ts:262"
+      ]
+    },
+    {
+      "item": "midday:finding:4bac58c25319b3c3",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:9b320b7325f23fe2",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:1158bbb561efdd18",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:825372822f9064c5",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:246c976e5813fb6e",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:904e58b51537360a",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:a1967f526e88ec8d",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:e7c9a8566c0c0444",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:92e76f3400624b30-2",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:36ff8ff9eee85e2b",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:77cf2a7e7b4bc26d",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:2a4e4d24c3990939",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:dfb0cd536b3056e5",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:58f0f19da26dfe33",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:88652c7450f06c81",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:be31ac8ec5c04658",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:24098d398d68b6a1",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:64fe61d229d6534c",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:f2338bc951472a2a",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:d67d30ae478ea4c7",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:finding:d2dcc44e38d7a7f4",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:known-positive:midday-KP23",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:known-positive:midday-KP09",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "midday:known-positive:midday-KP03",
+      "revision": "51587319f26a0ffaa9dfccab1920373cb65689b7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:221cf564aa4c6cea",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "getTrelloTokenForUser can commit a plaintext-to-encrypted re-write of the stored Trello token before workspace lookup, the permission check or importRepo.create fails. That write is a self-contained, idempotent lazy migration: a compare-and-set on the old plaintext value that stores the same token in encrypted form. Leaving it without an imports row breaks no invariant, and a later call simply proceeds.",
+      "codeRefs": [
+        ".corpora/kan/packages/api/src/routers/import.ts:48",
+        ".corpora/kan/packages/db/src/repository/integration.repo.ts:85",
+        ".corpora/kan/packages/api/src/routers/import.ts:260"
+      ]
+    },
+    {
+      "item": "kan:finding:5cfe7f6140d9417b",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "checkS3Connection issues only two HeadBucketCommand probes. These are read-only existence checks, so nothing is changed if the second fails.",
+      "codeRefs": [
+        ".corpora/kan/packages/api/src/routers/health.ts:54",
+        ".corpora/kan/packages/api/src/routers/health.ts:55"
+      ]
+    },
+    {
+      "item": "kan:finding:5b00a075f33349a8",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "In cloud mode the Stripe seat is incremented at line 109 and the invited member row is committed at line 173 before signInMagicLink at line 189. If signInMagicLink throws, neither is undone. On the !status branch the member is soft-deleted, but the Stripe seat is never decremented, so the customer is billed for a seat with no member. Separately, sendMagicLink swallows email-send errors, so an invite row can persist with no email sent.",
+      "codeRefs": [
+        ".corpora/kan/packages/api/src/routers/member.ts:109",
+        ".corpora/kan/packages/api/src/routers/member.ts:173",
+        ".corpora/kan/packages/api/src/routers/member.ts:189",
+        ".corpora/kan/packages/api/src/routers/member.ts:200"
+      ]
+    },
+    {
+      "item": "kan:finding:b977c8352e96c174",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "removeAllForMember's only caller, memberRepo.softDelete, passes it the transaction handle `tx`. The admin promotions and the final boardMembers delete therefore commit atomically with the workspace-member soft delete.",
+      "codeRefs": [
+        ".corpora/kan/packages/db/src/repository/member.repo.ts:157",
+        ".corpora/kan/packages/db/src/repository/member.repo.ts:173",
+        ".corpora/kan/packages/db/src/repository/boardMember.repo.ts:193"
+      ]
+    },
+    {
+      "item": "kan:finding:930f362854dc67c5",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "The partner webhook runs many independent subscription and workspace writes with no transaction (slot updates, createAndLinkSlots, then deactivation of removed slots). A failure partway returns 500 and leaves a mixed state. A retry is not idempotent: with prev_license_key, kept slots have already moved to the new key, so the retry's lookup by the old key finds only the slots that should have been removed and keeps or revives them as active.",
+      "codeRefs": [
+        ".corpora/kan/apps/web/src/pages/api/partner/webhook.ts:265",
+        ".corpora/kan/apps/web/src/pages/api/partner/webhook.ts:285",
+        ".corpora/kan/apps/web/src/pages/api/partner/webhook.ts:317",
+        ".corpora/kan/apps/web/src/pages/api/partner/webhook.ts:61"
+      ]
+    },
+    {
+      "item": "kan:finding:8b23b88ead359cc8",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:6ee9f5e8e12c956e",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:1b49bb4b6c55bd06",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:9df7042816167f8d",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:f322f5de643c442a",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:f9dbd0f549717e01",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:1c0d0247455aa96b-2",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:e97c1ea6b8fd1f96",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:78277bcac011ef8a",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:dc5ff6bf22a815b0",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:274dc589fee7e643",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:finding:76fd8d56ba9154f5-2",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:known-positive:kan-KP18",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:known-positive:kan-KP30",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "kan:known-positive:kan-KP24",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:known-positive:dittofeed-KP01",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "sendMessageInner calls the provider sender, and only afterwards submitTrack records MessageSent. If submitTrack fails or the worker dies or times out (2-minute startToClose), Temporal retries the activity (maximumAttempts = retryCount, default 3). The retry re-sends, because nothing checks for a prior delivery of this messageId or passes an idempotency key.",
+      "codeRefs": [
+        ".corpora/dittofeed/packages/backend-lib/src/journeys/userWorkflow/activities.ts:339",
+        ".corpora/dittofeed/packages/backend-lib/src/journeys/userWorkflow/activities.ts:385",
+        ".corpora/dittofeed/packages/backend-lib/src/journeys/userWorkflow.ts:955"
+      ]
+    },
+    {
+      "item": "dittofeed:known-positive:dittofeed-KP02",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "Each user's message is sent at line 360, and the delivery events are written only afterwards by a single submitBatch at line 413. getUnmessagedUsers dedups solely on those delivery records. A crash, or a failure in submitBatch or in one sender inside Promise.all, therefore makes the retried activity re-send to every user in the batch.",
+      "codeRefs": [
+        ".corpora/dittofeed/packages/backend-lib/src/broadcasts/activities.ts:176",
+        ".corpora/dittofeed/packages/backend-lib/src/broadcasts/activities.ts:360",
+        ".corpora/dittofeed/packages/backend-lib/src/broadcasts/activities.ts:413"
+      ]
+    },
+    {
+      "item": "dittofeed:known-positive:dittofeed-KP03",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "batchMessageUsers sends to every user, then records MessageSent/Skipped in one submitBatch call. If that call fails, the request errors with messages delivered but no delivery records. A client retry re-sends: messageId defaults to randomUUID and there is no dedup before sendMessage.",
+      "codeRefs": [
+        ".corpora/dittofeed/packages/backend-lib/src/messaging.ts:2600",
+        ".corpora/dittofeed/packages/backend-lib/src/messaging.ts:2690",
+        ".corpora/dittofeed/packages/backend-lib/src/messaging.ts:2837"
+      ]
+    },
+    {
+      "item": "dittofeed:known-positive:dittofeed-KP04",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "`journey` at line 1141 is the row the transaction returned after the update or insert, so its status is already the new status. The guard `status === Running && journey.status === Paused` can never be true, and restartUserJourneyWorkflow at line 1194 is unreachable. No partial-failure window exists, although the re-entry restart is effectively dead code, which is a separate bug.",
+      "codeRefs": [
+        ".corpora/dittofeed/packages/backend-lib/src/journeys.ts:1134",
+        ".corpora/dittofeed/packages/backend-lib/src/journeys.ts:1141",
+        ".corpora/dittofeed/packages/backend-lib/src/journeys.ts:1185",
+        ".corpora/dittofeed/packages/backend-lib/src/journeys.ts:1194"
+      ]
+    },
+    {
+      "item": "dittofeed:finding:29694cf677dd7e5d",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "As an external-external pair (restartUserJourneyWorkflow then enqueueRecompute) the window is infeasible, because the restart call at line 1194 is unreachable (the guard checks the post-update status for Paused). The only remaining window is journey commit, then the enqueueRecompute signal. That signal is just an explicit priority enqueue; the compute-properties scheduler workflow re-polls due workspaces on its own.",
+      "codeRefs": [
+        ".corpora/dittofeed/packages/backend-lib/src/journeys.ts:1185",
+        ".corpora/dittofeed/packages/backend-lib/src/journeys.ts:1236",
+        ".corpora/dittofeed/packages/backend-lib/src/computedProperties/comutePropertiesSchedulerWorkflow.ts:44"
+      ]
+    },
+    {
+      "item": "dittofeed:finding:9f8483db635fdba6",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The HubSpot token-refresh POST can succeed and the following upsert of the new tokens fail. refreshToken runs as a Temporal activity inside the periodic hubspotWorkflow (default retry policy). The stored refresh token is unchanged, so the refresh is simply repeated on retry or on the next poll.",
+      "codeRefs": [
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:170",
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:185",
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspotWorkflow.ts:119"
+      ]
+    },
+    {
+      "item": "dittofeed:finding:3b62eaf4c168a13e",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "The integration-disable update at line 232 is reached only when the caught error is an AxiosError, which can come only from the axios call before the upsert. Errors from or after the upsert (unwrap, or the 'No result returned from upsert' Error) are not AxiosErrors and are rethrown at line 213. A committed upsert and the disable are therefore mutually exclusive.",
+      "codeRefs": [
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:185",
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:212",
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:232",
+        ".corpora/dittofeed/packages/backend-lib/src/db.ts:152"
+      ]
+    },
+    {
+      "item": "dittofeed:finding:44476238f5f66c9d",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The per-email create POSTs start at line 753 and run concurrently with the batch status update in Promise.all at line 796, so one can succeed while another fails. The activity is retried by Temporal (default policy) and recomputes the desired state from events and a fresh HubSpot search, and the status update is idempotent. Caveat: matching by timestamp sends an existing email with an unchanged status to the create branch (line 607), so a retry can duplicate already-created emails.",
+      "codeRefs": [
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:753",
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:796",
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspot/activities.ts:607",
+        ".corpora/dittofeed/packages/backend-lib/src/integrations/hubspotUserWorkflow.ts:20"
+      ]
+    },
+    {
+      "item": "dittofeed:finding:ed4a3babab01f114",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "The window between the committed journey transaction and restartUserJourneyWorkflow at line 1194 is infeasible. The guard requires the requested status to be Running while the returned post-update row is Paused, which cannot hold because the update itself just set the status to Running.",
+      "codeRefs": [
+        ".corpora/dittofeed/packages/backend-lib/src/journeys.ts:1086",
+        ".corpora/dittofeed/packages/backend-lib/src/journeys.ts:1141",
+        ".corpora/dittofeed/packages/backend-lib/src/journeys.ts:1185",
+        ".corpora/dittofeed/packages/backend-lib/src/journeys.ts:1194"
+      ]
+    },
+    {
+      "item": "dittofeed:finding:4b0058e6a225b154",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:finding:ca3df0fc226b0b55",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:finding:068753260a2b6e61",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:finding:c03554c3fe7ca3b8",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:finding:6951a63d3fb7b3f6",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:finding:9b4b0ac33d181043",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:finding:a4a880f65a586c00",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:known-positive:dittofeed-KP10",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:known-positive:dittofeed-KP06",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "dittofeed:known-positive:dittofeed-KP15",
+      "revision": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:a7266452b468cb90",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "The first effect is a stateless conversion call (POST to context.dev /parse) that returns Markdown and records nothing; if the R2 put then fails, storeAttachment throws before returning a URL, leaving nothing durable.",
+      "codeRefs": [
+        "apps/server/src/lib/context-dev.ts:60",
+        "apps/server/src/lib/context-dev.ts:68",
+        "apps/server/src/lib/chat-attachments.ts:71",
+        "apps/server/src/lib/chat-attachments.ts:77"
+      ]
+    },
+    {
+      "item": "zero:finding:c5d91a80615a7b92",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "The only prior effect before the fetch at :97 is getAccessToken's OAuth token exchange at :70, which mints a short-lived bearer token held in memory and changes no remote state.",
+      "codeRefs": [
+        "apps/server/src/lib/factories/google-subscription.factory.ts:70",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:85",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:97"
+      ]
+    },
+    {
+      "item": "zero:finding:53181a727bd06fbe",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "Before the topic PUT at :120 only a GET existence check and a token exchange run, so no prior change can be stranded; re-runs skip re-creation and the IAM binding merges members.",
+      "codeRefs": [
+        "apps/server/src/lib/factories/google-subscription.factory.ts:107",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:119",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:120",
+        "apps/server/src/lib/brain.ts:11"
+      ]
+    },
+    {
+      "item": "zero:finding:ba3ab99185c7cfed",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "The only operations before the PUT at :120 are reads (resourceExists GET and the OAuth token fetch); setupPubSubTopic checks existence before creating.",
+      "codeRefs": [
+        "apps/server/src/lib/factories/google-subscription.factory.ts:70",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:107",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:120"
+      ]
+    },
+    {
+      "item": "zero:finding:5e8c9e804cce020a",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "In setTopicIamPolicy the call before setIamPolicy at :157 is the getIamPolicy read at :139 (plus a token fetch); a failure in between changes nothing.",
+      "codeRefs": [
+        "apps/server/src/lib/factories/google-subscription.factory.ts:139",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:145",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:157"
+      ]
+    },
+    {
+      "item": "zero:finding:daed97e3f219a569",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "The first operation is the getIamPolicy read; setIamPolicy is the sole mutation and merges members, so a retry is idempotent.",
+      "codeRefs": [
+        "apps/server/src/lib/factories/google-subscription.factory.ts:139",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:149",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:157"
+      ]
+    },
+    {
+      "item": "zero:finding:85aecdebf5465eac",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "The step before the create/modifyPushConfig at :190 is the resourceExists GET at :189, a read; the write is a single request that branches on existence.",
+      "codeRefs": [
+        "apps/server/src/lib/factories/google-subscription.factory.ts:189",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:190",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:191"
+      ]
+    },
+    {
+      "item": "zero:finding:8476ea21da24169b",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "Only reads (the existence GET and the OAuth token exchange) precede :190; no earlier change can be left half-applied.",
+      "codeRefs": [
+        "apps/server/src/lib/factories/google-subscription.factory.ts:70",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:189",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:190"
+      ]
+    },
+    {
+      "item": "zero:finding:ca6441fb2f6b4979",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "Both external calls in this tRPC query are reads: a DNS lookup for the BIMI TXT record and a GET for the logo SVG.",
+      "codeRefs": [
+        "apps/server/src/trpc/routes/bimi.ts:24",
+        "apps/server/src/trpc/routes/bimi.ts:61",
+        "apps/server/src/trpc/routes/bimi.ts:124",
+        "apps/server/src/trpc/routes/bimi.ts:138"
+      ]
+    },
+    {
+      "item": "zero:finding:c0dba6e7042301d7",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "getByDomain performs a DNS TXT lookup and then fetches the logo; both are read-only and change no state.",
+      "codeRefs": [
+        "apps/server/src/trpc/routes/bimi.ts:24",
+        "apps/server/src/trpc/routes/bimi.ts:61",
+        "apps/server/src/trpc/routes/bimi.ts:179",
+        "apps/server/src/trpc/routes/bimi.ts:193"
+      ]
+    },
+    {
+      "item": "zero:finding:6de9e53f57bb2edf",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "The claimed first effect is the resourceExists GET (or the OAuth token exchange behind it); a crash before the topic PUT leaves no change, and the next run repeats the check.",
+      "codeRefs": [
+        "apps/server/src/lib/factories/google-subscription.factory.ts:70",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:107",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:119",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:120"
+      ]
+    },
+    {
+      "item": "zero:finding:60fface403ab2ac2",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "The first operation is the resourceExists GET at :107 (token cached); failing before the topic-create PUT leaves no change.",
+      "codeRefs": [
+        "apps/server/src/lib/factories/google-subscription.factory.ts:48",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:97",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:107",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:120"
+      ]
+    },
+    {
+      "item": "zero:finding:41cd6bd1955037a7",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "The first operation is the getIamPolicy read at :139 plus the token exchange; interrupting before setIamPolicy at :157 leaves the policy unchanged.",
+      "codeRefs": [
+        "apps/server/src/lib/factories/google-subscription.factory.ts:70",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:139",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:157"
+      ]
+    },
+    {
+      "item": "zero:finding:d8a04c789e318a5a",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "getIamPolicy is a read and setIamPolicy is the single mutating request; a failure between them changes nothing.",
+      "codeRefs": [
+        "apps/server/src/lib/factories/google-subscription.factory.ts:139",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:141",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:157"
+      ]
+    },
+    {
+      "item": "zero:finding:7348a713f7f97fa9",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "The first effect is the subscription resourceExists GET or the token fetch, both reads; the single create/modify that follows is re-run idempotently by scheduled renewal.",
+      "codeRefs": [
+        "apps/server/src/lib/factories/google-subscription.factory.ts:70",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:189",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:190",
+        "apps/server/src/lib/brain.ts:11"
+      ]
+    },
+    {
+      "item": "zero:finding:07ac7cc64c3409cc",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "The completed-first operation is the existence GET at :107 (token cached); no change is made before the PUT/POST at :97/:190.",
+      "codeRefs": [
+        "apps/server/src/lib/factories/google-subscription.factory.ts:97",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:107",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:189",
+        "apps/server/src/lib/factories/google-subscription.factory.ts:190"
+      ]
+    },
+    {
+      "item": "zero:finding:b084454e0f0328df",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:b5b2a5c87858bbb8",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:9e7e1a21e4ccf383",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:finding:8ca1ab73a5e612e0",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:known-positive:zero-KP06",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:known-positive:zero-KP03",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "zero:known-positive:zero-KP05",
+      "revision": "36132735ca3b734b23f48127f9271c80d1ba76e7",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "vercel-chatbot:finding:907a84b237552744",
+      "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "vercel-chatbot:finding:434057130492cb86",
+      "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "vercel-chatbot:finding:98be7ef3c8958ebb",
+      "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "vercel-chatbot:finding:00989cb619160167",
+      "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "vercel-chatbot:known-positive:vercel-chatbot-KP06",
+      "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "vercel-chatbot:known-positive:vercel-chatbot-KP04",
+      "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "vercel-chatbot:known-positive:vercel-chatbot-KP07",
+      "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+      "hazard": null,
+      "actionable": null,
+      "blind": null,
+      "rationale": "",
+      "codeRefs": []
+    },
+    {
+      "item": "nextjs-billing:finding:7619089948932cea",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The Lemon Squeezy cancel commits at line 334 before the local update at line 342, so a crash in between leaves the DB showing an active subscription. The app's own webhook subscribes to subscription_updated, and the webhook handler upserts status and ends_at from the provider, so the row is reconciled when the event arrives.",
+      "codeRefs": [
+        ".corpora/nextjs-billing/src/app/actions.ts:334",
+        ".corpora/nextjs-billing/src/app/actions.ts:342",
+        ".corpora/nextjs-billing/src/app/actions.ts:140",
+        ".corpora/nextjs-billing/src/lib/webhook.ts:126"
+      ]
+    },
+    {
+      "item": "nextjs-billing:finding:20260b839ea7a0ec",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The provider pause at line 377 commits before the DB update at line 385. SDK errors throw through the onError hook, so the window is a crash or DB failure after a successful pause. The subscription_updated webhook upserts status and endsAt afterwards. The webhook always writes isPaused=false, but that bug exists without this window too.",
+      "codeRefs": [
+        ".corpora/nextjs-billing/src/app/actions.ts:377",
+        ".corpora/nextjs-billing/src/app/actions.ts:385",
+        ".corpora/nextjs-billing/src/lib/webhook.ts:117",
+        ".corpora/nextjs-billing/src/config/lemonsqueezy.ts:25"
+      ]
+    },
+    {
+      "item": "nextjs-billing:finding:f0f7b851368b8e17",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The provider unpause at line 421 commits before the DB update at line 425. A crash or DB error in between leaves the local row stale until the subscription_updated webhook upserts it from the provider.",
+      "codeRefs": [
+        ".corpora/nextjs-billing/src/app/actions.ts:421",
+        ".corpora/nextjs-billing/src/app/actions.ts:425",
+        ".corpora/nextjs-billing/src/app/actions.ts:143",
+        ".corpora/nextjs-billing/src/lib/webhook.ts:126"
+      ]
+    },
+    {
+      "item": "nextjs-billing:finding:c114c4a1140e26fc",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The variant change at Lemon Squeezy (line 471) commits before the planId/price update at line 477. The subscription_updated webhook derives planId from variant_id and re-fetches the price, then upserts the row, so the DB converges.",
+      "codeRefs": [
+        ".corpora/nextjs-billing/src/app/actions.ts:471",
+        ".corpora/nextjs-billing/src/app/actions.ts:477",
+        ".corpora/nextjs-billing/src/lib/webhook.ts:83",
+        ".corpora/nextjs-billing/src/lib/webhook.ts:126"
+      ]
+    },
+    {
+      "item": "nextjs-billing:finding:b6cf38aa870df5cb",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "The event row (random id, processed=false) commits before the subscription upsert. A crash causes a non-200 and Lemon Squeezy redelivers, but under a new id, so the old row is never processed. A DB error in the upsert is caught at lines 130-133, the event is marked processed with an error, and 200 is returned. In that case the subscription change is lost with no retry, and no code reads or replays stored events.",
+      "codeRefs": [
+        ".corpora/nextjs-billing/src/lib/webhook.ts:29",
+        ".corpora/nextjs-billing/src/lib/webhook.ts:126",
+        ".corpora/nextjs-billing/src/lib/webhook.ts:130",
+        ".corpora/nextjs-billing/src/app/api/webhook/route.ts:49"
+      ]
+    },
+    {
+      "item": "nextjs-billing:finding:3d2adcfc238ab4d5",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "On the subscription_payment_ path nothing happens between storing the event and setting processed=true, so a crash can only leave a processed=false log row. No code ever reads that flag. setupWebhook also does not subscribe to payment events (lines 140-143), so this path only runs if events are configured by hand.",
+      "codeRefs": [
+        ".corpora/nextjs-billing/src/lib/webhook.ts:31",
+        ".corpora/nextjs-billing/src/lib/webhook.ts:74",
+        ".corpora/nextjs-billing/src/lib/webhook.ts:144",
+        ".corpora/nextjs-billing/src/app/actions.ts:140"
+      ]
+    },
+    {
+      "item": "nextjs-billing:finding:38e751c103d6a61f",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The subscription upsert can commit before processed=true is written, which leaves a processed=false row. The upsert is idempotent and the failed delivery is redelivered and applied again. The processed flag is never read anywhere, so only the event log is inaccurate.",
+      "codeRefs": [
+        ".corpora/nextjs-billing/src/lib/webhook.ts:126",
+        ".corpora/nextjs-billing/src/lib/webhook.ts:144",
+        ".corpora/nextjs-billing/src/db/schema.ts:71"
+      ]
+    },
+    {
+      "item": "nextjs-billing:known-positive:nextjs-billing-KP01",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "Each variant is upserted separately inside the loop, and getProduct/listPrices can throw through the SDK onError hook partway through. The only caller runs syncPlans only when the plans table is empty. After a partial sync, the missing variants are never synced again, and their webhooks fail with 'Plan ... not found'.",
+      "codeRefs": [
+        ".corpora/nextjs-billing/src/app/actions.ts:166",
+        ".corpora/nextjs-billing/src/app/actions.ts:200",
+        ".corpora/nextjs-billing/src/components/dashboard/billing/plans/plans.tsx:34",
+        ".corpora/nextjs-billing/src/lib/webhook.ts:88"
+      ]
+    },
+    {
+      "item": "nextjs-billing:known-positive:nextjs-billing-KP02",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "storeWebhookEvent commits a processed=false row with a fresh random id before processing. Nothing ever replays stored events. Redelivery after a crash inserts a new row, so the original stays unprocessed. An upsert DB error is swallowed and returns 200, so the subscription change is lost without any retry.",
+      "codeRefs": [
+        ".corpora/nextjs-billing/src/lib/webhook.ts:29",
+        ".corpora/nextjs-billing/src/app/api/webhook/route.ts:47",
+        ".corpora/nextjs-billing/src/lib/webhook.ts:130",
+        ".corpora/nextjs-billing/src/lib/webhook.ts:144"
+      ]
+    },
+    {
+      "item": "nextjs-billing:known-positive:nextjs-billing-KP03",
+      "revision": "5ddd76809e8d8fdfc06efb0b902c4fd082977f4f",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "A crash after the upsert and before processed=true leaves the row marked unprocessed, and redelivery uses a new id. However, the upsert is idempotent and is re-applied on redelivery. No code reads processed, so the only effect is an inaccurate audit log, not inconsistent business state.",
+      "codeRefs": [
+        ".corpora/nextjs-billing/src/lib/webhook.ts:126",
+        ".corpora/nextjs-billing/src/lib/webhook.ts:144",
+        ".corpora/nextjs-billing/src/lib/webhook.ts:29",
+        ".corpora/nextjs-billing/src/db/schema.ts:71"
+      ]
+    },
+    {
+      "item": "petdex:finding:09885b2a387721a9",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The reply insert and the admin read-marker update are separate autocommit statements on the neon-http client, so a failure in between keeps the reply without the new adminLastReadAt. The read marker is cosmetic, and the next GET of the thread rewrites it for an admin caller, so the drift heals the next time the thread is opened.",
+      "codeRefs": [
+        "src/app/api/feedback/[id]/replies/route.ts:121",
+        "src/app/api/feedback/[id]/replies/route.ts:134",
+        "src/app/api/feedback/[id]/replies/route.ts:55"
+      ]
+    },
+    {
+      "item": "petdex:finding:09885b2a387721a9-2",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "This is the same non-atomic pair on the author path: the reply persists and userLastReadAt is not updated. The marker is cosmetic, and GET sets userLastReadAt again when the author opens the thread.",
+      "codeRefs": [
+        "src/app/api/feedback/[id]/replies/route.ts:121",
+        "src/app/api/feedback/[id]/replies/route.ts:140",
+        "src/app/api/feedback/[id]/replies/route.ts:60"
+      ]
+    },
+    {
+      "item": "petdex:finding:d4250a3efa87910f",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The reply and read-marker writes commit before the Resend call, so a crash or send error leaves the reply without the email to the author. The whole email block sits in try/catch and is commented as best-effort with a silent failure, and an in-app notification is also queued.",
+      "codeRefs": [
+        "src/app/api/feedback/[id]/replies/route.ts:135",
+        "src/app/api/feedback/[id]/replies/route.ts:193",
+        "src/app/api/feedback/[id]/replies/route.ts:223",
+        "src/app/api/feedback/[id]/replies/route.ts:150"
+      ]
+    },
+    {
+      "item": "petdex:finding:d4250a3efa87910f-2",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The user's follow-up and its marker commit before the admin notification email, so the email can be lost. The send is wrapped in try/catch that is explicitly best-effort, and the admin also has an admin-side unread counter.",
+      "codeRefs": [
+        "src/app/api/feedback/[id]/replies/route.ts:140",
+        "src/app/api/feedback/[id]/replies/route.ts:215",
+        "src/app/api/feedback/[id]/replies/route.ts:223"
+      ]
+    },
+    {
+      "item": "petdex:finding:674e1cbfb4f991ed",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The two telemetry upserts are independent, so one bucket table can be incremented without the other. Each upsert has its own try/catch that only logs, and the route returns 204 either way, so losing a sample from one table is accepted by design for sampled cost telemetry.",
+      "codeRefs": [
+        "src/app/api/internal/route-cost/route.ts:100",
+        "src/app/api/internal/route-cost/route.ts:124",
+        "src/app/api/internal/route-cost/route.ts:131",
+        "src/app/api/internal/route-cost/route.ts:159"
+      ]
+    },
+    {
+      "item": "petdex:finding:c9c3146672bb0292",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The like insert/delete commits before setLikeCount, so a failure leaves pet_metrics.likeCount stale. Every POST, including a client retry where the like already exists, recomputes count(*) from pet_likes and overwrites the metric ('Recompute count to avoid drift'). The like GET also reads count from pet_likes directly.",
+      "codeRefs": [
+        "src/app/api/pets/[slug]/like/route.ts:64",
+        "src/app/api/pets/[slug]/like/route.ts:98",
+        "src/app/api/pets/[slug]/like/route.ts:104",
+        "src/lib/db/metrics.ts:71"
+      ]
+    },
+    {
+      "item": "petdex:finding:32d25228029aea72",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The profile upsert commits the new handle before the Clerk username sync, which can fail and leave Clerk out of sync. The sync is wrapped in try/catch that logs a warning, and the comment documents that the DB is the source of truth and the Clerk sync is best-effort.",
+      "codeRefs": [
+        "src/app/api/profile/route.ts:221",
+        "src/app/api/profile/route.ts:244",
+        "src/app/api/profile/route.ts:252"
+      ]
+    },
+    {
+      "item": "petdex:finding:2ea8e04a5e4ab4c5",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The sound file is put to R2 at a deterministic key before soundUrl is written, so a failure leaves an object that no row references. The only caller is a batch script that selects approved pets missing sound_url, so a rerun regenerates the sound and overwrites the same key before setting soundUrl.",
+      "codeRefs": [
+        "src/lib/pet-sound.ts:269",
+        "src/lib/pet-sound.ts:280",
+        "scripts/generate-pet-sounds.ts:23"
+      ]
+    },
+    {
+      "item": "petdex:finding:6946f8ab26c2cbfa",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "unclear",
+      "actionable": "unclear",
+      "blind": true,
+      "rationale": "Inside approveCandidate the window is genuine: the candidate is set to approved with no transaction before the siblings are rejected. A retry would then hit the not_pending guard and leave the siblings pending. However, nothing in the checkout calls approveCandidate (no route or script imports it), so I cannot find a reachable path at this revision.",
+      "codeRefs": [
+        "src/lib/request-candidates.ts:271",
+        "src/lib/request-candidates.ts:289",
+        "src/lib/request-candidates.ts:305"
+      ]
+    },
+    {
+      "item": "petdex:finding:e22a74407ad5d615",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "unclear",
+      "actionable": "unclear",
+      "blind": true,
+      "rationale": "If approveCandidate ran, the candidates could be resolved while pet_requests stays open with no fulfilledPetSlug, and the not_pending guard would block a repair by retry. No code in the checkout calls approveCandidate, so the path does not look reachable at this revision.",
+      "codeRefs": [
+        "src/lib/request-candidates.ts:271",
+        "src/lib/request-candidates.ts:305",
+        "src/lib/request-candidates.ts:321"
+      ]
+    },
+    {
+      "item": "petdex:finding:cad32ae8bbbbbb6d",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "Approval commits before public artifacts are published, so a crash or publish error leaves an approved pet with missing previews or thumbs. publishApprovedPublicArtifacts catches and logs all failures by design. The 6-hourly preview-snapshot workflow (scripts/publish-pet-previews.ts) backfills artifacts for approved pets that lack them.",
+      "codeRefs": [
+        "src/lib/submission-decisions.ts:157",
+        "src/lib/submission-decisions.ts:299",
+        "src/lib/submission-decisions.ts:319",
+        ".github/workflows/preview-snapshot.yml:17"
+      ]
+    },
+    {
+      "item": "petdex:finding:bf17618044d421e3",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The approval and the auto-tag update are separate writes, so a pet can be approved without kind, vibes or tags. classifyPet already returns null on failure, so tagging is designed as optional. scripts/auto-tag.ts idempotently backfills approved pets with empty tags or vibes, and re-approving runs tagging again.",
+      "codeRefs": [
+        "src/lib/submission-decisions.ts:157",
+        "src/lib/submission-decisions.ts:229",
+        "src/lib/submission-decisions.ts:233",
+        "src/lib/auto-tag.ts:38"
+      ]
+    },
+    {
+      "item": "petdex:finding:4e30e5bf44efcfc9",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "An edit that renames an approved pet commits before artifacts are republished under the new slug. editPatch never changes spritesheetUrl, so republish happens only on a rename. A failed or interrupted publish leaves the new slug without previews; the publish is best-effort with try/catch logging, and the 6-hourly backfill fills previews that are missing.",
+      "codeRefs": [
+        "src/lib/submission-decisions.ts:157",
+        "src/lib/submission-decisions.ts:178",
+        "src/lib/submission-decisions.ts:319",
+        ".github/workflows/preview-snapshot.yml:17"
+      ]
+    },
+    {
+      "item": "petdex:finding:26c8b8e69f66b1c1",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "not-real",
+      "actionable": "not-applicable",
+      "blind": true,
+      "rationale": "runPostApprovalEffects runs only when action === 'approve'. The republish branch requires action === 'edit' in planPublicArtifacts. Both calls therefore cannot run in the same invocation.",
+      "codeRefs": [
+        "src/lib/submission-decisions.ts:64",
+        "src/lib/submission-decisions.ts:168",
+        "src/lib/submission-decisions.ts:178"
+      ]
+    },
+    {
+      "item": "petdex:finding:9ca89e6d9d2cade8",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The status or slug change commits before the old slug's public R2 artifacts are deleted, so a crash or R2 error leaves those artifacts orphaned and still publicly reachable. deletePetPublicArtifacts swallows and logs errors as a deliberate best-effort cleanup. No reconciler deletes the orphans, but no DB state depends on them.",
+      "codeRefs": [
+        "src/lib/submission-decisions.ts:157",
+        "src/lib/submission-decisions.ts:181",
+        "src/lib/submission-decisions.ts:333",
+        "src/lib/submission-decisions.ts:335"
+      ]
+    },
+    {
+      "item": "petdex:finding:fbe4de706e93f1a8",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "On a rename of an approved pet, the new-slug artifacts are published before the old-slug artifacts are deleted, so a crash in between leaves the old copies orphaned. Both helpers catch and log their own errors, so only a process crash opens the window. The result is leftover storage rather than broken state.",
+      "codeRefs": [
+        "src/lib/submission-decisions.ts:179",
+        "src/lib/submission-decisions.ts:182",
+        "src/lib/submission-decisions.ts:299",
+        "src/lib/submission-decisions.ts:328"
+      ]
+    },
+    {
+      "item": "petdex:finding:21aa19bc7eedd7ca",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The status change commits before the owner's approval email, which can be lost. notifySubmissionOwner first queues an in-app notification and then sends the email inside a try/catch commented as silent, so the email is best-effort by design.",
+      "codeRefs": [
+        "src/lib/submission-decisions.ts:157",
+        "src/lib/submission-decisions.ts:341",
+        "src/lib/submission-decisions.ts:369",
+        "src/lib/submission-decisions.ts:389"
+      ]
+    },
+    {
+      "item": "petdex:finding:ea67ec43951c18b9",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "Deleting the old artifacts and emailing the owner are independent external effects, so a crash between them skips the email. Both are deliberately best-effort with swallowed errors, and the in-app notification is still queued.",
+      "codeRefs": [
+        "src/lib/submission-decisions.ts:182",
+        "src/lib/submission-decisions.ts:191",
+        "src/lib/submission-decisions.ts:369",
+        "src/lib/submission-decisions.ts:389"
+      ]
+    },
+    {
+      "item": "petdex:finding:2de339dacc3f67b9",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The auto-tag update commits before artifacts are published, so a failure leaves an approved, tagged pet with no previews. Publishing is best-effort with try/catch logging, and the 6-hourly preview backfill republishes missing previews for approved pets.",
+      "codeRefs": [
+        "src/lib/submission-decisions.ts:233",
+        "src/lib/submission-decisions.ts:242",
+        "src/lib/submission-decisions.ts:319",
+        ".github/workflows/preview-snapshot.yml:17"
+      ]
+    },
+    {
+      "item": "petdex:finding:135c580767456c38",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "A 'running' review row is inserted before finishReview. If finishReview never runs, the row stays 'running', and non-forced reviewSubmission calls reuse it. scripts/review-pending-submissions.ts first runs buryStaleRunningReviews, which turns running rows older than 60 minutes into failed/hold, so they get re-reviewed. On this path the submission no longer exists anyway.",
+      "codeRefs": [
+        "src/lib/submission-review.ts:121",
+        "src/lib/submission-review.ts:133",
+        "src/lib/submission-review.ts:151",
+        "scripts/review-pending-submissions.ts:108"
+      ]
+    },
+    {
+      "item": "petdex:finding:d5c98e10158af7a8",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The running review row commits before persistAssetSignals writes dhash. If persistAssetSignals throws, the catch block calls finishReview with review_failed, so only a crash leaves a stuck running row. Stuck rows are buried and re-reviewed by the review-pending-submissions script, and dhash is recomputed on each review.",
+      "codeRefs": [
+        "src/lib/submission-review.ts:133",
+        "src/lib/submission-review.ts:164",
+        "src/lib/submission-review.ts:245",
+        "scripts/review-pending-submissions.ts:108"
+      ]
+    },
+    {
+      "item": "petdex:finding:f19cae57980901db",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "dhash and the hashes are written before finishReview finalizes the review row, so a crash leaves the signals updated and the review still 'running'. The signal writes are idempotent recomputations, a thrown error is caught and finalized as review_failed, and stale running rows are buried and retried by the review script.",
+      "codeRefs": [
+        "src/lib/submission-review.ts:658",
+        "src/lib/submission-review.ts:235",
+        "src/lib/submission-review.ts:249",
+        "scripts/review-pending-submissions.ts:108"
+      ]
+    },
+    {
+      "item": "petdex:finding:5c207dae68e2a103",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "At line 249 the catch block finalizes a review whose 'running' row, and possibly an applySubmissionAction approve/reject, already committed. If that finishReview also fails, the row stays 'running', which the stale-running burial handles. Separately, if applySubmissionAction approves the pet and then a post-approval step throws, this path records applied=false although the status already changed. That leaves the review record inaccurate rather than missing.",
+      "codeRefs": [
+        "src/lib/submission-review.ts:133",
+        "src/lib/submission-review.ts:210",
+        "src/lib/submission-review.ts:249",
+        "scripts/review-pending-submissions.ts:108"
+      ]
+    },
+    {
+      "item": "petdex:finding:56d2e924ccafcb33",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "After the pet row is deleted in a transaction or batch, the R2 deletion and the owner email run as separate best-effort steps, so a crash between them skips the email. Both are in try/catch that is documented as best-effort or silent, and an in-app notification is also queued. The email cannot be retried because the row is already gone, but that is the accepted design.",
+      "codeRefs": [
+        "src/lib/takedown.ts:197",
+        "src/lib/takedown.ts:208",
+        "src/lib/takedown.ts:238",
+        "src/lib/takedown.ts:245"
+      ]
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP01",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "The row delete commits atomically (batch or transaction), and the R2 delete runs afterwards; its failure is only logged and per-key results are not checked. A retry returns early because the row is gone. publishPetPublicArtifacts skips keys that already exist, so a later pet reusing the slug serves the stale preview, thumb and sticker. The code comment calls the cleanup best-effort, but nothing repairs this.",
+      "codeRefs": [
+        ".corpora/petdex/src/lib/takedown.ts:156",
+        ".corpora/petdex/src/lib/takedown.ts:178",
+        ".corpora/petdex/src/lib/takedown.ts:207",
+        ".corpora/petdex/src/lib/pet-public-artifacts.ts:69"
+      ]
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP02",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The status update commits before notifySubmissionOwner, and the LLM classify and artifact publish run in between. A crash there loses the notification and email. createNotification is documented as best-effort, it is called fire-and-forget with errors swallowed, and email errors are swallowed too, so a lost notification is by design.",
+      "codeRefs": [
+        ".corpora/petdex/src/lib/submission-decisions.ts:157",
+        ".corpora/petdex/src/lib/submission-decisions.ts:191",
+        ".corpora/petdex/src/lib/submission-decisions.ts:341",
+        ".corpora/petdex/src/lib/notifications.ts:22"
+      ]
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP03",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The reply insert commits before the read-marker update, the void notification and the email. The code says 'email is best-effort; silent fail', and the notification is fire-and-forget with errors caught. The reply itself is stored and visible in the thread.",
+      "codeRefs": [
+        ".corpora/petdex/src/app/api/feedback/[id]/replies/route.ts:121",
+        ".corpora/petdex/src/app/api/feedback/[id]/replies/route.ts:150",
+        ".corpora/petdex/src/app/api/feedback/[id]/replies/route.ts:193",
+        ".corpora/petdex/src/app/api/feedback/[id]/replies/route.ts:223"
+      ]
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP04",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "The status or slug change commits at line 157 before deletePetPublicArtifacts runs, and that function catches and logs R2 errors without checking per-key failures. On a retry the pet is no longer approved, so deleteOld is false. The rejected pet's deterministic slug-keyed artifacts stay public, and nothing removes them later.",
+      "codeRefs": [
+        ".corpora/petdex/src/lib/submission-decisions.ts:157",
+        ".corpora/petdex/src/lib/submission-decisions.ts:68",
+        ".corpora/petdex/src/lib/submission-decisions.ts:181",
+        ".corpora/petdex/src/lib/submission-decisions.ts:333"
+      ]
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP05",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "The three updates are separate commits with no transaction. After the first, a retry returns not_pending at line 271, so the request is never marked fulfilled and sibling candidates stay pending. There is no caller in this repo, so this is reachable only from the separate admin app.",
+      "codeRefs": [
+        ".corpora/petdex/src/lib/request-candidates.ts:271",
+        ".corpora/petdex/src/lib/request-candidates.ts:289",
+        ".corpora/petdex/src/lib/request-candidates.ts:305",
+        ".corpora/petdex/src/lib/request-candidates.ts:321"
+      ]
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP06",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "The script deletes the pet row in its own commit, then runs R2 cleanup, where errors are only warned, then the notification and email. A crash or R2 failure after line 132 leaves the source and public artifacts live. A rerun exits with 'pet not found' at line 63, so the takedown can never finish.",
+      "codeRefs": [
+        ".corpora/petdex/scripts/takedown-pet.ts:63",
+        ".corpora/petdex/scripts/takedown-pet.ts:132",
+        ".corpora/petdex/scripts/takedown-pet.ts:135",
+        ".corpora/petdex/scripts/takedown-pet.ts:143"
+      ]
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP07",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "This has the same shape as takedown-pet. The row delete at line 155 commits before the R2 cleanup, which only warns on failure, and before the owner notification and email. Reruns find pets via submitted_pets, so a deleted pet is never matched again and its assets stay orphaned.",
+      "codeRefs": [
+        ".corpora/petdex/scripts/takedown-by-keyword.ts:93",
+        ".corpora/petdex/scripts/takedown-by-keyword.ts:155",
+        ".corpora/petdex/scripts/takedown-by-keyword.ts:166",
+        ".corpora/petdex/scripts/takedown-by-keyword.ts:172"
+      ]
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP08",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The submission insert commits, and the admin email is sent from a detached void IIFE with errors swallowed. The code comments it as 'Fire-and-forget admin notification', so losing it is a best-effort side effect by design. The submission is still in the review queue.",
+      "codeRefs": [
+        ".corpora/petdex/src/lib/submissions.ts:101",
+        ".corpora/petdex/src/lib/submissions.ts:123",
+        ".corpora/petdex/src/lib/submissions.ts:131",
+        ".corpora/petdex/src/lib/submissions.ts:150"
+      ]
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP09",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The one-shot script flips each pet to approved before emailing, and a rerun selects only rejected pets, so a crash in between drops that email for good. The email is treated as best-effort: failures are caught and logged, and the operator can see on the console which pets were not emailed.",
+      "codeRefs": [
+        ".corpora/petdex/scripts/revive-rejected-pets.ts:29",
+        ".corpora/petdex/scripts/revive-rejected-pets.ts:55",
+        ".corpora/petdex/scripts/revive-rejected-pets.ts:67",
+        ".corpora/petdex/scripts/revive-rejected-pets.ts:93"
+      ]
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP10",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "The request insert commits before the embedding update (which swallows errors) and before the creator's vote insert. A failure in between leaves upvote_count=1 with no vote row, so the next voter's recount drops the creator. The embedding is never backfilled for requests. A retry by the creator goes through the upvote path, which repairs only the vote.",
+      "codeRefs": [
+        ".corpora/petdex/src/app/api/pet-requests/route.ts:333",
+        ".corpora/petdex/src/app/api/pet-requests/route.ts:343",
+        ".corpora/petdex/src/app/api/pet-requests/route.ts:351",
+        ".corpora/petdex/src/app/api/pet-requests/route.ts:304"
+      ]
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP11",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "accepted-or-mitigated",
+      "blind": true,
+      "rationale": "The live edit commits before the fire-and-forget edit_approved notification, which swallows its errors. notifications.ts documents notification failure as best-effort and not worth aborting the underlying action.",
+      "codeRefs": [
+        ".corpora/petdex/src/lib/pet-edit.ts:314",
+        ".corpora/petdex/src/lib/pet-edit.ts:323",
+        ".corpora/petdex/src/lib/notifications.ts:22"
+      ]
+    },
+    {
+      "item": "petdex:known-positive:petdex-KP12",
+      "revision": "31c0aee7f4fb387774b87d40e8047dc0f9cea94b",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "Three R2 PUTs under a random uploadId run before the DB insert. If the script crashes or the insert fails, the objects are left with nothing referencing them, and a rerun uploads under a new key. gc-pending-r2 only collects pending-asset keys, so nothing removes these objects. The impact is a storage leak only.",
+      "codeRefs": [
+        ".corpora/petdex/scripts/admin-import-pet.ts:109",
+        ".corpora/petdex/scripts/admin-import-pet.ts:160",
+        ".corpora/petdex/scripts/admin-import-pet.ts:203",
+        ".corpora/petdex/scripts/gc-pending-r2.ts:12"
+      ]
+    },
+    {
+      "item": "next-saas-stripe-starter:finding:c4c7830260eda71d",
+      "revision": "c6df229ae73c207e87356d5e592779c511a9b56d",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "The subscription delete and the organization delete are separate commits. A failure in between leaves a live solo organization whose subscription rows are gone, while its Stripe subscription may still run to period end with cancelAt set. reconcileSubscription and the webhooks only work on existing rows. The state converges only if the user retries account deletion, which is idempotent and still reachable because the org survives.",
+      "codeRefs": [
+        ".corpora/next-saas-stripe-starter/lib/auth/delete-account.ts:56",
+        ".corpora/next-saas-stripe-starter/lib/auth/delete-account.ts:76",
+        ".corpora/next-saas-stripe-starter/lib/auth/delete-account.ts:80",
+        ".corpora/next-saas-stripe-starter/app/(app)/dashboard/billing/page.tsx:42"
+      ]
+    },
+    {
+      "item": "next-saas-stripe-starter:known-positive:next-saas-stripe-starter-KP01",
+      "revision": "c6df229ae73c207e87356d5e592779c511a9b56d",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "The user row is created before the after-hook calls createOrganization, and that is the only place an organization is created. If it fails, the session hook sets activeOrganizationId to null, getActiveOrganization redirects to /onboarding, and the onboarding page is only a Pro placeholder. The hook never runs again on later sign-ins.",
+      "codeRefs": [
+        ".corpora/next-saas-stripe-starter/lib/auth/server.ts:79",
+        ".corpora/next-saas-stripe-starter/lib/auth/server.ts:116",
+        ".corpora/next-saas-stripe-starter/lib/auth/session.ts:34",
+        ".corpora/next-saas-stripe-starter/app/(app)/dashboard/onboarding/page.tsx:11"
+      ]
+    },
+    {
+      "item": "next-saas-stripe-starter:known-positive:next-saas-stripe-starter-KP02",
+      "revision": "c6df229ae73c207e87356d5e592779c511a9b56d",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "This is the same window as finding c4c7830260eda71d. The surviving subscriptions are only those already ended or set to cancel (running ones throw at line 68). Deleting them first means a crash leaves the org alive with no billing record, and nothing restores it unless the user retries the deletion.",
+      "codeRefs": [
+        ".corpora/next-saas-stripe-starter/lib/auth/delete-account.ts:68",
+        ".corpora/next-saas-stripe-starter/lib/auth/delete-account.ts:76",
+        ".corpora/next-saas-stripe-starter/lib/auth/delete-account.ts:80",
+        ".corpora/next-saas-stripe-starter/modules/billing/sync.ts:45"
+      ]
+    },
+    {
+      "item": "next-saas-stripe-starter:known-positive:next-saas-stripe-starter-KP03",
+      "revision": "c6df229ae73c207e87356d5e592779c511a9b56d",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "beforeDelete commits the organization deletes (members cascade) before Better Auth deletes the user. If the user deletion fails or the process dies, the user has no membership. The whole (app) layout then redirects to /onboarding, which also hides the settings page where Delete account lives, so the user cannot easily retry.",
+      "codeRefs": [
+        ".corpora/next-saas-stripe-starter/lib/auth/server.ts:35",
+        ".corpora/next-saas-stripe-starter/lib/auth/delete-account.ts:80",
+        ".corpora/next-saas-stripe-starter/lib/auth/session.ts:44",
+        ".corpora/next-saas-stripe-starter/app/(app)/layout.tsx:21"
+      ]
+    },
+    {
+      "item": "chatbot:upstream-report:chatbot-partial-delete",
+      "revision": "a8989b522fa3672a2ae52f053105e40993b36ca1",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "The report's sequence holds: deleteChatById and deleteAllChatsByUserId issue the vote, message, stream and chat deletes as separate statements on the root postgres-js handle with no transaction; the catch only rethrows and the FKs have no cascade, so a failure after the message delete leaves the chat without its messages and votes, and nothing restores them.",
+      "codeRefs": [
+        ".corpora/upstream/chatbot/lib/db/queries.ts:101",
+        ".corpora/upstream/chatbot/lib/db/queries.ts:105",
+        ".corpora/upstream/chatbot/lib/db/queries.ts:128",
+        ".corpora/upstream/chatbot/app/(chat)/api/chat/route.ts:467"
+      ]
+    },
+    {
+      "item": "rybbit:upstream-report:rybbit-email-claims",
+      "revision": "4288204761ed2fc801fcaa0b3bbfacd1b8cc3936",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "The report's sequence holds: sendBundle and TrialGraceEmails.sendDue commit the lifecycleEmailLog claim before sending and roll it back only in-process, so a crash leaves a row treated as delivered with no lease or reclaim; usage-limit flags are persisted before the send and a rejected send is only logged.",
+      "codeRefs": [
+        ".corpora/upstream/rybbit-source/server/src/services/lifecycleEmails/lifecycleEmailService.ts:291",
+        ".corpora/upstream/rybbit-source/server/src/services/trialGrace/trialGraceEmails.ts:127",
+        ".corpora/upstream/rybbit-source/server/src/services/usageService.ts:463",
+        ".corpora/upstream/rybbit-source/server/src/services/usageService.ts:482"
+      ]
+    },
+    {
+      "item": "openstatus:upstream-report:openstatus-partial-signup",
+      "revision": "36288495c8544d4498986be7d72c37ee7e666837",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "The report's sequence holds: createUser inserts the user, workspace and owner membership as three separately committed statements with no transaction or cleanup; no later code provisions a missing workspace, and the dashboard proxy only logs that no workspace was found.",
+      "codeRefs": [
+        ".corpora/upstream/openstatus-source/apps/dashboard/src/lib/auth/helpers.ts:40",
+        ".corpora/upstream/openstatus-source/apps/dashboard/src/lib/auth/helpers.ts:68",
+        ".corpora/upstream/openstatus-source/apps/dashboard/src/lib/auth/helpers.ts:74",
+        ".corpora/upstream/openstatus-source/apps/dashboard/src/proxy.ts:132"
+      ]
+    },
+    {
+      "item": "kan:upstream-report:kan-checkout-retry",
+      "revision": "1cc2f332131d736c5e262654bd279e3beb95c93d",
+      "hazard": "real",
+      "actionable": "unhandled-bug",
+      "blind": true,
+      "rationale": "The report's sequence holds: for a new workspace the webhook calls workspaceRepo.create then subscriptionRepo.create on the root db with no transaction; if the subscription insert fails, redelivery finds the workspace, skips both creates and returns 200, and nothing else creates the subscription row.",
+      "codeRefs": [
+        ".corpora/upstream/kan-source/apps/web/src/pages/api/stripe/webhook.ts:67",
+        ".corpora/upstream/kan-source/apps/web/src/pages/api/stripe/webhook.ts:87",
+        ".corpora/upstream/kan-source/packages/db/src/repository/workspace.repo.ts:104",
+        ".corpora/upstream/kan-source/apps/web/src/pages/api/stripe/create_checkout_session.ts:118"
+      ]
+    }
+  ]
+}

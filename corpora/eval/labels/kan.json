@@ -16,6 +16,15 @@
    "by": "AI agent (Claude), finding-by-finding source review, separate from the auditor; did not see knownPositives",
    "date": "2026-11-05",
    "humanReviewed": false
+  },
+  "aiReview": {
+   "date": "2026-11-13",
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ],
+   "itemsReviewed": 4,
+   "scope": "the DEV-162 sample, not every label"
   }
  },
  "knownPositives": [
@@ -1355,7 +1364,7 @@
    "file": "apps/web/src/pages/api/partner/webhook.ts",
    "line": 161,
    "function": "default",
-   "classification": "false-positive",
+   "classification": "true-positive",
    "notes": "The first insertion is reached only through createAndLinkSlots when newCount > existing.length (webhook.ts:303-314). The later removed-subscription UPDATE requires slotsToRemove.length > 0 (:317-329). preferKeep is the concatenation of the truthy and falsy referenceId partitions of existing (:277-280), so its length equals existing.length. With nonnegative tier counts 1, 2 or 4, slotsToRemove = preferKeep.slice(newCount) can be nonempty only when newCount < existing.length. Both conditions cannot hold in one invocation. The same contradiction holds in the migrate branch. No real partial-state window corresponds to this pair.",
    "review": {
     "by": "Codex source review in the implementation chat",
@@ -1629,6 +1638,60 @@
     "d9d4e83c970f58cc"
    ],
    "reason": "Findings exposed by DEV-176 (awaited .then/.catch/.finally callbacks run in sequence). Two blind labelers labeled each finding independently; for findings with an earlier blind label, the label is the majority of the three, a rule fixed before the new labels were seen. d9d4e83c970f58cc: Two new blind labels agree (an earlier blind label also said true-positive). Existing classifications were not changed. Source-only AI review, not human review or runtime confirmation."
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI reviewer, pass 1 (six Claude subagents, one per batch), blind AI reviewer, pass 2 (two Claude subagents, disjoint from pass 1) (blind AI review, DEV-162)",
+   "humanReviewed": false,
+   "type": "ai-adjudication",
+   "findingId": "930f362854dc67c5",
+   "previous": {
+    "findingId": "930f362854dc67c5",
+    "code": "MW1004",
+    "file": "apps/web/src/pages/api/partner/webhook.ts",
+    "line": 161,
+    "function": "default",
+    "classification": "false-positive",
+    "notes": "The first insertion is reached only through createAndLinkSlots when newCount > existing.length (webhook.ts:303-314). The later removed-subscription UPDATE requires slotsToRemove.length > 0 (:317-329). preferKeep is the concatenation of the truthy and falsy referenceId partitions of existing (:277-280), so its length equals existing.length. With nonnegative tier counts 1, 2 or 4, slotsToRemove = preferKeep.slice(newCount) can be nonempty only when newCount < existing.length. Both conditions cannot hold in one invocation. The same contradiction holds in the migrate branch. No real partial-state window corresponds to this pair.",
+    "review": {
+     "by": "Codex source review in the implementation chat",
+     "date": "2026-11-13",
+     "blind": false,
+     "humanReviewed": false,
+     "runtimeReproduced": false
+    },
+    "fpCause": "infeasible-path: growth and shrink conditions are mutually exclusive"
+   },
+   "classification": "true-positive",
+   "reason": "The partner webhook runs many independent subscription and workspace writes with no transaction (slot updates, createAndLinkSlots, then deactivation of removed slots). A failure partway returns 500 and leaves a mixed state. A retry is not idempotent: with prev_license_key, kept slots have already moved to the new key, so the retry's lookup by the old key finds only the slots that should have been removed and keeps or revives them as active. | The partner webhook makes several independent autocommit writes with no transaction. For example, 'deactivate' downgrades workspaces and pauses members through cancelWorkspaceAccess before it marks the slots canceled, and 'upgrade'/'migrate' update kept slots and rekey them before they create or deactivate the others. A partner redelivery is not a dependable fix: the upgrade branch looks slots up by prev_license_key, and the kept slots were already rekeyed to the new key, so a retry would re-activate the slots that should have been removed. Nothing reconciles this.",
+   "evidence": [
+    ".corpora/kan/apps/web/src/pages/api/partner/webhook.ts:238",
+    ".corpora/kan/apps/web/src/pages/api/partner/webhook.ts:253",
+    ".corpora/kan/apps/web/src/pages/api/partner/webhook.ts:265",
+    ".corpora/kan/apps/web/src/pages/api/partner/webhook.ts:285",
+    ".corpora/kan/apps/web/src/pages/api/partner/webhook.ts:317",
+    ".corpora/kan/apps/web/src/pages/api/partner/webhook.ts:61"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "blind AI review, DEV-162",
+   "humanReviewed": false,
+   "type": "ai-confirmed",
+   "items": [
+    "221cf564aa4c6cea",
+    "5cfe7f6140d9417b",
+    "b977c8352e96c174"
+   ],
+   "records": [
+    "corpora/review/records/ai-pass-1.json",
+    "corpora/review/records/ai-pass-2.json"
+   ],
+   "reason": "The ai review verdict matches the existing label; the label is unchanged."
   }
  ],
  "reviewQueue": [

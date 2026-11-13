@@ -1536,3 +1536,24 @@ DEV-162 human review.
 | dev bug precision | 179/433 | 180/436 |
 | dev recall | 160/171 | 161/172 |
 | held-out hazard precision | 30/32 | 30/32, gate PASS |
+
+## Blind AI re-review of the labels (2026-11-13, DEV-162)
+
+The DEV-162 sample's 109 tier-1 items were re-reviewed by independent
+blind AI agents in two passes. The scope of DEV-162 was changed by the
+project owner: no human review. 23 labels changed where two reviewers
+agreed against them, and 3 disagreements kept their labels. Procedure,
+records and per-item changes:
+[human review § Blind AI review](human-review.md#blind-ai-review-2026-11-13).
+Record: [`reports/eval/2026-11-13-ai-review-rescore.json`](../../reports/eval/2026-11-13-ai-review-rescore.json).
+
+| measure | before | after |
+| --- | ---: | ---: |
+| dev hazard precision | 413/436 (94.7%) | 421/443 (95.0%) |
+| dev bug precision | 180/436 | 181/443 |
+| held-out hazard precision | 30/32 | 28/30, gate PASS |
+| held-out bug precision | 3/32 | 1/30 |
+| held-out recall | 8/19 | 7/18 |
+
+The held-out changes come from label corrections. No analyzer change is
+involved, and the analyzer was not tuned. All labels remain AI-written.

@@ -3,5 +3,24 @@
   "title": "Auth createUser can commit a user without its workspace membership",
   "bodyFile": "reports/upstream/issues/openstatus-partial-signup.md",
   "status": "reported",
-  "url": "https://github.com/openstatusHQ/openstatus/issues/3077"
+  "url": "https://github.com/openstatusHQ/openstatus/issues/3077",
+  "aiReview": {
+    "hazard": "real",
+    "actionable": "unhandled-bug",
+    "reviewers": [
+      "blind AI reviewer, pass 1 (six Claude subagents, one per batch)"
+    ],
+    "date": "2026-11-13",
+    "records": [
+      "corpora/review/records/ai-pass-1.json",
+      "corpora/review/records/ai-pass-2.json"
+    ],
+    "rationale": "The report's sequence holds: createUser inserts the user, workspace and owner membership as three separately committed statements with no transaction or cleanup; no later code provisions a missing workspace, and the dashboard proxy only logs that no workspace was found.",
+    "codeRefs": [
+      ".corpora/upstream/openstatus-source/apps/dashboard/src/lib/auth/helpers.ts:40",
+      ".corpora/upstream/openstatus-source/apps/dashboard/src/lib/auth/helpers.ts:68",
+      ".corpora/upstream/openstatus-source/apps/dashboard/src/lib/auth/helpers.ts:74",
+      ".corpora/upstream/openstatus-source/apps/dashboard/src/proxy.ts:132"
+    ]
+  }
 }
