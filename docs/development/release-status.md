@@ -49,6 +49,16 @@ code (`7f74be7`). The static-analysis jobs and the evaluation gate passed
 on every run listed. "CI is green" is therefore not a claim the project can
 make today. `gh run list --workflow ci.yml` shows the current state.
 
+**Cause of the second failure, fixed on 2026-11-13.** The fault proxy
+published `OperationHeld` before it stored the withheld COMMIT. A test that
+severed and discarded right after the event could clear an empty buffer.
+The COMMIT was stored afterwards, so the proxy kept the server connection
+open for a delivery that never came, and the backend stayed `idle in
+transaction` until the deadline. The proxy now stores the frame before it
+publishes the event, and a discarded connection is never kept. Regression
+tests are in `crates/midwrite-replay/src/proxy.rs`. Whether CI on `main` is
+reliably green after the fix depends on the runs that follow.
+
 ## Re-checking
 
 ```bash

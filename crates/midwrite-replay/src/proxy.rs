@@ -143,6 +143,9 @@ struct ConnState {
     held: Vec<u8>,
     /// The upstream connection kept open for a later delivery.
     upstream: Option<UnixStream>,
+    /// [`FaultProxy::discard`] was called: nothing is held or kept for a
+    /// delivery any more, whatever arrives or closes afterwards.
+    discarded: bool,
     client_gone: bool,
     /// A handle on the client's socket, so the proxy can close it while the
     /// client process lives ([`FaultProxy::sever_client`]).
@@ -166,6 +169,39 @@ struct Shared {
 }
 
 impl Shared {
+    fn new() -> Self {
+        Self {
+            inner: Mutex::new(Inner {
+                rules: Vec::new(),
+                events: Vec::new(),
+                dropped_events: 0,
+                conns: BTreeMap::new(),
+                next_conn: 1,
+                seq: 0,
+            }),
+            changed: Condvar::new(),
+            stop: AtomicBool::new(false),
+            started: Instant::now(),
+        }
+    }
+
+    /// See [`FaultProxy::discard`].
+    fn discard(&self, conn: u64) {
+        let up = {
+            let mut g = self.lock();
+            let Some(c) = g.conns.get_mut(&conn) else {
+                return;
+            };
+            c.discarded = true;
+            c.held.clear();
+            c.upstream.take()
+        };
+        if let Some(u) = up {
+            let _ = u.shutdown(std::net::Shutdown::Both);
+        }
+        self.event(conn, EventKind::Discarded, "held COMMIT discarded");
+    }
+
     fn lock(&self) -> std::sync::MutexGuard<'_, Inner> {
         self.inner
             .lock()
@@ -221,19 +257,7 @@ impl FaultProxy {
         listener
             .set_nonblocking(true)
             .map_err(|e| format!("proxy socket: {e}"))?;
-        let shared = Arc::new(Shared {
-            inner: Mutex::new(Inner {
-                rules: Vec::new(),
-                events: Vec::new(),
-                dropped_events: 0,
-                conns: BTreeMap::new(),
-                next_conn: 1,
-                seq: 0,
-            }),
-            changed: Condvar::new(),
-            stop: AtomicBool::new(false),
-            started: Instant::now(),
-        });
+        let shared = Arc::new(Shared::new());
         let upstream = upstream.to_path_buf();
         let s = shared.clone();
         let accept = std::thread::Builder::new()
@@ -363,21 +387,11 @@ impl FaultProxy {
     }
 
     /// Drop the held COMMIT and close the server connection: the COMMIT never
-    /// arrives and the server rolls the transaction back.
+    /// arrives and the server rolls the transaction back. When the client is
+    /// still connected, the server connection is closed as soon as the client
+    /// goes, in whichever order the two happen.
     pub fn discard(&self, conn: u64) {
-        let up = {
-            let mut g = self.shared.lock();
-            let Some(c) = g.conns.get_mut(&conn) else {
-                return;
-            };
-            c.held.clear();
-            c.upstream.take()
-        };
-        if let Some(u) = up {
-            let _ = u.shutdown(std::net::Shutdown::Both);
-        }
-        self.shared
-            .event(conn, EventKind::Discarded, "held COMMIT discarded");
+        self.shared.discard(conn);
     }
 
     /// Close the client's side of `conn` now, with the client
@@ -794,7 +808,7 @@ fn client_closed(shared: &Shared, id: u64, server: UnixStream) {
         match g.conns.get_mut(&id) {
             Some(c) => {
                 c.client_gone = true;
-                if c.holding && !c.held.is_empty() {
+                if c.holding && !c.discarded && !c.held.is_empty() {
                     c.upstream = server.try_clone().ok();
                     true
                 } else {
@@ -927,12 +941,25 @@ fn forward_client_frame(shared: &Shared, id: u64, f: &Frame, server: &mut UnixSt
             (false, None)
         }
     };
+    if hold_now {
+        // The frame is in `held` before `OperationHeld` is published: a test
+        // or driver that reacts to the event (sever, discard, deliver) must
+        // find the withheld operation already there.
+        let mut g = shared.lock();
+        if let Some(c) = g.conns.get_mut(&id) {
+            c.holding = true;
+            if !c.discarded {
+                c.held.extend_from_slice(&f.raw);
+            }
+            if c.held.len() > MAX_FRAME * 2 {
+                c.unsupported = Some("held data exceeds the proxy limit".into());
+                return false;
+            }
+        }
+    }
     if let Some((fault, target)) = arm {
         match fault {
             Fault::HoldRequest => {
-                if let Some(c) = shared.lock().conns.get_mut(&id) {
-                    c.holding = true;
-                }
                 shared.event(
                     id,
                     EventKind::OperationHeld,
@@ -952,14 +979,6 @@ fn forward_client_frame(shared: &Shared, id: u64, f: &Frame, server: &mut UnixSt
         }
     }
     if hold_now {
-        let mut g = shared.lock();
-        if let Some(c) = g.conns.get_mut(&id) {
-            c.held.extend_from_slice(&f.raw);
-            if c.held.len() > MAX_FRAME * 2 {
-                c.unsupported = Some("held data exceeds the proxy limit".into());
-                return false;
-            }
-        }
         return true;
     }
     server
@@ -1167,6 +1186,88 @@ mod tests {
             Control::Begin
         );
         assert_eq!(classify_sql("ROLLBACK"), Control::Rollback);
+    }
+
+    fn query(sql: &str) -> Frame {
+        let mut raw = vec![b'Q'];
+        raw.extend_from_slice(&(4 + sql.len() as u32 + 1).to_be_bytes());
+        raw.extend_from_slice(sql.as_bytes());
+        raw.push(0);
+        let mut f = Framer::default();
+        f.push(&raw);
+        f.typed().unwrap().unwrap()
+    }
+
+    fn connection(shared: &Shared, app: &str) {
+        let mut g = shared.lock();
+        g.conns.insert(
+            1,
+            ConnState {
+                application_name: app.into(),
+                ..ConnState::default()
+            },
+        );
+        g.rules.push(Rule {
+            application_name: app.into(),
+            backend_pid: None,
+            fault: Fault::HoldRequest,
+            target: Target::Commit,
+        });
+    }
+
+    /// Whoever reacts to `OperationHeld` finds the COMMIT already held.
+    /// Before, the frame was stored after the event, so a `discard` right
+    /// after the event could run first and leave the COMMIT to be kept.
+    #[test]
+    fn a_withheld_commit_is_stored_before_it_is_announced() {
+        for _ in 0..200 {
+            let shared = Arc::new(Shared::new());
+            connection(&shared, "w");
+            let watcher = {
+                let shared = shared.clone();
+                std::thread::spawn(move || {
+                    let mut g = shared.lock();
+                    while !g.events.iter().any(|e| e.kind == EventKind::OperationHeld) {
+                        g = shared.changed.wait(g).unwrap();
+                    }
+                    g.conns[&1].held.len()
+                })
+            };
+            let (mut server, _peer) = UnixStream::pair().unwrap();
+            assert!(forward_client_frame(
+                &shared,
+                1,
+                &query("COMMIT"),
+                &mut server
+            ));
+            assert!(watcher.join().unwrap() > 0);
+        }
+    }
+
+    /// A discard that comes before the proxy notices the client is gone (or
+    /// before the COMMIT arrives) still ends the server connection.
+    #[test]
+    fn a_discarded_commit_is_never_kept_for_delivery() {
+        let shared = Shared::new();
+        connection(&shared, "w");
+        let (mut server, _peer) = UnixStream::pair().unwrap();
+        shared.discard(1);
+        assert!(forward_client_frame(
+            &shared,
+            1,
+            &query("COMMIT"),
+            &mut server
+        ));
+        assert!(shared.lock().conns[&1].held.is_empty());
+        let (server, mut peer) = UnixStream::pair().unwrap();
+        client_closed(&shared, 1, server);
+        assert!(shared.lock().conns[&1].upstream.is_none());
+        let mut buf = [0u8; 1];
+        assert_eq!(
+            peer.read(&mut buf).unwrap(),
+            0,
+            "the server side was closed"
+        );
     }
 
     #[test]
