@@ -374,6 +374,11 @@ impl<'a> Interp<'_, 'a> {
             // Metadata for documentation and JSON Schema generation: zod 3
             // and 4 validate exactly as without it.
             "describe" if args.len() == 1 => return Ok(base),
+            // `@hono/zod-openapi` metadata (an example, a description, a
+            // component name): registered, not validated.
+            "openapi" if self.specifier.as_deref() == Some(HONO_ZOD_OPENAPI) => {
+                return Ok(base);
+            }
             "refine" => return self.refinement(base, args, false),
             "superRefine" => return self.refinement(base, args, true),
             _ => {}
@@ -1126,6 +1131,9 @@ fn literal(e: &Expression<'_>) -> Option<midwrite_model::value::Value> {
 /// is followed to the workspace catalog). `zod/v4` of a zod 3.x package is
 /// the early zod 4 implementation shipped with 3.25, which differs from zod
 /// 4.x (its UUID pattern rejects the max UUID): not modeled.
+/// A package that re-exports zod's `z` with OpenAPI metadata methods.
+pub(crate) const HONO_ZOD_OPENAPI: &str = "@hono/zod-openapi";
+
 pub(crate) fn resolve_version(
     file: &Path,
     root: &Path,
@@ -1135,6 +1143,23 @@ pub(crate) fn resolve_version(
         return Ok(Version::V3);
     }
     let major = package_major(file, root);
+    // `@hono/zod-openapi` re-exports zod's `z` (extended with `.openapi()`):
+    // 0.x is built on zod 3, 1.x on zod 4. Its major and the project's zod
+    // must agree.
+    if specifier == HONO_ZOD_OPENAPI {
+        let hono = find_major(file, root, HONO_ZOD_OPENAPI);
+        return match (hono, major) {
+            (Ok(0), Ok(3) | Err(_)) => Ok(Version::V3),
+            (Ok(h), Ok(4) | Err(_)) if h >= 1 => Ok(Version::V4),
+            (Ok(h), Ok(z)) => Err(format!(
+                "`{HONO_ZOD_OPENAPI}` {h}.x with zod {z}.x: the zod it is built on is not known"
+            )),
+            (Ok(h), Err(why)) => Err(format!(
+                "`{HONO_ZOD_OPENAPI}` {h}.x with an unknown zod: {why}"
+            )),
+            (Err(why), _) => Err(format!("`{HONO_ZOD_OPENAPI}`: {why}")),
+        };
+    }
     match (specifier, major) {
         ("zod", Ok(3)) => Ok(Version::V3),
         ("zod", Ok(4)) | ("zod/v4", Ok(4)) => Ok(Version::V4),
@@ -1184,22 +1209,25 @@ pub(crate) fn package_major(file: &Path, root: &Path) -> Result<u64, String> {
     if let Some(hit) = cache().lock().ok().and_then(|c| c.get(&key).cloned()) {
         return hit;
     }
-    let found = find_major(file, root);
+    let found = find_major(file, root, "zod");
     if let Ok(mut c) = cache().lock() {
         c.insert(key, found.clone());
     }
     found
 }
 
-fn find_major(file: &Path, root: &Path) -> Result<u64, String> {
+fn find_major(file: &Path, root: &Path, package: &str) -> Result<u64, String> {
     let dirs = dirs_up(file, root);
     for d in &dirs {
-        let installed = d.join("node_modules").join("zod").join("package.json");
+        let installed = d.join("node_modules").join(package).join("package.json");
         if let Some(json) = read_json(&installed) {
             return match json.get("version").and_then(|v| v.as_str()) {
-                Some(v) => major_of(v)
-                    .ok_or_else(|| format!("the installed zod has the unreadable version `{v}`")),
-                None => Err("the installed zod's package.json has no version".to_owned()),
+                Some(v) => major_of(v).ok_or_else(|| {
+                    format!("the installed {package} has the unreadable version `{v}`")
+                }),
+                None => Err(format!(
+                    "the installed {package}'s package.json has no version"
+                )),
             };
         }
     }
@@ -1214,25 +1242,29 @@ fn find_major(file: &Path, root: &Path) -> Result<u64, String> {
             "optionalDependencies",
         ]
         .iter()
-        .find_map(|k| json.get(*k)?.get("zod")?.as_str().map(str::to_owned));
+        .find_map(|k| json.get(*k)?.get(package)?.as_str().map(str::to_owned));
         let Some(spec) = spec else { continue };
         let spec = match spec.strip_prefix("catalog:") {
-            Some(name) => catalog_spec(&dirs[i..], name.trim()).ok_or_else(|| {
-                format!("the zod dependency `{spec}` names a catalog entry that was not found")
+            Some(name) => catalog_spec(&dirs[i..], name.trim(), package).ok_or_else(|| {
+                format!(
+                    "the {package} dependency `{spec}` names a catalog entry that was not found"
+                )
             })?,
             None => spec,
         };
         return major_of(&spec).ok_or_else(|| {
-            format!("the zod dependency range `{spec}` does not fix a major version")
+            format!("the {package} dependency range `{spec}` does not fix a major version")
         });
     }
-    Err("no installed zod package and no package.json declaring zod".to_owned())
+    Err(format!(
+        "no installed {package} package and no package.json declaring {package}"
+    ))
 }
 
 /// The `zod` entry of a workspace catalog (`catalog`/`catalogs` of a
 /// `package.json`, also under `workspaces`; `catalog:` of
 /// `pnpm-workspace.yaml`).
-fn catalog_spec(dirs: &[PathBuf], name: &str) -> Option<String> {
+fn catalog_spec(dirs: &[PathBuf], name: &str, package: &str) -> Option<String> {
     let named = !name.is_empty() && name != "default";
     for d in dirs {
         if let Some(json) = read_json(&d.join("package.json")) {
@@ -1240,9 +1272,9 @@ fn catalog_spec(dirs: &[PathBuf], name: &str) -> Option<String> {
                 let entry = if named {
                     base.get("catalogs")
                         .and_then(|c| c.get(name))
-                        .and_then(|c| c.get("zod"))
+                        .and_then(|c| c.get(package))
                 } else {
-                    base.get("catalog").and_then(|c| c.get("zod"))
+                    base.get("catalog").and_then(|c| c.get(package))
                 };
                 if let Some(s) = entry.and_then(|v| v.as_str()) {
                     return Some(s.to_owned());
@@ -1259,7 +1291,7 @@ fn catalog_spec(dirs: &[PathBuf], name: &str) -> Option<String> {
                 if in_catalog {
                     let t = line.trim();
                     let (k, v) = t.split_once(':')?;
-                    if k.trim().trim_matches(|c| c == '\'' || c == '"') == "zod" {
+                    if k.trim().trim_matches(|c| c == '\'' || c == '"') == package {
                         return Some(v.trim().trim_matches(|c| c == '\'' || c == '"').to_owned());
                     }
                 }
@@ -1330,6 +1362,74 @@ mod tests {
 
     fn schema(src: &str) -> Result<Schema, String> {
         schema_in(src, Ok(Version::V3))
+    }
+
+    /// Names whose `z` comes from `@hono/zod-openapi`.
+    struct Hono;
+    impl<'a> Names<'a> for Hono {
+        fn zod_import(&self, name: &str) -> Option<String> {
+            (name == "z").then(|| HONO_ZOD_OPENAPI.to_owned())
+        }
+        fn version(&self, _: &str) -> Result<Version, String> {
+            Ok(Version::V4)
+        }
+        fn constant(&self, _: &str) -> Option<&'a Expression<'a>> {
+            None
+        }
+        fn string_array(&self, _: &str) -> Option<Vec<String>> {
+            None
+        }
+    }
+
+    #[test]
+    fn openapi_metadata_is_read_only_from_hono_zod_openapi() {
+        let src =
+            "z.object({ id: z.string().uuid().openapi({ example: 'x' }) }).openapi('Customer')";
+        let allocator = Allocator::default();
+        let text = format!("const s = {src};");
+        let parsed = Parser::new(&allocator, &text, SourceType::ts()).parse();
+        let Statement::VariableDeclaration(v) = &parsed.program.body[0] else {
+            panic!()
+        };
+        let init = v.declarations[0].init.as_ref().unwrap();
+        assert_eq!(
+            interpret(init, &Hono).map(|v| v.schema),
+            Ok(Schema::Object(vec![(
+                "id".into(),
+                Schema::Str(vec![StrCheck::Uuid])
+            )]))
+        );
+        // Plain zod has no `.openapi()`.
+        assert!(schema(src).is_err());
+    }
+
+    #[test]
+    fn hono_zod_openapi_takes_the_zod_its_major_is_built_on() {
+        let dir = std::env::temp_dir().join(format!("midwrite-hono-zod-{}", std::process::id()));
+        let file = dir.join("src").join("a.ts");
+        let check = |deps: &str| {
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(dir.join("src")).unwrap();
+            std::fs::write(
+                dir.join("package.json"),
+                format!(r#"{{ "name": "p", "dependencies": {{ {deps} }} }}"#),
+            )
+            .unwrap();
+            cache().lock().unwrap().clear();
+            resolve_version(&file, &dir, HONO_ZOD_OPENAPI)
+        };
+        assert_eq!(
+            check(r#""@hono/zod-openapi": "1.2.3", "zod": "^4.3.6""#),
+            Ok(Version::V4)
+        );
+        assert_eq!(
+            check(r#""@hono/zod-openapi": "0.18.4", "zod": "^3.23.8""#),
+            Ok(Version::V3)
+        );
+        assert_eq!(check(r#""@hono/zod-openapi": "1.2.3""#), Ok(Version::V4));
+        assert!(check(r#""@hono/zod-openapi": "1.2.3", "zod": "^3.23.8""#).is_err());
+        assert!(check(r#""zod": "^4.3.6""#).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

@@ -56,7 +56,8 @@ pub struct Contract {
 }
 
 const BCRYPT: &[&str] = &["bcryptjs", "bcrypt"];
-const ZOD: &[&str] = &["zod", "zod/v4", "zod/v3"];
+// `@hono/zod-openapi` re-exports zod's `z` (with `.openapi()` metadata).
+const ZOD: &[&str] = &["zod", "zod/v4", "zod/v3", "@hono/zod-openapi"];
 
 /// Whether `source` is the zod package.
 pub fn is_zod(source: &str) -> bool {

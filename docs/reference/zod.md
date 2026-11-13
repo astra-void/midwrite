@@ -30,6 +30,9 @@ constructors. The version is therefore read statically per import:
 | `zod`, `zod/v4` | 4.x | zod 4 |
 | `zod` | unknown | *either* (below) |
 | `zod/v4` | 3.x or unknown | refused (zod 3.25's early zod 4 implementation differs from zod 4.x) |
+| `@hono/zod-openapi` | its 0.x with zod 3.x or unknown | zod 3 |
+| `@hono/zod-openapi` | its 1.x (or later) with zod 4.x or unknown | zod 4 |
+| `@hono/zod-openapi` | any other pairing, or its own version unknown | refused |
 
 The major version comes from `node_modules/zod/package.json` found by
 Node.js resolution from the importing file up to the project root, else
@@ -67,6 +70,12 @@ evaluation.
   (metadata only: zod 3 and 4 validate exactly as without it),
   `refine(callback, message?)` and `superRefine(callback)` with a callback
   in the subset below, followed only by these wrappers.
+* **`@hono/zod-openapi`:** its `z` is zod's (re-exported with OpenAPI
+  extensions); `.openapi(…)` (an example, a description, a component name)
+  is metadata and validates nothing. It is accepted only on schemas built
+  from that package. The pinned-runtime differential does not cover this
+  package (it is not installed for the test); the rule rests on the
+  package re-exporting zod's own `z`.
 * **Refinement callbacks:** an inline arrow or function expression, not
   async, of one plain parameter (`superRefine`: and `ctx`), whose body is
   one expression (or `return expr;`). It may use its parameter, module
