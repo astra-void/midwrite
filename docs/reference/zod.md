@@ -63,7 +63,8 @@ evaluation.
 * **Object modes:** `strict`, `strip`, `passthrough` (the last call wins).
 * **Arrays:** `min`, `max`, `length`, `nonempty`, `.array()`.
 * **On every schema:** `optional`, `nullable`, `nullish`,
-  `default(literal)` (string, number, boolean or `null`).
+  `default(literal)` (string, number, boolean or `null`), `describe(text)`
+  (metadata only: zod 3 and 4 validate exactly as without it).
 * Integer arguments may be a module-level `const` integer; a template
   message is accepted when its interpolations are names or literals.
 
@@ -170,3 +171,38 @@ message unless `MIDWRITE_REQUIRE_ZOD=1` (directories:
 * `conform` covers the documented checks; a `.regex()` whose shortest
   example violates another check of the same string leaves the argument
   invalid (the world reports the `ZodError`).
+
+## Refinements in the corpus (2026-11-13, DEV-165)
+
+Which zod constructs stop discovery on the public corpus (`midwrite
+discover` on midday with `corpora/contracts/midday.json`, kan, dittofeed,
+zero, vercel-chatbot, saas-starter, petdex, nextjs-billing,
+next-saas-stripe-starter and react-starter-kit at their pinned
+revisions), counted as "the schema is not modeled" reasons in the
+output:
+
+| project | first unmodeled construct |
+| --- | --- |
+| zero | `.refine` on an array (16), a schema that is not a module-level chain (16 + 4), `z.object` of a non-literal (2); before `describe` was modeled, 4 of these stopped at `.describe` |
+| vercel-chatbot | `z.union` (2), `z.instanceof` (2) |
+| kan | `.url()` (2) |
+| midday | `z.discriminatedUnion` (2) |
+| the others | none |
+
+Refinements are rare at the schemas discovery reaches, and where they
+occur (zero) the entries have no modeled database effect anyway
+(its database is a Durable Object RPC stub), so modeling them would
+change no candidate today.
+
+They also cannot be modeled as an opaque check. A natural rule would be
+"fails when the base schema fails, otherwise unknown". That rule is
+unsound. In zod 3 and 4 a refinement still runs when the base schema
+reports only continuable issues (a failed `min`, `regex` or a field of an
+object), so its callback sees invalid data, and when it throws,
+`safeParse` throws instead of failing. Only a wrong type at the refined
+schema itself is decided without the callback, which is not what
+discovery's synthesized inputs exercise. Supporting refinements therefore
+means lowering the callback (`(port) => port !== 25`) into the model and
+evaluating it, including on invalid data. Callbacks that use `Set`
+identity, `Object.keys` of other bindings or `ctx.addIssue` stay refused.
+

@@ -113,6 +113,14 @@
     { "id": "phase14_subset", "apis": [3, 4], "schema": "z.object({ name: z.string().trim().min(1), n: z.number().min(0) })",
       "inputs": [{"name": " a ", "n": 0}, {"name": "  ", "n": 0}, {"name": "a", "n": -1}, {"name": "a"}, {"name": "a", "n": 1, "x": 2}] },
     { "id": "prototype_key", "apis": [3, 4], "schema": "z.object({ toString: z.string().optional() })",
-      "inputs": [{}] }
+      "inputs": [{}] },
+    { "id": "describe_string_checks", "apis": [3, 4], "schema": "z.string().min(2).describe(\"a name\").max(4)",
+      "inputs": ["a", "ab", "abcd", "abcde", 1, null, {"$undefined": true}] },
+    { "id": "describe_optional_order", "apis": [3, 4], "schema": "z.object({ a: z.string().describe(\"first\").optional(), b: z.number().optional().describe(\"second\") })",
+      "inputs": [{}, {"a": "x"}, {"a": 1}, {"b": 2}, {"b": "2"}, {"a": {"$undefined": true}, "b": {"$undefined": true}}, null] },
+    { "id": "describe_object_then_strict", "apis": [3, 4], "schema": "z.object({ id: z.string() }).describe(\"payload\").strict()",
+      "inputs": [{"id": "a"}, {"id": "a", "x": 1}, {}, []] },
+    { "id": "describe_array_item", "apis": [3, 4], "schema": "z.array(z.number().int().describe(\"n\")).describe(\"ns\").max(2)",
+      "inputs": [[], [1], [1, 2], [1, 2, 3], ["1"], null] }
   ]
 }

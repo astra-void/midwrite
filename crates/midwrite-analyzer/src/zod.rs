@@ -366,6 +366,9 @@ impl<'a> Interp<'_, 'a> {
                 return Ok(Schema::Default(Box::new(base), value));
             }
             "array" if args.is_empty() => return array_of(base),
+            // Metadata for documentation and JSON Schema generation: zod 3
+            // and 4 validate exactly as without it.
+            "describe" if args.len() == 1 => return Ok(base),
             _ => {}
         }
         match base {
@@ -873,6 +876,20 @@ mod tests {
         assert!(schema("z.discriminatedUnion('k', [])").is_err());
         assert!(schema("z.preprocess((x) => x, z.string())").is_err());
         assert!(schema("z.string().regex(/(a)\\1/)").is_err());
+    }
+
+    #[test]
+    fn describe_is_metadata_only() {
+        assert_eq!(
+            schema("z.string().min(1).describe('a name').max(3)"),
+            schema("z.string().min(1).max(3)")
+        );
+        assert_eq!(
+            schema("z.object({ a: z.number().describe('n').optional() }).describe('p').strict()"),
+            schema("z.object({ a: z.number().optional() }).strict()")
+        );
+        // A refinement after it is still refused.
+        assert!(schema("z.string().describe('x').refine((s) => s !== '')").is_err());
     }
 
     #[test]
