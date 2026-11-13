@@ -274,6 +274,9 @@ struct RawEntry {
     invocation: Option<String>,
     #[serde(default)]
     preconditions: Vec<String>,
+    /// A tRPC procedure resolver's declared context.
+    #[serde(default)]
+    trpc: Option<crate::provider::TrpcContext>,
 }
 
 #[derive(Deserialize, Default)]
@@ -1991,10 +1994,11 @@ fn actor_program(
         max_inline_depth: extraction.max_inline_depth.unwrap_or(3),
         selector: a.entry.as_ref().map(|e| e.selector.clone()),
         contract: a.entry.as_ref().and_then(|e| {
-            (e.invocation.is_some() || !e.preconditions.is_empty()).then(|| {
+            (e.invocation.is_some() || !e.preconditions.is_empty() || e.trpc.is_some()).then(|| {
                 crate::provider::InvocationContract {
                     invocation: e.invocation.clone(),
                     preconditions: e.preconditions.clone(),
+                    trpc: e.trpc.clone(),
                 }
             })
         }),

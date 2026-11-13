@@ -1,0 +1,19 @@
+{
+  "name": "midwrite-fixture-trpc-app",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Midwrite DEV-167 first-party application: tRPC procedures (zod-validated input, a session middleware, the database in the context) doing a check-then-insert. Static source: never executed by the tests.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "dependencies": {
+    "@trpc/server": "11.4.3",
+    "drizzle-orm": "0.45.4",
+    "pg": "8.23.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/pg": "8.23.1",
+    "typescript": "5.9.3"
+  }
+}

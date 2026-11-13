@@ -71,6 +71,23 @@ pub struct InvocationContract {
     /// (`authenticated-user`, `validation-succeeded`, ...): free text.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub preconditions: Vec<String>,
+    /// The selected callback is a tRPC procedure resolver called with
+    /// `{ ctx, input }`: what the context holds, as declared.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trpc: Option<TrpcContext>,
+}
+
+/// The declared context of a tRPC procedure (`midwrite-contracts.json`
+/// `trpc`): the `ctx` fields that hold a project binding, as
+/// `module#export` relative to the project root (`db` →
+/// `packages/db/src/client.ts#db`). Other `ctx` fields are values of the
+/// request. The resolver's `input` is the procedure's `.input(schema)`
+/// parse of the request input, which the extractor reads from source.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TrpcContext {
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub context: std::collections::BTreeMap<String, String>,
 }
 
 /// How a wrapper uses a callback, as far as its analyzed source shows.

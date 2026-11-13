@@ -89,6 +89,10 @@ pub struct EntryFact {
     /// The callee a wrapped callback is passed to, as written.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wrapper: Option<String>,
+    /// A tRPC procedure's builder root as written (`protectedProcedure`,
+    /// `t.procedure`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub procedure: Option<String>,
     /// Whether the function is declared `async`.
     pub is_async: bool,
 }
@@ -300,6 +304,7 @@ impl Lister<'_> {
             line,
             column,
             wrapper: None,
+            procedure: None,
             is_async,
         });
     }
@@ -442,6 +447,7 @@ impl Lister<'_> {
             );
             if let Some(last) = self.entries.last_mut() {
                 last.wrapper = callee_text(&call.callee);
+                last.procedure = trpc_procedure_root(&call.callee);
             }
         }
     }
@@ -489,6 +495,9 @@ impl Lister<'_> {
                     );
                     if let Some(last) = self.entries.last_mut() {
                         last.wrapper.clone_from(&wrapper);
+                        if kind == EntryKind::TrpcProcedure {
+                            last.procedure = trpc_procedure_root(&call.callee);
+                        }
                     }
                 }
             }
@@ -694,6 +703,23 @@ fn transaction_helpers(
         }
     }
     out
+}
+
+/// The root of a tRPC resolver's builder chain as written: the identifier
+/// (`protectedProcedure`) or member path (`t.procedure`) the `.input(…)`,
+/// `.use(…)`, … calls start from.
+pub(crate) fn trpc_procedure_root(callee: &Expression<'_>) -> Option<String> {
+    let Expression::StaticMemberExpression(member) = callee.get_inner_expression() else {
+        return None;
+    };
+    let mut cur = member.object.get_inner_expression();
+    while let Expression::CallExpression(call) = cur {
+        let Expression::StaticMemberExpression(m) = call.callee.get_inner_expression() else {
+            return None;
+        };
+        cur = m.object.get_inner_expression();
+    }
+    callee_text(cur)
 }
 
 /// `<builder>.mutation` / `.query` / `.subscription` where the builder is a

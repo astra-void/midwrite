@@ -50,6 +50,7 @@ fn contract(invocation: Option<&str>, preconditions: &[&str]) -> Option<Invocati
     Some(InvocationContract {
         invocation: invocation.map(str::to_owned),
         preconditions: preconditions.iter().map(|p| (*p).to_owned()).collect(),
+        trpc: None,
     })
 }
 

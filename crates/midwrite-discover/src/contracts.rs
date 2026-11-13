@@ -56,6 +56,29 @@ pub struct Contracts {
     /// assumption.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub replica_factories: Vec<ReplicaFactoryBinding>,
+    /// tRPC procedures, keyed by the root of their builder chain as
+    /// written (`protectedProcedure`, `t.procedure`): what the middleware
+    /// lets through and what the context holds. Each declaration is an
+    /// assumption, reported as such.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub trpc: BTreeMap<String, TrpcProcedureContract>,
+}
+
+/// What a tRPC procedure builder guarantees its resolvers.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TrpcProcedureContract {
+    /// `ctx` fields holding a project binding, as `module#export`
+    /// (`db` → `packages/db/src/client.ts#db`); the binding must be a
+    /// database the extractor recognizes.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub context: BTreeMap<String, String>,
+    /// What the middleware checked before the resolver runs (free text).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub preconditions: Vec<String>,
+    /// Why the declaration holds (what was read in the middleware and the
+    /// context creator).
+    pub reason: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -106,6 +129,10 @@ pub struct EntryContract {
     /// ones: what validation code the model does not run accepts.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub values: BTreeMap<String, Value>,
+    /// Filled by discovery from the `trpc` section for a tRPC resolver
+    /// (not written in the file).
+    #[serde(skip)]
+    pub trpc: Option<midwrite_model::provider::TrpcContext>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub description: String,
 }
@@ -295,6 +322,23 @@ impl Contracts {
                 ));
             }
         }
+        for (root, p) in &contracts.trpc {
+            if p.reason.trim().is_empty() {
+                return Err(format!(
+                    "trpc `{root}`: `reason` is required (what the middleware and context creator were read to do)"
+                ));
+            }
+            for (field, binding) in &p.context {
+                if binding
+                    .rsplit_once('#')
+                    .is_none_or(|(m, e)| m.is_empty() || e.is_empty())
+                {
+                    return Err(format!(
+                        "trpc `{root}`: context `{field}`: expected `module#export`, got `{binding}`"
+                    ));
+                }
+            }
+        }
         for (selector, entry) in &contracts.entries {
             if let Some(d) = &entry.delivery
                 && d != "at-least-once"
@@ -366,6 +410,33 @@ mod tests {
               {"name":"x","entries":["a.ts#f"],"property":{"template":"everySuccessReturns"}}]}"#,
         );
         assert!(bad.unwrap_err().contains("exactly one of"));
+    }
+
+    #[test]
+    fn trpc_declarations_need_a_reason_and_module_bindings() {
+        let ok = r#"{ "schemaVersion": 1, "kind": "midwrite.contracts",
+            "trpc": { "protectedProcedure": {
+                "context": { "db": "src/db.ts#db" },
+                "preconditions": ["a session"],
+                "reason": "read from src/trpc.ts" } } }"#;
+        let c = Contracts::parse(ok).expect("valid");
+        let p = &c.trpc["protectedProcedure"];
+        assert_eq!(p.context["db"], "src/db.ts#db");
+        assert_eq!(p.preconditions, vec!["a session".to_owned()]);
+        let no_reason = ok.replace("\"read from src/trpc.ts\"", "\" \"");
+        assert!(
+            Contracts::parse(&no_reason)
+                .unwrap_err()
+                .contains("`reason` is required")
+        );
+        let bad_binding = ok.replace("src/db.ts#db", "src/db.ts");
+        assert!(
+            Contracts::parse(&bad_binding)
+                .unwrap_err()
+                .contains("expected `module#export`")
+        );
+        let unknown_key = ok.replace("\"preconditions\"", "\"guards\"");
+        assert!(Contracts::parse(&unknown_key).is_err());
     }
 
     #[test]

@@ -149,8 +149,18 @@ fn cache_key(
         .entry(file.to_owned())
         .or_insert_with(|| index.import_closure(file))
         .clone();
+    // A tRPC context binding's module is read even when the entry does not
+    // import it.
+    let declared: Vec<String> = contract
+        .iter()
+        .filter_map(|c| c.trpc.as_ref())
+        .flat_map(|t| t.context.values())
+        .filter_map(|b| b.rsplit_once('#').map(|(m, _)| m.to_owned()))
+        .filter(|m| !reachable.contains(m))
+        .collect();
     let closure: Vec<String> = reachable
         .iter()
+        .chain(declared.iter())
         .map(|f| {
             let digest = memo
                 .digests
@@ -338,7 +348,24 @@ pub fn discover(root: &Path, opts: &Options) -> Result<DiscoveryReport, String> 
         {
             continue;
         }
-        let contract_decl = index.contracts.entry(&fact.selector).cloned();
+        let mut contract_decl = index.contracts.entry(&fact.selector).cloned();
+        // A tRPC resolver of a builder declared in `trpc`: tRPC awaits it,
+        // once the middleware let the call through.
+        if fact.kind == EntryKind::TrpcProcedure
+            && let Some(declared) = fact
+                .procedure
+                .as_ref()
+                .and_then(|root| index.contracts.trpc.get(root))
+        {
+            let mut c = contract_decl.unwrap_or_default();
+            c.invocation.get_or_insert_with(|| "awaited".to_owned());
+            c.preconditions
+                .extend(declared.preconditions.iter().cloned());
+            c.trpc = Some(midwrite_model::provider::TrpcContext {
+                context: declared.context.clone(),
+            });
+            contract_decl = Some(c);
+        }
         let closure = index.import_closure(&module.file);
         if !closure.iter().any(|f| mentions.contains(f)) {
             stats.entries_without_database_reach += 1;
@@ -357,9 +384,12 @@ pub fn discover(root: &Path, opts: &Options) -> Result<DiscoveryReport, String> 
             continue;
         }
         let invocation = contract_decl.as_ref().and_then(|c| {
-            (c.invocation.is_some() || !c.preconditions.is_empty()).then(|| InvocationContract {
-                invocation: c.invocation.clone(),
-                preconditions: c.preconditions.clone(),
+            (c.invocation.is_some() || !c.preconditions.is_empty() || c.trpc.is_some()).then(|| {
+                InvocationContract {
+                    invocation: c.invocation.clone(),
+                    preconditions: c.preconditions.clone(),
+                    trpc: c.trpc.clone(),
+                }
             })
         });
         let key = opts.cache.as_ref().map(|_| {

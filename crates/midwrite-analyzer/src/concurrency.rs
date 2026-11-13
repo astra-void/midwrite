@@ -223,6 +223,7 @@ impl ActorProvider for TsActorProvider {
 
         let mut lowerer = Lowerer {
             request,
+            trpc_ctx: HashMap::new(),
             receivers: &self.receivers,
             root: ctx.root.clone(),
             ctx: ctx.clone(),
@@ -256,7 +257,10 @@ impl ActorProvider for TsActorProvider {
             }
             _ => None,
         };
-        let params = lowerer.lower_main(&module, &info, request);
+        let procedure = found
+            .as_ref()
+            .and_then(|f| f.via_call.map(|(callee, _)| callee));
+        let params = lowerer.lower_main(&module, &info, request, procedure);
         Ok(Extracted {
             params,
             codes: lowerer.codes,
@@ -1367,8 +1371,47 @@ enum ArgVal {
     Expr(Expr),
 }
 
+/// How the zod reader resolves names in a module (`crate::zod::Names`).
+struct InModule<'m, 'a> {
+    module: &'m Module<'a>,
+    /// The project root (where the version lookup stops).
+    root: &'m Path,
+    /// Imported `const` arrays (`z.enum(KINDS)`).
+    ctx: &'m ProjectContext,
+}
+impl<'a> crate::zod::Names<'a> for InModule<'_, 'a> {
+    fn zod_import(&self, name: &str) -> Option<String> {
+        match find_import(self.module, name)? {
+            ImportRef::Named { source, name } if name == "z" => Some(source),
+            ImportRef::Namespace { source } | ImportRef::Default { source } => Some(source),
+            ImportRef::Named { .. } => None,
+        }
+        .filter(|s| crate::packages::is_zod(s))
+    }
+    fn version(&self, specifier: &str) -> Result<crate::zod::Version, String> {
+        crate::zod::resolve_version(&self.module.abs, self.root, specifier)
+    }
+    fn constant(&self, name: &str) -> Option<&'a Expression<'a>> {
+        const_initializer(self.module.program, name)
+    }
+    fn string_array(&self, name: &str) -> Option<Vec<String>> {
+        const_string_array(self.ctx, self.module, name, 0)
+    }
+    fn source(&self, span: Span) -> Option<String> {
+        let text = self
+            .module
+            .source
+            .get(span.start as usize..span.end as usize)?;
+        Some(text.split_whitespace().collect::<Vec<_>>().join(" "))
+    }
+}
+
 struct Lowerer<'r> {
     request: &'r ExtractRequest,
+    /// A tRPC resolver's `ctx` bound as a whole (`({ ctx }) => …`): the
+    /// binding's name → (its local, the declared fields holding a database
+    /// handle), so `ctx.db` resolves to the declared database.
+    trpc_ctx: HashMap<String, (String, BTreeMap<String, Binding>)>,
     receivers: &'r [String],
     root: PathBuf,
     /// The shared project context (files, resolver, sources,
@@ -1632,6 +1675,13 @@ impl<'r> Lowerer<'r> {
                     return Some(h);
                 }
                 let property = member.property.name.as_str();
+                // `ctx.db` of a tRPC resolver: the declared database.
+                if let Expression::Identifier(id) = member.object.get_inner_expression()
+                    && let Some((local, handles)) = self.trpc_ctx.get(id.name.as_str())
+                    && matches!(self.lookup(id.name.as_str()), Some(Binding::Local(l)) if l == *local)
+                {
+                    return handles.get(property).cloned();
+                }
                 match self.handle_expr(m, &member.object)? {
                     Binding::Replicated(r)
                         if r.primary_properties.iter().any(|p| p == property) =>
@@ -1949,12 +1999,14 @@ impl<'r> Lowerer<'r> {
 
     // -- entry --------------------------------------------------------------
 
-    fn lower_main(
+    fn lower_main<'a>(
         &mut self,
-        module: &Module<'_>,
+        module: &Module<'a>,
         info: &FnInfo<'_>,
-        _request: &ExtractRequest,
+        request: &ExtractRequest,
+        procedure: Option<&'a Expression<'a>>,
     ) -> Vec<String> {
+        let trpc = request.contract.as_ref().and_then(|c| c.trpc.clone());
         self.frames.push(Frame {
             function: info.name.clone(),
             file: module.rel.clone(),
@@ -1973,6 +2025,12 @@ impl<'r> Lowerer<'r> {
         });
         let mut params = Vec::new();
         for (index, item) in info.params.items.iter().enumerate() {
+            if index == 0
+                && let Some(trpc) = &trpc
+            {
+                params.push(self.trpc_param(module, item, procedure, trpc));
+                continue;
+            }
             if let BindingPattern::BindingIdentifier(id) = &item.pattern {
                 let name = id.name.as_str().to_owned();
                 self.frame_mut().used.insert(name.clone());
@@ -2068,6 +2126,274 @@ impl<'r> Lowerer<'r> {
             Op::Return,
         );
         params
+    }
+
+    /// The parameter of a tRPC resolver (`{ ctx, input }`, also
+    /// `{ ctx: { db, teamId }, input }`), with a declared context: `ctx`
+    /// fields declared in the contract are their database handles, other
+    /// `ctx` fields and other properties are values of the argument, and
+    /// `input` is the procedure's `.input(schema)` parse of the argument's
+    /// `input` (a rejected input ends the call before the resolver, as
+    /// tRPC does). Returns the parameter's local.
+    fn trpc_param<'a>(
+        &mut self,
+        m: &Module<'a>,
+        item: &oxc_ast::ast::FormalParameter<'_>,
+        procedure: Option<&'a Expression<'a>>,
+        trpc: &midwrite_model::provider::TrpcContext,
+    ) -> String {
+        let name = "_param0".to_owned();
+        self.frame_mut().used.insert(name.clone());
+        let base = Expr::Local(name.clone());
+        let mut handles = BTreeMap::new();
+        for (field, binding) in &trpc.context {
+            let Some((module, export)) = binding.rsplit_once('#') else {
+                continue;
+            };
+            let abs = self.root.join(module);
+            match self.module_handle(&abs, export) {
+                Some(h) => {
+                    self.assume(format!(
+                        "tRPC context: `ctx.{field}` is `{binding}` (declared in midwrite-contracts.json `trpc`)"
+                    ));
+                    handles.insert(field.clone(), h);
+                }
+                None => {
+                    self.unknown_op(
+                        m,
+                        item.span,
+                        format!(
+                            "the tRPC context field `ctx.{field}` is declared as `{binding}`, which is not a database the extractor recognizes"
+                        ),
+                    );
+                }
+            }
+        }
+        let BindingPattern::ObjectPattern(object) = &item.pattern else {
+            self.unknown_op(
+                m,
+                item.span,
+                "a tRPC resolver whose parameter is not destructured (`({ ctx, input }) => …`)",
+            );
+            return name;
+        };
+        if object.rest.is_some() {
+            self.unknown_op(
+                m,
+                item.span,
+                "a rest pattern in a tRPC resolver's parameter",
+            );
+            return name;
+        }
+        for property in &object.properties {
+            let Some(key) = static_key(&property.key).filter(|_| !property.computed) else {
+                self.unknown_op(
+                    m,
+                    property.span,
+                    "a computed key in a tRPC resolver's parameter",
+                );
+                continue;
+            };
+            match (key.as_str(), &property.value) {
+                ("input", BindingPattern::BindingIdentifier(id)) => {
+                    let raw = self.read_prop(base.clone(), "input");
+                    let data = self.trpc_input(m, property.span, procedure, raw);
+                    self.declare(id.name.as_str(), Binding::Local(data));
+                }
+                ("ctx", BindingPattern::BindingIdentifier(id)) => {
+                    let local = self.fresh(id.name.as_str());
+                    let expr = self.read_prop(base.clone(), "ctx");
+                    self.emit(
+                        m,
+                        property.span,
+                        Op::Let {
+                            local: local.clone(),
+                            expr,
+                        },
+                    );
+                    self.declare(id.name.as_str(), Binding::Local(local.clone()));
+                    self.trpc_ctx
+                        .insert(id.name.as_str().to_owned(), (local, handles.clone()));
+                }
+                ("ctx", BindingPattern::ObjectPattern(fields)) if fields.rest.is_none() => {
+                    let ctx = self.read_prop(base.clone(), "ctx");
+                    for f in &fields.properties {
+                        let (Some(field), BindingPattern::BindingIdentifier(id)) =
+                            (static_key(&f.key).filter(|_| !f.computed), &f.value)
+                        else {
+                            self.unknown_op(
+                                m,
+                                f.span,
+                                "only `{ a, b: c }` destructuring of a tRPC context is supported",
+                            );
+                            continue;
+                        };
+                        if let Some(h) = handles.get(&field) {
+                            self.declare(id.name.as_str(), h.clone());
+                            continue;
+                        }
+                        let local = self.fresh(id.name.as_str());
+                        let expr = self.read_prop(ctx.clone(), &field);
+                        self.emit(
+                            m,
+                            f.span,
+                            Op::Let {
+                                local: local.clone(),
+                                expr,
+                            },
+                        );
+                        self.declare(id.name.as_str(), Binding::Local(local));
+                    }
+                }
+                (_, BindingPattern::BindingIdentifier(id)) if key != "ctx" && key != "input" => {
+                    let local = self.fresh(id.name.as_str());
+                    let expr = self.read_prop(base.clone(), &key);
+                    self.emit(
+                        m,
+                        property.span,
+                        Op::Let {
+                            local: local.clone(),
+                            expr,
+                        },
+                    );
+                    self.declare(id.name.as_str(), Binding::Local(local));
+                }
+                _ => {
+                    self.unknown_op(
+                        m,
+                        property.span,
+                        "only `{ ctx, input }` (and `ctx: { a, b }`) destructuring of a tRPC resolver's parameter is supported",
+                    );
+                }
+            }
+        }
+        name
+    }
+
+    /// A zod builder chain written in place (`.input(z.object({ … }))`),
+    /// or `None` when `e` is not one.
+    fn zod_inline<'a>(
+        &self,
+        m: &Module<'a>,
+        e: &'a Expression<'a>,
+    ) -> Option<Result<crate::zod::Validated, String>> {
+        let Expression::CallExpression(_) = e.get_inner_expression() else {
+            return None;
+        };
+        if !package_chain_root(m, e).is_some_and(|s| crate::packages::is_zod(&s)) {
+            return None;
+        }
+        let root = self.ctx.root.clone();
+        let ctx = self.ctx.clone();
+        Some(crate::zod::interpret(
+            e,
+            &InModule {
+                module: m,
+                root: &root,
+                ctx: &ctx,
+            },
+        ))
+    }
+
+    /// The local holding a tRPC resolver's `input`: `raw` parsed by the
+    /// procedure's one `.input(schema)` (a zod schema the extractor reads),
+    /// `undefined` without one.
+    fn trpc_input<'a>(
+        &mut self,
+        m: &Module<'a>,
+        span: Span,
+        procedure: Option<&'a Expression<'a>>,
+        raw: Expr,
+    ) -> String {
+        let mut parsers = Vec::new();
+        if let Some(Expression::StaticMemberExpression(member)) =
+            procedure.map(Expression::get_inner_expression)
+        {
+            let mut cur = member.object.get_inner_expression();
+            while let Expression::CallExpression(call) = cur {
+                let Expression::StaticMemberExpression(step) = call.callee.get_inner_expression()
+                else {
+                    break;
+                };
+                if step.property.name == "input" {
+                    parsers.push(call);
+                }
+                cur = step.object.get_inner_expression();
+            }
+        }
+        let data = self.fresh("input");
+        let expr = match parsers.as_slice() {
+            [] => Expr::undefined(),
+            [call] => match call.arguments.as_slice() {
+                [schema] if schema.as_expression().is_some() => {
+                    let schema = schema.as_expression().expect("checked");
+                    let read = match self.zod_schema(m, schema) {
+                        Some(read) => Some(read),
+                        None => self.zod_inline(m, schema),
+                    };
+                    match read {
+                        Some(Ok(v)) => match v.version.clone().and_then(|version| {
+                            self.zod_static_facts(version, &v.schema)?;
+                            Ok(version)
+                        }) {
+                            Ok(version) => {
+                                match self
+                                    .zod_parse_checked(m, span, version, &v.schema, raw, false)
+                                {
+                                    Res::Value(e) => e,
+                                    _ => Expr::Unknown("the tRPC input parse".to_owned()),
+                                }
+                            }
+                            Err(why) => {
+                                self.unknown_op(
+                                    m,
+                                    span,
+                                    format!("the tRPC input schema is not modeled: {why}"),
+                                );
+                                Expr::Unknown("the tRPC input".to_owned())
+                            }
+                        },
+                        Some(Err(why)) => {
+                            self.unknown_op(
+                                m,
+                                span,
+                                format!("the tRPC input schema is not modeled: {why}"),
+                            );
+                            Expr::Unknown("the tRPC input".to_owned())
+                        }
+                        None => {
+                            self.unknown_op(
+                                m,
+                                span,
+                                "the tRPC `.input(…)` parser is not a zod schema the extractor reads",
+                            );
+                            Expr::Unknown("the tRPC input".to_owned())
+                        }
+                    }
+                }
+                _ => {
+                    self.unknown_op(m, span, "a tRPC `.input(…)` with other than one schema");
+                    Expr::Unknown("the tRPC input".to_owned())
+                }
+            },
+            _ => {
+                self.unknown_op(
+                    m,
+                    span,
+                    "a tRPC procedure with several `.input(…)` parsers (merged inputs) is not modeled",
+                );
+                Expr::Unknown("the tRPC input".to_owned())
+            }
+        };
+        self.emit(
+            m,
+            span,
+            Op::Let {
+                local: data.clone(),
+                expr,
+            },
+        );
+        data
     }
 
     fn body(&mut self, module: &Module<'_>, info: &FnInfo<'_>) {
@@ -3678,6 +4004,17 @@ impl<'r> Lowerer<'r> {
                 },
             );
         }
+        // `ctx.db.select(…)` in a tRPC resolver with a declared context.
+        if let Some((root, mut steps)) = flatten(e)
+            && let Some(field) = steps[0].path.first().cloned()
+            && let Some((local, handles)) = self.trpc_ctx.get(&root)
+            && matches!(self.lookup(&root), Some(Binding::Local(l)) if l == *local)
+            && let Some(handle) = handles.get(&field).cloned()
+        {
+            steps[0].path.remove(0);
+            let root = format!("{root}.{field}");
+            return self.database(m, call.span, &root, handle, &steps, awaited, want);
+        }
         if let Some((root, mut steps)) = flatten(e)
             && root == "this"
             && let Some(field) = steps[0].path.first().cloned()
@@ -4614,39 +4951,6 @@ impl<'r> Lowerer<'r> {
         m: &Module<'_>,
         e: &Expression<'_>,
     ) -> Option<Result<crate::zod::Validated, String>> {
-        struct InModule<'m, 'a> {
-            module: &'m Module<'a>,
-            /// The project root (where the version lookup stops).
-            root: &'m Path,
-            /// Imported `const` arrays (`z.enum(KINDS)`).
-            ctx: &'m ProjectContext,
-        }
-        impl<'a> crate::zod::Names<'a> for InModule<'_, 'a> {
-            fn zod_import(&self, name: &str) -> Option<String> {
-                match find_import(self.module, name)? {
-                    ImportRef::Named { source, name } if name == "z" => Some(source),
-                    ImportRef::Namespace { source } | ImportRef::Default { source } => Some(source),
-                    ImportRef::Named { .. } => None,
-                }
-                .filter(|s| crate::packages::is_zod(s))
-            }
-            fn version(&self, specifier: &str) -> Result<crate::zod::Version, String> {
-                crate::zod::resolve_version(&self.module.abs, self.root, specifier)
-            }
-            fn constant(&self, name: &str) -> Option<&'a Expression<'a>> {
-                const_initializer(self.module.program, name)
-            }
-            fn string_array(&self, name: &str) -> Option<Vec<String>> {
-                const_string_array(self.ctx, self.module, name, 0)
-            }
-            fn source(&self, span: Span) -> Option<String> {
-                let text = self
-                    .module
-                    .source
-                    .get(span.start as usize..span.end as usize)?;
-                Some(text.split_whitespace().collect::<Vec<_>>().join(" "))
-            }
-        }
         let root = self.ctx.root.clone();
         let ctx = self.ctx.clone();
         let is_zod_chain = |module: &Module<'_>, init: &Expression<'_>| {

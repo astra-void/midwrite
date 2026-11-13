@@ -43,6 +43,12 @@ return-value templates, formulas over generated values) are additive.
       "primaryOnlyMethods": ["usePrimaryOnly"], "primaryProperties": ["$primary"],
       "reason": "read from the factory's source" }
   ],
+  "trpc": {
+    "protectedProcedure": {
+      "context": { "db": "src/db/client.ts#db" },
+      "preconditions": ["the request has a session; the middleware sets ctx.teamId"],
+      "reason": "createContext returns { db, session }; the middleware throws UNAUTHORIZED without a session" }
+  },
   "harness": {
     "manifest": "midwrite-source.json",
     "entries": { "src/app/invitations.ts#inviteMember/arg[1]": {
@@ -62,6 +68,7 @@ return-value templates, formulas over generated values) are additive.
 | `invariants[]` | business rules from templates `atMostOne`, `atLeast`, `nonNegative`, `maxExternal`, `formula` (a literal [assertion formula](../concepts/invariants.md#assertion-language-scenario-invariants), which can also read return values with `returned`); return-value templates `atMostOneSuccess { function?, returned }`, `exactlyOneSuccess { function? }`, `everySuccessReturns { function?, returned \| argument }` (exactly one of the two); `entries` restricts them. A return-value property is only ever declared: discovery builds a `return-value` candidate for the entries a declaration names, and infers none. Formulas can also state identities of generated values without inventing them (`generatedBy`, `sameGenerated`, `distinctGenerated`, `same`, `forEachActor`, `forEachRow`, `countMatching`/`rowMatching`, `returned`/`argument` selectors; [invariants](../concepts/invariants.md)); see the [templates](#templates-for-multi-row-invariants) below (never declare a rule your application does not require) |
 | `transactionHelpers[]` | helpers whose retry loop is bound to the model's transaction retry instead of being analyzed |
 | `replicaFactories[]` | a project-defined `withReplicas`-style factory (`module#export`), its primary argument, primary-only methods and properties, and a required `reason`; a declaration that does not resolve is reported and not applied ([source extraction](../architecture/source-extraction.md)) |
+| `trpc.<builder>` | the tRPC procedures built from `<builder>` as written at the root of their chain (`protectedProcedure`, `t.procedure`): `context` maps `ctx` fields to the project binding they hold (`module#export`, a database the extractor recognizes), `preconditions` states what the middleware checked, and a `reason` is required. Their resolvers are then extracted as awaited, with `ctx.db` (or `{ ctx: { db } }`) bound to that database, other `ctx` fields as request values and `input` as the procedure's `.input(schema)` parse (a rejected input ends the call before the resolver). The middleware and context creator are not read: the declaration is the assumption. A resolver whose parameter is not destructured as `{ ctx, input }`, or with several `.input(…)`, is not modeled ([discovery entries](../architecture/scenario-synthesis.md)) |
 | `harness` | the source-harness manifest and, per entry, its input with `$argN` / `$argN.path` placeholders |
 
 Selectors are `file#name`, with `/arg[N]` for a callback argument of a

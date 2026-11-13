@@ -138,6 +138,9 @@ pub struct ActorPlan {
     pub invocation: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub preconditions: Vec<String>,
+    /// A tRPC resolver's declared context.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trpc: Option<midwrite_model::provider::TrpcContext>,
     pub arguments: Vec<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub retry: Option<String>,
@@ -279,6 +282,9 @@ impl Plan {
                 }
                 if !a.preconditions.is_empty() {
                     entry["preconditions"] = json!(a.preconditions);
+                }
+                if let Some(t) = &a.trpc {
+                    entry["trpc"] = json!(t);
                 }
                 let mut x = json!({
                     "name": a.name,
@@ -2023,6 +2029,7 @@ pub fn build_world(
             selector: a.fact.selector.clone(),
             invocation,
             preconditions,
+            trpc: a.contract.as_ref().and_then(|c| c.trpc.clone()),
             arguments: match arguments(c, a, index, variant.relation, k) {
                 Ok(mut args) => {
                     for o in world.args.iter().filter(|o| o.actors.contains(&k)) {

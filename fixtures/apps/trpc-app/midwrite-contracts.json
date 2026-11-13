@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "kind": "midwrite.contracts",
+  "description": "What the tRPC application's source cannot say statically: what its procedure middleware guarantees and what its context holds, and its business rule.",
+  "trpc": {
+    "protectedProcedure": {
+      "context": { "db": "src/db/client.ts#db" },
+      "preconditions": ["the request has a session; the middleware sets ctx.teamId to its team"],
+      "reason": "src/trpc.ts: createContext returns `{ db, session }` with `db` from src/db/client.ts; the middleware throws UNAUTHORIZED without a session and adds `teamId` to the context."
+    }
+  },
+  "invariants": [
+    {
+      "name": "one-invite-per-address",
+      "description": "A team has at most one invitation per address.",
+      "property": { "template": "atMostOne", "table": "invites", "key": ["teamId", "email"] }
+    }
+  ]
+}
