@@ -974,10 +974,18 @@ impl<'a> Visit<'a> for Collector<'_> {
         for element in &it.body.body {
             match element {
                 ClassElement::MethodDefinition(method) => {
-                    let Some(name) = method.key.static_name().filter(|_| !method.computed) else {
-                        continue;
+                    let name = match method.key.private_name() {
+                        // `#name()`: only `this.#name()` inside the class can
+                        // call it, and no subclass can override it.
+                        Some(private) => format!("#{private}"),
+                        None => {
+                            let Some(name) = method.key.static_name().filter(|_| !method.computed)
+                            else {
+                                continue;
+                            };
+                            name.display().to_string()
+                        }
                     };
-                    let name = name.display().to_string();
                     let function = method.value.span.start;
                     match method.kind {
                         MethodDefinitionKind::Constructor => info.constructor = Some(function),
@@ -1347,6 +1355,9 @@ impl Resolved {
 /// Per-function bindings introduced during lowering.
 #[derive(Debug, Default)]
 pub(crate) struct LocalBindings {
+    /// The class (start offset) whose instance method is being lowered:
+    /// `this` is one of its instances.
+    pub this_class: Option<u32>,
     pub transaction_handles: HashMap<SymbolId, TransactionId>,
     pub pending_builders: HashMap<SymbolId, crate::recognize::Builder>,
     /// Plain identifier parameters of the function being lowered (not of an

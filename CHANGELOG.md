@@ -11,6 +11,11 @@ output formats.
 
 ### Added
 
+- A known SDK client held in a class field (`private client = new
+  Resend(...)` set in the constructor) is recognized, and private methods
+  (`this.#send()`) are followed. midday's audited window KP02 (an invoice
+  email before the invoice update) and four other true positives are found
+  ([evaluation harness](docs/development/evaluation-harness.md#sdk-clients-in-class-fields-and-private-methods-2026-11-13-dev-178)).
 - Methods called on a field are followed into the class the field always
   holds: a `private`, `readonly` or `#private` field initialized with
   `new X()` or assigned once with it in the constructor. `classContracts`

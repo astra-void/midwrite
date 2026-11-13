@@ -430,6 +430,9 @@ pub(crate) fn lower_function(
             }
         }
     }
+    locals.this_class = this_class
+        .filter(|this| !this.is_static)
+        .map(|this| this.class);
     let mut lowerer = Lowerer {
         recognizer,
         lines,
@@ -1938,6 +1941,25 @@ impl<'a> Lowerer<'_> {
                     }
                     _ => None,
                 }
+            }
+            // `this.#name()`: a private method of the current class (none
+            // can be overridden).
+            Expression::PrivateFieldExpression(member)
+                if matches!(
+                    member.object.get_inner_expression(),
+                    Expression::ThisExpression(_)
+                ) =>
+            {
+                self.this_class
+                    .filter(|this| !this.is_static)
+                    .map(|this| ResolvedTarget {
+                        receiver: Some(AbsValue::atom(Atom::This)),
+                        ..ResolvedTarget::new(CallTarget::Method {
+                            class: ClassRef::Local(this.class),
+                            name: format!("#{}", member.field.name),
+                            receiver: ReceiverKind::This,
+                        })
+                    })
             }
             Expression::StaticMemberExpression(member) => {
                 let name = member.property.name.as_str().to_owned();

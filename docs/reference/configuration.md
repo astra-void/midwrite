@@ -127,6 +127,11 @@ holds. Midwrite works this out by itself when two conditions hold:
 * Code outside the class cannot assign it: it is `private`, `readonly` or
   `#private`.
 
+A field that holds a known SDK package's client the same way
+(`private client = new Resend(...)` in the constructor) is that client:
+`this.client.emails.send(...)` is a built-in SDK effect. Private methods
+(`this.#send()`) are followed like other methods.
+
 Otherwise, and for objects that come from code Midwrite cannot follow (a
 `Proxy`, an RPC stub, a constructor parameter), declare the fact:
 

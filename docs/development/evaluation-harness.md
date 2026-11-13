@@ -1439,3 +1439,53 @@ recovers four audited windows.
 | dev bug precision | 175/418 | 175/418 | 175/425 |
 | dev recall | 153/169 | 153/169 | 157/169 |
 | held-out hazard precision | 30/32 | 30/32 | 30/32, gate PASS |
+
+## SDK clients in class fields and private methods (2026-11-13, DEV-178)
+
+Record: [`reports/eval/2026-11-13-field-sdk-clients.json`](../../reports/eval/2026-11-13-field-sdk-clients.json),
+binary built from `1996288` plus this change, scored with the sets of
+`1996288`. The target was midday's audited KP02 (dev), a miss.
+
+**What changed.**
+
+* **SDK clients in fields.** A field that always holds an instance of a
+  known SDK package's client class is that client. "Always holds" uses the
+  rules of the DEV-179 field dispatch: `private client = new Resend(...)`
+  set once in the constructor. So `this.client.emails.send(...)` is a
+  built-in SDK effect.
+* **Private methods.** `#name()` methods are recorded with their class.
+  `this.#name()` dispatches to them; no subclass can override them.
+
+Together with the DEV-179 field dispatch, this follows midday's
+notification chain:
+
+* `new Notifications(db).create(...)`;
+* the private `#createInternal`;
+* `this.#emailService.sendBulk(...)`;
+* `EmailService`, whose `private client` is a Resend client.
+
+Fixture: [`fixtures/vulnerable/sdk_client_field.ts`](../../fixtures/vulnerable/sdk_client_field.ts).
+
+**midday.** KP02 is recovered. Eight findings appear: at each of four
+callers, the email goes out before a database update. Each caller yields
+two findings, one for Resend's per-payload `emails.send` branch and one
+for its `batch.send` branch. A separate blind AI labeler labeled them:
+
+* **4 true-positive.** The invoice email before `updateInvoice` in both
+  branches. The invoice-paid and invoice-overdue owners' emails before the
+  provider batch update.
+* **1 intended-risk.** An upcoming-invoice reminder whose
+  notify-then-mark order is explained in the source.
+* **3 false-positive.** The per-payload branch for callers that never pass
+  attachments. Deciding that branch needs array-content tracking
+  (DEV-177).
+
+The user chose to ship with these labels.
+
+| measure | before | after |
+| --- | ---: | ---: |
+| dev hazards | 433 | 441 |
+| dev hazard precision | 406/425 (95.5%) | 411/433 (94.9%) |
+| dev bug precision | 175/425 | 179/433 |
+| dev recall | 157/169 | 160/171 (the new true positives join the denominator) |
+| held-out hazard precision | 30/32 | 30/32, gate PASS |

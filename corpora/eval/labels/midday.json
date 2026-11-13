@@ -2218,6 +2218,81 @@
    "classification": "false-positive",
    "fpCause": "callee branch infeasible for the arguments passed",
    "notes": "updateTransaction deletes accountingSyncRecords only when `dataToUpdate.status !== undefined` (packages/db/src/queries/transactions.ts:1563-1566); the call at apps/worker/src/processors/transactions/process-attachment.ts:93-98 passes only id, teamId, taxRate and taxType, so the delete never runs on this path. The later triggerJob at :114 is also in a try/catch marked non-critical (:128-134). (2026-11-13 blind AI label; not independently human-validated.)"
+  },
+  {
+   "findingId": "00e6f4adfb7a5765",
+   "code": "MW1002",
+   "file": "apps/worker/src/processors/invoices/send-invoice-email.ts",
+   "line": 91,
+   "function": "SendInvoiceEmailProcessor.process",
+   "classification": "true-positive",
+   "notes": "When template.includePdf is set and the vault download returns data, apps/worker/src/processors/invoices/send-invoice-email.ts:39-54 builds attachments, passed at :120 into the email input (packages/notifications/src/index.ts:204-206, services/email-service.ts:155), which selects the per-payload emails.send (email-service.ts:57-61); the customer email goes out before updateInvoice (send-invoice-email.ts:135, invoices.ts:1118) with no outbox or idempotency key, and a BullMQ retry re-sends it. (2026-11-13 blind AI label; not independently human-validated.)"
+  },
+  {
+   "findingId": "b9d7514146756251",
+   "code": "MW1002",
+   "file": "apps/worker/src/processors/invoices/send-invoice-email.ts",
+   "line": 91,
+   "function": "SendInvoiceEmailProcessor.process",
+   "classification": "true-positive",
+   "notes": "Without a PDF attachment (send-invoice-email.ts:35-55) sendBulk takes batch.send (packages/notifications/src/services/email-service.ts:75); the customer invoice email is sent before updateInvoice at send-invoice-email.ts:135 commits status 'unpaid'/sentAt, with nothing reconciling the gap, and a retry re-sends it (X-Entity-Ref-ID is a fresh nanoid, email-service.ts:146). (2026-11-13 blind AI label; not independently human-validated.)"
+  },
+  {
+   "findingId": "992e4f577f561639",
+   "code": "MW1002",
+   "file": "apps/worker/src/processors/invoices/upcoming-notification.ts",
+   "line": 200,
+   "function": "InvoiceUpcomingNotificationProcessor.process",
+   "classification": "false-positive",
+   "fpCause": "callee branch infeasible for the arguments passed",
+   "notes": "apps/worker/src/processors/invoices/upcoming-notification.ts:214 passes only { sendEmail: true } and the recurring-invoice-upcoming handler (packages/notifications/src/types/recurring-invoice-upcoming.ts:21-26) sets no attachments, so hasAttachments (email-service.ts:51) is always false for this caller and emails.send at :61 cannot run. (2026-11-13 blind AI label; not independently human-validated.)"
+  },
+  {
+   "findingId": "85973025788ae979",
+   "code": "MW1002",
+   "file": "apps/worker/src/processors/invoices/upcoming-notification.ts",
+   "line": 200,
+   "function": "InvoiceUpcomingNotificationProcessor.process",
+   "classification": "intended-risk",
+   "notes": "The owners email goes out via batch.send (packages/notifications/src/services/email-service.ts:75) before markUpcomingNotificationSent (apps/worker/src/processors/invoices/upcoming-notification.ts:220-225), a deliberate notify-then-mark at-least-once order explained at :217-219, with reruns deduplicated on upcomingNotificationSentAt (:141-164). (2026-11-13 blind AI label; not independently human-validated.)"
+  },
+  {
+   "findingId": "049c3a71a576b4ca",
+   "code": "MW1002",
+   "file": "apps/worker/src/processors/notifications/notification.ts",
+   "line": 167,
+   "function": "NotificationProcessor.process",
+   "classification": "false-positive",
+   "fpCause": "callee branch infeasible for the arguments passed",
+   "notes": "The invoice_paid call at apps/worker/src/processors/notifications/notification.ts:167-178 passes only { sendEmail: true } and the invoice-paid handler (packages/notifications/src/types/invoice-paid.ts:24-29) sets no attachments, so the per-payload emails.send (email-service.ts:61) cannot run for this caller. (2026-11-13 blind AI label; not independently human-validated.)"
+  },
+  {
+   "findingId": "b8ac169d7c0e53be",
+   "code": "MW1002",
+   "file": "apps/worker/src/processors/notifications/notification.ts",
+   "line": 167,
+   "function": "NotificationProcessor.process",
+   "classification": "true-positive",
+   "notes": "The invoice_paid owners email is sent via batch.send (packages/notifications/src/services/email-service.ts:75) at apps/worker/src/processors/notifications/notification.ts:167 before sendToProviders (:181) updates providerNotificationBatches (provider-notification-batches.ts:33); nothing makes this idempotent, and a BullMQ retry (attempts 3) re-sends the email. (2026-11-13 blind AI label; not independently human-validated.)"
+  },
+  {
+   "findingId": "049c3a71a576b4ca-2",
+   "code": "MW1002",
+   "file": "apps/worker/src/processors/notifications/notification.ts",
+   "line": 197,
+   "function": "NotificationProcessor.process",
+   "classification": "false-positive",
+   "fpCause": "callee branch infeasible for the arguments passed",
+   "notes": "The invoice_overdue call at apps/worker/src/processors/notifications/notification.ts:197-207 passes only { sendEmail: true } and the invoice-overdue handler (packages/notifications/src/types/invoice-overdue.ts:22-27) sets no attachments, so the per-payload emails.send branch (email-service.ts:57-61) cannot be taken. (2026-11-13 blind AI label; not independently human-validated.)"
+  },
+  {
+   "findingId": "b8ac169d7c0e53be-2",
+   "code": "MW1002",
+   "file": "apps/worker/src/processors/notifications/notification.ts",
+   "line": 197,
+   "function": "NotificationProcessor.process",
+   "classification": "true-positive",
+   "notes": "The invoice_overdue owners email is sent via batch.send (packages/notifications/src/services/email-service.ts:75) at apps/worker/src/processors/notifications/notification.ts:197 before sendToProviders (:209) updates the provider batch row (provider-notification-batches.ts:33); nothing records the send, so a crash in between is retried and re-sends the email. (2026-11-13 blind AI label; not independently human-validated.)"
   }
  ],
  "corrections": [
@@ -2379,6 +2454,23 @@
     "5cded3e81f9a7b4f"
    ],
    "reason": "Findings exposed by DEV-180 (a write whose bound RETURNING row is missing changed nothing): at the same lines, pairs whose first write is infeasible on that path disappeared and other pairs became the representative findings. Existing classifications were not changed. Source-only AI review, not human review or runtime confirmation."
+  },
+  {
+   "date": "2026-11-13",
+   "by": "AI agent (Claude), blind source-only labeler separate from analyzer tuning; did not see knownPositives, existing labels or reports",
+   "humanReviewed": false,
+   "type": "new-findings-reviewed",
+   "findings": [
+    "00e6f4adfb7a5765",
+    "b9d7514146756251",
+    "992e4f577f561639",
+    "85973025788ae979",
+    "049c3a71a576b4ca",
+    "b8ac169d7c0e53be",
+    "049c3a71a576b4ca-2",
+    "b8ac169d7c0e53be-2"
+   ],
+   "reason": "Findings exposed by DEV-178 (SDK clients held in class fields, private methods): Notifications -> EmailService -> Resend became visible. The three false positives are the per-payload emails.send branch for callers that never pass attachments (DEV-177). Existing classifications were not changed. Source-only AI review, not human review or runtime confirmation."
   }
  ],
  "reviewQueue": [

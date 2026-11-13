@@ -229,6 +229,9 @@ impl Recognizer<'_> {
         if let Some(classified) = self.classify_sdk(chain, root) {
             return classified;
         }
+        if let Some(classified) = self.classify_sdk_field(chain, root, locals) {
+            return classified;
+        }
         if let Some(resolved) = &resolved
             && resolved.origin == Origin::Unresolved
             && resolved.name == "Promise"
@@ -826,6 +829,56 @@ impl Recognizer<'_> {
                 detail: format!(
                     "built-in rule: `{receiver}` is {client} ({}); `builtinEffects: false` turns built-in rules off",
                     self.sdk_origin(symbol)
+                ),
+                receiver,
+            },
+            label: self.label(root.start(), call),
+            calls: calls(segments),
+            resolved_result: None,
+            deferred: None,
+        })
+    }
+
+    /// `this.client.emails.send(...)` in an instance method, where the field
+    /// always holds an instance of a known SDK package's client class
+    /// (`ClassInfo::field_classes`: `private client = new Resend(...)`).
+    fn classify_sdk_field<'e, 'a>(
+        &self,
+        chain: &Chain<'e, 'a>,
+        root: Root<'e, 'a>,
+        locals: &LocalBindings,
+    ) -> Option<Classified<'e, 'a>> {
+        if !self.config.builtin_effects || !matches!(root, Root::This(_)) {
+            return None;
+        }
+        let segments = &chain.segments;
+        let Some(Segment::Property(field)) = segments.first() else {
+            return None;
+        };
+        let class = self.table.classes().get(&locals.this_class?)?;
+        let crate::classes::FieldClass::Constructed(symbol) = class.field_classes.get(*field)?
+        else {
+            return None;
+        };
+        let crate::sdk::Imported::Class(client) = self.table.sdk_import(*symbol)? else {
+            return None;
+        };
+        let end = effect_end(segments);
+        let Some(Segment::Call(call)) = end.checked_sub(1).and_then(|i| segments.get(i)) else {
+            return None;
+        };
+        let category = crate::sdk::effect(client, &sdk_steps(&segments[1..end]))?;
+        let receiver = format!("this.{field}");
+        Some(Classified::External {
+            category,
+            best_effort: false,
+            recovery: None,
+            recognition: Recognition {
+                basis: RecognitionBasis::BuiltinSdk,
+                detail: format!(
+                    "built-in rule: `{receiver}` is {} (a field of `{}` that only its constructor or initializer sets, to an instance of the package's class); `builtinEffects: false` turns built-in rules off",
+                    client.describe(),
+                    class.name
                 ),
                 receiver,
             },
