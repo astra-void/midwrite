@@ -94,6 +94,8 @@ and where the archived phase records are: [development history](HISTORY.md).
 | [Benchmarks](development/benchmarks.md) | benchmark methodology and scripts |
 | [Corpus evaluation](development/corpus-evaluation.md) | the real-world corpus and its rules |
 | [Evaluation harness](development/evaluation-harness.md) | precision and recall on dev and held-out projects (`scripts/eval.py`) |
+| [Human review](development/human-review.md) | the fixed sample and record format for independent human review of labels (none done yet) |
+| [Release status](development/release-status.md) | what is verified about each release stage: tag, CI, GitHub release, npm, clean installs |
 | [Roadmap](development/roadmap.md) | open problems |
 | [Evidence index](research/evidence-index.md) | headline measured results, the tests and fixtures behind them, archived raw evidence |
 | [Evaluation methodology](research/evaluation-methodology.md) | how results are measured; independence |

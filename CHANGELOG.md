@@ -11,6 +11,17 @@ output formats.
 
 ### Added
 
+- A release-status page that records, with run links and dates, what is
+  verified about v0.1.0: the tagged release run, the GitHub release, the
+  hand-published npm packages, clean installs on all six platforms and
+  CI on `main`. It also records that CI on `main` is not reliably green,
+  because one replay test fails intermittently. A dispatchable
+  `install-check` workflow repeats the install and checksum checks
+  ([release status](docs/development/release-status.md)).
+- Tooling for an independent human review of the AI-written evaluation
+  labels and upstream reports: a fixed 172-item sample, a blind reading
+  packet, and checks for the review record. No item has been reviewed yet
+  ([human review](docs/development/human-review.md)).
 - lmsqueezy/nextjs-billing as a held-out evaluation project, pinned at
   `5ddd7680`, so the held-out precision gate runs again. Its first
   scoring is hazard precision 7/7, bug precision 1/7 and audited recall

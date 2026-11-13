@@ -29,8 +29,10 @@ compiles on:
 cargo install --path crates/midwrite-cli
 ```
 
-If a GitHub release for `v0.1.0` exists, it carries prebuilt archives for
-the platforms its release run passed on, with SHA-256 checksums.
+The [v0.1.0 GitHub release](https://github.com/astra-void/midwrite/releases/tag/v0.1.0)
+carries prebuilt archives for the same six platforms, each with a SHA-256
+checksum file. What has been checked about this release, and when (clean
+installs, checksums, CI): [release status](docs/development/release-status.md).
 
 The JavaScript client for replay harnesses is on npm as
 [`@midwrite/replay`](https://www.npmjs.com/package/@midwrite/replay). You

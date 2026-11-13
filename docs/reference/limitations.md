@@ -443,11 +443,15 @@ Not modeled ([refused or not modeled](../architecture/postgres-model.md#refused-
   PostgreSQL socket during a run (trust authentication); no CPU, memory or
   temporary-disk cap beyond per-worker rlimits
   ([security](security.md)).
-* **Platforms:** Windows not supported and not run; x86_64 not run; the
-  Linux runs are a Debian 12 container on the same Apple Silicon machine;
-  only `aarch64` macOS and Linux release archives were built and verified,
-  and macOS (BSD tar) archives are not bit-reproducible. GitHub CI and
-  release workflows exist but no hosted run is recorded.
+* **Platforms:** Windows builds have static analysis only (no `replay`)
+  and get a smoke test, not the test suite. Required replay runs in CI on
+  Linux x64 only; the macOS and Linux arm64 replay evidence comes from the
+  development machine and its Debian 12 container, and the release run's
+  full suite on the other targets. macOS (BSD tar) archives are not
+  bit-reproducible. The npm packages were published by hand; their macOS
+  and Linux binaries are byte-identical to the release archives, the
+  Windows ones are not
+  ([release status](../development/release-status.md)).
 
 ## Missing independent verification
 

@@ -50,12 +50,18 @@ checksum.
 
 ## Platforms
 
-| Platform | Status |
-| --- | --- |
-| macOS arm64 | development machine; full test suite with required replay |
-| Linux aarch64 (Debian 12 container on the same machine) | full test suite with required replay run repeatedly during development, not for every change; see the platform column of the [evidence index](../research/evidence-index.md) |
-| Linux x86_64, macOS x86_64 | not run |
-| Windows | not supported; not run |
+| Platform | npm / release binary | What has run on it |
+| --- | --- | --- |
+| macOS arm64 | yes | development machine (full suite, required replay); CI static tests on every push (`macos-15`); full suite in the v0.1.0 release run |
+| macOS x64 | yes | full suite in the v0.1.0 release run (`macos-15-intel`) |
+| Linux x64 | yes, static musl | CI static tests and required replay with bubblewrap on every push (`ubuntu-24.04`); full suite in the v0.1.0 release run |
+| Linux arm64 | yes, static musl | Debian 12 container during development; full suite in the v0.1.0 release run (`ubuntu-24.04-arm`) |
+| Windows x64, arm64 | yes, static analysis only (no `replay`) | smoke test only (`--version`, `check` on a fixture) in the v0.1.0 release run; the full suite needs PostgreSQL, bubblewrap and Unix sockets |
+
+The release run tests on the runner's host target; the shipped Linux
+binaries are cross-built for musl and smoke-tested. Which of these checks
+passed, with run links and dates, and whether the published npm packages
+install cleanly on each platform: [release status](../development/release-status.md).
 
 Where OS isolation is unavailable, commands that execute code are blocked
 (exit status 3) instead of running unisolated. Details:

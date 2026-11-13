@@ -161,10 +161,11 @@ Not protected:
   upgrading Midwrite, copy the new `runtime/node` files. Only the protocol
   version is checked at run time.
 
-Open before a public release: an independent (human) review of the replay
-crate, the sandbox profile and the bubblewrap arguments; memory and process
-caps; a replacement for `sandbox-exec`; a way to find detached processes on
-macOS.
+Still open: an independent (human) review of the replay crate, the
+sandbox profile and the bubblewrap arguments; memory and process caps; a
+replacement for `sandbox-exec`; a way to find detached processes on macOS.
+These were listed as open before a public release; v0.1.0 was released on
+2026-11-12 without them ([release status](../development/release-status.md)).
 
 ### Review of 2026-11-12 (DEV-163)
 

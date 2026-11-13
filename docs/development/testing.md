@@ -85,8 +85,11 @@ repository.
 suite with required replay, the release build and the evidence runs in a
 Debian 12 container, as a non-root user, with only the bubblewrap-needed
 security options relaxed. The `ci/linux-replay.Dockerfile` image is shared.
-`.github/workflows/ci.yml` and `release.yml` exist; their header says they
-have not run on GitHub-hosted runners.
+`.github/workflows/ci.yml` runs on every push to `main` and on pull
+requests (fmt and clippy, static tests on Ubuntu x64 and macOS arm64,
+required replay on Ubuntu x64, the evaluation gate). `release.yml` runs on
+version tags; `install-check.yml` checks the published packages. Their
+recorded runs are listed in [release status](release-status.md).
 
 ## Rules for runtime tests
 

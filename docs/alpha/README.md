@@ -1,9 +1,9 @@
 # Midwrite Closed Alpha: invited-developer package
 
 This package is for developers invited to try Midwrite on
-TypeScript + Drizzle + PostgreSQL code. It is **not** a public release:
-nothing is published to a package registry, and this guide is not
-distributed automatically. Every command below is run end to end by
+TypeScript + Drizzle + PostgreSQL code. It predates the public v0.1.0
+release (npm `midwrite`; see [release status](../development/release-status.md))
+and builds Midwrite from source; it is not distributed automatically. Every command below is run end to end by
 `scripts/alpha-check.sh`, which checks that each step shows what
 this guide says; run it after changing the guide or the binary.
 
