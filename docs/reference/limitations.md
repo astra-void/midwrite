@@ -177,6 +177,13 @@ Stated approximations; each is printed as an assumption or documented.
 
 ### Static analyzer (`check`)
 
+Array-cardinality exclusions use native array methods and side-effect-free
+scalar counts. They are not a model of arbitrary proxies, array subclasses
+or hidden user-defined coercions. Mutation, escaping aliases, unknown
+predicates and visible coercion/getter hooks abandon this proof; sparse
+partitions supply only an upper bound
+([cardinality guards](../architecture/value-analysis.md#array-cardinality-guards)).
+
 Details and examples: [`docs/LIMITATIONS.md`](../LIMITATIONS.md). The
 model-checking work left the static analyzer's output unchanged.
 
@@ -188,17 +195,25 @@ model-checking work left the static analyzer's output unchanged.
   are not bound to instance fields; getters and setters are ignored (an
   accessor makes its object open); class dispatch assumes a closed world
   (subclasses only in the analyzed files);
-* captured variables and transaction handles inside callbacks; variables
-  of enclosing functions read as unknown inside callbacks; more than 8
-  callback contexts per callee → the callee is expanded without callbacks
-  and its parameter calls stay unknown
+* mutable captured bindings and shared object contents. Immutable lexical
+  bindings, callbacks and recognized transaction handles are preserved
+  within 16 captures and three nested environments; deeper captures widen
+  to unknown. More than 8 callback contexts per callee bypasses the cache
+  without discarding callback effects
   ([value analysis](../architecture/value-analysis.md#soundness-assumptions));
 * promises stored and awaited later, `for await`, timers firing;
 * dynamic `import()`, CommonJS `require`, packages in `node_modules`,
   imports that do not resolve (ambiguous modules or exports, exports that
   are not function declarations such as `export const f = wrap(...)`);
 * calls neither awaited nor returned from an `async` function; effects
-  deeper than `--max-call-depth` (3) unless inert;
+  deeper than `--max-call-depth` (3) unless inert. A synchronous inert
+  factory's return value can resolve a later call, but its plain call does
+  not introduce awaited effects. Returned-function dispatch requires a
+  single known function and no possible implicit return. Stable module
+  factory bindings, aliases and default exports are interpreted only
+  through inert initializer chains; mutable bindings, cycles, temporal
+  dead zones, unawaited async factories and effectful initializers stay
+  unknown. This does not analyze general module initialization effects;
 * handles from unconfigured calls or calls with arguments
   (`getDb("replica")`), handle arguments that are not direct identifiers
   (`save(tx ?? db)`), `let`-bound aliases, destructured transaction

@@ -1056,3 +1056,193 @@ depending on it (`bot/runtime.ts:214`). Dev hazard precision would go from
 handlers would keep the true positive and drop the three, but their causes
 are not the handler, so that rule would be fitted to these labels.
 
+## Calls through factory results (2026-11-13)
+
+Record: [`reports/eval/2026-11-13-returned-functions.json`](../../reports/eval/2026-11-13-returned-functions.json).
+The target came from the development inventory of call-returned functions
+and an adversarial probe, not from held-out findings.
+
+**Fixed within a bounded subset.** A local `const f = make(); await f()`
+or `await make()()` now follows one known returned function. A plain
+synchronous factory must be proven inert; async factories must first be
+awaited. Imported factories and inert forwarding helpers preserve function
+identity across module numbering. Possible implicit returns and unions of
+functions do not choose a target. Captured variables remain unknown, and
+module-level factory bindings are not evaluated.
+
+Regression: `fixtures/projects/returned_functions` covers imported and
+forwarding factories with a preceding module that changes the function
+offsets. `tests/returned_functions.rs` in the analyzer covers stored and
+immediate calls, callback returns, async factories, ambiguous and implicit
+returns, argument binding, unawaited effects and lazy builders, captures
+and recursion. The initial stored-factory regression failed before the
+change. This is fixture evidence, not a new real-application bug.
+
+The five dev projects have exactly the same 413 finding IDs as the nested
+wrapper baseline above: hazard precision 387/405, bug precision 164/405,
+recall 152/168, 8 unclear and no unlabeled findings. All four held-out
+projects are unchanged: 32 hazards, precision 30/32, gate PASS. No labels,
+frozen inputs or configurations changed, and no corpus code was executed.
+**There is no measured real-project recall gain from this change.**
+
+## Lexical captures and module factory bindings (2026-11-13)
+
+Record: [`reports/eval/2026-11-13-closure-environments.json`](../../reports/eval/2026-11-13-closure-environments.json).
+This extends the returned-function work above, using first-party probes
+and development-set coverage checks. No held-out finding drove a fix.
+
+**Supported.** Immutable captured locals and parameters, callback values,
+primitive parameter defaults and recognized database/transaction handles
+travel with the closure. Capture slots follow its own parameters; callback
+environments distinguish memo contexts. Callback-use summaries propagate
+through captured callbacks and higher-order helper composition. Stable
+module `const` factory bindings, aliases and named/default exports resolve
+through inert initializer chains, including imports and barrels. Resolved
+exports are analyzed as entries even without a project-local caller.
+
+Regression: `tests/returned_functions.rs` in the analyzer and
+`fixtures/projects/returned_functions` cover these cases, arrays,
+per-creation isolation, transaction aliases, missing/explicit arguments,
+mutation, initialization cycles (including a cycle in an unused factory
+argument), temporal dead zones, async initialization and recursion.
+The stable module alias in `private_transaction_helper/aliased.ts` now
+resolves at its transaction call; its standalone helper warning remains.
+Recursive closure composition in `higher_order_wrappers` now also carries
+an explicit MW9001 limitation when the expansion bound is reached.
+
+| set | before | after | interpretation |
+| --- | ---: | ---: | --- |
+| development hazards | 413 | 422 | all 413 old finding IDs retained; 9 new, unclassified |
+| development harness recall (includes positives outside the audit) | 152/168 | 152/168 | unchanged; no measured recall gain |
+| held-out hazards | 32 | 32 | findings unchanged; hazard precision 30/32, gate PASS |
+
+The nine new development findings are one in midday (a batch update reached
+through a captured handle), six in Kan (two captured batch writes and four
+export-entry contexts), and two in Dittofeed (`sendMessages` and
+`sendMessageV2`, both factory-built exports). An exported entry context can
+overlap an already reported inner callback; these are not nine confirmed
+or necessarily independent bugs. The existing labeled development score
+remains 387/405, but excludes the nine new findings and is not a complete
+precision estimate for the new analyzer. Labels, configurations and frozen
+inputs were unchanged, and no corpus application code was executed.
+
+Validation used an isolated source snapshot because unrelated Zod work was
+in progress in the shared checkout. The snapshot included this change and
+the preceding returned-function change; the shared checkout also passed a
+workspace compile check after both changes were present. Mutable capture
+contents, effectful/unlinked initializers and general module execution
+remain outside this support.
+
+## Review of the nine closure findings (2026-11-13)
+
+Records: [per-finding source review](../../reports/eval/2026-11-13-closure-findings-review.json),
+[same-binary labeled scoring](../../reports/eval/2026-11-13-closure-findings-labeled.json).
+The user requested classification of the nine previously unlabeled
+development findings. This is a source review in the implementation chat,
+not a blind labeler, independent human review or runtime reproduction.
+
+| finding | project / window | classification | overlap |
+| --- | --- | --- | --- |
+| `4fda8babb4a80988` | midday: account base values then transaction batches | intended-risk | retried recomputation; assignments overwrite the same derived values |
+| `d758901597e4584a` | Kan: subscription entitlement then linked workspace plan | true-positive | same inner-handler window as `574be59f041f0e7e` |
+| `d5803fc413673fa3` | Kan: workspace downgrade then member pausing | true-positive | same cancellation window as `83e6e8979513e69f` |
+| `930f362854dc67c5` | Kan: slot creation then removed-slot deactivation | **false-positive** | growth and shrink are mutually exclusive |
+| `cef2b1b6c27c48e9` | Kan: linked-slot insert then remainder-slot insert | true-positive | same helper window as `11727d753731af8a` |
+| `305530861885c933` | Kan: imported cards then activity rows | true-positive | same window as `2aadc5212a97547b` |
+| `ecaea63b0bab9693` | Kan: imported board then labels | true-positive | same window as `f322f5de643c442a` |
+| `933e380a6fe7be7d` | Dittofeed: broadcast delivery then event batch | true-positive | same window as `4b0058e6a225b154`; older labels disagree |
+| `5e0ac5ccb0740877` | Dittofeed: journey delivery then tracking event | intended-risk | same retry-aware activity window as `ece472399ebf7efb` / `0a33bc81d8b3fa98` |
+
+**The false-positive path is impossible.** In the partner webhook, let
+`m = existing.length` and `n = newCount`. `preferKeep` concatenates the
+truthy and falsy `referenceId` partitions of `existing`, so its length is
+exactly `m`. `createAndLinkSlots` requires `n > m`; removed-slot updates
+require `preferKeep.slice(n).length > 0`, hence `n < m`. These cannot both
+hold. The same argument applies to the migrate branch. A source-derived
+cardinality sanity check also passed all 99 combinations of pinned tier
+sizes (1, 2, 4) and existing counts 0–32; it did not execute project code.
+
+The other eight claimed windows exist in source. Midday's worker retries
+the same overwrite-style recomputation, so temporary stale derived values
+are an accepted retried-job risk. Kan's import path has no outer rollback
+or resume: `allSettled` and an import-status update do not repair committed
+partial boards, and a rerun allocates fresh IDs. Its webhook writes also
+have no shared transaction or durable compensation established by this
+source; a possible provider redelivery is not a verified recovery contract.
+
+The two Dittofeed judgments are kept explicit: broadcast filtering promises
+to omit delivered recipients, but depends on the missing delivery events,
+so a retry can resend. The journey exposes per-node retry limits and a
+final-attempt skipped result; its existing at-least-once interpretation is
+retained. Stable event IDs do **not** establish provider-side deduplication
+or exactly-once delivery. Existing auditor/labeler disagreements remain in
+the review queue and require human product-semantics review.
+
+All nine labels were appended to the dev label files. Existing finding
+labels and known positives were left unchanged. Seven new findings overlap
+already reported windows: these are not six new independent bugs. Two
+older Kan true-positive labels (`9303f5935fcd8c8a`, `e34fc613ab846935`)
+appear to share the same impossible growth/shrink path; they were queued
+for a separate correction rather than silently changed in this review.
+
+The same binary still reports 422 dev hazards, now with zero unlabeled:
+170 true-positive, 225 intended-risk, 19 false-positive and 8 unclear.
+Hazard precision is 395/414 (95.41%); bug precision is 170/414 (41.06%).
+The harness recall changes mechanically from 152/168 to 153/169 because
+the newly labeled broadcast export is another TP outside the audit span;
+every audited known-positive match is unchanged. This is not evidence of
+a new independent bug or better audited recall. Held-out findings and
+frozen files are unchanged (30/32 hazard precision, gate PASS).
+
+## Cardinality guard false-positive fix (2026-11-13)
+
+Records: [corrected-binary scoring](../../reports/eval/2026-11-13-cardinality-guards.json),
+[newly selected feasible-pair review](../../reports/eval/2026-11-13-cardinality-guards-review.json).
+The user requested a fix for the newly classified impossible-path finding
+`930f362854dc67c5`, with regression coverage.
+
+**Fixed generically.** The source prepass recognizes complementary pure
+filters on an unchanged native array, records a length upper bound and
+correlates a nonempty `slice(count)` with the growth comparison. Existing
+boolean path facts eliminate the contradiction, including inside inlined
+helpers and factory-built exports. No project name, fingerprint or
+application-specific suppression is used by the analyzer. The proof does
+not assume dense arrays: sparse partitions can be shorter than the source.
+Its native-array/scalar model, bounds and invalidation rules are documented
+in [value analysis](../architecture/value-analysis.md#array-cardinality-guards).
+
+The reduced first-party fixture
+`fixtures/safe/complementary_partition.ts` reported MW1004 at line 13
+with the previous binary and is clean with the fix. Seventeen targeted tests
+in `crates/midwrite-analyzer/tests/cardinality.rs` cover the exclusion and
+equivalent guards, immutable aliases, non-complementary filters, different
+indices, mutation and escape, getters/coercion hooks, array callbacks,
+sparse arrays, reassigned counts and `length >= 0`. Feasible write pairs
+remain reported. Core/analyzer regression tests, CLI tests, clippy, the
+release build, formatting and documentation links passed in the validation
+snapshot; the shared checkout also passed a workspace compile check.
+
+The requested diagnostic and its two previously flagged inner-handler
+equivalents (`9303f5935fcd8c8a`, `e34fc613ab846935`) disappear. Their
+historical labels are preserved and become stale in this run. Removing
+impossible paths also changes which feasible pair the detector selects and
+lets it reach further migration branches within its path budget: seven
+diagnostics become visible. Each was source-reviewed as a TP candidate,
+not independently human-validated or reproduced. Unlike the old pair,
+their first operation is a retained-workspace or retained-subscription
+update; those can coexist with either growth or removal. See the review
+record for concrete count witnesses and source lines.
+
+| measure | before | after |
+| --- | ---: | ---: |
+| dev hazards | 422 | 426 (3 impossible pairs removed, 7 feasible pairs exposed) |
+| dev unlabeled | 0 | 0 |
+| dev hazard precision | 395/414 (95.41%) | 400/418 (95.69%) |
+| dev bug precision | 170/414 | 175/418 |
+| dev harness recall | 153/169 | 153/169 |
+| held-out hazard precision | 30/32 | 30/32, gate PASS |
+
+Every audited known-positive match and held-out finding ID is unchanged.
+No corpus code was executed, no frozen inputs were edited, and these
+additional contexts/branches are not seven confirmed independent bugs.
+

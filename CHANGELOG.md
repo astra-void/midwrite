@@ -36,6 +36,24 @@ output formats.
 
 ### Fixed
 
+- Mutually exclusive growth and removal paths of an unchanged array are
+  no longer combined into independent-commit hazards. Complementary pure
+  filters provide a cardinality upper bound, and a nonempty `slice(count)`
+  excludes `count > original.length`. Mutation, escaping aliases and
+  unsupported predicates invalidate the proof. First-party regressions
+  retain feasible write pairs, including sparse arrays and coercion cases.
+- Awaited calls through local factory results (`const f = make(); await
+  f()`, `await make()()`) now follow a single known returned function,
+  including imported and inert forwarding factories. Plain factories must
+  be synchronous and proven inert; async factories must be awaited first.
+  Immutable captured parameters, locals, callbacks and recognized handles
+  are retained per creation context. Mutable bindings and ambiguous returns
+  remain unknown.
+- Stable module-level factory bindings, aliases and named/default exports
+  now resolve through inert initializer chains, including imports and
+  barrels. Resolved exported callables are analyzed as entries without
+  executing module code. Cycles, temporal dead zones, mutable bindings and
+  effectful initializers remain unknown.
 - A write reached through nested higher-order helpers (`withSpan("x", () =>
   withRetry(() => db.insert(t)))`, or a helper nested in itself with
   another callback) is no longer lost: such nesting is not treated as

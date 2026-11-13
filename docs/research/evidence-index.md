@@ -47,6 +47,38 @@ read-related false positives with an opt-in HTTP-method filter, and opened
 four upstream issues. These are AI source reviews, not runtime reproduction,
 maintainer confirmation, or a new precision/recall score.
 
+The [2026-11-13 returned-function regression](../development/evaluation-harness.md#calls-through-factory-results-2026-11-13)
+adds bounded static dispatch through factory results, verified by ten
+targeted tests and a cross-module fixture. The
+[evaluation report](../../reports/eval/2026-11-13-returned-functions.json)
+has unchanged findings (413 dev, 32 held-out); it provides no evidence of a
+real-project recall improvement. No corpus source was executed.
+
+The [capture and module-binding extension](../development/evaluation-harness.md#lexical-captures-and-module-factory-bindings-2026-11-13)
+retains all 413 prior development findings and adds 9 unclassified findings,
+including exported entry contexts. Held-out findings remain unchanged
+(30/32 hazard precision, gate PASS); known-positive recall is unchanged.
+The new findings are not nine confirmed independent bugs, and no runtime
+reproduction was performed. Raw record:
+[`closure-environments.json`](../../reports/eval/2026-11-13-closure-environments.json).
+
+The [subsequent nine-finding source review](../development/evaluation-harness.md#review-of-the-nine-closure-findings-2026-11-13)
+labels 6 true-positive candidates, 2 intended risks and 1 infeasible-path
+false positive. Seven overlap existing windows, and no runtime reproduction
+or independent human validation was performed. Same-binary dev scoring is
+395/414 hazard precision, with no unlabeled findings; audited known-positive
+matches and held-out findings are unchanged.
+
+The [cardinality-guard fix](../development/evaluation-harness.md#cardinality-guard-false-positive-fix-2026-11-13)
+removes the reviewed impossible growth/shrink path and two equivalent
+inner-handler reports. Seventeen targeted regressions preserve feasible
+windows and reject unsafe array/count assumptions. Seven feasible pairs
+become visible after pruning and were source-labeled; dev scoring is
+400/418 hazard precision with no unlabeled findings. Audited matches and
+held-out findings remain unchanged. Records:
+[`cardinality-guards.json`](../../reports/eval/2026-11-13-cardinality-guards.json),
+[`source review`](../../reports/eval/2026-11-13-cardinality-guards-review.json).
+
 ## 2. Candidate-discovery accuracy
 
 `midwrite discover`, scored against labeled entries. "Model" = an entry

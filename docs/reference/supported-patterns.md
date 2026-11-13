@@ -24,8 +24,10 @@ Concept summary: [supported semantics](../concepts/supported-semantics.md).
 | classes | `new C().m()`, `const x = new C(); x.m()`, `this.m()` without analyzed overrides, static methods, `super`, inheritance across modules; a package superclass → recorded assumption, ≤ medium |
 | callbacks and wrappers | callbacks invoked by analyzed functions (≤ 8 contexts per callee), inert wrappers such as `withTimeout(op(), ms)`, IIFEs; `setTimeout` callbacks are deferred |
 | inert helpers | calls of functions that perform nothing durable, visible or unknown on any path are resolved at any depth |
+| returned functions | `const f = factory(); await f()` and `await factory()()` when a synchronous inert factory returns one known function; async factories must be awaited first; immutable captured locals, callbacks and recognized handles (16 captures, three nested environments); stable module `const` factory bindings and aliases, named/default exports and barrels; exported callables analyzed as entries; mutable bindings and effectful initializers stay unknown |
 | handle arguments | a transaction handle, configured receiver (or configured call) or `drizzle(...)` instance passed as a direct identifier is bound to the callee's parameter |
 | branch correlation | contradictory decisions on never-reassigned variables, `const` literals, literals returned by inline transaction callbacks and by summarized helpers, properties of unescaped objects |
+| array cardinality guards | unchanged native arrays, complementary pure filters and immutable aliases: a nonempty `slice(count)` excludes growth beyond a proven length upper bound; sparse arrays are not assumed dense; mutation, unknown escapes and unsupported predicates abandon the proof ([details](../architecture/value-analysis.md#array-cardinality-guards)) |
 
 Source: [`docs/LIMITATIONS.md` § support levels](../LIMITATIONS.md#support-levels).
 

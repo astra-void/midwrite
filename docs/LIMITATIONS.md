@@ -57,7 +57,7 @@ rates on real projects are summarized in the
 | Supported within a documented subset | `tsconfig.json` `paths`/`baseUrl` (single `*`, relative `extends` only); workspace packages (`package.json` `name` + `exports` string targets, single-`*` patterns, conditions `types`/`import`/`module`/`default`/`require`/`node`, or `main`/`module`/`types`); constant conditions on `const` literals. |
 | Supported within a documented subset ([value analysis](architecture/value-analysis.md)) | Methods of receivers whose class is known (`new C()`, `this` without analyzed overrides, static, `super`), across modules; callbacks invoked by analyzed functions (per call-site context, ≤ 8 contexts per callee); IIFEs; resolved calls inside `Promise.all`; `Promise.all(xs.map(cb))` / `xs.forEach(cb)`; inertness summaries with modeled builtins; return-value facts and property facts of unescaped objects; value provenance and `valueRelation`; loop value fixpoints. |
 | Heuristic | Configured names and member paths (trusted as written); `Promise.all` treated as concurrent; loops as zero or one iteration for effects; catch handlers entered as if the `try` failed before its effects; method dispatch under a package superclass (recorded assumption, medium confidence); `map`/`forEach`/`flatMap` with a function argument assumed to run it per element without awaiting; modeled globals assumed not replaced; `console` output not an effect. |
-| Unsupported | Methods on values of unknown class (parameters, SDK clients, factory results), callbacks run by unanalyzed code, `.then/.catch/.finally` continuation bodies, captured variables and transaction handles inside callbacks, dynamic `import()`, CommonJS `require`, `node_modules` packages, handles from unconfigured calls or calls with arguments (`getDb("replica")`), raw SQL, other ORMs, labeled `break`/`continue`, generators' resumption. |
+| Unsupported | Methods on values of unknown class (parameters, SDK clients, factory results), callbacks run by unanalyzed code, `.then/.catch/.finally` continuation bodies, mutable captured bindings and shared object contents, dynamic `import()`, CommonJS `require`, `node_modules` packages, handles from unconfigured calls or calls with arguments (`getDb("replica")`), raw SQL, other ORMs, labeled `break`/`continue`, generators' resumption. |
 
 ## Known false positives
 
@@ -80,7 +80,7 @@ rates on real projects are summarized in the
 | --- | --- |
 | Effects inside methods whose receiver's class is not known (`service.save()` with `service` a parameter or a factory result), methods with an analyzed override or dynamic reassignment, callbacks run by unanalyzed code | Not followed. A call after a recognized commit becomes MW9001 with the reason; one before the first commit is silent (reported under `--policy audit`). Known receivers are followed (`vulnerable/class_this_dispatch.ts`, `unsupported/class_override_dispatch.ts`, `projects/class_hierarchy`). |
 | Callees that are resolved but not inert and perform no recognized operation (`render()` returning a package call, `BaseProcessor.updateProgress` calling BullMQ) | One unknown effect for the call; the detail says which inner call prevents inertness, but the inner unknown is not shown as its own trace step. |
-| Captured values in callbacks (`items.map((i) => tx.update(...))`, `{ id }` from the enclosing function) | The callback's own lowering does not know the enclosing frame: a captured transaction handle is not recognized (the call stays unknown) and captured values have unknown provenance. |
+| Captured values in callbacks (`items.map((i) => tx.update(...))`, `{ id }` from the enclosing function) | Immutable bindings and recognized handles are supplied by the closure's creation context, separately from invocation arguments. Reassigned bindings, shared mutable object contents and not-yet-initialized bindings stay unknown; at most 16 captures and three nested environments. |
 | Effects more than `--max-call-depth` (3) calls deep | Still unknown unless the chain is inert. Deeper analysis changes findings (on one private corpus project it roughly doubled them at depth 6), so the default stays 3 pending a reviewed policy decision. |
 | Imports that do not resolve: packages outside the analyzed files, unsupported aliases, ambiguous modules or exports, exports that are not function declarations (`export const f = wrap(...)`) | The call stays an unknown effect whose detail says why (`projects/missing_module`, `projects/ambiguous_exports`, `transactions.rs: ambiguous_module_candidates_are_not_chosen`). |
 | Calls neither awaited nor returned from an `async` function (`notify(id);`) | Not summarized: silent (`unsupported/unawaited_helper.ts`, `projects/unawaited`). Resolved calls inside `Promise.all` are summarized (concurrent, low confidence). |
@@ -142,6 +142,24 @@ rates on real projects are summarized in the
 
 ## Call summaries
 
+Array cardinality guards use the documented native-array/scalar subset:
+complementary filters provide an upper bound, not equality for sparse
+arrays; a nonempty tail excludes growth beyond that bound. Mutable or
+exposed arrays, custom methods/coercions and unsupported predicates do not
+supply these facts. See
+[`cardinality guards`](architecture/value-analysis.md#array-cardinality-guards).
+
+* A local call through a factory result is followed when the result is
+  exactly one known function (`const f = make(); await f()`,
+  `await make()()`). Plain synchronous factories must be proven inert;
+  async factories must first be awaited. Imports and inert forwarding
+  helpers are supported within the existing bounds. Immutable captures and
+  recognized handles are retained. Stable module factory bindings and
+  exports (including aliases and barrels) are interpreted through inert
+  value providers; exported callables are analyzed as entries. Mutable
+  bindings, ambiguous returns, initializer cycles and effectful or unlinked
+  initializers remain unknown. See
+  [`returned functions`](architecture/value-analysis.md#interprocedural-summaries).
 * An awaited call (or an `async` return) of a function declared in the same
   file, or imported from an analyzed file, is analyzed by inlining that
   function's summary: its own lowered body, with its own calls inlined in

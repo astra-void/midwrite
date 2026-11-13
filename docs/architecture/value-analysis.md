@@ -32,6 +32,8 @@ Principles:
 AbsValue = Top | { atoms: sorted set of Atom, |atoms| ≤ 6 }
 Atom     = Lit(literal)          primitive constant (branch facts, switch cases)
          | Function(f)           a function of the table (call targets, callbacks)
+         | Closure(f, captures)  a function with immutable lexical bindings and handle provenance
+         | ModuleValue(k)        a stable module binding's initializer (values only)
          | Class(c)              a class constructor (static dispatch)
          | Object(o)             an allocation site of the current function (aliasing, receivers)
          | Record                an object with known properties outside any heap (a returned literal)
@@ -57,7 +59,11 @@ captured variables are distinct). Updates are strong, joins pointwise.
 Bindings written from a nested function always read as `Top` (any call
 might run that closure). An identifier resolves, in order, to: the
 environment, a same-file function, a class, a `const` literal, an import or
-module-level binding (`Static`), else `Top`.
+module initializer (`ModuleValue`), module-level binding (`Static`), else
+`Top`. Immutable non-module captures occupy hidden parameter slots after
+the closure's own parameters; every creation site supplies its own values.
+Reassigned bindings stay unknown. Objects are not copied into closure
+snapshots: later property mutations must not become stale branch facts.
 
 **Transfer functions** (in source order, on a copy-on-write `Env × Heap`):
 destructuring reads properties `"a"`, `"0"`, … (rest → `Top`); compound
@@ -102,6 +108,37 @@ returns.
 
 ## Interprocedural summaries
 
+**Returned functions.** A call through a local factory result, such as
+`const action = makeAction(); await action()` or `await makeAction()()`,
+is linked only when the earlier call returns one known function. A plain
+synchronous call contributes its value only when the factory is proven
+inert; it contributes no awaited effects. An async factory must first be
+awaited. Return values of inert forwarding helpers are expanded within
+the existing depth and recursion bounds, and function identities are
+renumbered across modules. A possible implicit `undefined` return or a
+union of functions does not choose a target. The returned function's own
+arguments are bound at invocation. Immutable captured parameters and locals
+are retained, including callback identities, primitive values and declared
+literal parameter defaults. Recognized database and transaction handles
+retain their provenance. Captures use hidden parameter slots rather than
+the invocation's own arguments, and callback environments enter memo keys.
+There are at most 16 captures and three nested capture environments; deeper
+environments are widened. Mutable bindings, shared objects and bindings
+not initialized at creation remain unknown.
+
+Stable module `const` bindings initialized by factories, aliases and
+default-export factory expressions are interpreted through hidden value
+providers. Their factory chain must be proven inert; application module
+code is never executed. Async factories need top-level `await`. Imports,
+barrels and function-valued imported arguments are linked before expansion.
+Resolved exported values are also analyzed as entries with unknown input
+arguments, so a framework entry needs no project-local caller. Initializer
+providers are removed from public IR and never produce initialization
+hazards. Mutable module bindings, initialization cycles, temporal dead
+zones and effectful or unlinked initializers stay unknown.
+Regression: `fixtures/projects/returned_functions` and
+`crates/midwrite-analyzer/tests/returned_functions.rs`.
+
 A function summary has two parts: the **effect summary** (the callee's
 lowered IR with its calls expanded, now with abstract argument values,
 return values and return facts) and the **inertness / parameter-use
@@ -143,7 +180,8 @@ At each call the inliner (`inline_calls_with`):
 **Context sensitivity.** The memo key is `(callee, callback context)` plus
 the remaining depth only when the expansion depends on it: only
 function-valued arguments for parameters the callee may run enter the key;
-constants and handles are substituted on copy. At most 8 callback contexts
+closure capture environments distinguish callback contexts; constants and
+handles are substituted on copy. At most 8 callback contexts
 are cached per callee (`MAX_SPECIALIZATIONS`); additional contexts are
 expanded without caching. The depth bound and recursion guard still apply.
 The specialization-limit counter records cache bypasses, rather than
@@ -179,8 +217,8 @@ Never assumed: that a callback passed to a function runs (only when the
 callee's summary invokes or leaks it), or that `forEach` awaits. Not
 modeled: `.then/.catch/.finally` continuation bodies, completion order
 inside a concurrent group, promises stored and awaited later, `for await`,
-unawaited calls of resolved functions, transaction handles captured by
-callbacks. Exceptions are not crashes: compensation in a `catch` does not
+unawaited effects of resolved functions, shared mutable capture contents.
+Exceptions are not crashes: compensation in a `catch` does not
 cover a process crash.
 
 `tests/differential.rs` runs small programs under Node.js with a recording
@@ -302,6 +340,42 @@ bindings to `Top` from the second; if still unstable the head is havocked
 (every binding `Top`, every object escaped); the body is then lowered once
 from the fixpoint. A per-function budget of 48 dry runs bounds nested
 loops.
+
+## Array cardinality guards
+
+The source prepass in `cardinality.rs` adds ordinary boolean path facts
+for a narrow native-array/scalar-count model. It does not create effects,
+recognize application names or suppress diagnostic fingerprints.
+
+For an immutable array source, concatenating two pure complementary
+filters (`[...rows.filter(r => r.flag), ...rows.filter(r => !r.flag)]`)
+has length **at most** the source length. This is an upper bound, not
+equality: `filter` drops holes in sparse arrays. A nonempty native
+`ordered.slice(count)` excludes `count > ordered.length` and growth beyond
+every proven upper bound. Growth and nonempty-tail guards therefore cannot
+both be taken in one path. The existing path walker handles the resulting
+contradictions, including inside imported helpers and factory-built entries.
+
+The proof follows immutable aliases (at most eight links), one-argument
+`slice`, and pure truthiness/negation predicates on the callback parameter
+or a static property path. A same-file predicate with a single return can
+be used by name; defaulted/destructured predicate parameters are refused.
+Equivalent nonempty tests (`length`, `length > 0`,
+`0 < length`, `length !== 0`, `!(length === 0)`) share the implication;
+`length >= 0` does not imply nonempty. Existing syntactic facts are kept.
+
+Module-level array bindings do not supply this private-snapshot proof.
+Every reference to an array must be a supported non-mutating read or a
+tracked immutable alias. Writes, unknown argument escapes, mutable aliases,
+unknown predicates, and callbacks that expose the array through their
+third/rest argument invalidate the relation. Visible getters, custom
+coercion hooks, `arguments`, `eval` or `Array.prototype` access disable the
+prepass conservatively. Known object/array/function count values are not
+treated as scalar counts. The model assumes native array methods and
+side-effect-free scalar coercion; arbitrary subclasses, proxies and hidden
+user-defined coercions are outside it. TypeScript annotations are not used
+as proof. Tests: `tests/cardinality.rs` in the analyzer and
+`fixtures/safe/complementary_partition.ts`.
 
 ## Effect relationships (`valueRelation`)
 

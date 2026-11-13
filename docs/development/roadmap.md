@@ -13,8 +13,10 @@ From the frozen evaluation sets and the corpus
 * zod refinements (`refine`, `superRefine`), transforms, preprocess,
   coerce and unions — the current blocker of the private school-ledger
   project ([zod](../reference/zod.md#limitations));
-* higher-order wrappers with unknown callback mapping (function factories,
-  call-returned functions), closures that escape, inherited methods;
+* higher-order wrappers with unknown callback mapping, mutable escaped
+  closures, effectful module factory initialization, inherited methods in
+  discovery. Static analysis follows immutable captures and stable bindings
+  initialized by inert factories ([value analysis](../architecture/value-analysis.md#interprocedural-summaries));
 * `values(obj)` of a parameter object, array mutation, row values of
   `UPDATE`/`DELETE … RETURNING`, `orderBy` other than the primary key,
   multi-row mode with joins;
