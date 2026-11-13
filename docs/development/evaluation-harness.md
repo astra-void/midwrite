@@ -964,7 +964,7 @@ on parameters prune callee branches.
 * zero's KP02–KP05: `db` is a Cloudflare Durable Object RPC stub
   (`scopedRpc<DbRpcDO>`) whose methods forward to a second Durable Object
   that runs Drizzle. Its methods are reported as unmodelled database
-  methods (MW9001).
+  methods (MW9001). Follow-up: DEV-179.
 * `options?.x ?? default` on a parameter does not decide callee branches,
   even for an explicit `{ x: false }` argument. (Fixed on 2026-11-13, see
   below.)
@@ -1002,7 +1002,8 @@ positives. Those 3 report Resend's single `emails.send` branch, which runs only 
 `emailPayloads.some((p) => p.attachments …)` holds. That depends on the contents of an array
 built by `Promise.all(...map(...))`, which value analysis does not track.
 Dev hazard precision would go from 383/401 (95.51%) to 388/409 (94.87%),
-so the patch stays parked.
+so the patch stays parked. Follow-ups: array-content tracking (DEV-177),
+then field clients (DEV-178).
 
 ## Nested higher-order helpers (2026-11-13, DEV-166)
 
@@ -1057,6 +1058,14 @@ depending on it (`bot/runtime.ts:214`). Dev hazard precision would go from
 387/405 to 388/409, so it was not shipped. Skipping only empty `.catch`
 handlers would keep the true positive and drop the three, but their causes
 are not the handler, so that rule would be fitted to these labels.
+Re-measured on 2026-11-13 at `2e3ba8f`, after the cardinality guard and
+factory-closure changes, the patch adds the same four findings: dev hazard
+precision would go from 400/418 to 401/422, and held-out is unchanged.
+The infeasible path at `runtime.ts:194` needs per-path literal properties
+of returned objects (`consumeResolvedConversation` returns
+`{ ...resolved, consumed: true }`), which Midwrite does not infer. That
+work is DEV-175. The continuation work itself is DEV-176, which keeps the
+rebased patch.
 
 ## Calls through factory results (2026-11-13)
 
