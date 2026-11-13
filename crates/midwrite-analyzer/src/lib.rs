@@ -566,7 +566,8 @@ impl Analyzer {
         let (mut functions, mut calls, facts, fact_table, index) = finder.finish();
         // A callee's return facts are renamed to the caller's binding of the
         // result only when some branch of the caller tests that binding:
-        // otherwise they only keep paths apart.
+        // otherwise they only keep paths apart. A returned call's binding
+        // (`return f()`) is tested by the caller's callers, if anywhere.
         for (function, sites) in functions.iter().zip(calls.iter_mut()) {
             if sites.iter().all(|site| site.binding.is_none()) {
                 continue;
@@ -574,6 +575,7 @@ impl Analyzer {
             let tested = tested_variables(&function.body);
             for site in sites.iter_mut() {
                 if let Some((binding, _)) = &site.binding
+                    && binding != midwrite_core::analysis::RETURN_VARIABLE
                     && !tested.iter().any(|variable| {
                         variable == binding
                             || variable

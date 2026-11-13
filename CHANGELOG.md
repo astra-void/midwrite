@@ -11,6 +11,12 @@ output formats.
 
 ### Added
 
+- Properties of a returned object now decide a caller's branch through
+  spreads (`{ ...r, consumed: true }`), `return f(...)`, effect-free helpers
+  whose every return sets the property, type assertions, and truthiness or
+  nullish tests of the binding. A test that comes before the object escapes
+  to other code also counts. No evaluation finding changes
+  ([evaluation harness](docs/development/evaluation-harness.md#returned-object-properties-across-helpers-2026-11-13-dev-175)).
 - A release-status page that records, with run links and dates, what is
   verified about v0.1.0: the tagged release run, the GitHub release, the
   hand-published npm packages, clean installs on all six platforms and

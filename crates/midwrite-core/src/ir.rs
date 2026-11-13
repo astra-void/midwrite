@@ -1345,7 +1345,7 @@ impl FunctionIr {
                         call.execution
                     ),
                 );
-                if !call.inert {
+                if !call.inert || !call.body.is_empty() {
                     self.write_body(out, &call.body, depth + 1, sources);
                 }
                 line(out, depth, format_args!("{} end", call.call));

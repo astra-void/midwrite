@@ -624,8 +624,11 @@ pub(crate) struct Lowerer<'c> {
     local_calls: Vec<LocalCallSite>,
     /// A `const` whose initializer awaits the call starting at this offset
     /// (`const result = await db.transaction(cb)`), with its fact variable
-    /// and binding.
-    pending_result: Option<(u32, String, oxc_syntax::symbol::SymbolId)>,
+    /// and binding. `None` for the binding: the call is this function's
+    /// returned value (`return f(...)`), whose facts are this function's
+    /// return facts ([`RETURN_VARIABLE`]); the caller of this function
+    /// decides whether its own binding's members are stable.
+    pending_result: Option<(u32, String, Option<oxc_syntax::symbol::SymbolId>)>,
     /// The variable bound to the result of the transaction whose callback is
     /// being lowered.
     return_binding: Option<String>,
@@ -986,7 +989,7 @@ impl<'a> Lowerer<'_> {
                 && let Some(symbol) = id.symbol_id.get()
                 && let Some(Variable::Free(variable)) = self.binding_variable(symbol, &id.name)
             {
-                self.pending_result = Some((call.span.start, variable, symbol));
+                self.pending_result = Some((call.span.start, variable, Some(symbol)));
             }
             self.visit_expression(init);
             self.pending_result = saved;
@@ -1044,7 +1047,22 @@ impl<'a> Lowerer<'_> {
         } else {
             Consumer::SyncReturn
         };
+        // `return f(...)` / `return await f(...)` (through parentheses and
+        // type assertions): `f`'s return facts are this function's on that
+        // path, so a caller testing a property of the result can correlate
+        // it with `f`'s returns.
+        let saved = self.pending_result.take();
+        if self.callback_depth == 0 {
+            let inner = match expression.get_inner_expression() {
+                Expression::AwaitExpression(awaited) => awaited.argument.get_inner_expression(),
+                other => other,
+            };
+            if let Expression::CallExpression(call) = inner {
+                self.pending_result = Some((call.span.start, RETURN_VARIABLE.to_owned(), None));
+            }
+        }
         self.consume(expression, consumer);
+        self.pending_result = saved;
         if self.callback_depth == 0 {
             let value = self.eval(expression);
             let exported = self.vs.heap.export(&value);
@@ -1436,9 +1454,9 @@ impl<'a> Lowerer<'_> {
         let binding = match &self.pending_result {
             Some((start, variable, symbol)) if *start == call.span.start => Some((
                 variable.clone(),
-                self.recognizer
-                    .table
-                    .member_stable(*symbol, self.recognizer.scoping),
+                // Property facts on the binding are only made where nothing
+                // can have changed it ([`Self::member_variable`]).
+                symbol.is_none_or(|symbol| !self.recognizer.table.member_called(symbol)),
             )),
             _ => None,
         };
@@ -2232,14 +2250,23 @@ impl<'a> Lowerer<'_> {
                 let mut facts = vec![Fact::Object {
                     variable: ret.clone(),
                 }];
-                let plain = object.properties.iter().all(|property| {
-                    matches!(property, ObjectPropertyKind::ObjectProperty(p)
-                        if p.kind == PropertyKind::Init && !p.computed)
+                // Spreads may set any property: only properties written
+                // after the last spread are known (a later one overrides
+                // whatever the spread copied).
+                let last_spread = object.properties.iter().rposition(|property| {
+                    matches!(property, ObjectPropertyKind::SpreadProperty(_))
+                });
+                let plain = object.properties.iter().all(|property| match property {
+                    ObjectPropertyKind::ObjectProperty(p) => {
+                        p.kind == PropertyKind::Init && !p.computed
+                    }
+                    ObjectPropertyKind::SpreadProperty(_) => true,
                 });
                 if !plain {
                     return facts;
                 }
-                for property in &object.properties {
+                let known = last_spread.map_or(0, |index| index + 1);
+                for property in &object.properties[known..] {
                     let ObjectPropertyKind::ObjectProperty(property) = property else {
                         continue;
                     };
@@ -2639,7 +2666,18 @@ impl<'a> Lowerer<'_> {
                 .insert(variable.clone(), FactInput::new(source.field(name)));
             return Some(Variable::Free(variable));
         }
-        if !self.recognizer.table.member_stable(symbol, scoping) {
+        // Every reference reads a property, or (outside loops and
+        // callbacks, where source order is execution order) every
+        // reference before this one does: what the object held when it was
+        // bound is what this read sees, even if it escapes afterwards.
+        let stable = self.recognizer.table.member_stable(symbol, scoping)
+            || (self.loop_depth == 0
+                && self.callback_depth == 0
+                && self
+                    .recognizer
+                    .table
+                    .unchanged_before(symbol, member.span.start));
+        if !stable {
             return None;
         }
         let value = self.eval_ident(object);

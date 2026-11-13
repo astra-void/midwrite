@@ -1257,3 +1257,52 @@ Every audited known-positive match and held-out finding ID is unchanged.
 No corpus code was executed, no frozen inputs were edited, and these
 additional contexts/branches are not seven confirmed independent bugs.
 
+## Returned-object properties across helpers (2026-11-13, DEV-175)
+
+Record: [`reports/eval/2026-11-13-returned-object-properties.json`](../../reports/eval/2026-11-13-returned-object-properties.json),
+binary built from `91903bb` plus this change, scored with the sets of `91903bb`. The target came from the
+parked promise-continuation patch's dev false positive at midday
+`apps/api/src/bot/runtime.ts:194`, not from a held-out result.
+
+**What changed.** A property of the object a function returns already
+decided a caller's branch when every `return` was a plain object literal
+(`fixtures/vulnerable/return_value_correlation.ts`). Four gaps kept midday's
+link-code path from being excluded:
+
+* a returned object with a spread (`{ ...resolved, consumed: true }`) gave
+  no property facts. Properties written after the last spread now do;
+  anything before a spread stays unknown;
+* `return f(...)` passed none of `f`'s return facts on. The returned call is
+  now bound to the function's own returned value, so the facts reach the
+  caller's caller;
+* a call of an inert helper (no effects) was an empty scope. When its
+  result is bound, the facts that **every** `return` of the helper implies
+  are added as one return that holds on all paths. A helper that sets the
+  property on some paths only adds nothing, and no paths are added;
+* a binding referenced as `!x`, `if (x)`, `x ? :` or `x == null` was not
+  "member stable", and neither was one passed to other code later. Pure
+  tests now count as reads. Outside loops and callbacks, a property test
+  gets a fact when every earlier reference only reads or tests the binding,
+  even if the object escapes afterwards. A method call or a write through
+  the binding anywhere still disables it.
+
+Fixtures: [`fixtures/safe/returned_object_properties.ts`](../../fixtures/safe/returned_object_properties.ts)
+(spread, helper, returned call, cast, truthiness test, escape after the
+test) and [`fixtures/vulnerable/returned_object_properties_unknown.ts`](../../fixtures/vulnerable/returned_object_properties_unknown.ts)
+(a spread after the property, the property on one helper path only, a write
+or an exposure before the test, a test in a loop). All of these remain
+reported.
+
+**Scores.** No finding changes on dev or held-out: dev hazard precision is
+400/418 and held-out is 30/32, with the gate passing. On its own, the
+change only removes paths that no current finding uses.
+
+**The parked continuation patch on top (DEV-176).** It still adds four dev
+findings. The targeted pair at `runtime.ts:194` (`21a77df7f0cd12c3`, whose
+first write is `createOrUpdatePlatformIdentity`) is gone. In its place a
+pair with the same second write appears (`47d042c897a2541f`). Its first
+write is `consumePlatformLinkToken`'s `UPDATE ... RETURNING`, on the path
+where the token is `null`, which is the path where the update matched no row.
+Midwrite does not model "an empty `RETURNING` result means nothing was
+written", so the continuation patch stays parked. The new pair is unlabeled:
+it was not given a label here.

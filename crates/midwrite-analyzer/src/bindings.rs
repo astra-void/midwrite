@@ -107,6 +107,10 @@ pub(crate) struct SymbolTable {
     member_reads: HashMap<SymbolId, usize>,
     /// Bindings whose methods are called (`x.p()`): the call may change them.
     member_called: HashSet<SymbolId>,
+    /// References of each binding that only test it (`!x`, `if (x)`,
+    /// `x ? a : b`, `x == null`): the value goes nowhere, so its properties
+    /// cannot change through them.
+    test_reads: HashMap<SymbolId, usize>,
     /// Start offsets of the references of each binding.
     references_at: HashMap<SymbolId, Vec<u32>>,
     /// Start offsets of references that are property reads or write
@@ -346,7 +350,15 @@ impl SymbolTable {
         let total = scoping.get_resolved_reference_ids(symbol).len();
         total > 0
             && !self.member_called.contains(&symbol)
-            && self.member_reads.get(&symbol).copied().unwrap_or(0) == total
+            && self.member_reads.get(&symbol).copied().unwrap_or(0)
+                + self.test_reads.get(&symbol).copied().unwrap_or(0)
+                == total
+    }
+
+    /// Whether a method of `symbol` is called or it is written through
+    /// anywhere: its properties may change.
+    pub fn member_called(&self, symbol: SymbolId) -> bool {
+        self.member_called.contains(&symbol)
     }
 
     /// The references of `symbol` that are neither property reads nor
@@ -652,6 +664,9 @@ impl<'a> Visit<'a> for Collector<'_> {
     }
 
     fn visit_unary_expression(&mut self, it: &UnaryExpression<'a>) {
+        if it.operator == oxc_syntax::operator::UnaryOperator::LogicalNot {
+            self.note_test(&it.argument);
+        }
         if it.operator == oxc_syntax::operator::UnaryOperator::Delete
             && let Some(member) = it.argument.get_inner_expression().as_member_expression()
             && let Expression::Identifier(ident) = member.object().get_inner_expression()
@@ -739,6 +754,40 @@ impl<'a> Visit<'a> for Collector<'_> {
                 .or_default()
                 .push(it.span.start);
         }
+    }
+
+    fn visit_if_statement(&mut self, it: &oxc_ast::ast::IfStatement<'a>) {
+        self.note_test(&it.test);
+        walk::walk_if_statement(self, it);
+    }
+
+    fn visit_conditional_expression(&mut self, it: &oxc_ast::ast::ConditionalExpression<'a>) {
+        self.note_test(&it.test);
+        walk::walk_conditional_expression(self, it);
+    }
+
+    fn visit_binary_expression(&mut self, it: &oxc_ast::ast::BinaryExpression<'a>) {
+        use oxc_syntax::operator::BinaryOperator;
+        // `x == null`, `x !== undefined`: a comparison with a nullish literal.
+        let nullish = |e: &Expression<'_>| match e.get_inner_expression() {
+            Expression::NullLiteral(_) => true,
+            Expression::Identifier(id) => id.name == "undefined",
+            _ => false,
+        };
+        if matches!(
+            it.operator,
+            BinaryOperator::Equality
+                | BinaryOperator::Inequality
+                | BinaryOperator::StrictEquality
+                | BinaryOperator::StrictInequality
+        ) {
+            if nullish(&it.right) {
+                self.note_test(&it.left);
+            } else if nullish(&it.left) {
+                self.note_test(&it.right);
+            }
+        }
+        walk::walk_binary_expression(self, it);
     }
 
     fn visit_static_member_expression(&mut self, it: &StaticMemberExpression<'a>) {
@@ -908,6 +957,16 @@ fn contains_call(expression: &Expression<'_>) -> bool {
 impl Collector<'_> {
     /// An identifier written here: remember it when the write happens in a
     /// function nested in the one that declares the binding.
+    /// `expression` is only tested for truthiness or nullishness.
+    fn note_test(&mut self, expression: &Expression<'_>) {
+        if let Expression::Identifier(ident) = expression.get_inner_expression()
+            && let Some(symbol) = resolve_reference(self.scoping, ident)
+        {
+            *self.table.test_reads.entry(symbol).or_default() += 1;
+            self.table.reads_at.insert(ident.span.start);
+        }
+    }
+
     fn note_write(&mut self, ident: &IdentifierReference<'_>) {
         let Some(symbol) = resolve_reference(self.scoping, ident) else {
             return;

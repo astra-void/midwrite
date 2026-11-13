@@ -1270,6 +1270,29 @@ impl<'a> Inliner<'a> {
             },
             _ => callee.location,
         };
+        // What every return of the callee implies about the caller's binding
+        // of the result (`return { ...r, consumed: true }`): one `return`
+        // that holds on every path, so the call adds no paths.
+        let body = match &site.binding {
+            Some(binding) => {
+                let facts: Vec<Fact> = common_return_facts(&callee.body)
+                    .iter()
+                    .filter_map(|fact| bound_return_fact(fact, binding, site.binding_members))
+                    .collect();
+                if facts.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![Node::Exit(Exit {
+                        kind: ExitKind::Return,
+                        location: effect.location,
+                        transaction: None,
+                        detail: None,
+                        facts,
+                    })]
+                }
+            }
+            None => Vec::new(),
+        };
         Outcome {
             node: Some(Node::Call(CallScope {
                 call,
@@ -1278,7 +1301,7 @@ impl<'a> Inliner<'a> {
                 location: effect.location,
                 callee_location,
                 execution: effect.execution,
-                body: Vec::new(),
+                body,
                 resolution: site.resolution.clone().map(Box::new),
                 inert: true,
                 callback_context: false,
@@ -1419,6 +1442,74 @@ impl<'a> Inliner<'a> {
 
 /// Conservative normal-return coverage. Loops and try/finally are left
 /// unknown; a possible implicit `undefined` must not become a known callable.
+/// The facts every `return` of a function body implies about its returned
+/// value ([`RETURN_VARIABLE`]); empty when a path can end without a `return`
+/// (it returns `undefined`) or when the returns share none. Returns of
+/// nested calls and transaction callbacks are not the function's own.
+fn common_return_facts(body: &[Node]) -> Vec<Fact> {
+    fn walk(nodes: &[Node], out: &mut Vec<Vec<Fact>>) {
+        for node in nodes {
+            match node {
+                Node::Exit(exit) if exit.kind == ExitKind::Return => out.push(
+                    exit.facts
+                        .iter()
+                        .filter(|fact| {
+                            fact.variable()
+                                .is_some_and(|variable| variable.starts_with(RETURN_VARIABLE))
+                        })
+                        .cloned()
+                        .collect(),
+                ),
+                Node::Branch(branch) => {
+                    for arm in &branch.arms {
+                        walk(&arm.body, out);
+                    }
+                }
+                Node::Switch(switch) => {
+                    for case in &switch.cases {
+                        walk(&case.body, out);
+                    }
+                }
+                Node::Loop(lp) => walk(&lp.body, out),
+                Node::Try(try_node) => {
+                    walk(&try_node.block, out);
+                    if let Some(handler) = &try_node.handler {
+                        walk(&handler.body, out);
+                    }
+                    if let Some(finalizer) = &try_node.finalizer {
+                        walk(finalizer, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    if !returns_on_all_paths(body) {
+        return Vec::new();
+    }
+    let mut returns = Vec::new();
+    walk(body, &mut returns);
+    let Some((first, rest)) = returns.split_first() else {
+        return Vec::new();
+    };
+    first
+        .iter()
+        .filter(|fact| rest.iter().all(|other| other.contains(fact)))
+        .cloned()
+        .collect()
+}
+
+/// A callee's return fact about [`RETURN_VARIABLE`] as a fact about the
+/// caller's binding of the result; `None` for a property fact when the
+/// binding's members are not stable.
+fn bound_return_fact(fact: &Fact, binding: &str, members: bool) -> Option<Fact> {
+    let rest = fact.variable()?.strip_prefix(RETURN_VARIABLE)?;
+    if !(rest.is_empty() || (rest.starts_with('.') && members)) {
+        return None;
+    }
+    Some(fact.renamed(|_| format!("{binding}{rest}")))
+}
+
 fn returns_on_all_paths(nodes: &[Node]) -> bool {
     nodes.iter().any(|node| match node {
         Node::Exit(exit) => matches!(exit.kind, ExitKind::Return | ExitKind::Throw),
