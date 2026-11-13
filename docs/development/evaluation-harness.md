@@ -1489,3 +1489,50 @@ The user chose to ship with these labels.
 | dev bug precision | 175/425 | 179/433 |
 | dev recall | 157/169 | 160/171 (the new true positives join the denominator) |
 | held-out hazard precision | 30/32 | 30/32, gate PASS |
+
+## Promise continuations (2026-11-13, DEV-176)
+
+Record: [`reports/eval/2026-11-13-promise-continuations.json`](../../reports/eval/2026-11-13-promise-continuations.json),
+binary built from `8b2697f` plus this change, scored with the sets of
+`8b2697f`. This ships the patch that was parked in DEV-166, rebased onto
+the analyzer changes made since.
+
+**What changed.** The following callbacks now run in the caller's
+sequence:
+
+* `await p.then(cb)` runs `p`, then `cb`;
+* `await p.catch(cb)` is `try { p } catch { cb }`;
+* `await p.finally(cb)` is `try { p } finally { cb }`.
+
+This holds when the call is awaited, returned from an `async` function or
+awaited concurrently, and `cb` is an inline function. The callback is
+lowered in place, so its captures (an id, a transaction handle) stay
+known. Timer callbacks (`setTimeout`) are still deferred by design.
+
+Fixture: [`fixtures/vulnerable/promise_continuations.ts`](../../fixtures/vulnerable/promise_continuations.ts).
+
+**Why it ships now.** DEV-175 (returned-object properties) and DEV-180
+(empty `RETURNING`) removed the infeasible pair at midday
+`runtime.ts:194`. Three dev findings remain:
+
+* **kan `card.ts:620`, true-positive.** A label link commits in its own
+  transaction before the activity insert.
+* **midday `runtime.ts:214`, intended-risk.** A best-effort `lastSeenAt`
+  heartbeat before an inbox upload.
+* **midday `customers.ts:102`, false-positive.** The new-customer path
+  inserts a fresh row, so the tag delete cannot run. That is an analyzer
+  gap in its own right, not one caused by the continuation.
+
+Two new blind AI labelers labeled each finding independently. For the
+two midday findings, which had an earlier blind label (both
+false-positive), the label is the majority of the three. That rule was
+fixed before the new labels were seen. This is AI adjudication, not the
+DEV-162 human review.
+
+| measure | before | after |
+| --- | ---: | ---: |
+| dev hazards | 441 | 444 |
+| dev hazard precision | 411/433 (94.9%) | 413/436 (94.7%) |
+| dev bug precision | 179/433 | 180/436 |
+| dev recall | 160/171 | 161/172 |
+| held-out hazard precision | 30/32 | 30/32, gate PASS |

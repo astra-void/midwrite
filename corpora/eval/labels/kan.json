@@ -1549,6 +1549,15 @@
    "relatedFindings": [
     "d0fbcec7ea72a273"
    ]
+  },
+  {
+   "findingId": "d9d4e83c970f58cc",
+   "code": "MW1004",
+   "file": "packages/api/src/routers/card.ts",
+   "line": 620,
+   "function": "<anonymous@533:15>",
+   "classification": "true-positive",
+   "notes": "createCardLabelRelationship commits cards_to_labels in its own transaction (packages/db/src/repository/card.repo.ts:282-291, 545-554); the label-added activity is inserted separately on ctx.db (packages/api/src/routers/card.ts:620-625, cardActivity.repo.ts:51), and nothing compensates or accepts the gap, so a failure leaves the label without its activity record. (2026-11-13 blind AI labels; not independently human-validated.)"
   }
  ],
  "corrections": [
@@ -1610,6 +1619,16 @@
     "packages/api/src/utils/trello-token.ts:11-14",
     "packages/api/src/routers/import.ts:260"
    ]
+  },
+  {
+   "date": "2026-11-13",
+   "by": "AI agents (Claude), two blind source-only labelers separate from analyzer tuning, plus one earlier blind label; did not see knownPositives, existing labels or reports",
+   "humanReviewed": false,
+   "type": "new-findings-reviewed",
+   "findings": [
+    "d9d4e83c970f58cc"
+   ],
+   "reason": "Findings exposed by DEV-176 (awaited .then/.catch/.finally callbacks run in sequence). Two blind labelers labeled each finding independently; for findings with an earlier blind label, the label is the majority of the three, a rule fixed before the new labels were seen. d9d4e83c970f58cc: Two new blind labels agree (an earlier blind label also said true-positive). Existing classifications were not changed. Source-only AI review, not human review or runtime confirmation."
   }
  ],
  "reviewQueue": [

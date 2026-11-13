@@ -11,6 +11,10 @@ output formats.
 
 ### Added
 
+- `.then`, `.catch` and `.finally` callbacks of an awaited promise run in
+  the caller's sequence (`p` then `cb`, `try { p } catch { cb }`, `try {
+  p } finally { cb }`), with the callback lowered in place
+  ([evaluation harness](docs/development/evaluation-harness.md#promise-continuations-2026-11-13-dev-176)).
 - A known SDK client held in a class field (`private client = new
   Resend(...)` set in the constructor) is recognized, and private methods
   (`this.#send()`) are followed. midday's audited window KP02 (an invoice

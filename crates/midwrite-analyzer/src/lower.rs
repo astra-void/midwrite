@@ -1245,6 +1245,11 @@ impl<'a> Lowerer<'_> {
     }
 
     fn call_unwrapped(&mut self, call: &CallExpression<'a>, consumer: Option<Consumer>) {
+        if let Some(consumer) = consumer
+            && self.continuation(call, consumer)
+        {
+            return;
+        }
         let chain = unwind_call(call);
         // Operations that start by themselves are not ordered by an
         // argument position: they keep the Phase 4 execution.
@@ -1612,15 +1617,33 @@ impl<'a> Lowerer<'_> {
         {
             return false;
         }
-        let Some(callback) = call
-            .arguments
-            .last()
-            .and_then(Argument::as_expression)
-            .map(Expression::get_inner_expression)
-        else {
+        let Some(callback) = call.arguments.last().and_then(Argument::as_expression) else {
             return false;
         };
-        let (body, params, is_async, span) = match callback {
+        if !is_inline_function(callback) {
+            return false;
+        }
+        for argument in call.arguments.iter().take(call.arguments.len() - 1) {
+            self.visit_argument(argument);
+        }
+        self.inline_callback(call, callback, execution, false, "<OpenTelemetry callback>")
+    }
+
+    /// Lower the inline function `callback` (an arrow or function
+    /// expression) where `call` runs it, in the enclosing frame (captured
+    /// values and handles stay known), as a call scope with `execution`.
+    /// `adopts`: whoever runs it awaits what it returns, as for an `async`
+    /// function (a promise continuation adopts a returned promise or
+    /// builder). `false` when `callback` is not an inline function.
+    fn inline_callback(
+        &mut self,
+        call: &CallExpression<'a>,
+        callback: &Expression<'a>,
+        execution: Execution,
+        adopts: bool,
+        callee: &str,
+    ) -> bool {
+        let (body, params, is_async, span) = match callback.get_inner_expression() {
             Expression::ArrowFunctionExpression(f) => {
                 (Body::Arrow(&f.body), &f.params, f.r#async, f.span)
             }
@@ -1637,13 +1660,10 @@ impl<'a> Lowerer<'_> {
             }
             _ => return false,
         };
-        for argument in call.arguments.iter().take(call.arguments.len() - 1) {
-            self.visit_argument(argument);
-        }
         for param in &params.items {
             self.havoc_pattern(&param.pattern);
         }
-        let saved_async = std::mem::replace(&mut self.is_async, is_async);
+        let saved_async = std::mem::replace(&mut self.is_async, is_async || adopts);
         let saved_binding = self.return_binding.take();
         self.callback_depth += 1;
         let nodes = self.collect(|this| this.body(body));
@@ -1655,7 +1675,7 @@ impl<'a> Lowerer<'_> {
         self.next_inline_call += 1;
         self.out.push(Node::Call(midwrite_core::ir::CallScope {
             call: id,
-            callee: "<OpenTelemetry callback>".into(),
+            callee: callee.into(),
             label: self.recognizer.call_label(call).into(),
             location: self.location(call.span),
             callee_location: self.location(span),
@@ -1665,6 +1685,74 @@ impl<'a> Lowerer<'_> {
             inert: false,
             callback_context: false,
         }));
+        true
+    }
+
+    /// `p.then(cb)`, `p.catch(cb)`, `p.finally(cb)` with an inline callback,
+    /// awaited, returned from an `async` function or awaited concurrently:
+    /// `p` and then `cb`; `try { p } catch { cb }`; `try { p } finally
+    /// { cb }`. Anything else is lowered as before (the callback is not run).
+    fn continuation(&mut self, call: &CallExpression<'a>, consumer: Consumer) -> bool {
+        if !matches!(
+            consumer,
+            Consumer::Await | Consumer::AsyncReturn | Consumer::Concurrent
+        ) {
+            return false;
+        }
+        let Expression::StaticMemberExpression(member) = call.callee.get_inner_expression() else {
+            return false;
+        };
+        let kind = member.property.name.as_str();
+        let [argument] = call.arguments.as_slice() else {
+            return false;
+        };
+        let Some(callback) = argument.as_expression() else {
+            return false;
+        };
+        if !matches!(kind, "then" | "catch" | "finally") || !is_inline_function(callback) {
+            return false;
+        }
+        let execution = consumer.execution();
+        let callee = format!("<.{kind} callback>");
+        match kind {
+            "then" => {
+                self.consume(&member.object, consumer);
+                self.inline_callback(call, callback, execution, true, &callee);
+            }
+            _ => {
+                let before = self.fork();
+                let block = self.collect(|this| this.consume(&member.object, consumer));
+                let after_block = self.vs.clone();
+                if kind == "catch" {
+                    // The handler may start at any point of the block.
+                    self.rejoin(&before);
+                }
+                let body = self.collect(|this| {
+                    this.inline_callback(call, callback, execution, true, &callee);
+                });
+                if kind == "catch" {
+                    self.rejoin(&after_block);
+                }
+                let location = self.location(call.span);
+                let (handler, finalizer) = if kind == "catch" {
+                    let handler = Handler {
+                        location: self.location(callback.span()),
+                        body,
+                    };
+                    (Some(handler), None)
+                } else {
+                    (None, Some(body))
+                };
+                self.out.push(Node::Try(Try {
+                    location,
+                    block,
+                    handler,
+                    finalizer,
+                }));
+            }
+        }
+        let value = self.opaque();
+        self.call_values.insert(call.span.start, value);
         true
     }
 
@@ -4269,4 +4357,13 @@ fn relative_specifier(from: &str, to: &str) -> String {
         }
     }
     specifier
+}
+
+/// An arrow function or function expression with a body.
+fn is_inline_function(expression: &Expression<'_>) -> bool {
+    match expression.get_inner_expression() {
+        Expression::ArrowFunctionExpression(_) => true,
+        Expression::FunctionExpression(f) => f.body.is_some(),
+        _ => false,
+    }
 }

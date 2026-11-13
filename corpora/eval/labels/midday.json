@@ -2293,6 +2293,25 @@
    "function": "NotificationProcessor.process",
    "classification": "true-positive",
    "notes": "The invoice_overdue owners email is sent via batch.send (packages/notifications/src/services/email-service.ts:75) at apps/worker/src/processors/notifications/notification.ts:197 before sendToProviders (:209) updates the provider batch row (provider-notification-batches.ts:33); nothing records the send, so a crash in between is retried and re-sends the email. (2026-11-13 blind AI label; not independently human-validated.)"
+  },
+  {
+   "findingId": "241df941b096275d",
+   "code": "MW1001",
+   "file": "apps/api/src/bot/runtime.ts",
+   "line": 214,
+   "function": "handleIncomingMessage",
+   "classification": "intended-risk",
+   "notes": "The first write is a best-effort lastSeenAt heartbeat (apps/api/src/bot/runtime.ts:194-199, `.catch(() => {})`; packages/db/src/queries/platform-identities.ts:164) with no invariant tied to the later inbox upload (inbox-upload.ts:145 via runtime.ts:214), whose per-attachment failures are caught and only logged (runtime.ts:727-783). (2026-11-13 blind AI labels; not independently human-validated.)"
+  },
+  {
+   "findingId": "b87d2c7bc6f87592-2",
+   "code": "MW1004",
+   "file": "apps/api/src/trpc/routers/customers.ts",
+   "line": 102,
+   "function": "<anonymous@65:15>",
+   "classification": "false-positive",
+   "fpCause": "callee branch infeasible on new-customer path",
+   "notes": "The enrichment reset at apps/api/src/trpc/routers/customers.ts:102 runs only for a new customer (`isNewCustomer = !input.id`, :66/:75); upsertCustomer then inserts a fresh row (packages/db/src/queries/customers.ts:354-387) with no tags, so tagIdsToDelete is empty and db.delete(customerTags) at :452-461 cannot run on this path. (2026-11-13 blind AI labels; not independently human-validated.)"
   }
  ],
  "corrections": [
@@ -2471,6 +2490,17 @@
     "b8ac169d7c0e53be-2"
    ],
    "reason": "Findings exposed by DEV-178 (SDK clients held in class fields, private methods): Notifications -> EmailService -> Resend became visible. The three false positives are the per-payload emails.send branch for callers that never pass attachments (DEV-177). Existing classifications were not changed. Source-only AI review, not human review or runtime confirmation."
+  },
+  {
+   "date": "2026-11-13",
+   "by": "AI agents (Claude), two blind source-only labelers separate from analyzer tuning, plus one earlier blind label; did not see knownPositives, existing labels or reports",
+   "humanReviewed": false,
+   "type": "new-findings-reviewed",
+   "findings": [
+    "241df941b096275d",
+    "b87d2c7bc6f87592-2"
+   ],
+   "reason": "Findings exposed by DEV-176 (awaited .then/.catch/.finally callbacks run in sequence). Two blind labelers labeled each finding independently; for findings with an earlier blind label, the label is the majority of the three, a rule fixed before the new labels were seen. 241df941b096275d: Two new blind labels said intended-risk; an earlier blind label (2026-11-13, before DEV-175) said false-positive. Majority of three, decided before the labels were seen. b87d2c7bc6f87592-2: Three blind labels (two new, one earlier) agree. Existing classifications were not changed. Source-only AI review, not human review or runtime confirmation."
   }
  ],
  "reviewQueue": [
