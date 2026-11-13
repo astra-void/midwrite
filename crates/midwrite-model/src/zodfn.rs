@@ -88,6 +88,21 @@ pub enum Schema {
     Nullable(Box<Schema>),
     /// `.default(literal)`.
     Default(Box<Schema>, Value),
+    /// `.refine(callback)` / `.superRefine(callback)` with a callback the
+    /// extractor lowered to a predicate.
+    Refine(Box<Schema>, Refinement),
+}
+
+/// A refinement callback as a pure predicate of its value: the value
+/// passes when `ok` (evaluated with `param` bound to it, in JavaScript
+/// mode) is truthy. A JavaScript `TypeError` while evaluating it is the
+/// callback throwing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Refinement {
+    pub param: String,
+    pub ok: crate::value::Expr,
+    /// The callback as written, for explanations.
+    pub source: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -209,7 +224,7 @@ impl Schema {
                 .any(|c| matches!(c, StrCheck::Trim | StrCheck::Lower | StrCheck::Upper)),
             Self::Num(_) | Self::Bool | Self::Literal(_) | Self::Enum(_) => true,
             Self::Array(item, _) => item.output_is_input(),
-            Self::Optional(s) | Self::Nullable(s) => s.output_is_input(),
+            Self::Optional(s) | Self::Nullable(s) | Self::Refine(s, _) => s.output_is_input(),
             Self::Default(..) | Self::Object(_) | Self::StrictObject(_) | Self::LooseObject(_) => {
                 false
             }
@@ -359,6 +374,16 @@ fn schema_value(s: &Schema) -> Value {
             ("inner", schema_value(s)),
             ("value", d.clone()),
         ]),
+        Schema::Refine(s, r) => row(vec![
+            ty("refine"),
+            ("inner", schema_value(s)),
+            ("param", Value::str(r.param.as_str())),
+            (
+                "ok",
+                Value::Str(serde_json::to_string(&r.ok).unwrap_or_default()),
+            ),
+            ("source", Value::str(r.source.as_str())),
+        ]),
     }
 }
 
@@ -507,6 +532,14 @@ fn schema_from(v: &Value) -> Result<Schema, String> {
         "optional" => Schema::Optional(inner()?),
         "nullable" => Schema::Nullable(inner()?),
         "default" => Schema::Default(inner()?, r.get("value").cloned().ok_or_else(bad)?),
+        "refine" => Schema::Refine(
+            inner()?,
+            Refinement {
+                param: text("param")?,
+                ok: serde_json::from_str(&text("ok")?).map_err(|_| bad())?,
+                source: text("source")?,
+            },
+        ),
         _ => return Err(bad()),
     })
 }
@@ -588,6 +621,7 @@ pub fn render(s: &Schema) -> String {
         Schema::Optional(s) => format!("{}.optional()", render(s)),
         Schema::Nullable(s) => format!("{}.nullable()", render(s)),
         Schema::Default(s, d) => format!("{}.default({})", render(s), d.render()),
+        Schema::Refine(s, r) => format!("{}.refine({})", render(s), r.source),
     }
 }
 
@@ -598,25 +632,85 @@ pub fn render(s: &Schema) -> String {
 /// The outcome of a parse: `Some(output)` on success, `None` on failure.
 type Outcome = Result<Option<Value>, String>;
 
+/// Why a parse has no outcome in the model.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Failure {
+    /// Not modeled.
+    Unknown(String),
+    /// A refinement callback threw: so does `safeParse` (zod does not catch
+    /// it).
+    Threw(String),
+}
+
+impl From<String> for Failure {
+    fn from(why: String) -> Self {
+        Self::Unknown(why)
+    }
+}
+
+/// How a parse of one schema ended, as zod tracks it: valid; failed with
+/// continuable issues only (zod 3 "dirty"; zod 4 issues with `continue`),
+/// where the value is still built and a refinement above still runs on it;
+/// or aborted (a wrong type, an enum or literal mismatch), where it does
+/// not. A dirty value the model could not build is `Err` with the reason.
+#[derive(Clone, Debug, PartialEq)]
+enum Status {
+    Valid(Value),
+    Dirty(Result<Value, String>),
+    Aborted,
+}
+
+impl Status {
+    fn output(self) -> Option<Value> {
+        match self {
+            Self::Valid(v) => Some(v),
+            Self::Dirty(_) | Self::Aborted => None,
+        }
+    }
+
+    fn failed(&self) -> bool {
+        !matches!(self, Self::Valid(_))
+    }
+}
+
+type Parsed = Result<Status, Failure>;
+
 /// `schema.safeParse(input)`: `Ok(Some(data))`, `Ok(None)` (failure), or
-/// `Err` when the outcome is not modeled. With [`Version::Either`], zod 3
-/// and zod 4 must agree.
+/// `Err` when the outcome is not modeled (a refinement callback that
+/// throws is reported as not modeled too; see [`parse_js`]). With
+/// [`Version::Either`], zod 3 and zod 4 must agree.
 pub fn parse(version: Version, schema: &Schema, input: &Value) -> Outcome {
-    let mut result: Option<Option<Value>> = None;
+    parse_js(version, schema, input).map_err(|f| match f {
+        Failure::Unknown(why) => why,
+        Failure::Threw(why) => format!("a zod refinement callback throws ({why})"),
+    })
+}
+
+/// [`parse`], with a refinement callback that throws reported as such:
+/// `safeParse` and `parse` then throw.
+pub fn parse_js(
+    version: Version,
+    schema: &Schema,
+    input: &Value,
+) -> Result<Option<Value>, Failure> {
+    let mut result: Option<Result<Option<Value>, Failure>> = None;
     for &api in version.apis() {
-        let r = run(api, schema, input)?;
+        let r = run(api, schema, input).map(Status::output);
+        if let Err(Failure::Unknown(_)) = r {
+            return r;
+        }
         match &result {
             None => result = Some(r),
             Some(prev) if *prev == r => {}
             Some(_) => {
-                return Err(
+                return Err(Failure::Unknown(
                     "the project's zod major version is unknown and zod 3 and zod 4 parse this input differently"
                         .to_owned(),
-                );
+                ));
             }
         }
     }
-    Ok(result.unwrap_or(None))
+    result.unwrap_or(Ok(None))
 }
 
 fn unsupported_input(v: &Value) -> Option<String> {
@@ -649,7 +743,7 @@ fn optin(s: &Schema) -> OptIn {
                 OptIn::Optional
             }
         }
-        Schema::Nullable(inner) => optin(inner),
+        Schema::Nullable(inner) | Schema::Refine(inner, _) => optin(inner),
         Schema::Default(..) => OptIn::Defaulted,
         _ => OptIn::Required,
     }
@@ -659,29 +753,31 @@ fn optin(s: &Schema) -> OptIn {
 fn optout(s: &Schema) -> bool {
     match s {
         Schema::Optional(_) => true,
-        Schema::Nullable(inner) => optout(inner),
+        Schema::Nullable(inner) | Schema::Refine(inner, _) => optout(inner),
         _ => false,
     }
 }
 
-fn run(api: Api, s: &Schema, input: &Value) -> Outcome {
+fn run(api: Api, s: &Schema, input: &Value) -> Parsed {
     match s {
         Schema::Optional(inner) => {
             if matches!(input, Value::Undefined(_)) {
                 // zod 3 returns `undefined`; zod 4 lets a defaulted inner
                 // substitute its default (`handleOptionalResult`).
                 if api == Api::V4 && optin(inner) == OptIn::Defaulted {
-                    return Ok(Some(
-                        run(api, inner, input)?.unwrap_or_else(Value::undefined),
+                    return Ok(Status::Valid(
+                        run(api, inner, input)?
+                            .output()
+                            .unwrap_or_else(Value::undefined),
                     ));
                 }
-                return Ok(Some(Value::undefined()));
+                return Ok(Status::Valid(Value::undefined()));
             }
             run(api, inner, input)
         }
         Schema::Nullable(inner) => {
             if input.is_null() {
-                return Ok(Some(Value::Null));
+                return Ok(Status::Valid(Value::Null));
             }
             run(api, inner, input)
         }
@@ -691,76 +787,205 @@ fn run(api: Api, s: &Schema, input: &Value) -> Outcome {
                 // returns it as is.
                 return match api {
                     Api::V3 => run(api, inner, d),
-                    Api::V4 => Ok(Some(d.clone())),
+                    Api::V4 => Ok(Status::Valid(d.clone())),
                 };
             }
-            let out = run(api, inner, input)?;
-            Ok(match (api, out) {
-                (Api::V4, Some(Value::Undefined(_))) => Some(d.clone()),
+            Ok(match (api, run(api, inner, input)?) {
+                (Api::V4, Status::Valid(Value::Undefined(_))) => Status::Valid(d.clone()),
                 (_, out) => out,
             })
         }
+        // zod 3 `ZodEffects` and zod 4 checks agree: the callback runs on
+        // the parsed value unless the inner parse aborted, also when it
+        // only has continuable issues; a falsy result adds a continuable
+        // issue.
+        Schema::Refine(inner, refinement) => match run(api, inner, input)? {
+            Status::Aborted => Ok(Status::Aborted),
+            Status::Dirty(Err(why)) => Err(Failure::Unknown(format!(
+                "the refinement `{}` of a value the model does not build: {why}",
+                refinement.source
+            ))),
+            Status::Valid(v) => Ok(if refinement.passes(&v)? {
+                Status::Valid(v)
+            } else {
+                Status::Dirty(Ok(v))
+            }),
+            Status::Dirty(Ok(v)) => {
+                refinement.passes(&v)?;
+                Ok(Status::Dirty(Ok(v)))
+            }
+        },
         _ => {
             if let Some(why) = unsupported_input(input) {
-                return Err(why);
+                return Err(Failure::Unknown(why));
             }
             base(api, s, input)
         }
     }
 }
 
-fn base(api: Api, s: &Schema, input: &Value) -> Outcome {
+impl Refinement {
+    /// Whether the callback accepts `value` (JavaScript truthiness).
+    fn passes(&self, value: &Value) -> Result<bool, Failure> {
+        let mut locals = crate::value::Locals::new();
+        locals.insert(self.param.clone(), value.clone());
+        match self.ok.eval(&locals, None, crate::value::Mode::Js) {
+            Ok(v) => Ok(v.truthy()),
+            Err(crate::value::EvalError::Type(why)) => Err(Failure::Threw(format!(
+                "`{}`: TypeError: {why}",
+                self.source
+            ))),
+            Err(other) => Err(Failure::Unknown(format!(
+                "the refinement `{}`: {other}",
+                self.source
+            ))),
+        }
+    }
+}
+
+/// Whether parsing `s` may run a refinement callback (which may throw).
+fn may_throw(s: &Schema) -> bool {
+    match s {
+        Schema::Refine(..) => true,
+        Schema::Optional(i) | Schema::Nullable(i) | Schema::Default(i, _) => may_throw(i),
+        Schema::Array(i, _) => may_throw(i),
+        Schema::Object(f) | Schema::StrictObject(f) | Schema::LooseObject(f) => {
+            f.iter().any(|(_, s)| may_throw(s))
+        }
+        Schema::Str(_) | Schema::Num(_) | Schema::Bool | Schema::Literal(_) | Schema::Enum(_) => {
+            false
+        }
+    }
+}
+
+/// The parts of an array or object parsed so far.
+#[derive(Default)]
+struct Parts {
+    aborted: bool,
+    dirty: bool,
+    /// The first part whose dirty value is not modeled.
+    unbuilt: Option<String>,
+    /// The first part that is not modeled (but cannot throw).
+    unknown: Option<String>,
+}
+
+impl Parts {
+    /// Record one part's result; its value, when there is one. A part that
+    /// throws, or that is not modeled and may hide a throw, ends the parse
+    /// (zod parses parts in order and does not catch).
+    fn add(&mut self, schema: &Schema, result: Parsed) -> Result<Option<Value>, Failure> {
+        match result {
+            Ok(Status::Valid(v)) => Ok(Some(v)),
+            Ok(Status::Dirty(v)) => {
+                self.dirty = true;
+                match v {
+                    Ok(v) => Ok(Some(v)),
+                    Err(why) => {
+                        self.unbuilt.get_or_insert(why);
+                        Ok(None)
+                    }
+                }
+            }
+            Ok(Status::Aborted) => {
+                self.aborted = true;
+                Ok(None)
+            }
+            Err(Failure::Unknown(why)) if !may_throw(schema) => {
+                self.unknown.get_or_insert(why);
+                Ok(None)
+            }
+            Err(fault) => Err(fault),
+        }
+    }
+
+    /// The status of the whole: a failure wins over a part that is not
+    /// modeled (the outcome is a failure whatever that part does).
+    fn finish(self, value: Value) -> Parsed {
+        if self.aborted {
+            return Ok(Status::Aborted);
+        }
+        if self.dirty {
+            return Ok(Status::Dirty(match self.unknown.or(self.unbuilt) {
+                Some(why) => Err(why),
+                None => Ok(value),
+            }));
+        }
+        match self.unknown {
+            Some(why) => Err(Failure::Unknown(why)),
+            None => Ok(Status::Valid(value)),
+        }
+    }
+}
+
+fn base(api: Api, s: &Schema, input: &Value) -> Parsed {
     match s {
         Schema::Str(checks) => {
             let Value::Str(text) = input else {
-                return Ok(None);
+                return Ok(Status::Aborted);
             };
             let mut cur = text.clone();
+            let mut dirty = false;
             for c in checks {
-                let ok = match c {
-                    StrCheck::Min(n) => utf16_len(&cur) as i64 >= *n,
-                    StrCheck::Max(n) => utf16_len(&cur) as i64 <= *n,
-                    StrCheck::Length(n) => utf16_len(&cur) as i64 == *n,
-                    StrCheck::StartsWith(t) => cur.starts_with(t.as_str()),
-                    StrCheck::EndsWith(t) => cur.ends_with(t.as_str()),
-                    StrCheck::Includes(t) => cur.contains(t.as_str()),
-                    StrCheck::Trim => {
-                        cur = cur.trim_matches(is_js_whitespace).to_owned();
-                        true
-                    }
-                    StrCheck::Lower | StrCheck::Upper => {
-                        if !cur.is_ascii() {
-                            return Err(
-                                "zod `.toLowerCase()`/`.toUpperCase()` of a string with non-ASCII characters is not modeled"
-                                    .to_owned(),
-                            );
+                // Every check runs (zod 3 marks the result dirty; zod 4
+                // issues continue); only the value of a failed parse
+                // depends on what follows.
+                let ok = (|| -> Result<bool, String> {
+                    Ok(match c {
+                        StrCheck::Min(n) => utf16_len(&cur) as i64 >= *n,
+                        StrCheck::Max(n) => utf16_len(&cur) as i64 <= *n,
+                        StrCheck::Length(n) => utf16_len(&cur) as i64 == *n,
+                        StrCheck::StartsWith(t) => cur.starts_with(t.as_str()),
+                        StrCheck::EndsWith(t) => cur.ends_with(t.as_str()),
+                        StrCheck::Includes(t) => cur.contains(t.as_str()),
+                        StrCheck::Trim => {
+                            cur = cur.trim_matches(is_js_whitespace).to_owned();
+                            true
                         }
-                        cur = if *c == StrCheck::Lower {
-                            cur.to_ascii_lowercase()
-                        } else {
-                            cur.to_ascii_uppercase()
-                        };
-                        true
-                    }
-                    StrCheck::Uuid => {
-                        let (p, f) = if api == Api::V3 { V3_UUID } else { V4_UUID };
-                        Regex::new(p, f)?.test(&cur)?
-                    }
-                    StrCheck::Email => {
-                        let (p, f) = if api == Api::V3 { V3_EMAIL } else { V4_EMAIL };
-                        Regex::new(p, f)?.test(&cur)?
-                    }
-                    StrCheck::Regex { pattern, flags } => Regex::new(pattern, flags)?.test(&cur)?,
-                };
-                if !ok {
-                    return Ok(None);
+                        StrCheck::Lower | StrCheck::Upper => {
+                            if !cur.is_ascii() {
+                                return Err(
+                                    "zod `.toLowerCase()`/`.toUpperCase()` of a string with non-ASCII characters is not modeled"
+                                        .to_owned(),
+                                );
+                            }
+                            cur = if *c == StrCheck::Lower {
+                                cur.to_ascii_lowercase()
+                            } else {
+                                cur.to_ascii_uppercase()
+                            };
+                            true
+                        }
+                        StrCheck::Uuid => {
+                            let (p, f) = if api == Api::V3 { V3_UUID } else { V4_UUID };
+                            Regex::new(p, f)?.test(&cur)?
+                        }
+                        StrCheck::Email => {
+                            let (p, f) = if api == Api::V3 { V3_EMAIL } else { V4_EMAIL };
+                            Regex::new(p, f)?.test(&cur)?
+                        }
+                        StrCheck::Regex { pattern, flags } => {
+                            Regex::new(pattern, flags)?.test(&cur)?
+                        }
+                    })
+                })();
+                match ok {
+                    Ok(true) => {}
+                    Ok(false) => dirty = true,
+                    // Already failed: the outcome is known, only the value
+                    // is not.
+                    Err(why) if dirty => return Ok(Status::Dirty(Err(why))),
+                    Err(why) => return Err(Failure::Unknown(why)),
                 }
             }
-            Ok(Some(Value::Str(cur)))
+            Ok(if dirty {
+                Status::Dirty(Ok(Value::Str(cur)))
+            } else {
+                Status::Valid(Value::Str(cur))
+            })
         }
         Schema::Num(checks) => {
             let Value::Int(n) = input else {
-                return Ok(None);
+                return Ok(Status::Aborted);
             };
             let ok = checks.iter().all(|c| match c {
                 NumCheck::Ge(m) => n >= m,
@@ -769,19 +994,29 @@ fn base(api: Api, s: &Schema, input: &Value) -> Outcome {
                 NumCheck::Lt(m) => n < m,
                 NumCheck::Int => true,
             });
-            Ok(ok.then(|| input.clone()))
+            Ok(if ok {
+                Status::Valid(input.clone())
+            } else {
+                Status::Dirty(Ok(input.clone()))
+            })
         }
-        Schema::Bool => Ok(matches!(input, Value::Bool(_)).then(|| input.clone())),
-        Schema::Literal(v) => Ok(same_value_zero(input, v)
-            .map_err(|e| e.to_string())?
-            .then(|| input.clone())),
+        Schema::Bool => Ok(if matches!(input, Value::Bool(_)) {
+            Status::Valid(input.clone())
+        } else {
+            Status::Aborted
+        }),
+        Schema::Literal(v) => Ok(if same_value_zero(input, v).map_err(|e| e.to_string())? {
+            Status::Valid(input.clone())
+        } else {
+            Status::Aborted
+        }),
         Schema::Enum(items) => Ok(match input {
-            Value::Str(s) if items.contains(s) => Some(input.clone()),
-            _ => None,
+            Value::Str(s) if items.contains(s) => Status::Valid(input.clone()),
+            _ => Status::Aborted,
         }),
         Schema::Array(item, checks) => {
             let Value::List(items) = input else {
-                return Ok(None);
+                return Ok(Status::Aborted);
             };
             let len = items.len() as i64;
             // zod 3 keeps one slot per kind (the last call wins); zod 4
@@ -800,96 +1035,100 @@ fn base(api: Api, s: &Schema, input: &Value) -> Outcome {
                     .collect()
                 }
             };
-            let mut failed = !effective.iter().all(|c| match c {
-                ArrCheck::Min(n) => len >= *n,
-                ArrCheck::Max(n) => len <= *n,
-                ArrCheck::Length(n) => len == *n,
-            });
+            let mut parts = Parts {
+                dirty: !effective.iter().all(|c| match c {
+                    ArrCheck::Min(n) => len >= *n,
+                    ArrCheck::Max(n) => len <= *n,
+                    ArrCheck::Length(n) => len == *n,
+                }),
+                ..Parts::default()
+            };
             let mut out = Vec::with_capacity(items.len());
-            let mut unknown = None;
             for v in items {
-                match run(api, item, v) {
-                    Ok(Some(o)) => out.push(o),
-                    Ok(None) => failed = true,
-                    Err(e) => unknown = unknown.or(Some(e)),
+                if let Some(o) = parts.add(item, run(api, item, v))? {
+                    out.push(o);
                 }
             }
-            if failed {
-                return Ok(None);
-            }
-            if let Some(e) = unknown {
-                return Err(e);
-            }
-            Ok(Some(Value::List(out)))
+            parts.finish(Value::List(out))
         }
         Schema::Object(_) | Schema::StrictObject(_) | Schema::LooseObject(_) => {
             object(api, s, input)
         }
-        Schema::Optional(_) | Schema::Nullable(_) | Schema::Default(..) => run(api, s, input),
+        Schema::Optional(_) | Schema::Nullable(_) | Schema::Default(..) | Schema::Refine(..) => {
+            run(api, s, input)
+        }
     }
 }
 
-fn object(api: Api, s: &Schema, input: &Value) -> Outcome {
+fn object(api: Api, s: &Schema, input: &Value) -> Parsed {
     let Some((fields, unknown_keys)) = s.object() else {
-        return Ok(None);
+        return Ok(Status::Aborted);
     };
     let data = match input {
         Value::Row(r) => r,
         // zod 3 parses a Map or Set as its own type; zod 4's `isObject`
         // accepts them as objects (with no own properties) — not modeled.
         Value::Map(_) | Value::Set(_) if api == Api::V4 => {
-            return Err("a Map or Set as the input of a zod 4 object schema".to_owned());
+            return Err(Failure::Unknown(
+                "a Map or Set as the input of a zod 4 object schema".to_owned(),
+            ));
         }
-        _ => return Ok(None),
+        _ => return Ok(Status::Aborted),
     };
     if data.contains_key("__proto__") {
-        return Err("an object input with an own `__proto__` key".to_owned());
+        return Err(Failure::Unknown(
+            "an object input with an own `__proto__` key".to_owned(),
+        ));
     }
     let mut out = Row::new();
-    let mut failed = false;
-    let mut unknown: Option<String> = None;
+    let mut parts = Parts::default();
     for (key, field) in fields {
         if PROTOTYPE_KEYS.contains(&key.as_str()) {
-            return Err(format!(
+            return Err(Failure::Unknown(format!(
                 "the zod object key `{key}` (a property of Object.prototype)"
-            ));
+            )));
         }
         let present = data.contains_key(key);
         let value = data.get(key).cloned().unwrap_or_else(Value::undefined);
         match api {
-            Api::V3 => match run(api, field, &value) {
+            Api::V3 => {
                 // `mergeObjectSync`: set when the value is not undefined or
                 // the key is in the input.
-                Ok(Some(v)) => {
-                    if !matches!(v, Value::Undefined(_)) || present {
-                        out.insert(key.clone(), v);
-                    }
+                if let Some(v) = parts.add(field, run(api, field, &value))?
+                    && (!matches!(v, Value::Undefined(_)) || present)
+                {
+                    out.insert(key.clone(), v);
                 }
-                Ok(None) => failed = true,
-                Err(e) => unknown = unknown.or(Some(e)),
-            },
+            }
             Api::V4 => {
-                // `handlePropertyResult`.
+                // `handlePropertyResult`. An absent optional key yields
+                // nothing; its schema still runs, which matters only when it
+                // runs a refinement callback (on `undefined`).
                 let (i, o) = (optin(field), optout(field));
-                if !present && o && i == OptIn::Optional {
+                if !present && o && i == OptIn::Optional && !may_throw(field) {
                     continue;
                 }
-                match run(api, field, &value) {
-                    Ok(None) => {
-                        if !(i != OptIn::Required && o && !present) {
-                            failed = true;
-                        }
+                let result = run(api, field, &value);
+                match &result {
+                    // A failure of an absent key that may be absent is not
+                    // one.
+                    Ok(st) if st.failed() && i != OptIn::Required && o && !present => continue,
+                    Ok(Status::Valid(_)) if !present && i == OptIn::Required => {
+                        parts.aborted = true;
+                        continue;
                     }
-                    Ok(Some(_)) if !present && i == OptIn::Required => failed = true,
-                    Ok(Some(Value::Undefined(_))) => {
+                    _ => {}
+                }
+                match parts.add(field, result)? {
+                    Some(Value::Undefined(_)) => {
                         if present || (i == OptIn::Defaulted && !o) {
                             out.insert(key.clone(), Value::undefined());
                         }
                     }
-                    Ok(Some(v)) => {
+                    Some(v) => {
                         out.insert(key.clone(), v);
                     }
-                    Err(e) => unknown = unknown.or(Some(e)),
+                    None => {}
                 }
             }
         }
@@ -900,9 +1139,11 @@ fn object(api: Api, s: &Schema, input: &Value) -> Outcome {
         .collect();
     match unknown_keys {
         Unknown::Strip => {}
+        // zod 3 marks the result dirty; zod 4's `unrecognized_keys` issue
+        // continues.
         Unknown::Strict => {
             if !extra.is_empty() {
-                failed = true;
+                parts.dirty = true;
             }
         }
         Unknown::Passthrough => {
@@ -917,13 +1158,7 @@ fn object(api: Api, s: &Schema, input: &Value) -> Outcome {
             }
         }
     }
-    if failed {
-        return Ok(None);
-    }
-    if let Some(e) = unknown {
-        return Err(e);
-    }
-    Ok(Some(Value::Row(out)))
+    parts.finish(Value::Row(out))
 }
 
 /// What a valid object input without `key` yields for a field: the field is
@@ -978,6 +1213,9 @@ pub fn conform(
                 _ => Some(Value::Null),
             });
         }
+        // A value of the inner schema the refinement accepts (checked
+        // below), or none.
+        Schema::Refine(inner, _) => conform(version, inner, current, name)?,
         Schema::Str(checks) => string_candidates(checks, current, name)
             .into_iter()
             .find(|v| matches!(parse(version, schema, v), Ok(Some(_))))?,

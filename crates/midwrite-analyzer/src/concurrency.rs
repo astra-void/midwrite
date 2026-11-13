@@ -4633,6 +4633,13 @@ impl<'r> Lowerer<'r> {
             fn string_array(&self, name: &str) -> Option<Vec<String>> {
                 const_string_array(self.ctx, self.module, name, 0)
             }
+            fn source(&self, span: Span) -> Option<String> {
+                let text = self
+                    .module
+                    .source
+                    .get(span.start as usize..span.end as usize)?;
+                Some(text.split_whitespace().collect::<Vec<_>>().join(" "))
+            }
         }
         let root = self.ctx.root.clone();
         let ctx = self.ctx.clone();
@@ -4987,7 +4994,9 @@ impl<'r> Lowerer<'r> {
                 }
                 Ok(())
             }
-            Schema::Array(item, _) => self.zod_static_facts(version, item),
+            Schema::Array(item, _) | Schema::Refine(item, _) => {
+                self.zod_static_facts(version, item)
+            }
             Schema::Str(_)
             | Schema::Num(_)
             | Schema::Bool
@@ -5135,6 +5144,8 @@ impl<'r> Lowerer<'r> {
             )
         };
         match schema {
+            // A refinement does not change the value.
+            Schema::Refine(inner, _) => self.zod_output(m, span, version, inner, x),
             Schema::Str(checks) => {
                 let mut cur = x;
                 for c in checks {

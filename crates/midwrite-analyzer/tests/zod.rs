@@ -116,6 +116,8 @@ struct Oracle {
     success: bool,
     data: Value,
     parse_threw: bool,
+    /// `safeParse` itself threw (a refinement callback threw).
+    safe_threw: bool,
 }
 
 fn node(dir: &Path, entry: &str, api: u64) -> BTreeMap<(String, usize), Oracle> {
@@ -144,6 +146,7 @@ fn node(dir: &Path, entry: &str, api: u64) -> BTreeMap<(String, usize), Oracle> 
                     success: r["success"].as_bool().unwrap(),
                     data: serde_json::from_value(r["data"].clone()).unwrap(),
                     parse_threw: r["parseThrew"].as_bool().unwrap(),
+                    safe_threw: r["safeThrew"].as_bool().unwrap(),
                 },
             )
         })
@@ -233,7 +236,9 @@ fn run(x: &Extracted, input: &Value) -> Run {
         |e: &midwrite_model::value::Expr, locals: &Locals| match e.eval(locals, None, Mode::Js) {
             Ok(v) => Ok(v),
             Err(EvalError::Unknown(d)) => Err(Run::Refused(d)),
-            Err(other) => panic!("a JavaScript error the zod lowering must not raise: {other}"),
+            // A JavaScript exception (a refinement callback throwing).
+            Err(EvalError::Type(_)) => Err(Run::Threw),
+            Err(other) => panic!("an error the zod lowering must not raise: {other}"),
         };
     let mut returned = Value::undefined();
     let mut pc = 0;
@@ -270,16 +275,23 @@ fn run(x: &Extracted, input: &Value) -> Run {
     Run::Returned(returned)
 }
 
-/// The model's answer for one input: `Ok((success, data, parse threw))`, or
-/// the refusal.
+/// The model's answer for one input: `Ok((success, data, parse threw,
+/// safeParse threw))`, or the refusal.
 fn model(
     safe: &Extracted,
     parse: &Extracted,
     input: &Value,
-) -> Result<(bool, Value, bool), String> {
+) -> Result<(bool, Value, bool, bool), String> {
     let s = match run(safe, input) {
         Run::Returned(Value::Row(r)) => r,
         Run::Refused(d) => return Err(d),
+        Run::Threw => {
+            return match run(parse, input) {
+                Run::Threw => Ok((false, Value::undefined(), true, true)),
+                Run::Refused(d) => Err(d),
+                other => panic!("safeParse threw but parse did not: {other:?}"),
+            };
+        }
         other => panic!("safeParse wrapper: {other:?}"),
     };
     let success = match s.get("success") {
@@ -295,7 +307,7 @@ fn model(
     if let Some(p) = parsed {
         assert_eq!(p, data, "parse and safeParse disagree in the model");
     }
-    Ok((success, data, threw))
+    Ok((success, data, threw, false))
 }
 
 #[derive(Default, Debug)]
@@ -311,26 +323,28 @@ fn compare(
     label: &str,
     case: &Case,
     i: usize,
-    model: Result<(bool, Value, bool), String>,
+    model: Result<(bool, Value, bool, bool), String>,
     oracle: &Oracle,
 ) {
     tally.compared += 1;
     let at = format!("{label} {}[{i}] {}", case.id, case.inputs[i].render());
     match model {
         Err(why) => tally.refused.push(format!("{at}: {why}")),
-        Ok((success, data, threw)) => {
-            let same = success == oracle.success
+        Ok((success, data, threw, safe_threw)) => {
+            let same = safe_threw == oracle.safe_threw
                 && threw == oracle.parse_threw
-                && (!success || data == oracle.data);
+                && (safe_threw || success == oracle.success)
+                && (safe_threw || !success || data == oracle.data);
             if same {
                 tally.agreed += 1;
             } else {
                 tally.mismatches.push(format!(
-                    "{at}: model success={success} data={} threw={threw}; zod success={} data={} threw={}",
+                    "{at}: model success={success} data={} threw={threw} safeThrew={safe_threw}; zod success={} data={} threw={} safeThrew={}",
                     data.render(),
                     oracle.success,
                     oracle.data.render(),
-                    oracle.parse_threw
+                    oracle.parse_threw,
+                    oracle.safe_threw
                 ));
             }
         }
@@ -342,6 +356,10 @@ fn compare(
 fn refusal_expected(label: &str, case: &str, i: usize) -> bool {
     match (label, case) {
         (_, "prototype_key") => true,
+        // A field whose refinement throws when the key is absent: the
+        // explicit lowering needs what an absent key yields, so the schema
+        // is refused.
+        (_, "refine_field_absent_vs_version") => true,
         // zod 4 accepts a Map or Set as an object; not modeled.
         ("zod4" | "unknown", "object_map_input") => i < 2,
         // zod 3 and 4 differ on these inputs or statically.
@@ -545,6 +563,10 @@ fn synthesized_inputs_satisfy_the_pinned_runtimes() {
             });
             // explicit validation subset schemas of zod 3 keep their explicit lowering.
             let Some(desc) = desc else {
+                // Refused schemas have nothing to synthesize from.
+                if refusal_expected("synthesis", &c.id, 0) {
+                    continue;
+                }
                 assert_eq!(
                     version,
                     zodfn::Version::V3,
@@ -556,6 +578,11 @@ fn synthesized_inputs_satisfy_the_pinned_runtimes() {
             let (v, schema) = zodfn::from_value(&desc).unwrap();
             assert_eq!(v, version);
             let Some(value) = zodfn::conform(v, &schema, None, "input") else {
+                // A refinement may reject every placeholder (a cross-field
+                // equality); then nothing is synthesized, never a wrong value.
+                if zodfn::render(&schema).contains(".refine(") {
+                    continue;
+                }
                 panic!("{}: no valid input synthesized", c.id);
             };
             synthesized.push((k, value));

@@ -5,8 +5,8 @@
 // Imports the pinned zod package from its directory (never from the
 // network), builds every schema of the matrix that exists in `api`, and
 // prints one JSON array: for each case and input, whether `safeParse`
-// succeeded, its data (in the model's JSON value form), and whether `parse`
-// threw. Inputs and outputs use the model's encodings: {"$undefined": true}
+// succeeded (or threw), its data (in the model's JSON value form), and
+// whether `parse` threw. Inputs and outputs use the model's encodings: {"$undefined": true}
 // is undefined, {"$map": [...]} a Map, {"$set": [...]} a Set.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -56,7 +56,14 @@ for (const c of matrix.cases) {
   );
   c.inputs.forEach((raw, i) => {
     const input = decode(raw);
-    const r = schema.safeParse(input);
+    // A refinement callback that throws makes safeParse throw too.
+    let r = { success: false };
+    let safeThrew = false;
+    try {
+      r = schema.safeParse(input);
+    } catch {
+      safeThrew = true;
+    }
     let threw = false;
     try {
       schema.parse(decode(raw));
@@ -69,6 +76,7 @@ for (const c of matrix.cases) {
       success: r.success,
       data: r.success ? encode(r.data) : null,
       parseThrew: threw,
+      safeThrew,
     });
   });
 }

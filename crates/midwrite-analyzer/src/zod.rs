@@ -49,6 +49,11 @@ pub(crate) trait Names<'a> {
     /// KINDS = ["a", "b"] as const`, in this module or imported; spreads of
     /// such arrays included), for `z.enum(KINDS)`.
     fn string_array(&self, name: &str) -> Option<Vec<String>>;
+    /// The source text of `span` in this module, for explanations.
+    fn source(&self, span: oxc_span::Span) -> Option<String> {
+        let _ = span;
+        None
+    }
 }
 
 /// Read the schema built by `e`.
@@ -369,6 +374,8 @@ impl<'a> Interp<'_, 'a> {
             // Metadata for documentation and JSON Schema generation: zod 3
             // and 4 validate exactly as without it.
             "describe" if args.len() == 1 => return Ok(base),
+            "refine" => return self.refinement(base, args, false),
+            "superRefine" => return self.refinement(base, args, true),
             _ => {}
         }
         match base {
@@ -570,6 +577,482 @@ impl<'a> Interp<'_, 'a> {
 /// value is computed whole (`ZodData`).
 fn array_of(item: Schema) -> Result<Schema, String> {
     Ok(Schema::Array(Box::new(item), Vec::new()))
+}
+
+// ---------------------------------------------------------------------------
+// Refinements
+// ---------------------------------------------------------------------------
+
+impl<'a> Interp<'_, 'a> {
+    /// `.refine(callback, message?)` (`sup`: `.superRefine(callback)`): the
+    /// callback lowered to a pure predicate of the value
+    /// ([`midwrite_model::zodfn::Refinement`]), or the reason it is not.
+    fn refinement(
+        &self,
+        base: Schema,
+        args: &'a [Argument<'a>],
+        sup: bool,
+    ) -> Result<Schema, String> {
+        use oxc_ast::ast::{ArrowFunctionBody, BindingPattern, Statement};
+        let what = if sup { ".superRefine()" } else { ".refine()" };
+        let refused = |why: &str| Err(format!("zod `{what}` with {why}"));
+        let Some(callback) = args.first().and_then(Argument::as_expression) else {
+            return refused("no callback");
+        };
+        if sup {
+            if args.len() > 1 {
+                return refused("more arguments than the callback");
+            }
+        } else {
+            refine_options(args.get(1)).map_err(|why| format!("zod `{what}` with {why}"))?;
+            if args.len() > 2 {
+                return refused("more arguments than modeled");
+            }
+        }
+        let callback = callback.get_inner_expression();
+        let (params, body, is_async) = match callback {
+            Expression::ArrowFunctionExpression(f) => (
+                &f.params,
+                match &f.body {
+                    ArrowFunctionBody::FunctionBody(b) => Body::Block(&b.statements),
+                    expr => match expr.as_expression() {
+                        Some(e) => Body::Expr(e),
+                        None => return refused("an unexpected callback body"),
+                    },
+                },
+                f.r#async,
+            ),
+            Expression::FunctionExpression(f) if !f.generator => match &f.body {
+                Some(b) => (&f.params, Body::Block(&b.statements), f.r#async),
+                None => return refused("a callback without a body"),
+            },
+            _ => return refused("a callback that is not an inline function"),
+        };
+        if is_async {
+            // zod throws on an async refinement in a synchronous parse.
+            return refused("an async callback");
+        }
+        let names: Vec<&str> = params
+            .items
+            .iter()
+            .map(|p| match &p.pattern {
+                BindingPattern::BindingIdentifier(id) if p.initializer.is_none() => {
+                    Ok(id.name.as_str())
+                }
+                _ => Err(()),
+            })
+            .collect::<Result<_, ()>>()
+            .map_err(|()| {
+                format!("zod `{what}` with a callback parameter that is not a plain name")
+            })?;
+        if params.rest.is_some() || names.is_empty() || names.len() > if sup { 2 } else { 1 } {
+            return refused("a callback with other than its documented parameters");
+        }
+        let lower = Lower {
+            interp: self,
+            param: names[0],
+        };
+        let ok = if sup {
+            let Body::Block(statements) = body else {
+                return refused("a callback whose body is not a block of `if (…) ctx.addIssue(…)`");
+            };
+            let ctx = names.get(1).copied();
+            let mut issues = Vec::new();
+            for statement in statements.iter() {
+                let Statement::IfStatement(test) = statement else {
+                    return refused("a statement other than `if (…) ctx.addIssue(…)`");
+                };
+                if test.alternate.is_some() || !adds_issue(&test.consequent, ctx) {
+                    return refused("a statement other than `if (…) ctx.addIssue(…)`");
+                }
+                // `!!cond`: every condition is evaluated, in order (a later
+                // one may throw after an issue was added).
+                issues.push(midwrite_model::value::Expr::not(
+                    midwrite_model::value::Expr::not(lower.expr(&test.test, true)?),
+                ));
+            }
+            midwrite_model::value::Expr::not(midwrite_model::value::Expr::call(
+                midwrite_model::value::Builtin::Includes,
+                vec![
+                    midwrite_model::value::Expr::Array(issues),
+                    midwrite_model::value::Expr::lit(true),
+                ],
+            ))
+        } else {
+            let e = match body {
+                Body::Expr(e) => e,
+                Body::Block(statements) => match statements.as_slice() {
+                    [Statement::ReturnStatement(r)] => match &r.argument {
+                        Some(e) => e,
+                        None => return refused("a callback returning nothing"),
+                    },
+                    _ => return refused("a callback whose body is not one expression"),
+                },
+            };
+            lower.expr(e, true)?
+        };
+        let source = self
+            .names
+            .source(oxc_span::GetSpan::span(callback))
+            .unwrap_or_else(|| format!("({}) => …", names.join(", ")));
+        Ok(Schema::Refine(
+            Box::new(base),
+            midwrite_model::zodfn::Refinement {
+                param: names[0].to_owned(),
+                ok,
+                source,
+            },
+        ))
+    }
+}
+
+enum Body<'b, 'a> {
+    Expr(&'b Expression<'a>),
+    Block(&'b oxc_allocator::Vec<'a, oxc_ast::ast::Statement<'a>>),
+}
+
+/// The second argument of `.refine()`: a message, or `{ message, path }`.
+/// Others (zod 4 `abort`, `when`, an `error` function, zod 3 a function of
+/// the value) change when the callback or other code runs.
+fn refine_options(arg: Option<&Argument<'_>>) -> Result<(), String> {
+    let static_text = |e: &Expression<'_>| match e.get_inner_expression() {
+        Expression::StringLiteral(_) => true,
+        Expression::TemplateLiteral(t) => t.expressions.is_empty(),
+        _ => false,
+    };
+    let Some(e) = arg
+        .and_then(Argument::as_expression)
+        .map(|e| e.get_inner_expression())
+    else {
+        return match arg {
+            None => Ok(()),
+            Some(_) => Err("a spread argument".to_owned()),
+        };
+    };
+    match e {
+        e if static_text(e) => Ok(()),
+        Expression::ObjectExpression(o) => {
+            for p in &o.properties {
+                let ObjectPropertyKind::ObjectProperty(p) = p else {
+                    return Err("a spread in its options".to_owned());
+                };
+                let key = p
+                    .key
+                    .static_name()
+                    .filter(|_| !p.computed)
+                    .map(|n| n.display().to_string());
+                let fine = match key.as_deref() {
+                    Some("message") => static_text(&p.value),
+                    Some("path") => match p.value.get_inner_expression() {
+                        Expression::ArrayExpression(a) => a.elements.iter().all(|x| {
+                            x.as_expression().is_some_and(|x| {
+                                static_text(x) || matches!(x, Expression::NumericLiteral(_))
+                            })
+                        }),
+                        _ => false,
+                    },
+                    _ => false,
+                };
+                if !fine {
+                    return Err("options other than a static `message` and `path`".to_owned());
+                }
+            }
+            Ok(())
+        }
+        _ => Err("options other than a static message".to_owned()),
+    }
+}
+
+/// `ctx.addIssue({ … })` with static properties (a block holding only
+/// that, too), without `fatal` (zod 3: aborts) or `continue` (zod 4).
+fn adds_issue(statement: &oxc_ast::ast::Statement<'_>, ctx: Option<&str>) -> bool {
+    use oxc_ast::ast::Statement;
+    let call = match statement {
+        Statement::ExpressionStatement(s) => &s.expression,
+        Statement::BlockStatement(b) => match b.body.as_slice() {
+            [Statement::ExpressionStatement(s)] => &s.expression,
+            _ => return false,
+        },
+        _ => return false,
+    };
+    let Expression::CallExpression(call) = call.get_inner_expression() else {
+        return false;
+    };
+    let Expression::StaticMemberExpression(m) = call.callee.get_inner_expression() else {
+        return false;
+    };
+    let receiver_is_ctx = matches!(m.object.get_inner_expression(),
+        Expression::Identifier(id) if Some(id.name.as_str()) == ctx);
+    let [arg] = call.arguments.as_slice() else {
+        return false;
+    };
+    let Some(Expression::ObjectExpression(o)) =
+        arg.as_expression().map(|e| e.get_inner_expression())
+    else {
+        return false;
+    };
+    let static_value = |e: &Expression<'_>| -> bool {
+        match e.get_inner_expression() {
+            Expression::StringLiteral(_) | Expression::NumericLiteral(_) => true,
+            Expression::TemplateLiteral(t) => t.expressions.is_empty(),
+            Expression::ArrayExpression(a) => a.elements.iter().all(|x| {
+                x.as_expression().is_some_and(|x| {
+                    matches!(
+                        x.get_inner_expression(),
+                        Expression::StringLiteral(_) | Expression::NumericLiteral(_)
+                    )
+                })
+            }),
+            // `z.ZodIssueCode.custom`
+            Expression::StaticMemberExpression(m) => matches!(
+                m.object.get_inner_expression(),
+                Expression::StaticMemberExpression(inner) if inner.property.name == "ZodIssueCode"
+            ),
+            _ => false,
+        }
+    };
+    receiver_is_ctx
+        && m.property.name == "addIssue"
+        && !call.optional
+        && o.properties.iter().all(|p| match p {
+            ObjectPropertyKind::ObjectProperty(p) => {
+                matches!(
+                    p.key
+                        .static_name()
+                        .filter(|_| !p.computed)
+                        .map(|n| n.display().to_string())
+                        .as_deref(),
+                    Some("code" | "message" | "path")
+                ) && static_value(&p.value)
+            }
+            ObjectPropertyKind::SpreadProperty(_) => false,
+        })
+}
+
+/// Lowering of a refinement callback body to a model expression of its
+/// parameter (the only local). Each construct keeps JavaScript's result,
+/// including when JavaScript throws (a property of `null`/`undefined`);
+/// what the model cannot evaluate exactly is refused, or evaluates to an
+/// explicit unknown.
+struct Lower<'i, 'n, 'a> {
+    interp: &'i Interp<'n, 'a>,
+    param: &'i str,
+}
+
+impl<'a> Lower<'_, '_, 'a> {
+    /// `cond`: only the truthiness of the result is used.
+    fn expr(&self, e: &Expression<'_>, cond: bool) -> Result<midwrite_model::value::Expr, String> {
+        use midwrite_model::value::{BinOp, Builtin as B, Expr, Value};
+        use oxc_syntax::operator::{BinaryOperator, LogicalOperator, UnaryOperator};
+        let refused = |what: &str| Err(format!("a refinement callback using {what}"));
+        let typeof_is =
+            |x: &Expr, t: &str| Expr::eq(Expr::call(B::TypeOf, vec![x.clone()]), Expr::lit(t));
+        match e.get_inner_expression() {
+            Expression::Identifier(id) => {
+                let name = id.name.as_str();
+                if name == self.param {
+                    return Ok(Expr::Local(self.param.to_owned()));
+                }
+                if let Some(init) = self.interp.names.constant(name) {
+                    return match literal(init) {
+                        Some(v) => Ok(Expr::Lit(v)),
+                        None => refused(&format!("`{name}`, which is not a literal constant")),
+                    };
+                }
+                if name == "undefined" {
+                    return Ok(Expr::undefined());
+                }
+                refused(&format!("`{name}`"))
+            }
+            Expression::NullLiteral(_) => Ok(Expr::Lit(Value::Null)),
+            Expression::TemplateLiteral(t) if t.expressions.is_empty() => {
+                match t
+                    .quasis
+                    .first()
+                    .and_then(|q| q.value.cooked.as_ref())
+                    .and_then(|c| c.as_str())
+                {
+                    Some(text) => Ok(Expr::Lit(Value::str(text))),
+                    None => refused("a template literal with an invalid escape"),
+                }
+            }
+            other if literal(other).is_some() => {
+                Ok(Expr::Lit(literal(other).unwrap_or(Value::Null)))
+            }
+            Expression::ArrayExpression(a) => {
+                let mut items = Vec::new();
+                for x in &a.elements {
+                    match x.as_expression() {
+                        Some(x) => items.push(self.expr(x, false)?),
+                        None => return refused("a spread or a hole in an array literal"),
+                    }
+                }
+                Ok(Expr::Array(items))
+            }
+            Expression::StaticMemberExpression(m) if !m.optional => {
+                let object = self.expr(&m.object, false)?;
+                Ok(if m.property.name == "length" {
+                    Expr::call(B::Length, vec![object])
+                } else {
+                    Expr::call(B::At, vec![object, Expr::lit(m.property.name.as_str())])
+                })
+            }
+            Expression::UnaryExpression(u) => match u.operator {
+                UnaryOperator::LogicalNot => Ok(Expr::not(self.expr(&u.argument, true)?)),
+                UnaryOperator::Typeof => {
+                    Ok(Expr::call(B::TypeOf, vec![self.expr(&u.argument, false)?]))
+                }
+                _ => refused(&format!("the operator `{}`", u.operator.as_str())),
+            },
+            Expression::LogicalExpression(l) if cond => {
+                let op = match l.operator {
+                    LogicalOperator::And => BinOp::And,
+                    LogicalOperator::Or => BinOp::Or,
+                    LogicalOperator::Coalesce => return refused("`??`"),
+                };
+                Ok(Expr::bin(
+                    op,
+                    self.expr(&l.left, true)?,
+                    self.expr(&l.right, true)?,
+                ))
+            }
+            Expression::LogicalExpression(_) => refused("`&&`/`||` for their value"),
+            Expression::BinaryExpression(b) => {
+                let (a, c) = (self.expr(&b.left, false)?, self.expr(&b.right, false)?);
+                match b.operator {
+                    // IsStrictlyEqual is SameValueZero on the model's values
+                    // (it has no NaN or -0): `[c].includes(a)`, which refuses
+                    // comparing two objects (identity).
+                    BinaryOperator::StrictEquality | BinaryOperator::StrictInequality => {
+                        let same = Expr::call(B::Includes, vec![Expr::Array(vec![c]), a]);
+                        Ok(if b.operator == BinaryOperator::StrictEquality {
+                            same
+                        } else {
+                            Expr::not(same)
+                        })
+                    }
+                    // Numbers only: strings order by UTF-16 code units and
+                    // mixed operands convert, neither of which is modeled.
+                    BinaryOperator::LessThan
+                    | BinaryOperator::LessEqualThan
+                    | BinaryOperator::GreaterThan
+                    | BinaryOperator::GreaterEqualThan => {
+                        let op = match b.operator {
+                            BinaryOperator::LessThan => BinOp::Lt,
+                            BinaryOperator::LessEqualThan => BinOp::Le,
+                            BinaryOperator::GreaterThan => BinOp::Gt,
+                            _ => BinOp::Ge,
+                        };
+                        let numbers =
+                            Expr::bin(BinOp::And, typeof_is(&a, "number"), typeof_is(&c, "number"));
+                        Ok(Expr::bin(
+                            BinOp::Or,
+                            Expr::bin(BinOp::And, numbers.clone(), Expr::bin(op, a, c)),
+                            Expr::bin(
+                                BinOp::And,
+                                Expr::not(numbers),
+                                Expr::Unknown(
+                                    "a refinement ordering values that are not two numbers"
+                                        .to_owned(),
+                                ),
+                            ),
+                        ))
+                    }
+                    other => refused(&format!("the operator `{}`", other.as_str())),
+                }
+            }
+            Expression::CallExpression(call) if !call.optional => {
+                let Expression::StaticMemberExpression(m) = call.callee.get_inner_expression()
+                else {
+                    return refused("a call of a function");
+                };
+                if m.optional {
+                    return refused("optional chaining");
+                }
+                let method = m.property.name.as_str();
+                let args = &call.arguments;
+                // `xs.some((x) => …)` / `xs.every(…)`, with a callback of
+                // the element only.
+                if matches!(method, "some" | "every") {
+                    let [arg] = args.as_slice() else {
+                        return refused(&format!("`.{method}` with other than one callback"));
+                    };
+                    let Some(Expression::ArrowFunctionExpression(f)) =
+                        arg.as_expression().map(|e| e.get_inner_expression())
+                    else {
+                        return refused(&format!("`.{method}` of something other than an arrow"));
+                    };
+                    let (var, body) = element_callback(f).ok_or_else(|| {
+                        format!(
+                            "a refinement callback using `.{method}` with an unsupported callback"
+                        )
+                    })?;
+                    if var == self.param {
+                        return refused("a callback parameter shadowing the value");
+                    }
+                    let list = self.expr(&m.object, false)?;
+                    let inner = Lower {
+                        interp: self.interp,
+                        param: var,
+                    };
+                    // The element callback may read its element only.
+                    let body = inner.expr(body, true)?;
+                    return Ok(Expr::Each {
+                        op: if method == "some" {
+                            midwrite_model::value::EachOp::Some
+                        } else {
+                            midwrite_model::value::EachOp::Every
+                        },
+                        list: Box::new(list),
+                        var: var.to_owned(),
+                        body: Box::new(body),
+                    });
+                }
+                let func = match (method, args.len()) {
+                    ("trim", 0) => B::Trim,
+                    ("toLowerCase", 0) => B::ToLowerCase,
+                    ("toUpperCase", 0) => B::ToUpperCase,
+                    ("startsWith", 1) => B::StartsWith,
+                    ("endsWith", 1) => B::EndsWith,
+                    ("includes", 1) => B::Includes,
+                    _ => return refused(&format!("the method `.{method}()`")),
+                };
+                let mut lowered = vec![self.expr(&m.object, false)?];
+                for a in args {
+                    match a.as_expression() {
+                        Some(a) => lowered.push(self.expr(a, false)?),
+                        None => return refused("a spread argument"),
+                    }
+                }
+                Ok(Expr::call(func, lowered))
+            }
+            _ => refused("an expression outside the modeled subset"),
+        }
+    }
+}
+
+/// `(x) => expr` with one plain, non-async parameter.
+fn element_callback<'b, 'a>(
+    f: &'b oxc_ast::ast::ArrowFunctionExpression<'a>,
+) -> Option<(&'b str, &'b Expression<'a>)> {
+    use oxc_ast::ast::{ArrowFunctionBody, BindingPattern};
+    if f.r#async || f.params.rest.is_some() {
+        return None;
+    }
+    let [p] = f.params.items.as_slice() else {
+        return None;
+    };
+    let BindingPattern::BindingIdentifier(id) = &p.pattern else {
+        return None;
+    };
+    if p.initializer.is_some() {
+        return None;
+    }
+    let body = match &f.body {
+        ArrowFunctionBody::FunctionBody(_) => return None,
+        e => e.as_expression()?,
+    };
+    Some((id.name.as_str(), body))
 }
 
 /// A custom message (argument `n`) does not change what is accepted; other
@@ -871,7 +1354,6 @@ mod tests {
         assert!(schema("z.string().transform((s) => s.length)").is_err());
         assert!(schema("z.union([z.string(), z.number()])").is_err());
         assert!(schema("z.string().min(n)").is_err());
-        assert!(schema("z.string().refine((s) => s.length > 1)").is_err());
         assert!(schema("z.coerce.number()").is_err());
         assert!(schema("z.discriminatedUnion('k', [])").is_err());
         assert!(schema("z.preprocess((x) => x, z.string())").is_err());
@@ -888,8 +1370,75 @@ mod tests {
             schema("z.object({ a: z.number().describe('n').optional() }).describe('p').strict()"),
             schema("z.object({ a: z.number().optional() }).strict()")
         );
-        // A refinement after it is still refused.
-        assert!(schema("z.string().describe('x').refine((s) => s !== '')").is_err());
+        assert!(schema("z.string().describe('x').refine((s) => s !== '')").is_ok());
+    }
+
+    #[test]
+    fn refinements_in_the_modeled_subset_are_read() {
+        for src in [
+            "z.number().refine((port) => port !== 25, { message: 'no' })",
+            "z.object({ a: z.string(), b: z.string() }).refine((d) => d.a === d.b, { path: ['b'] })",
+            "z.string().refine(function (s) { return s.trim().length > 0; }, 'empty')",
+            "z.array(z.number()).refine((xs) => xs.every((x) => x >= 0) && xs.length > 0)",
+            "z.object({ k: z.string() }).superRefine((v, ctx) => { if (v.k === 'x') ctx.addIssue({ code: 'custom', message: 'no' }); })",
+            "z.string().refine((s) => !s.startsWith('re:') || typeof s === 'string').optional()",
+        ] {
+            let read = schema(src).unwrap_or_else(|e| panic!("{src}: {e}"));
+            assert!(
+                matches!(&read, Schema::Refine(..) | Schema::Optional(_)),
+                "{src}: {read:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn refinements_outside_the_subset_are_refused_by_name() {
+        for (src, why) in [
+            (
+                "z.string().refine(async (s) => s !== '')",
+                "an async callback",
+            ),
+            ("z.string().refine((s) => s ?? 'x')", "`??`"),
+            (
+                "z.string().refine((s) => s ? true : false)",
+                "an expression outside",
+            ),
+            (
+                "z.string().refine((s) => isValid(s))",
+                "a call of a function",
+            ),
+            ("z.string().refine((s) => s === other)", "`other`"),
+            (
+                "z.string().refine((s) => s.length + 1 > 2)",
+                "the operator `+`",
+            ),
+            (
+                "z.string().refine((s) => s !== '', { when: () => true })",
+                "options other than",
+            ),
+            (
+                "z.string().refine((s) => s !== '', { abort: true })",
+                "options other than",
+            ),
+            ("z.string().refine(check)", "not an inline function"),
+            (
+                "z.string().refine((s) => s?.length > 1)",
+                "outside the modeled subset",
+            ),
+            (
+                "z.string().superRefine((v, ctx) => { if (v === '') ctx.addIssue({ code: 'custom', fatal: true }); })",
+                "`if (…) ctx.addIssue(…)`",
+            ),
+            (
+                "z.string().superRefine((v, ctx) => { const n = v.length; if (n === 0) ctx.addIssue({ code: 'custom' }); })",
+                "`if (…) ctx.addIssue(…)`",
+            ),
+            // Methods after a refinement differ between zod 3 and 4.
+            ("z.string().refine((s) => s !== '').min(2)", ""),
+        ] {
+            let err = schema(src).expect_err(src);
+            assert!(err.contains(why), "{src}: {err}");
+        }
     }
 
     #[test]

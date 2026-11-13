@@ -206,7 +206,8 @@ pub fn zod_field<'s>(schema: &'s zodfn::Schema, rest: &str) -> Option<&'s zodfn:
         let mut obj = cur;
         while let zodfn::Schema::Optional(s)
         | zodfn::Schema::Nullable(s)
-        | zodfn::Schema::Default(s, _) = obj
+        | zodfn::Schema::Default(s, _)
+        | zodfn::Schema::Refine(s, _) = obj
         {
             obj = s;
         }
@@ -247,7 +248,8 @@ pub fn zod_enum_members(a: &Analyzed) -> BTreeMap<String, Vec<String>> {
         for (p, mut s) in fields {
             while let zodfn::Schema::Optional(i)
             | zodfn::Schema::Nullable(i)
-            | zodfn::Schema::Default(i, _) = s
+            | zodfn::Schema::Default(i, _)
+            | zodfn::Schema::Refine(i, _) = s
             {
                 s = i;
             }
@@ -270,9 +272,12 @@ fn zod_paths<'s>(
     out: &mut Vec<(String, &'s zodfn::Schema)>,
 ) {
     let mut obj = schema;
+    // A refinement constrains combinations; the values each path may take
+    // stay those of the schema below it (worlds are validated in full).
     while let zodfn::Schema::Optional(s)
     | zodfn::Schema::Nullable(s)
-    | zodfn::Schema::Default(s, _) = obj
+    | zodfn::Schema::Default(s, _)
+    | zodfn::Schema::Refine(s, _) = obj
     {
         obj = s;
     }
@@ -302,7 +307,11 @@ fn zod_facts(z: &ZodInput, field: &zodfn::Schema, keyed: bool, name: &str) -> Zo
     use zodfn::{Schema, StrCheck};
     let accepts = |v: &Value| matches!(zodfn::parse(z.version, field, v), Ok(Some(_)));
     let mut inner = field;
-    while let Schema::Optional(s) | Schema::Nullable(s) | Schema::Default(s, _) = inner {
+    while let Schema::Optional(s)
+    | Schema::Nullable(s)
+    | Schema::Default(s, _)
+    | Schema::Refine(s, _) = inner
+    {
         inner = s;
     }
     let kind = match inner {

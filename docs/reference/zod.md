@@ -64,12 +64,28 @@ evaluation.
 * **Arrays:** `min`, `max`, `length`, `nonempty`, `.array()`.
 * **On every schema:** `optional`, `nullable`, `nullish`,
   `default(literal)` (string, number, boolean or `null`), `describe(text)`
-  (metadata only: zod 3 and 4 validate exactly as without it).
+  (metadata only: zod 3 and 4 validate exactly as without it),
+  `refine(callback, message?)` and `superRefine(callback)` with a callback
+  in the subset below, followed only by these wrappers.
+* **Refinement callbacks:** an inline arrow or function expression, not
+  async, of one plain parameter (`superRefine`: and `ctx`), whose body is
+  one expression (or `return expr;`). It may use its parameter, module
+  `const` literals, `undefined`, `null`, string/number/boolean literals,
+  array literals, property reads (`v.a.b`, `v.length`), `===`/`!==`,
+  `<`/`<=`/`>`/`>=` (two numbers; anything else is an explicit unknown),
+  `!`, `typeof`, `&&`/`||` where only truthiness matters, `trim()`,
+  `toLowerCase()`, `toUpperCase()`, `startsWith(x)`, `endsWith(x)`,
+  `includes(x)`, and `xs.some((x) => …)`/`xs.every((x) => …)` with an
+  element-only callback. A `superRefine` body is a list of `if (cond)
+  ctx.addIssue({ code, message, path })` with static properties (no
+  `fatal`, no `continue`). The second argument of `refine` is a static
+  message or `{ message, path }` (zod 4 `abort`, `when` and `error`
+  functions change when code runs and are refused).
 * Integer arguments may be a module-level `const` integer; a template
   message is accepted when its interpolations are names or literals.
 
-**Refused, with the construct named:** refinements (`refine`,
-`superRefine` — accepting them would bypass validation), `transform`,
+**Refused, with the construct named:** refinement callbacks outside the
+subset above (never assumed to pass), `transform`,
 `preprocess`, `coerce`, `pipe`, unions, discriminated unions,
 intersections, records, tuples, `extend`/`pick`/`omit`/`partial`/`merge`,
 other string formats (`url`, `cuid`, …), `.uuid({ version })`, a
@@ -106,6 +122,20 @@ Read from `zod/v3/types.js` (3.25.76) and `zod/v4/core/*` (4.6.5):
 * arrays: `Array.isArray`, length checks (zod 3 keeps the last of each
   kind), every element parsed;
 * `optional`, `nullable`, `default(d)`: as each version defines them;
+* refinements: zod 3 (`ZodEffects`) and zod 4 (checks) agree on what the
+  model needs. Parsing tracks whether the value is valid, failed with
+  continuable issues only (a failed `min`/`max`/format/length check, a
+  failed refinement, a strict object's unknown keys, a field or element
+  with such issues), or aborted (a wrong type, an enum or literal
+  mismatch, a field or element that aborted). The callback runs on the
+  parsed value unless the parse aborted, **also on a value with
+  continuable issues**; a falsy result adds a continuable issue. A callback
+  that throws makes `safeParse` and `parse` throw (zod does not catch it);
+  the model raises the same JavaScript exception. zod 4 runs the schema of
+  an absent optional key, so its refinement sees `undefined`; zod 3 does
+  too. Input synthesis takes a value of the inner schema and keeps it only
+  when the refinement accepts it (a cross-field equality usually yields
+  none);
 * `parse` throws `ZodError` when the input is rejected; `safeParse` yields
   `{ success, data }` with `data` `undefined` on failure; `error` is not
   modeled (reading it is refused).
@@ -161,8 +191,10 @@ message unless `MIDWRITE_REQUIRE_ZOD=1` (directories:
 
 ## Limitations
 
-* The subset above; refinements, transforms, preprocess, coerce and unions
-  stay refused.
+* The subset above; refinement callbacks outside it, transforms,
+  preprocess, coerce and unions stay refused.
+* A field whose refinement throws when its key is absent is refused by the
+  explicit lowering (it needs what an absent key yields).
 * Elements of a rebuilt array (`ZodData`) are not traceable to input
   paths.
 * The version lookup reads files under the project root only; Yarn PnP
@@ -190,19 +222,17 @@ output:
 | the others | none |
 
 Refinements are rare at the schemas discovery reaches, and where they
-occur (zero) the entries have no modeled database effect anyway
-(its database is a Durable Object RPC stub), so modeling them would
-change no candidate today.
+occur (zero) the entries have no modeled database effect anyway (its
+database is a Durable Object RPC stub). With refinement callbacks modeled
+(see the subset above), zero's array refinement is still refused because it
+builds a `Set` (`new Set(labels.map(…)).size === labels.length`), and the
+reason now names the callback; discovery output is otherwise unchanged on
+every corpus project.
 
-They also cannot be modeled as an opaque check. A natural rule would be
-"fails when the base schema fails, otherwise unknown". That rule is
-unsound. In zod 3 and 4 a refinement still runs when the base schema
-reports only continuable issues (a failed `min`, `regex` or a field of an
-object), so its callback sees invalid data, and when it throws,
-`safeParse` throws instead of failing. Only a wrong type at the refined
-schema itself is decided without the callback, which is not what
-discovery's synthesized inputs exercise. Supporting refinements therefore
-means lowering the callback (`(port) => port !== 25`) into the model and
-evaluating it, including on invalid data. Callbacks that use `Set`
-identity, `Object.keys` of other bindings or `ctx.addIssue` stay refused.
+Why the callback has to be evaluated rather than treated as an opaque check:
+"fails when the base schema fails, otherwise unknown" would be unsound,
+because the callback runs on data with continuable issues and may throw
+there, which makes `safeParse` throw instead of failing. The differential
+matrix has cases for exactly that (`refine_string_on_dirty`,
+`refine_throws_on_dirty`, `refine_throws_on_absent`).
 

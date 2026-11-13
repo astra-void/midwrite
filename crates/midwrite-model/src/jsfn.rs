@@ -685,19 +685,26 @@ pub fn eval(func: Builtin, args: &[Value], mode: Mode) -> Result<Value, EvalErro
             arity(func, args, 2, 2)?;
             let (version, schema) =
                 crate::zodfn::from_value(&args[0]).map_err(EvalError::Unknown)?;
-            match crate::zodfn::parse(version, &schema, &args[1]) {
+            match crate::zodfn::parse_js(version, &schema, &args[1]) {
                 Ok(Some(out)) => Ok(out),
                 Ok(None) => unknown("zod data of an input the schema rejects"),
-                Err(why) => unknown(format!("zod validation: {why}")),
+                Err(crate::zodfn::Failure::Threw(why)) => Err(EvalError::Type(why)),
+                Err(crate::zodfn::Failure::Unknown(why)) => {
+                    unknown(format!("zod validation: {why}"))
+                }
             }
         }
         B::ZodCheck => {
             arity(func, args, 2, 2)?;
             let (version, schema) =
                 crate::zodfn::from_value(&args[0]).map_err(EvalError::Unknown)?;
-            match crate::zodfn::parse(version, &schema, &args[1]) {
+            match crate::zodfn::parse_js(version, &schema, &args[1]) {
                 Ok(out) => Ok(Value::Bool(out.is_some())),
-                Err(why) => unknown(format!("zod validation: {why}")),
+                // A refinement callback threw: `safeParse` throws too.
+                Err(crate::zodfn::Failure::Threw(why)) => Err(EvalError::Type(why)),
+                Err(crate::zodfn::Failure::Unknown(why)) => {
+                    unknown(format!("zod validation: {why}"))
+                }
             }
         }
         other if other.is_sql() => unknown(format!(
