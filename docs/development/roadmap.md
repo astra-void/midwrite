@@ -64,12 +64,13 @@ From the frozen evaluation sets and the corpus
   been performed).
 * An authorized reproduction in an external application with human
   review.
-* Release blockers: a verified remote; a green GitHub CI run including
-  required Linux replay; a tagged release run; a security review
-  ([open items](../reference/security.md)); a human-reviewed precision
-  baseline; crates.io and npm packaging decisions. A local Git history
-  exists; no GitHub CI run, push or published package is recorded.
-* Windows and x86_64 runs.
+* Release blockers still open: a security review
+  ([open items](../reference/security.md)) and a human-reviewed precision
+  baseline. The public repository, CI on `main`, the tagged v0.1.0
+  release run, the GitHub release and the npm packages exist; what has
+  been verified about each, with dates, is in
+  [release status](release-status.md). The Windows builds get a smoke
+  test only.
 
 ## Documentation
 
