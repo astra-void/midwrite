@@ -110,9 +110,10 @@ impl<'ir> Point<'ir> {
         }
     }
 
-    /// Whether one of the point's operations has a handle bound to a field
-    /// of the receiver where `call` is inlined: the callee's own analysis
-    /// does not know it ([`crate::ir::SummaryOrigin::bound_at`]).
+    /// Whether one of the point's operations has a handle decided where
+    /// `call` is inlined (an unconfigured parameter or receiver field of
+    /// the callee): the callee's own analysis does not know it
+    /// ([`crate::ir::SummaryOrigin::bound_at`]).
     fn bound_at(&self, call: CallId) -> bool {
         let bound = |occurrence: &Occurrence<'_>| {
             occurrence

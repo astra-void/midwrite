@@ -395,10 +395,11 @@ pub struct SummaryOrigin {
     /// Whether the outermost callee performs the operation on every path
     /// through it. Operations on only some paths lower confidence.
     pub on_every_path: bool,
-    /// The call (of [`Self::calls`]) where the operation's handle was bound
-    /// to a field of the callee's receiver ([`DbHandle::Field`]): the
-    /// callee's own analysis does not know that handle, so a hazard inside
-    /// that call is reported where it is called.
+    /// The call (of [`Self::calls`]) where the operation's handle was
+    /// decided: an unconfigured parameter of the callee ([`DbHandle::Parameter`])
+    /// or field of its receiver ([`DbHandle::Field`]) bound to a recognized
+    /// handle. The callee's own analysis does not know that handle, so a
+    /// hazard inside that call is reported where it is called.
     #[serde(skip)]
     pub bound_at: Option<CallId>,
 }

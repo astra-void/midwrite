@@ -1995,16 +1995,26 @@ impl Remap<'_> {
         }
     }
 
-    /// Whether this call binds the handle of a callee effect to a field of
-    /// the callee's receiver ([`SummaryOrigin::bound_at`]).
-    fn binds_field(&self, effect: &Effect) -> bool {
-        match &effect.kind {
-            EffectKind::DatabaseRead {
-                handle: DbHandle::Field { index, .. },
+    /// Whether this call decides the handle of a callee effect that the
+    /// callee alone does not know: an unconfigured parameter, or an
+    /// unconfigured field of its receiver, bound to a recognized handle
+    /// here ([`SummaryOrigin::bound_at`]). A configured name is the root
+    /// handle in the callee's own analysis, which reports it.
+    fn binds_handle(&self, effect: &Effect) -> bool {
+        let (EffectKind::DatabaseRead { handle, .. } | EffectKind::DatabaseWrite { handle, .. }) =
+            &effect.kind
+        else {
+            return false;
+        };
+        match handle {
+            DbHandle::Parameter {
+                index,
+                configured: false,
                 ..
-            }
-            | EffectKind::DatabaseWrite {
-                handle: DbHandle::Field { index, .. },
+            } => self.argument(*index).is_some(),
+            DbHandle::Field {
+                index,
+                configured: false,
                 ..
             } => self.receiver_argument(*index).is_some(),
             _ => false,
@@ -2297,7 +2307,7 @@ impl Remap<'_> {
                     summary: Some(self.origin(
                         effect.summary.as_ref(),
                         self.certain.effects.contains(&effect.id),
-                        self.binds_field(effect),
+                        self.binds_handle(effect),
                     )),
                     // Names in the callee's scope are not comparable with the
                     // caller's; not copied.

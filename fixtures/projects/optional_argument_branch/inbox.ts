@@ -1,4 +1,4 @@
-// @expect none
+// @expect MW1004 line=42 confidence=medium function=closeVia
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { attachments, inbox } from "@/db/schema";
@@ -36,7 +36,8 @@ export async function closeReassigned(database: typeof db, id: string, options?:
   await database.update(inbox).set({ status: "closed" }).where(eq(inbox.id, id));
 }
 
-// Forwards its own optional parameter.
+// Forwards its own optional parameter, and binds `database` to `db`: the
+// delete-then-update pair inside `close` is reported here (DEV-181).
 export async function closeVia(id: string, options?: CloseOptions) {
   await close(db, id, options);
 }

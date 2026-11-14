@@ -11,6 +11,11 @@ output formats.
 
 ### Added
 
+- A pair of operations inside a helper whose parameter name is not a
+  configured receiver (`async function save(store) { … }`) is reported
+  where the caller binds the parameter to a recognized handle
+  (`save(db)`). Before, neither the helper nor the caller reported it
+  (DEV-181).
 - Database handles held in fields that the constructor sets
   (`constructor(private readonly db: Database)`, or a sealed field
   assigned once from a constructor parameter) are followed.

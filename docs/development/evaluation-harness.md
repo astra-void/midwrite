@@ -1589,10 +1589,47 @@ Two corpus classes have the pattern. Neither writes through the field:
 * zero's `Conversations` (`constructor(private readonly sql: Sql)`) issues
   SQL tags, not Drizzle builders.
 
-**Found but not changed: unconfigured parameter handles.** A helper that
+**Found and fixed separately (DEV-181): unconfigured parameter handles.** A helper that
 writes twice on an *unconfigured* parameter (`async function both(h) {
 await h.update(…); await h.insert(…) }`), called with `db`, is reported
 by neither side. The helper alone treats the parameter as unknown, and
 the caller leaves a pair inside one call to the callee. Constructor-set
 fields avoid this through `SummaryOrigin::bound_at`. Applying the same
 rule to parameters would change dev findings, so it is a separate change.
+
+## Pairs inside helpers on unconfigured parameters (2026-11-14, DEV-181)
+
+A helper's operations on an unconfigured parameter are unknown when the
+helper is analyzed on its own. When a caller binds that parameter to a
+recognized handle, a pair inside the helper is now reported at the call
+(`SummaryOrigin::bound_at`, the same rule DEV-170 added for
+constructor-set fields).
+
+Configured parameter names are left out: the helper's own analysis
+treats them as the root handle and already reports the pair, so the pair
+is never reported twice. Unconfigured constructor-set fields follow the
+same restriction.
+
+Fixtures:
+
+* `fixtures/vulnerable/unconfigured_parameter_helper.ts`
+* `fixtures/safe/unconfigured_parameter_transaction.ts`
+
+The project fixtures `literal_argument_branch` and
+`optional_argument_branch` have helpers on an unconfigured `database`
+parameter. Where a branch can run the helper's deletes, they now also
+report the pairs inside the helper. Where a literal argument rules the
+branch out, they still report only the caller's pair with the update.
+
+A caller's own pair that shares its undone operation with an inner pair
+is now listed under the inner one ("On other paths ..."). This follows
+the existing one-diagnostic-per-operation rule.
+`literal_arguments_decide_callee_branches_on_destructured_parameters`
+now checks the operation each pair leaves undone. It ignores pairs
+entirely inside one call of the helper.
+
+**Dev-set impact: none.** All sets give the same 476 findings, with the
+same IDs, classifications and limitation counts as before. Dev hazard
+precision is 421/443; held-out is 28/30, gate PASS. No corpus helper has
+this shape with both operations on an unconfigured parameter, so no new
+finding needed a label.

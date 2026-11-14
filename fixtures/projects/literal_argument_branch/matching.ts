@@ -116,9 +116,15 @@ export async function markEachWithExtra(ids: string[], teamId: string, extra: { 
 // @expect MW1004 line=46 confidence=medium function=markPendingViaForward
 // @expect MW1004 line=62 confidence=medium function=archiveOnly
 // @expect MW1004 line=89 confidence=medium function=markEachPending
-// Not decided: the pairs with the delete and with the update.
+// Not decided: the pairs with the delete and with the update. Since
+// DEV-181 the pairs inside `updateInbox`, whose `database` parameter the
+// call binds to `db`, are reported at the call too (between the two
+// deletes, and between the last delete and the update; the caller's own
+// pair with the update is then listed under the latter).
 // @expect MW1004 line=23 confidence=medium function=setStatus
 // @expect MW1004 line=23 confidence=medium function=setStatus
+// @expect MW1004 line=23 confidence=medium function=setStatus
+// @expect MW1004 line=36 confidence=medium function=touch
 // @expect MW1004 line=36 confidence=medium function=touch
 // @expect MW1004 line=36 confidence=medium function=touch
 // @expect MW1004 line=57 confidence=medium function=markAnalyzingAfterAudit
@@ -127,8 +133,21 @@ export async function markEachWithExtra(ids: string[], teamId: string, extra: { 
 // @expect MW1004 line=79 confidence=medium function=markPendingViaRewrite
 // @expect MW1004 line=108 confidence=medium function=markEachWithExtra
 // @expect MW1004 line=108 confidence=medium function=markEachWithExtra
-// The deletes always run first: only the pair with the delete.
+// @expect MW1004 line=108 confidence=medium function=markEachWithExtra
+// The helpers that bind `db` and leave the status open report the pairs
+// inside `updateInbox` themselves.
+// @expect MW1004 line=41 confidence=medium function=forward
+// @expect MW1004 line=41 confidence=medium function=forward
+// @expect MW1004 line=74 confidence=medium function=forwardAsDeleted
+// @expect MW1004 line=74 confidence=medium function=forwardAsDeleted
+// The deletes always run first: the pair with the delete, and the pairs
+// inside the helper.
+// @expect MW1004 line=29 confidence=medium function=remove
+// @expect MW1004 line=29 confidence=medium function=remove
 // @expect MW1004 line=29 confidence=medium function=remove
 // @expect MW1004 line=51 confidence=medium function=removeViaForward
 // @expect MW1004 line=67 confidence=medium function=archiveAndPurge
+// @expect MW1004 line=67 confidence=medium function=archiveAndPurge
+// @expect MW1004 line=98 confidence=medium function=removeEach
+// @expect MW1004 line=98 confidence=medium function=removeEach
 // @expect MW1004 line=98 confidence=medium function=removeEach

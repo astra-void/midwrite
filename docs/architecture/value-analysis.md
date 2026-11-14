@@ -283,7 +283,10 @@ transaction.
 
 A pair of operations inside one such call is reported where the call is
 made: the callee alone does not know the handle
-(`SummaryOrigin::bound_at`).
+(`SummaryOrigin::bound_at`). The same holds for a helper's unconfigured
+parameter bound to a recognized handle by its caller (DEV-181). A
+configured name (`db`, `this.db`) is the root handle in the callee's own
+analysis, which reports the pair, so it is not reported again.
 
 Not bound:
 

@@ -54,12 +54,17 @@ export async function closeDirectPurging(id: string) {
 // @expect MW1004 line=16 confidence=medium function=closeQuietlyVia
 // @expect MW1004 line=21 confidence=medium function=closeDirectQuietly
 // @expect MW1004 line=26 confidence=medium function=closeDirectKeeping
-// Not decided: the pairs with the delete and with the update.
+// Not decided: the pair with the delete, and (since DEV-181, reported at
+// the call that binds the helper's `database` parameter to `db`) the pair
+// inside the helper, under which the caller's pair with the update is
+// listed.
 // @expect MW1004 line=33 confidence=medium function=closeKeeping
 // @expect MW1004 line=33 confidence=medium function=closeKeeping
 // @expect MW1004 line=38 confidence=medium function=closeReassignedQuietly
 // @expect MW1004 line=38 confidence=medium function=closeReassignedQuietly
 // @expect MW1004 line=43 confidence=medium function=closeChosen
 // @expect MW1004 line=43 confidence=medium function=closeChosen
-// The delete always runs first: only the pair with the delete.
+// The delete always runs first: the pair with the delete and the pair
+// inside the helper.
+// @expect MW1004 line=49 confidence=medium function=closeDirectPurging
 // @expect MW1004 line=49 confidence=medium function=closeDirectPurging

@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use midwrite_analyzer::Analyzer;
 use midwrite_core::absint::RelationKind;
 use midwrite_core::config::Config;
-use midwrite_core::diagnostic::{Confidence, Diagnostic};
+use midwrite_core::diagnostic::{Confidence, Diagnostic, EffectRole};
 use midwrite_core::ir::{CallResolution, EffectKind, Execution, FileIr, FunctionIr, Node};
 
 fn analyzer() -> Analyzer {
@@ -919,14 +919,43 @@ fn literal_arguments_decide_callee_branches_on_destructured_parameters() {
         .expect("project exists");
     let diagnostics: Vec<&Diagnostic> =
         analysis.files.iter().flat_map(|f| &f.diagnostics).collect();
+    // Pairs entirely inside one call of the helper (reported at the call
+    // since DEV-181) are not about the caller's operations: left out. A
+    // pair of the caller's own that another path's pair inside the helper
+    // displaced is listed under it ("On other paths ..."), so it counts.
+    let inside_one_call = |d: &Diagnostic| {
+        let sites: std::collections::BTreeSet<_> = d
+            .effects
+            .iter()
+            .filter(|e| e.description.starts_with("call of `"))
+            .map(|e| (e.location.line, e.location.column))
+            .collect();
+        sites.len() == 1
+            && d.effects
+                .iter()
+                .filter(|e| !e.description.starts_with("call of `"))
+                .all(|e| e.description.contains(", inside `"))
+    };
     let pairs = |function: &str| -> Vec<&'static str> {
         let mut out: Vec<&'static str> = diagnostics
             .iter()
             .filter(|d| d.function == function && d.code.as_str() == "MW1004")
+            .filter(|d| {
+                !inside_one_call(d)
+                    || d.limitations.iter().any(|note| {
+                        note.starts_with("On other paths a different operation precedes it")
+                    })
+            })
+            // The operation the pair leaves undone.
             .map(|d| {
-                if d.message.contains("database.delete(attachments)") {
+                let undone = d
+                    .effects
+                    .iter()
+                    .find(|e| e.role == EffectRole::NotYetPerformed)
+                    .map_or("", |e| e.label.as_str());
+                if undone == "database.delete(attachments)" {
                     "delete"
-                } else if d.message.contains("database.update(inbox)") {
+                } else if undone == "database.update(inbox)" {
                     "update"
                 } else {
                     "other"
