@@ -6,7 +6,7 @@ use std::fmt::Write as _;
 use serde_json::{Value, json};
 
 use midwrite_core::diagnostic::{
-    BaselineState, Diagnostic, DiagnosticCode, PathCertainty, Severity,
+    BaselineState, Diagnostic, DiagnosticCode, DiagnosticKind, EffectRole, PathCertainty, Severity,
 };
 use midwrite_core::location::{LineIndex, SourceLocation};
 use midwrite_core::report::Report;
@@ -15,8 +15,79 @@ use midwrite_core::report::Report;
 pub fn text(report: &Report, verbose: bool) -> String {
     let mut out = String::new();
     let mut sources = SourceCache::default();
+    // Findings that describe the same effect pair on the same failure path
+    // (`Diagnostic::group`) are shown once, at the member whose function
+    // contains the operations most directly, with the others listed under
+    // it. `--verbose` prints every finding in full.
+    let mut groups: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+    for (index, diagnostic) in report.diagnostics.iter().enumerate() {
+        if let Some(group) = &diagnostic.group {
+            groups.entry(group).or_default().push(index);
+        }
+    }
+    let call_sites = |diagnostic: &Diagnostic| {
+        diagnostic
+            .effects
+            .iter()
+            .filter(|effect| effect.role == EffectRole::CallSite)
+            .count()
+    };
+    let shown: BTreeMap<&str, usize> = groups
+        .iter()
+        .map(|(group, members)| {
+            // A finding that is not in the baseline is never folded under
+            // one that is: it is what a CI run is about.
+            let shown = members
+                .iter()
+                .copied()
+                .min_by_key(|&index| {
+                    let diagnostic = &report.diagnostics[index];
+                    (
+                        diagnostic.baseline == Some(BaselineState::Existing),
+                        call_sites(diagnostic),
+                        index,
+                    )
+                })
+                .expect("a group has a member");
+            (*group, shown)
+        })
+        .collect();
+    // Analysis gaps (MW9001) by file and function, for cross-references.
+    let mut gaps: BTreeMap<(&str, &str), Vec<&Diagnostic>> = BTreeMap::new();
     for diagnostic in &report.diagnostics {
-        write_diagnostic(&mut out, diagnostic, &mut sources, verbose);
+        if diagnostic.kind == DiagnosticKind::AnalysisLimitation {
+            gaps.entry((&diagnostic.location.file, &diagnostic.function))
+                .or_default()
+                .push(diagnostic);
+        }
+    }
+    let mut folded = 0usize;
+    for (index, diagnostic) in report.diagnostics.iter().enumerate() {
+        let others: Vec<&Diagnostic> = match &diagnostic.group {
+            Some(group) => groups[group.as_str()]
+                .iter()
+                .filter(|&&member| member != index)
+                .map(|&member| &report.diagnostics[member])
+                .collect(),
+            None => Vec::new(),
+        };
+        if !verbose
+            && let Some(group) = &diagnostic.group
+            && shown[group.as_str()] != index
+        {
+            folded += 1;
+            continue;
+        }
+        let context = Context {
+            same_pair: &others,
+            gaps: gaps
+                .get(&(
+                    diagnostic.location.file.as_str(),
+                    diagnostic.function.as_str(),
+                ))
+                .map_or(&[], Vec::as_slice),
+        };
+        write_diagnostic(&mut out, diagnostic, &mut sources, verbose, &context);
         out.push('\n');
     }
     for failure in &report.failures {
@@ -75,10 +146,44 @@ pub fn text(report: &Report, verbose: bool) -> String {
             summary.known_gaps
         );
     }
+    if folded > 0 {
+        let _ = writeln!(
+            out,
+            "midwrite: {folded} finding(s) repeat an effect pair and failure path shown above and are listed under it (`--verbose` prints each in full)."
+        );
+    }
     if !report.diagnostics.is_empty() {
         out.push_str("Findings are potential hazards, not reproduced failures. Run `midwrite explain <CODE>` for details.\n");
     }
     out
+}
+
+/// What the rest of the report says about one diagnostic.
+struct Context<'r> {
+    /// The other findings with the same effect pair and failure path.
+    same_pair: &'r [&'r Diagnostic],
+    /// The analysis gaps (MW9001) of the same function.
+    gaps: &'r [&'r Diagnostic],
+}
+
+fn baseline_marker(diagnostic: &Diagnostic) -> &'static str {
+    match diagnostic.baseline {
+        Some(BaselineState::Existing) => " (in baseline)",
+        Some(BaselineState::New) => " (new)",
+        None => "",
+    }
+}
+
+fn role_name(role: EffectRole) -> &'static str {
+    match role {
+        EffectRole::CompletedFirst => "completed first",
+        EffectRole::NotYetPerformed => "not yet performed",
+        EffectRole::StagedWrite => "staged write",
+        EffectRole::Transaction => "transaction",
+        EffectRole::Unanalyzed => "not analyzed",
+        EffectRole::Context => "context",
+        EffectRole::CallSite => "reached through",
+    }
 }
 
 fn write_diagnostic(
@@ -86,13 +191,11 @@ fn write_diagnostic(
     diagnostic: &Diagnostic,
     sources: &mut SourceCache,
     verbose: bool,
+    context: &Context<'_>,
 ) {
     let location = &diagnostic.location;
-    let marker = match diagnostic.baseline {
-        Some(BaselineState::Existing) => " (in baseline)",
-        Some(BaselineState::New) => " (new)",
-        None => "",
-    };
+    let marker = baseline_marker(diagnostic);
+    let hazard = diagnostic.kind == DiagnosticKind::PotentialHazard;
     let _ = writeln!(
         out,
         "{}[{}]: {}{marker}",
@@ -140,7 +243,22 @@ fn write_diagnostic(
             );
         }
     }
-    if verbose {
+    // Where each operation of the finding is, by role: the durable first
+    // effect and the missing second one are locations, not only prose.
+    if !diagnostic.effects.is_empty() {
+        let _ = writeln!(out, "  operations:");
+        for effect in &diagnostic.effects {
+            let _ = writeln!(
+                out,
+                "    - {}: `{}` ({}): {}",
+                role_name(effect.role),
+                effect.label,
+                short_location(&effect.location, &diagnostic.location.file),
+                effect.description
+            );
+        }
+    }
+    if verbose || hazard {
         let _ = writeln!(
             out,
             "  basis: path {}, evidence {}",
@@ -172,6 +290,49 @@ fn write_diagnostic(
             note.verified,
             note.effect_on_finding
         );
+    }
+    if hazard {
+        if diagnostic.recovery.is_empty() {
+            let _ = writeln!(out, "  recovery: none declared");
+        }
+        if context.gaps.is_empty() {
+            let _ = writeln!(
+                out,
+                "  analysis gaps: none reported in this function (not a statement of complete analysis)"
+            );
+        } else {
+            let places: Vec<String> = context
+                .gaps
+                .iter()
+                .map(|gap| short_location(&gap.location, &diagnostic.location.file))
+                .collect();
+            let _ = writeln!(
+                out,
+                "  analysis gaps: this function has unanalyzed operations (MW9001) at {}",
+                places.join(", ")
+            );
+        }
+    }
+    if !context.same_pair.is_empty() {
+        let _ = writeln!(
+            out,
+            "  same effect pair and failure path, also reported in:"
+        );
+        for other in context.same_pair {
+            let through = other
+                .effects
+                .iter()
+                .find(|effect| effect.role == EffectRole::CallSite)
+                .map(|effect| format!(", through `{}`", effect.label))
+                .unwrap_or_default();
+            let _ = writeln!(
+                out,
+                "    - `{}` at {}{through}{}",
+                other.function,
+                short_location(&other.location, ""),
+                baseline_marker(other)
+            );
+        }
     }
     let _ = writeln!(out, "  help: {}", diagnostic.mitigation);
     let general = diagnostic.code.info().limitation;
@@ -282,6 +443,12 @@ pub fn sarif(report: &Report) -> String {
             });
             if !diagnostic.recovery.is_empty() {
                 result["properties"]["recovery"] = json!(diagnostic.recovery);
+            }
+            // Results with the same group are one effect pair and failure
+            // path reported in several functions; each stays a result of
+            // its own, with its own location and fingerprint.
+            if let Some(group) = &diagnostic.group {
+                result["properties"]["group"] = json!(group);
             }
             if let Some(state) = diagnostic.baseline {
                 result["baselineState"] = json!(match state {

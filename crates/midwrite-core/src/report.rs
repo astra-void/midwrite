@@ -158,7 +158,10 @@ impl Report {
         failures.sort_by(|a, b| a.file.cmp(&b.file).then(a.line.cmp(&b.line)));
         let mut items: Vec<(Diagnostic, ())> = diagnostics.into_iter().map(|d| (d, ())).collect();
         order_findings(&mut items);
-        let diagnostics: Vec<Diagnostic> = items.into_iter().map(|(d, ())| d).collect();
+        let mut diagnostics: Vec<Diagnostic> = items.into_iter().map(|(d, ())| d).collect();
+        for diagnostic in &mut diagnostics {
+            diagnostic.group = diagnostic.group_key();
+        }
         let mut counts = SeverityCounts::default();
         let known_gaps = diagnostics
             .iter()

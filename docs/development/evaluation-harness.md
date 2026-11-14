@@ -1705,3 +1705,53 @@ reported, and whether it is accepted is a label.
 **Corpus impact of this change: none.** The same 476 findings with the
 same IDs and limitation counts; no corpus chain binds a fallback from a
 handler that also performs a recognized operation.
+
+## Review output and repeated findings (2026-11-14, DEV-171)
+
+The default text output of `check` now lists each operation by role with
+its location, the basis, the recovery declarations (or `none declared`)
+and the analysis gaps of the function. Findings with the same effect pair
+and failure path carry the same `group` and are printed once in text
+([reading a finding](../DIAGNOSTICS.md#reading-a-finding-in-the-text-output),
+[adoption guide](../user-guide/adoption.md)).
+
+No finding, fingerprint, severity or label changes: only the text layout
+and the additive `group` field. The scoring of the sets is unchanged
+(476 findings; held-out 28/30, gate PASS).
+
+**Repeated findings in the corpus.** Hazards per project, and how many
+are folded under another finding of the same `group` in text:
+
+| project | hazards | folded |
+| --- | ---: | ---: |
+| midday | 223 | 6 |
+| kan | 108 | 5 |
+| dittofeed | 65 | 6 |
+| zero, vercel-chatbot, nextjs-billing, petdex, next-saas-stripe-starter | 80 | 0 |
+
+More findings share only the operations of the pair (midday: 49 findings
+in 17 pairs; kan: 38 in 15). They differ in path conditions, confidence
+or recovery context, so they stay separate presentations.
+
+**Baseline compatibility with v0.1.0.** A baseline written by the v0.1.0
+binary (tag `v0.1.0`, built from source) was read by this build, on the
+same sources and the v0.1.0 configuration:
+
+| input | v0.1.0 entries | still matched | new | resolved |
+| --- | ---: | ---: | ---: | ---: |
+| v0.1.0 `fixtures/` | 218 | 217 | 5 | 1 |
+| midday | 324 | 284 | 27 | 40 |
+| kan | 135 | 131 | 13 | 4 |
+| dittofeed | 102 | 98 | 11 | 4 |
+| zero | 174 | 171 | 4 | 3 |
+| vercel-chatbot | 16 | 16 | 0 | 0 |
+
+The new and resolved entries come from analyzer changes since v0.1.0. The
+build before this change (DEV-170) gives the same three numbers on the
+fixtures, so the output work changes no fingerprint.
+
+**Reviewed sample.** The review of findings and audited misses that this
+item asked for was done by blind AI reviewers, not by people, at the
+project owner's decision ([record](human-review.md)). Its limits are
+stated there: 109 tier-1 items of a fixed 172-item sample, two AI passes,
+no human verdict. It is not a human-reviewed score for the dataset.

@@ -467,6 +467,7 @@ impl Renderer<'_> {
             baseline: None,
             relationship: relationship(&shape),
             value_relation: value_relation(self.function, &shape),
+            group: None,
             recovery,
         };
         diagnostic.fingerprint = diagnostic.compute_fingerprint(Some(self.src.file));
@@ -552,6 +553,7 @@ impl Renderer<'_> {
             recovery: Vec::new(),
             relationship: None,
             value_relation: None,
+            group: None,
         };
         diagnostic.fingerprint = diagnostic.compute_fingerprint(Some(self.src.file));
         diagnostic

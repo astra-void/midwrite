@@ -644,6 +644,182 @@ fn unmodeled_promise_continuations_are_reported_as_gaps_in_every_format() {
     );
 }
 
+const HELPER_REACHED_TWICE: &str = r#"import { db } from "./db";
+import { orders, lines } from "./schema";
+
+async function complete(store: typeof db, id: string) {
+  await store.update(orders).set({ status: "paid" });
+  await store.insert(lines).values({ id });
+}
+
+export async function fromCheckout(id: string) {
+  await complete(db, id);
+}
+
+export async function fromWebhook(id: string) {
+  await complete(db, id);
+}
+
+export async function fromJob(id: string) {
+  await complete(db, id);
+}
+"#;
+
+#[test]
+fn findings_are_reviewable_from_the_default_text_and_repeats_are_grouped() {
+    let config = r#"{
+  "databaseReceivers": ["db"],
+  "recoveryContracts": [{
+    "function": "fromJob",
+    "strategy": "retried",
+    "covers": ["MW1004"],
+    "evidence": "queue config: attempts 3"
+  }]
+}"#;
+    let dir = scratch(
+        "review-output",
+        &[
+            ("midwrite.json", config),
+            ("src/orders.ts", HELPER_REACHED_TWICE),
+            ("src/db.ts", "export const db = {} as any;\n"),
+            (
+                "src/schema.ts",
+                "export const orders = {} as any;\nexport const lines = {} as any;\n",
+            ),
+        ],
+    );
+
+    // Three findings: the same pair inside `complete`, reached from three
+    // exported functions. Two share everything; the third has a recovery
+    // contract, which is a different context.
+    let report = json(&run_in(&dir, &["check", ".", "--format", "json"]));
+    let diagnostics = report["diagnostics"].as_array().unwrap();
+    assert_eq!(diagnostics.len(), 3, "{diagnostics:#?}");
+    let by_function = |name: &str| {
+        diagnostics
+            .iter()
+            .find(|d| d["function"] == name)
+            .unwrap_or_else(|| panic!("a finding in {name}"))
+    };
+    let (checkout, webhook, job) = (
+        by_function("fromCheckout"),
+        by_function("fromWebhook"),
+        by_function("fromJob"),
+    );
+    assert_eq!(checkout["group"], webhook["group"]);
+    assert_ne!(checkout["group"], job["group"], "recovery context differs");
+    assert_ne!(checkout["fingerprint"], webhook["fingerprint"]);
+    assert_ne!(checkout["location"], webhook["location"]);
+
+    let sarif = json(&run_in(&dir, &["check", ".", "--format", "sarif"]));
+    let results = sarif["runs"][0]["results"].as_array().unwrap();
+    assert_eq!(results.len(), 3, "every finding stays a result");
+    let groups: Vec<&Value> = results.iter().map(|r| &r["properties"]["group"]).collect();
+    assert_eq!(
+        groups.iter().filter(|g| **g == &checkout["group"]).count(),
+        2
+    );
+
+    // Default text: the pair is shown once with the other context listed
+    // under it; the recovery context is shown separately.
+    let text = stdout(&run_in(&dir, &["check", "."]));
+    assert_eq!(text.matches("info[MW1004]").count(), 2, "{text}");
+    assert!(
+        text.contains("same effect pair and failure path, also reported in:"),
+        "{text}"
+    );
+    assert!(
+        text.contains("- `fromWebhook` at src/orders.ts:14:9"),
+        "{text}"
+    );
+    assert!(
+        text.contains("1 finding(s) repeat an effect pair and failure path shown above"),
+        "{text}"
+    );
+    // The durable first effect, the missing second one, the basis, the
+    // declared recovery (or its absence) and the analysis gaps are named.
+    assert!(
+        text.contains("- completed first: `store.update(orders)` (5:9)"),
+        "{text}"
+    );
+    assert!(
+        text.contains("- not yet performed: `store.insert(lines)` (6:9)"),
+        "{text}"
+    );
+    assert!(
+        text.contains("  basis: path straight-line, evidence"),
+        "{text}"
+    );
+    assert!(text.contains("  recovery: none declared"), "{text}");
+    assert!(
+        text.contains("  recovery: contract `retried` declared for function `fromJob` (provenance: configuration, verified: false"),
+        "{text}"
+    );
+    assert!(
+        text.contains(
+            "  analysis gaps: none reported in this function (not a statement of complete analysis)"
+        ),
+        "{text}"
+    );
+
+    // `--verbose` prints every finding in full.
+    let verbose = stdout(&run_in(&dir, &["check", ".", "--verbose"]));
+    assert_eq!(verbose.matches("info[MW1004]").count(), 3, "{verbose}");
+    assert!(!verbose.contains("finding(s) repeat an effect pair"));
+}
+
+#[test]
+fn a_new_finding_is_never_folded_under_a_baseline_finding() {
+    let two_callers = HELPER_REACHED_TWICE
+        .split("export async function fromJob")
+        .next()
+        .unwrap()
+        .to_owned();
+    let dir = scratch(
+        "review-output-baseline",
+        &[
+            ("midwrite.json", r#"{ "databaseReceivers": ["db"] }"#),
+            ("src/orders.ts", &two_callers),
+            ("src/db.ts", "export const db = {} as any;\n"),
+            (
+                "src/schema.ts",
+                "export const orders = {} as any;\nexport const lines = {} as any;\n",
+            ),
+        ],
+    );
+    let written = run_in(
+        &dir,
+        &["check", ".", "--write-baseline", "midwrite-baseline.json"],
+    );
+    assert_eq!(written.status.code(), Some(0));
+
+    // A third caller reaches the same pair: a new finding of the group.
+    std::fs::write(dir.join("src/orders.ts"), HELPER_REACHED_TWICE).unwrap();
+    let text = stdout(&run_in(
+        &dir,
+        &[
+            "check",
+            ".",
+            "--baseline",
+            "midwrite-baseline.json",
+            "--fail-on",
+            "info",
+        ],
+    ));
+    assert_eq!(text.matches("info[MW1004]").count(), 1, "{text}");
+    assert!(
+        text.contains("info[MW1004]: independent database commits (new)"),
+        "the new finding is the one shown in full: {text}"
+    );
+    assert!(text.contains("(in `fromJob`,"), "{text}");
+    assert!(
+        text.contains(
+            "- `fromCheckout` at src/orders.ts:10:9, through `complete(db, id)` (in baseline)"
+        ),
+        "{text}"
+    );
+}
+
 #[test]
 fn ir_command_prints_the_effect_ir() {
     let output = run(&["ir", "safe/transactional_outbox.ts"]);

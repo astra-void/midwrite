@@ -19,6 +19,19 @@ output formats.
   specified
   ([continuations](docs/architecture/value-analysis.md#awaited-promise-continuations))
   (DEV-172).
+- The default text output of `check` shows, for every hazard, each
+  operation by role with its location (`completed first`, `not yet
+  performed`, ...), the basis (path certainty and evidence strength), the
+  recovery declarations or `none declared`, and the analysis gaps of the
+  same function (DEV-171).
+- Findings that report the same effect pair on the same failure path from
+  several functions carry the same `group` (JSON; SARIF
+  `properties.group`). The text output prints the pair once and lists the
+  other functions under it; `--verbose` prints each in full. JSON, SARIF,
+  baselines and `--fail-on` still count every finding (DEV-171).
+- An adoption guide: first scan, review, baseline, a recovery declaration
+  with evidence, and a new finding in CI
+  ([guide](docs/user-guide/adoption.md)) (DEV-171).
 - Promise continuations that are not analyzed in sequence are reported as
   coverage gaps (`MW9001`, reason `unmodeledContinuation`): an inline
   `.then`, `.catch` or `.finally` handler that contains a recognized

@@ -17,7 +17,7 @@ midwrite check .                                  # default: text, policy recomm
 midwrite check apps/web/src --config midwrite.json
 midwrite check . --format json > findings.json
 midwrite check . --format sarif > findings.sarif
-midwrite check . -v                               # also evidence, path certainty, evidence strength, limitations
+midwrite check . -v                               # also evidence, general limitations, every repeated finding in full
 ```
 
 A run analyzes all given files as one project, so imports between them are
@@ -85,6 +85,9 @@ finding reaches `--fail-on`), even with `--fail-on never`. Syntax and read
 errors cannot be suppressed.
 
 ## Baselines (adopting it in CI)
+
+Step by step, from the first scan to a new finding in CI:
+[adopting `midwrite check`](adoption.md).
 
 ```bash
 midwrite check . --write-baseline midwrite-baseline.json   # once; commit the file

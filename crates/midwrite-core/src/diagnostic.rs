@@ -617,6 +617,16 @@ pub struct Diagnostic {
     /// finding. Added in Phase 5.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value_relation: Option<crate::absint::ValueRelation>,
+    /// Hazard findings of one report with the same `group` are the same
+    /// effect pair on the same failure path, reported in several functions
+    /// (a helper and the callers that reach it, several exported wrappers),
+    /// with the same severity, confidence and recovery context
+    /// ([`Self::group_key`]). A presentation may show them together; each
+    /// keeps its own location, function and fingerprint. Meaningful within
+    /// one report only (it includes source positions). Assigned when the
+    /// report is assembled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
 }
 
 /// 64-bit FNV-1a, a hash whose output does not depend on the Rust version.
@@ -652,6 +662,60 @@ impl Diagnostic {
         }
         let parts: Vec<&str> = parts.iter().map(String::as_str).collect();
         format!("{:016x}", stable_hash(&parts))
+    }
+}
+
+impl Diagnostic {
+    /// What must agree for two hazard findings to be one presentation
+    /// ([`Self::group`]): the code, the operations of the pair (role,
+    /// label and location; call sites and context are the callers' own),
+    /// the conditions of the path, how certain the path is, severity and
+    /// confidence, and every recovery declaration. `None` for analysis
+    /// limitations, which are never grouped this way.
+    pub fn group_key(&self) -> Option<String> {
+        if self.kind != DiagnosticKind::PotentialHazard {
+            return None;
+        }
+        let mut parts: Vec<String> = vec![
+            self.code.as_str().to_owned(),
+            format!("{:?}", self.severity),
+            format!("{:?}", self.confidence),
+            format!("{:?}", self.path_certainty),
+        ];
+        let at = |location: &SourceLocation| {
+            format!("{}:{}:{}", location.file, location.line, location.column)
+        };
+        for effect in &self.effects {
+            if matches!(
+                effect.role,
+                EffectRole::CompletedFirst
+                    | EffectRole::NotYetPerformed
+                    | EffectRole::StagedWrite
+                    | EffectRole::Transaction
+            ) {
+                parts.push(format!(
+                    "{:?}={}@{}",
+                    effect.role,
+                    effect.label,
+                    at(&effect.location)
+                ));
+            }
+        }
+        for condition in &self.path_conditions {
+            parts.push(format!(
+                "if {}@{}",
+                condition.description,
+                at(&condition.location)
+            ));
+        }
+        for note in &self.recovery {
+            parts.push(format!(
+                "recovery {:?} {} {}",
+                note.declaration, note.scope, note.effect
+            ));
+        }
+        let parts: Vec<&str> = parts.iter().map(String::as_str).collect();
+        Some(format!("{:016x}", stable_hash(&parts)))
     }
 }
 

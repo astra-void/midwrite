@@ -284,6 +284,60 @@ Branch conditions are checked for simple contradictions only: a path whose
 decisions contradict each other on a variable that is never reassigned is
 not reported at all; all other conditions are assumed satisfiable together.
 
+## Reading a finding in the text output
+
+Every hazard in the default text output answers the review questions in
+fixed places:
+
+| line | what it says |
+| --- | --- |
+| `-->` and the source excerpt | the primary location (the operation that is left undone), the function and the confidence |
+| `=` | the hazard in one sentence |
+| `failure sequence:` | the steps from the durable effect to the partial result |
+| `path conditions:` | the branch decisions the reported path takes, when there are any |
+| `operations:` | each operation by role with its location: `completed first` (the durable or visible first effect), `not yet performed` (the missing second effect), `staged write`, `transaction`, `reached through` (the call that leads to it), `context` |
+| `basis:` | how certain the path is and how the operations were recognized (`pathCertainty`, `evidenceStrength`) |
+| `recovery:` | each recovery declaration that applies, with `verified: false`, or `none declared` |
+| `analysis gaps:` | the `MW9001` locations in the same function, or that none is reported there |
+| `same effect pair and failure path, also reported in:` | the other functions that report this pair (see below) |
+| `help:` and `note:` | the mitigation and the limitations of this instance |
+
+A recovery declaration is what the configuration asserts. Midwrite does
+not verify it, and the finding stays reported. `analysis gaps: none
+reported` means only that no gap was recognized in that function.
+
+`--verbose` adds the evidence for each recognition and the general
+limitation of the code, and prints every repeated finding in full.
+
+### Repeated findings
+
+The same effect pair can be reported in several functions: in a helper
+and in each caller that binds its handle, or through several exported
+wrappers. Such findings carry the same `group` when all of these agree:
+
+* the code, severity, confidence and path certainty;
+* the operations of the pair (role, label and location);
+* the path conditions;
+* the recovery declarations.
+
+Call sites are not part of the comparison: they are what differs
+between the callers.
+
+* **Text.** The pair is printed once, at the function that contains the
+  operations most directly. The other functions are listed under it with
+  their locations and the call that reaches the pair. The summary says how
+  many findings were folded this way.
+* **JSON and SARIF.** Nothing is folded. Every finding stays an entry of
+  its own with its own location, function and fingerprint, and carries
+  `group` (SARIF: `properties.group`). Baselines, suppressions and
+  `--fail-on` count each finding as before.
+
+A finding whose caller adds a condition, runs the helper differently
+(another confidence) or has a recovery contract is a different context
+and is shown on its own. `group` includes source positions, so it is
+meaningful within one report only; use `fingerprint` to track a finding
+across runs.
+
 ## Exit status
 
 | Status | Meaning |
@@ -354,6 +408,7 @@ Diagnostic {
                                         //   ("provenDisjoint" is reserved and never produced)
     shared?: [{ kind: "derivedFromResult" | "sameValue", first: string, second: string, exact?: true }]
   }                                     //   from abstract value provenance across summarized calls; see architecture/value-analysis.md
+  group?: string                        // hazards only: equal within one report = same effect pair and failure path (see "Repeated findings")
 }
 
 RecoveryNote {
@@ -420,8 +475,8 @@ diagnostic (`relatedLocations` are the related effects, possibly in other
 files; `partialFingerprints["midwrite/v1"]` is the fingerprint;
 `baselineState` is `new` or `unchanged` with `--baseline`; `properties` carry
 `function`, `confidence`, `pathCertainty`, `evidenceStrength`, `kind`,
-`reproduced` and `limitations`), and parse or read failures as tool execution
-notifications.
+`reproduced`, `limitations`, and, when present, `recovery` and `group`),
+and parse or read failures as tool execution notifications.
 
 An incomplete analysis is distinguishable from a clean one in every format:
 
