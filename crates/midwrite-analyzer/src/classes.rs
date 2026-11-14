@@ -72,6 +72,13 @@ pub(crate) struct ClassInfo {
     /// fields that code outside the class cannot assign (`private`,
     /// `readonly`, `#name`).
     pub field_classes: BTreeMap<String, FieldClass>,
+    /// Fields that always hold what the constructor was passed for one of
+    /// its parameters (by position): a parameter property
+    /// (`constructor(private db: Database)`) that nothing assigns, or a
+    /// field assigned once, from a parameter that is never reassigned, at
+    /// the top of the constructor. Only fields that code outside the class
+    /// cannot assign (`private`, `readonly`, `#name`), and no accessors.
+    pub handle_fields: BTreeMap<String, u32>,
     /// Assignments to `this.name` / `this.#name` inside the class.
     pub this_writes: BTreeMap<String, usize>,
 }

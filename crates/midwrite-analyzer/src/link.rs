@@ -343,6 +343,7 @@ impl ClassTable {
                 class: self.name(declaring).to_owned(),
                 exact,
                 assumption: (!assumptions.is_empty()).then(|| assumptions.join("; and ")),
+                own: declaring == node,
             },
         ))
     }
@@ -405,6 +406,7 @@ impl ClassTable {
                             class: self.name(*parent).to_owned(),
                             exact: true,
                             assumption: None,
+                            own: false,
                         },
                     )
                 }))
@@ -429,6 +431,7 @@ impl ClassTable {
                                     class: self.name(class).to_owned(),
                                     exact: true,
                                     assumption: None,
+                                    own: false,
                                 },
                             ))
                         })

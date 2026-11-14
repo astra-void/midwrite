@@ -132,6 +132,7 @@ impl Builder {
             recognition: recognition("db", RecognitionBasis::ConfiguredName),
             summary: None,
             parent_parameter: None,
+            parent_field: None,
         });
         id
     }

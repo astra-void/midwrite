@@ -124,7 +124,8 @@ fn this_dispatch_is_resolved_without_overrides_and_recorded() {
         Some(&CallResolution::Method {
             class: "OrderService".to_owned(),
             exact: false,
-            assumption: None
+            assumption: None,
+            own: true,
         })
     );
     let direct = function(&ir, "direct");

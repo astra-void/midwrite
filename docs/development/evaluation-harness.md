@@ -1557,3 +1557,42 @@ Record: [`reports/eval/2026-11-13-ai-review-rescore.json`](../../reports/eval/20
 
 The held-out changes come from label corrections. No analyzer change is
 involved, and the analyzer was not tuned. All labels remain AI-written.
+
+## Constructor-set handle fields (2026-11-14, DEV-170)
+
+The analyzer now follows a handle that the constructor stores in a field
+(`constructor(private readonly db: Database)`, or a sealed field assigned
+once from a constructor parameter). Each call site binds it to the handle
+the receiver was constructed with.
+
+Fixtures:
+
+* `fixtures/vulnerable/constructor_handle_fields.ts`
+* `fixtures/safe/constructor_transaction_field.ts`
+* `fixtures/unsupported/constructor_field_mutations.ts`
+* `fixtures/projects/constructor_handle/`
+
+**Dev-set impact: none.** All sets give the same 476 findings, with the
+same IDs, classifications and limitation counts as
+[`2026-11-13-ai-review-rescore.json`](../../reports/eval/2026-11-13-ai-review-rescore.json):
+
+| measure | result |
+| --- | ---: |
+| dev hazard precision | 421/443 |
+| dev recall | 161/172 |
+| held-out hazard precision | 28/30, gate PASS |
+
+Two corpus classes have the pattern. Neither writes through the field:
+
+* midday's `EmailService` (`constructor(private db: Database)`) only
+  passes `this.db` to a read;
+* zero's `Conversations` (`constructor(private readonly sql: Sql)`) issues
+  SQL tags, not Drizzle builders.
+
+**Found but not changed: unconfigured parameter handles.** A helper that
+writes twice on an *unconfigured* parameter (`async function both(h) {
+await h.update(…); await h.insert(…) }`), called with `db`, is reported
+by neither side. The helper alone treats the parameter as unknown, and
+the caller leaves a pair inside one call to the callee. Constructor-set
+fields avoid this through `SummaryOrigin::bound_at`. Applying the same
+rule to parameters would change dev findings, so it is a separate change.

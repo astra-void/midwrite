@@ -904,6 +904,9 @@ impl<'a> Visit<'a> for Collector<'_> {
         // Candidates for `field_classes`, decided after the body is walked
         // (when every assignment of `this.<field>` has been counted).
         let mut constructed: Vec<(String, SymbolId, bool)> = Vec::new();
+        // Candidates for `handle_fields`: `(field, parameter, assigned in
+        // the constructor body)`.
+        let mut from_parameters: Vec<(String, u32, bool)> = Vec::new();
         let mut sealed: BTreeSet<String> = BTreeSet::new();
         for element in &it.body.body {
             if let ClassElement::PropertyDefinition(property) = element
@@ -937,6 +940,29 @@ impl<'a> Visit<'a> for Collector<'_> {
                 && method.kind == MethodDefinitionKind::Constructor
                 && let Some(body) = &method.value.body
             {
+                // The position of each plain parameter that is never reassigned.
+                let mut parameters: HashMap<SymbolId, u32> = HashMap::new();
+                for (index, parameter) in method.value.params.items.iter().enumerate() {
+                    let BindingPattern::BindingIdentifier(id) = &parameter.pattern else {
+                        continue;
+                    };
+                    let Ok(index) = u32::try_from(index) else {
+                        continue;
+                    };
+                    if parameter.readonly
+                        || matches!(
+                            parameter.accessibility,
+                            Some(oxc_ast::ast::TSAccessibility::Private)
+                        )
+                    {
+                        from_parameters.push((id.name.as_str().to_owned(), index, false));
+                    }
+                    if let Some(symbol) = id.symbol_id.get()
+                        && !self.scoping.symbol_is_mutated(symbol)
+                    {
+                        parameters.insert(symbol, index);
+                    }
+                }
                 for statement in &body.statements {
                     let oxc_ast::ast::Statement::ExpressionStatement(statement) = statement else {
                         continue;
@@ -965,6 +991,12 @@ impl<'a> Visit<'a> for Collector<'_> {
                         }
                         _ => continue,
                     };
+                    if let Expression::Identifier(source) = assignment.right.get_inner_expression()
+                        && let Some(symbol) = resolve_reference(self.scoping, source)
+                        && let Some(index) = parameters.get(&symbol)
+                    {
+                        from_parameters.push((field.clone(), *index, true));
+                    }
                     if let Some(symbol) = self.constructed(&assignment.right) {
                         constructed.push((field, symbol, true));
                     }
@@ -1065,6 +1097,22 @@ impl<'a> Visit<'a> for Collector<'_> {
                     info.field_classes
                         .entry(field)
                         .or_insert(FieldClass::Constructed(symbol));
+                }
+            }
+            for (field, index, in_body) in from_parameters {
+                let writes = info.this_writes.get(&field).copied().unwrap_or(0);
+                // A parameter property is assigned by the constructor
+                // itself, never by a statement.
+                let single = writes == usize::from(in_body);
+                let sealed = !in_body || field.starts_with('#') || sealed.contains(&field);
+                // The constructor's own `this.f = p` is the write counted.
+                let untouched = !info.dynamic.contains("*")
+                    && (in_body || !info.dynamic.contains(&field))
+                    && !info.accessors.contains(&field)
+                    && !info.fields.contains_key(&field)
+                    && !info.methods.contains_key(&field);
+                if single && sealed && untouched {
+                    info.handle_fields.entry(field).or_insert(index);
                 }
             }
         }

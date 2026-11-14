@@ -444,6 +444,11 @@ pub(crate) fn link_sites(
                     resolution.methods_resolved += 1;
                     resolution.methods_assumed += usize::from(assumption.is_some());
                 }
+                // A method declared by the receiver's own class: its fields
+                // were set from the receiver's constructor arguments.
+                if let Some(CallResolution::Method { own: true, .. }) = &how {
+                    call.receiver_arguments = site.receiver_arguments.clone();
+                }
                 call.callee = Some(callee);
                 call.resolution =
                     how.or_else(|| site.immediate.then_some(CallResolution::Immediate));

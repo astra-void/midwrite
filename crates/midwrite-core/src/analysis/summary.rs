@@ -105,6 +105,11 @@ pub struct LocalCall {
     /// The arguments by position: the database handle each passes, or
     /// `None` when it is not a recognized handle (or is a spread).
     pub arguments: Vec<Option<CallArgument>>,
+    /// Database handles the receiver's constructor was passed, by
+    /// constructor parameter: what the callee's [`DbHandle::Field`]
+    /// handles hold. Empty unless the receiver's constructor arguments are
+    /// known and the method is declared by the receiver's own class.
+    pub receiver_arguments: Vec<Option<CallArgument>>,
     /// The callee is the function this function's caller passes for this
     /// parameter (`await action()`).
     pub parameter: Option<u32>,
@@ -153,6 +158,7 @@ impl LocalCall {
             callable: None,
             entrypoint: false,
             arguments: Vec::new(),
+            receiver_arguments: Vec::new(),
             parameter: None,
             values: Vec::new(),
             receiver: None,
@@ -292,7 +298,7 @@ pub fn resolve_parameters(function: &FunctionIr) -> Cow<'_, FunctionIr> {
     let mut any = function
         .transactions
         .iter()
-        .any(|t| t.parent_parameter.is_some());
+        .any(|t| t.parent_parameter.is_some() || t.parent_field.is_some());
     visit(&function.body, &mut |node| {
         any |= matches!(node, Node::Effect(effect) if parameter_of(&effect.kind).is_some());
     });
@@ -302,6 +308,7 @@ pub fn resolve_parameters(function: &FunctionIr) -> Cow<'_, FunctionIr> {
     let mut resolved = function.clone();
     for info in &mut resolved.transactions {
         info.parent_parameter = None;
+        info.parent_field = None;
     }
     resolved.body = standalone_nodes(&function.body);
     Cow::Owned(resolved)
@@ -347,27 +354,25 @@ fn standalone_nodes(nodes: &[Node]) -> Vec<Node> {
     out
 }
 
-/// The parameter an operation is issued on: `(index, name, configured)`.
+/// The parameter (or constructor-set field of `this`) an operation is
+/// issued on: `(index, name, configured)`.
 fn parameter_of(kind: &EffectKind) -> Option<(u32, &str, bool)> {
     match kind {
-        EffectKind::DatabaseRead {
-            handle:
+        EffectKind::DatabaseRead { handle, .. } | EffectKind::DatabaseWrite { handle, .. } => {
+            match handle {
                 DbHandle::Parameter {
                     index,
                     name,
                     configured,
-                },
-            ..
+                }
+                | DbHandle::Field {
+                    index,
+                    name,
+                    configured,
+                } => Some((*index, name, *configured)),
+                _ => None,
+            }
         }
-        | EffectKind::DatabaseWrite {
-            handle:
-                DbHandle::Parameter {
-                    index,
-                    name,
-                    configured,
-                },
-            ..
-        } => Some((*index, name, *configured)),
         _ => None,
     }
 }
@@ -1358,6 +1363,7 @@ impl<'a> Inliner<'a> {
             transaction_base: u32::try_from(ids.transactions.len()).unwrap_or(u32::MAX),
             file,
             arguments: &site_info.arguments,
+            receiver_arguments: &site_info.receiver_arguments,
             variables: format!("{call}:"),
             binding: site_info.binding.as_deref(),
             binding_members: site_info.binding_members,
@@ -1390,16 +1396,39 @@ impl<'a> Inliner<'a> {
         }
         ids.next_call += 1 + summary.calls;
         for info in &callee.transactions {
-            let (parent, parent_parameter) = match (info.parent, info.parent_parameter) {
-                (Some(parent), _) => (Some(remap.transaction(parent)), None),
-                (None, Some(parameter)) => {
-                    match remap.argument(parameter).map(|argument| &argument.handle) {
-                        Some(DbHandle::Transaction { id }) => (Some(*id), None),
-                        Some(DbHandle::Parameter { index, .. }) => (None, Some(*index)),
-                        _ => (None, None),
-                    }
-                }
-                (None, None) => (None, None),
+            let bound = match (info.parent, info.parent_parameter, info.parent_field) {
+                (Some(parent), _, _) => Some(DbHandle::Transaction {
+                    id: remap.transaction(parent),
+                }),
+                (None, Some(parameter), _) => remap
+                    .argument(parameter)
+                    .map(|argument| argument.handle.clone()),
+                (None, None, Some(field)) => remap
+                    .receiver_argument(field)
+                    .map(|argument| argument.handle.clone()),
+                (None, None, None) => None,
+            };
+            // Started on a field bound here: recognized as what the
+            // receiver's constructor was passed.
+            let recognition = match (info.parent, info.parent_parameter, info.parent_field) {
+                (None, None, Some(field)) => remap.receiver_argument(field).map_or_else(
+                    || info.recognition.clone(),
+                    |argument| Recognition {
+                        basis: argument.recognition.basis,
+                        receiver: argument.label.clone(),
+                        detail: format!(
+                            "{}; bound to `{}`: {}",
+                            info.recognition.detail, argument.label, argument.recognition.detail
+                        ),
+                    },
+                ),
+                _ => info.recognition.clone(),
+            };
+            let (parent, parent_parameter, parent_field) = match bound {
+                Some(DbHandle::Transaction { id }) => (Some(id), None, None),
+                Some(DbHandle::Parameter { index, .. }) => (None, Some(index), None),
+                Some(DbHandle::Field { index, .. }) => (None, None, Some(index)),
+                _ => (None, None, None),
             };
             ids.transactions.push(TransactionInfo {
                 id: remap.transaction(info.id),
@@ -1407,12 +1436,14 @@ impl<'a> Inliner<'a> {
                 label: info.label.clone(),
                 location: remap.loc(info.location),
                 handle: info.handle.clone(),
-                recognition: info.recognition.clone(),
+                recognition,
                 summary: Some(remap.origin(
                     info.summary.as_ref(),
                     certain.transactions.contains(&info.id),
+                    false,
                 )),
                 parent_parameter,
+                parent_field,
             });
         }
         if let Some(result) = site_info.result {
@@ -1526,7 +1557,9 @@ fn returns_on_all_paths(nodes: &[Node]) -> bool {
 
 fn captured_argument(handle: DbHandle) -> CallArgument {
     let label = match &handle {
-        DbHandle::Root { name } | DbHandle::Parameter { name, .. } => name.clone(),
+        DbHandle::Root { name }
+        | DbHandle::Parameter { name, .. }
+        | DbHandle::Field { name, .. } => name.clone(),
         DbHandle::Transaction { id } => format!("transaction {}", id.0),
     };
     CallArgument {
@@ -1751,6 +1784,8 @@ struct Remap<'a> {
     /// The callee's file, when it differs from the caller's.
     file: Option<FileId>,
     arguments: &'a [Option<CallArgument>],
+    /// [`LocalCall::receiver_arguments`] of the call.
+    receiver_arguments: &'a [Option<CallArgument>],
     /// Prefix that makes the callee's variables distinct from the caller's
     /// and from other calls of the same callee.
     variables: String,
@@ -1799,6 +1834,12 @@ impl Remap<'_> {
 
     fn argument(&self, parameter: u32) -> Option<&CallArgument> {
         self.arguments.get(parameter as usize)?.as_ref()
+    }
+
+    /// The handle the receiver's constructor was passed for its parameter
+    /// `parameter` ([`DbHandle::Field`]).
+    fn receiver_argument(&self, parameter: u32) -> Option<&CallArgument> {
+        self.receiver_arguments.get(parameter as usize)?.as_ref()
     }
 
     /// A callee-frame value in the caller's frame.
@@ -1925,7 +1966,19 @@ impl Remap<'_> {
 
     /// The origin of an operation inlined through this call: this call
     /// first, then the calls it was already reached through in the callee.
-    fn origin(&self, inner: Option<&SummaryOrigin>, on_every_path: bool) -> SummaryOrigin {
+    fn origin(
+        &self,
+        inner: Option<&SummaryOrigin>,
+        on_every_path: bool,
+        bound: bool,
+    ) -> SummaryOrigin {
+        let bound_at = if bound {
+            Some(self.site.call)
+        } else {
+            inner
+                .and_then(|inner| inner.bound_at)
+                .map(|call| self.call(call))
+        };
         let mut calls = vec![self.site.clone()];
         if let Some(inner) = inner {
             calls.extend(inner.calls.iter().map(|site| CallSite {
@@ -1938,6 +1991,23 @@ impl Remap<'_> {
         SummaryOrigin {
             calls,
             on_every_path,
+            bound_at,
+        }
+    }
+
+    /// Whether this call binds the handle of a callee effect to a field of
+    /// the callee's receiver ([`SummaryOrigin::bound_at`]).
+    fn binds_field(&self, effect: &Effect) -> bool {
+        match &effect.kind {
+            EffectKind::DatabaseRead {
+                handle: DbHandle::Field { index, .. },
+                ..
+            }
+            | EffectKind::DatabaseWrite {
+                handle: DbHandle::Field { index, .. },
+                ..
+            } => self.receiver_argument(*index).is_some(),
+            _ => false,
         }
     }
 
@@ -1992,6 +2062,58 @@ impl Remap<'_> {
                                 index + 1,
                                 self.site.callee,
                                 self.site.label
+                            ),
+                            deferred: None,
+                        },
+                        None,
+                    );
+                }
+            },
+            DbHandle::Field {
+                index,
+                name,
+                configured,
+            } => match self.receiver_argument(*index) {
+                Some(argument) => (
+                    argument.handle.clone(),
+                    Some(Box::new(Recognition {
+                        basis: argument.recognition.basis,
+                        receiver: argument.label.clone(),
+                        detail: format!(
+                            "`{name}` is set by the constructor of the receiver of `{}` from its parameter {}, bound to `{}`: {}",
+                            self.site.label,
+                            index + 1,
+                            argument.label,
+                            argument.recognition.detail
+                        ),
+                    })),
+                ),
+                // Unknown here, it cannot be decided further out either:
+                // an outer caller's receiver is constructed with other
+                // arguments. A configured name keeps its meaning.
+                None if *configured => (
+                    DbHandle::Root { name: name.clone() },
+                    effect.recognition.clone(),
+                ),
+                None => {
+                    return (
+                        EffectKind::Unknown {
+                            reason: UnknownReason::UnresolvedHandle,
+                            detail: format!(
+                                "`{}` is issued on `{name}`, set by the receiver's constructor from its parameter {}, but {}",
+                                effect.label,
+                                index + 1,
+                                if self.receiver_arguments.is_empty() {
+                                    format!(
+                                        "the constructor arguments of the receiver of `{}` are not known",
+                                        self.site.label
+                                    )
+                                } else {
+                                    format!(
+                                        "the argument passed for it where the receiver of `{}` is constructed is not a recognized database or transaction handle",
+                                        self.site.label
+                                    )
+                                }
                             ),
                             deferred: None,
                         },
@@ -2175,6 +2297,7 @@ impl Remap<'_> {
                     summary: Some(self.origin(
                         effect.summary.as_ref(),
                         self.certain.effects.contains(&effect.id),
+                        self.binds_field(effect),
                     )),
                     // Names in the callee's scope are not comparable with the
                     // caller's; not copied.

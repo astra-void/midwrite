@@ -11,6 +11,14 @@ output formats.
 
 ### Added
 
+- Database handles held in fields that the constructor sets
+  (`constructor(private readonly db: Database)`, or a sealed field
+  assigned once from a constructor parameter) are followed.
+  `new Repo(tx).save()` writes in the caller's transaction, and
+  `new Repo(db).save()` commits on its own. This works through `this.m()`
+  and imported classes. A pair inside one such method is reported where
+  the method is called. Reassigned, public, accessor and inherited cases
+  are refused (DEV-170).
 - A two-pass blind AI re-review of the DEV-162 tier-1 sample (109 labels
   and the four upstream reports). It replaces the planned human review at
   the project owner's decision. 23 labels changed where two independent AI

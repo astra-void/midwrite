@@ -37,7 +37,8 @@ use midwrite_core::analysis::{CallArgument, RETURN_VARIABLE};
 use midwrite_core::ir::{
     Arm, Branch, BranchKind, DbHandle, DeferredHttpMethod, Effect, EffectId, EffectKind, Execution,
     Exit, ExitKind, Fact, FactInput, FunctionIr, Handler, Literal, Loop, LoopKind, Node,
-    Recognition, Switch, TransactionId, TransactionInfo, TransactionScope, Try, UnknownReason,
+    Recognition, RecognitionBasis, Switch, TransactionId, TransactionInfo, TransactionScope, Try,
+    UnknownReason,
 };
 use midwrite_core::location::{LineIndex, Location};
 
@@ -247,6 +248,9 @@ pub(crate) struct LocalCallSite {
     pub value_only: bool,
     /// Database handles passed as arguments, by position.
     pub arguments: Vec<Option<CallArgument>>,
+    /// Database handles the receiver's constructor was passed
+    /// (`LocalCall::receiver_arguments`).
+    pub receiver_arguments: Vec<Option<CallArgument>>,
     /// Abstract values of the arguments (functions by start offset).
     pub values: Vec<AbsValue>,
     pub receiver: Option<AbsValue>,
@@ -447,6 +451,7 @@ pub(crate) fn lower_function(
         return_binding: None,
         vs: ValueState::default(),
         call_values: HashMap::new(),
+        instance_arguments: HashMap::new(),
         assigned: HashMap::new(),
         returns: AbsValue::bottom(),
         facts: BodyFacts::default(),
@@ -650,6 +655,10 @@ pub(crate) struct Lowerer<'c> {
     pub(crate) vs: ValueState,
     /// Abstract value of each lowered call and `new`, by start offset.
     pub(crate) call_values: HashMap<u32, AbsValue>,
+    /// Database handles passed to the constructor of each instance created
+    /// here (`new Repo(db)`), by heap object: what the fields it sets from
+    /// them hold ([`DbHandle::Field`]).
+    instance_arguments: HashMap<u32, Vec<Option<CallArgument>>>,
     /// Value of each assignment expression, by start offset.
     pub(crate) assigned: HashMap<u32, AbsValue>,
     /// Join of the values the function returns.
@@ -1576,6 +1585,7 @@ impl<'a> Lowerer<'_> {
             _ => None,
         };
         let exported: Vec<AbsValue> = values.iter().map(|v| self.vs.heap.export(v)).collect();
+        let receiver_arguments = self.receiver_arguments(resolved.receiver.as_ref());
         let receiver = resolved.receiver.as_ref().map(|v| self.vs.heap.export(v));
         self.local_calls.push(LocalCallSite {
             effect: EffectId(self.next_effect - 1),
@@ -1583,6 +1593,7 @@ impl<'a> Lowerer<'_> {
             placeholder: !consumer.records_unknown(),
             value_only,
             arguments,
+            receiver_arguments,
             values: exported,
             receiver,
             entry_values,
@@ -1813,6 +1824,68 @@ impl<'a> Lowerer<'_> {
 
     /// The database handles a call passes, by argument position. Arguments
     /// after a spread are unknown.
+    /// What the fields a method's class sets from its constructor's
+    /// parameters hold, for a call on `receiver`: the handles passed where
+    /// the instance was created here, or, for `this.m()`, this method's own
+    /// fields (decided by its caller).
+    fn receiver_arguments(&self, receiver: Option<&AbsValue>) -> Vec<Option<CallArgument>> {
+        match receiver.and_then(AbsValue::single) {
+            Some(Atom::Object { id }) => {
+                self.instance_arguments.get(id).cloned().unwrap_or_default()
+            }
+            Some(Atom::This) => {
+                let Some(class) = self
+                    .locals
+                    .this_class
+                    .and_then(|class| self.recognizer.table.classes().get(&class))
+                else {
+                    return Vec::new();
+                };
+                let Some(count) = class
+                    .handle_fields
+                    .values()
+                    .max()
+                    .map(|max| *max as usize + 1)
+                else {
+                    return Vec::new();
+                };
+                let mut out = vec![None; count];
+                for (field, index) in &class.handle_fields {
+                    let name = format!("this.{field}");
+                    let configured = self
+                        .recognizer
+                        .config
+                        .database_receivers
+                        .iter()
+                        .any(|rule| rule.name() == name);
+                    out[*index as usize] = Some(CallArgument {
+                        handle: DbHandle::Field {
+                            index: *index,
+                            name: name.clone(),
+                            configured,
+                        },
+                        recognition: Recognition {
+                            basis: if configured {
+                                RecognitionBasis::ConfiguredMemberPath
+                            } else {
+                                RecognitionBasis::Parameter
+                            },
+                            receiver: name.clone(),
+                            detail: format!(
+                                "`{name}` is set by the constructor of `{}` from its parameter {}",
+                                class.name,
+                                index + 1
+                            ),
+                        },
+                        label: name,
+                    });
+                }
+                out
+            }
+            _ => Vec::new(),
+        }
+    }
+
     fn call_arguments(&self, call: &CallExpression<'a>) -> Vec<Option<CallArgument>> {
         let mut out = Vec::with_capacity(call.arguments.len());
         for argument in &call.arguments {
@@ -2828,6 +2901,7 @@ impl<'a> Lowerer<'_> {
                 placeholder,
                 value_only: false,
                 arguments: Vec::new(),
+                receiver_arguments: Vec::new(),
                 values: vec![AbsValue::top()],
                 receiver: None,
                 entry_values: Vec::new(),
@@ -3298,10 +3372,11 @@ impl<'a> Lowerer<'_> {
         };
 
         let id = TransactionId(u32::try_from(self.transactions.len()).unwrap_or(u32::MAX));
-        let (parent, parent_parameter) = match handle {
-            DbHandle::Transaction { id } => (Some(id), None),
-            DbHandle::Root { .. } => (None, None),
-            DbHandle::Parameter { index, .. } => (None, Some(index)),
+        let (parent, parent_parameter, parent_field) = match handle {
+            DbHandle::Transaction { id } => (Some(id), None, None),
+            DbHandle::Root { .. } => (None, None, None),
+            DbHandle::Parameter { index, .. } => (None, Some(index), None),
+            DbHandle::Field { index, .. } => (None, None, Some(index)),
         };
         self.transactions.push(TransactionInfo {
             id,
@@ -3312,6 +3387,7 @@ impl<'a> Lowerer<'_> {
             recognition,
             summary: None,
             parent_parameter,
+            parent_field,
         });
         if let Some(symbol) = handle_symbol {
             self.locals.transaction_handles.insert(symbol, id);
@@ -3721,11 +3797,36 @@ impl<'a> Visit<'a> for Lowerer<'_> {
                     label,
                 });
                 self.escape_values(&values);
-                AbsValue::atom(
-                    self.vs
-                        .heap_mut()
-                        .allocate(it.span.start, ObjectKind::Instance { class: id }),
-                )
+                let instance = self
+                    .vs
+                    .heap_mut()
+                    .allocate(it.span.start, ObjectKind::Instance { class: id });
+                if let Atom::Object { id } = &instance {
+                    let mut handles = Vec::with_capacity(it.arguments.len());
+                    for argument in &it.arguments {
+                        match argument.as_expression() {
+                            Some(e) => {
+                                handles.push(self.recognizer.argument_handle(e, &self.locals))
+                            }
+                            None => break,
+                        }
+                    }
+                    // The same `new` reached again (a loop) must agree.
+                    match self.instance_arguments.get_mut(id) {
+                        Some(known) => {
+                            known.truncate(handles.len());
+                            for (known, handle) in known.iter_mut().zip(handles) {
+                                if *known != handle {
+                                    *known = None;
+                                }
+                            }
+                        }
+                        None => {
+                            self.instance_arguments.insert(*id, handles);
+                        }
+                    }
+                }
+                AbsValue::atom(instance)
             }
             None => {
                 if !matches!(it.callee.get_inner_expression(), Expression::Identifier(ident) if resolve_reference(scoping, ident).is_none())

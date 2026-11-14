@@ -392,7 +392,9 @@ impl Renderer<'_> {
                 step.handle = Some(info.handle.clone().unwrap_or_else(|| id.to_string()));
                 step.transaction = Some(id.to_string());
             }
-            DbHandle::Parameter { name, .. } => step.handle = Some(name.clone()),
+            DbHandle::Parameter { name, .. } | DbHandle::Field { name, .. } => {
+                step.handle = Some(name.clone())
+            }
         }
     }
 

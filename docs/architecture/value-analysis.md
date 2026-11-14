@@ -251,8 +251,45 @@ resolved. Found, but the chain ends in an unanalyzed superclass, or the
 exact receiver escaped before the call → resolved under a recorded
 **assumption**: findings through such a call get confidence ≤ medium and a
 note. Receivers that are parameters, properties or unknown call results
-are never resolved: methods are never matched by name. Constructor
-parameter properties are not bound to fields.
+are never resolved: methods are never matched by name.
+
+**Constructor-set handle fields (DEV-170).** A field that the
+constructor sets from one of its parameters holds the database or
+transaction handle the instance was constructed with. Two forms count:
+
+* a `private` or `readonly` parameter property
+  (`constructor(private readonly db: Database)`) that nothing assigns;
+* a `private`, `readonly` or `#` field assigned once, from a parameter
+  that is never reassigned, by a top-level `this.f = p` of the
+  constructor.
+
+Accessors, methods or fields of the same name, dynamic writes and public
+fields disqualify it.
+
+An operation on `this.f` in a method is issued on `DbHandle::Field`
+(the constructor parameter's position). The handle is decided per call:
+
+* `new C(tx).m()`, or `const c = new C(db); c.m()`, passes the handles of
+  the constructor's arguments (`LocalCall::receiver_arguments`);
+* `this.m()` forwards the caller's own fields.
+
+They are passed only when the method is declared by the receiver's own
+class; an inherited method was set up by another constructor. When no
+handle is known, a configured name such as `this.db` keeps its meaning
+(the root handle) and any other name is an unresolved handle. Analyzed on
+its own, a method treats the field like a parameter. A transaction
+started on the field is a savepoint where the receiver holds a
+transaction.
+
+A pair of operations inside one such call is reported where the call is
+made: the callee alone does not know the handle
+(`SummaryOrigin::bound_at`).
+
+Not bound:
+
+* instances held in fields (`this.repo.m()`);
+* arrow callbacks other than inline ones;
+* `#private` handle fields used through member chains.
 
 ## Path facts and loops
 

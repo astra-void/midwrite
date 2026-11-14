@@ -304,6 +304,10 @@ pub struct TransactionInfo {
     /// transaction is nested in (a savepoint of) the caller's transaction.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_parameter: Option<u32>,
+    /// Set when the transaction is started on a field of `this` set by the
+    /// constructor (its constructor parameter, see [`DbHandle::Field`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_field: Option<u32>,
 }
 
 /// One step of a function body.
@@ -391,6 +395,12 @@ pub struct SummaryOrigin {
     /// Whether the outermost callee performs the operation on every path
     /// through it. Operations on only some paths lower confidence.
     pub on_every_path: bool,
+    /// The call (of [`Self::calls`]) where the operation's handle was bound
+    /// to a field of the callee's receiver ([`DbHandle::Field`]): the
+    /// callee's own analysis does not know that handle, so a hazard inside
+    /// that call is reported where it is called.
+    #[serde(skip)]
+    pub bound_at: Option<CallId>,
 }
 
 impl SummaryOrigin {
@@ -435,6 +445,11 @@ pub enum CallResolution {
         /// cannot check (an unanalyzed superclass, an escaped receiver).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         assumption: Option<String>,
+        /// The method is declared by the receiver's own class (not
+        /// inherited): the receiver's constructor arguments are the ones
+        /// the method's fields were set from ([`DbHandle::Field`]).
+        #[serde(skip)]
+        own: bool,
     },
     /// The function passed by the caller for parameter `parameter` of an
     /// enclosing callee (`await action()`).
@@ -599,6 +614,18 @@ pub enum DbHandle {
     /// database receiver) as the root handle of that name, and an operation
     /// on any other parameter as an unrecognized call.
     Parameter {
+        index: u32,
+        name: String,
+        configured: bool,
+    },
+    /// A field of `this` (`name`, as written: `this.db`) that the class's
+    /// constructor sets from its parameter `index`
+    /// (`constructor(private db: Database)`). Which handle it holds is
+    /// decided where the method is called on an instance whose constructor
+    /// arguments are known (`new Repo(db).save()`, see
+    /// [`crate::analysis::LocalCall::receiver_arguments`]). Without them it
+    /// is treated like a [`Self::Parameter`] analyzed on its own.
+    Field {
         index: u32,
         name: String,
         configured: bool,
@@ -1176,6 +1203,9 @@ impl FunctionIr {
                         DbHandle::Parameter { index, name, .. } => {
                             format!(" via parameter #{index} `{name}`")
                         }
+                        DbHandle::Field { index, name, .. } => {
+                            format!(" via field `{name}` (constructor parameter #{index})")
+                        }
                     },
                     _ => String::new(),
                 };
@@ -1320,6 +1350,7 @@ impl FunctionIr {
                         class,
                         exact,
                         assumption,
+                        ..
                     }) => format!(
                         " [method of {class}, {}{}]",
                         if *exact { "exact receiver" } else { "via this" },

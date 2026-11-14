@@ -184,6 +184,25 @@ impl Recognizer<'_> {
                 return self.classify_db(chain, root, 0, handle, recognition);
             }
         }
+        if let Some((handle, recognition)) =
+            self.field_handle(chain, root, resolved.as_ref(), locals)
+        {
+            let configured = matches!(
+                handle,
+                DbHandle::Field {
+                    configured: true,
+                    ..
+                }
+            );
+            match self.classify_db(chain, root, 1, handle, recognition) {
+                Classified::NotRecognized => {}
+                classified @ (Classified::Db { .. } | Classified::Transaction { .. }) => {
+                    return classified;
+                }
+                classified if configured => return classified,
+                _ => {}
+            }
+        }
         let parameter = match root {
             Root::Identifier(ident) => self.parameter(ident, locals),
             Root::This(_) => None,
@@ -273,6 +292,16 @@ impl Recognizer<'_> {
         if chain.segments.is_empty()
             && let Some(resolved) = &resolved
             && let Some((handle, recognition)) = provenance_handle(resolved)
+        {
+            return Some(CallArgument {
+                handle,
+                recognition,
+                label,
+            });
+        }
+        if chain.segments.len() == 1
+            && let Some((handle, recognition)) =
+                self.field_handle(&chain, root, resolved.as_ref(), locals)
         {
             return Some(CallArgument {
                 handle,
@@ -837,6 +866,51 @@ impl Recognizer<'_> {
             resolved_result: None,
             deferred: None,
         })
+    }
+
+    /// `this.db` in an instance method of a class whose constructor sets the
+    /// field from one of its parameters (`ClassInfo::handle_fields`): which
+    /// handle it holds is decided where the method is called on an instance
+    /// ([`DbHandle::Field`]).
+    fn field_handle(
+        &self,
+        chain: &Chain<'_, '_>,
+        root: Root<'_, '_>,
+        resolved: Option<&Resolved>,
+        locals: &LocalBindings,
+    ) -> Option<(DbHandle, Recognition)> {
+        let Root::This(_) = root else {
+            return None;
+        };
+        let Some(Segment::Property(field)) = chain.segments.first() else {
+            return None;
+        };
+        let class = self.table.classes().get(&locals.this_class?)?;
+        let index = *class.handle_fields.get(*field)?;
+        let name = format!("this.{field}");
+        let configured = self
+            .configured_database(chain, root, resolved)
+            .is_some_and(|(length, ..)| length == 1);
+        Some((
+            DbHandle::Field {
+                index,
+                name: name.clone(),
+                configured,
+            },
+            Recognition {
+                basis: if configured {
+                    RecognitionBasis::ConfiguredMemberPath
+                } else {
+                    RecognitionBasis::Parameter
+                },
+                receiver: name.clone(),
+                detail: format!(
+                    "`{name}` is set by the constructor of `{}` from its parameter {}",
+                    class.name,
+                    index + 1
+                ),
+            },
+        ))
     }
 
     /// `this.client.emails.send(...)` in an instance method, where the field

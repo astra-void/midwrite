@@ -110,6 +110,23 @@ impl<'ir> Point<'ir> {
         }
     }
 
+    /// Whether one of the point's operations has a handle bound to a field
+    /// of the receiver where `call` is inlined: the callee's own analysis
+    /// does not know it ([`crate::ir::SummaryOrigin::bound_at`]).
+    fn bound_at(&self, call: CallId) -> bool {
+        let bound = |occurrence: &Occurrence<'_>| {
+            occurrence
+                .effect
+                .summary
+                .as_ref()
+                .is_some_and(|origin| origin.bound_at == Some(call))
+        };
+        match self {
+            Self::Commit { writes, .. } => writes.iter().any(bound),
+            Self::External { occurrence, .. } => bound(occurrence),
+        }
+    }
+
     /// Effects whose execution properties bear on the point.
     pub fn occurrences(&self) -> &[Occurrence<'ir>] {
         match self {
@@ -259,10 +276,11 @@ pub(crate) fn detect<'ir>(
                 }
             };
             let call = first.call(function);
-            if call.is_some()
+            if let Some(id) = call
                 && call == second.call(function)
-                && !(call.is_some_and(|id| callback_calls.contains(&id))
+                && !(callback_calls.contains(&id)
                     && (first.uses_callback() || second.uses_callback()))
+                && !(first.bound_at(id) || second.bound_at(id))
             {
                 // Both happen inside one inlined call: the callee's own
                 // analysis reports this pair.
@@ -922,15 +940,15 @@ pub(super) fn replay<'ir>(function: &'ir FunctionIr, trace: &Trace<'ir>) -> Fact
                             bypassed: None,
                             escaped: true,
                         }),
-                        DbHandle::Root { .. } | DbHandle::Parameter { .. } => {
-                            facts.points.push(Point::Commit {
-                                at,
-                                transaction: None,
-                                writes: vec![occurrence],
-                                bypassed: open_roots.last().copied(),
-                                escaped: false,
-                            })
-                        }
+                        DbHandle::Root { .. }
+                        | DbHandle::Parameter { .. }
+                        | DbHandle::Field { .. } => facts.points.push(Point::Commit {
+                            at,
+                            transaction: None,
+                            writes: vec![occurrence],
+                            bypassed: open_roots.last().copied(),
+                            escaped: false,
+                        }),
                     },
                     EffectKind::External { .. } => facts.points.push(Point::External {
                         occurrence,

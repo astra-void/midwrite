@@ -191,9 +191,12 @@ model-checking work left the static analyzer's output unchanged.
   results), methods with an analyzed override or dynamic reassignment,
   callbacks run by unanalyzed code, `.then/.catch/.finally` continuation
   bodies;
-* constructor parameter properties (`constructor(private db: Database)`)
-  are not bound to instance fields; getters and setters are ignored (an
-  accessor makes its object open); class dispatch assumes a closed world
+* constructor-set handle fields (`constructor(private db: Database)`)
+  are bound only on a receiver constructed in the calling function (or
+  `this`), for a method its own class declares; instances held in fields,
+  inherited methods, public or reassigned fields and non-inline arrow
+  callbacks are not bound. Getters and setters are ignored (an accessor
+  makes its object open); class dispatch assumes a closed world
   (subclasses only in the analyzed files);
 * mutable captured bindings and shared object contents. Immutable lexical
   bindings, callbacks and recognized transaction handles are preserved
