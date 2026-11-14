@@ -11,6 +11,14 @@ output formats.
 
 ### Added
 
+- The value of an awaited continuation chain bound to a `const` carries
+  the literal its deciding handler returns
+  (`const user = await load(id).catch(() => null)`). A handler that writes
+  and returns a fallback is no longer paired with code after an early
+  return on that fallback. The semantics of the modeled subset are
+  specified
+  ([continuations](docs/architecture/value-analysis.md#awaited-promise-continuations))
+  (DEV-172).
 - Promise continuations that are not analyzed in sequence are reported as
   coverage gaps (`MW9001`, reason `unmodeledContinuation`): an inline
   `.then`, `.catch` or `.finally` handler that contains a recognized
@@ -107,6 +115,9 @@ output formats.
 
 ### Fixed
 
+- Return facts of a call no longer attach to another call that merely
+  starts at the same source position in a method chain (for example the
+  receiver of `.then(cb)`); the awaited call is matched exactly (DEV-172).
 - Mutually exclusive growth and removal paths of an unchanged array are
   no longer combined into independent-commit hazards. Complementary pure
   filters provide a cardinality upper bound, and a nonempty `slice(count)`

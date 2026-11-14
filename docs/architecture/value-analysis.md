@@ -230,6 +230,61 @@ fake runtime and compares the operations with the static trace: ordered
 programs match exactly; for a concurrent program the set and first
 operation agree and the trace is correctly marked `approximated`.
 
+### Awaited promise continuations
+
+**Subset.** `p.then(cb)`, `p.catch(cb)` and `p.finally(cb)` with exactly
+one handler written inline, where the chain is awaited, returned from an
+`async` function, or an element of an awaited `Promise.all`. Chains
+compose (`p.then(a).catch(b)`).
+
+**Semantics.**
+
+| form | `p` fulfills | `p` rejects | value of the chain |
+| --- | --- | --- | --- |
+| `p.then(cb)` | `cb` runs after `p` | `cb` does not run; the rejection propagates | what `cb` returns |
+| `p.catch(cb)` | `cb` does not run | `cb` runs, then the function continues | `p`'s value, or what `cb` returns |
+| `p.finally(cb)` | `cb` runs after `p` | `cb` runs, then the rejection propagates | `p`'s value; what `cb` returns is discarded |
+
+* `.catch` is lowered as `try { p } catch { cb }` and `.finally` as
+  `try { p } finally { cb }`, so they share the approximation of `try`:
+  the handler is entered as if `p` had performed nothing.
+* A `return` in the handler ends the handler only. A `throw` in it
+  rejects the chain: the path ends unless an outer `.catch` or `try`
+  takes it.
+* The handler is lowered in place: what it captures (an id, a transaction
+  handle) stays known, and an `async` handler is awaited.
+
+**Value facts.** When the chain initializes a `const`
+(`const user = await load(id).catch(() => null)`), what the deciding
+handler returns is a fact about that variable on that path:
+
+* a literal (`null`, `false`, a number, a string);
+* `undefined`, when the handler returns nothing or reaches its end;
+* "an object" (truthy), for an object, array or function literal.
+
+A later test of the variable (`if (!user) return`) is then decided on the
+handler's path, so the handler's operations are not paired with code
+after an early return that the fallback always takes. For `.catch` and
+`.finally` the facts of the receiver apply on the other path (a helper's
+return facts, an inner `.then`). Matching is by the exact call: a call
+earlier in the chain does not take the facts of the whole chain.
+
+**Not carried.** Properties of a returned object (`{ ok: false }`, then
+`result.ok`), and the result of a handler passed by reference.
+
+**Explicit gaps.** A chain that is not awaited, more than one handler,
+and handlers passed by reference are not lowered. An inline handler with
+a recognized operation is then reported
+([`unmodeledContinuation`](../DIAGNOSTICS.md#promise-continuation-gaps)).
+Timer callbacks stay deferred. A promise stored in a variable started
+when it was created; only its continuation is ordered at the `await`.
+
+Fixtures: `vulnerable/promise_continuations.ts`,
+`vulnerable/promise_continuation_results.ts`,
+`safe/promise_continuation_results.ts`,
+`unsupported/promise_continuation_object_result.ts`,
+`unsupported/promise_continuation_gaps.ts`.
+
 ## Class and method resolution
 
 Classes are collected per module (declarations, `export default class`,

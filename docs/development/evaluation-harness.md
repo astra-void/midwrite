@@ -1658,3 +1658,50 @@ Known `MW9001` diagnostics per project at this commit (`knownGaps`):
 midday 88, kan 36, dittofeed 44, zero 100, vercel-chatbot 3,
 nextjs-billing 1, petdex 67, next-saas-stripe-starter 0,
 react-starter-kit 0.
+
+## Continuation results and the DEV-172 criteria (2026-11-15)
+
+DEV-176 shipped the lowering of awaited continuations. DEV-172 asked for
+its semantics to be specified and its path controls to pass before the
+subset counts as shipped. Checking the controls found one family that
+did not pass:
+
+```ts
+const user = await load(id).catch(async () => {
+  await db.insert(events).values({ id });   // handler path
+  return null;
+});
+if (!user) return;                           // always taken on that path
+await queue.publish("user.loaded", { id });  // was paired with the insert
+```
+
+**Change.** A `const` bound to an awaited chain now takes the literal
+that the deciding handler returns (`null`, `false`, `undefined` when the
+handler reaches its end, "an object" for a literal object). Return facts
+are matched to the exact awaited call, so a call earlier in a method
+chain no longer receives them. Semantics:
+[awaited promise continuations](../architecture/value-analysis.md#awaited-promise-continuations).
+
+**Controls.**
+
+| fixture | what it holds |
+| --- | --- |
+| `safe/promise_continuation_results.ts` | infeasible pairs stay unreported: fallback `null`, `false`, `undefined`; a rethrowing handler; a throwing `.then` callback |
+| `vulnerable/promise_continuation_results.ts` | feasible pairs stay reported: a swallowed error, a best-effort write (`.catch(() => {})`), `return` inside a `.then` callback, the value of `.finally`, the fulfilled path |
+| `unsupported/promise_continuation_object_result.ts` | not correlated: a property of a returned object (`result.ok`) |
+
+No rule excludes empty `.catch` handlers: the best-effort write is still
+reported, and whether it is accepted is a label.
+
+**Ship criteria.**
+
+| criterion | result |
+| --- | --- |
+| feasible/infeasible path controls | pass (fixtures above) |
+| newly exposed dev findings reviewed | the three findings DEV-176 exposed were labeled blind (kan `card.ts:620` true-positive, midday `runtime.ts:214` intended-risk, midday `customers.ts:102` false-positive); this change exposes none |
+| known-positive matches | dev recall 161/172, unchanged |
+| held-out precision gate | 28/30, PASS |
+
+**Corpus impact of this change: none.** The same 476 findings with the
+same IDs and limitation counts; no corpus chain binds a fallback from a
+handler that also performs a recognized operation.

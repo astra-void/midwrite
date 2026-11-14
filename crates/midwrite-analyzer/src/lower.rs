@@ -646,7 +646,7 @@ pub(crate) struct Lowerer<'c> {
     /// returned value (`return f(...)`), whose facts are this function's
     /// return facts ([`RETURN_VARIABLE`]); the caller of this function
     /// decides whether its own binding's members are stable.
-    pending_result: Option<(u32, String, Option<oxc_syntax::symbol::SymbolId>)>,
+    pending_result: Option<(Span, String, Option<oxc_syntax::symbol::SymbolId>)>,
     /// The variable bound to the result of the transaction whose callback is
     /// being lowered.
     return_binding: Option<String>,
@@ -1016,7 +1016,7 @@ impl<'a> Lowerer<'_> {
                 && let Some(symbol) = id.symbol_id.get()
                 && let Some(Variable::Free(variable)) = self.binding_variable(symbol, &id.name)
             {
-                self.pending_result = Some((call.span.start, variable, Some(symbol)));
+                self.pending_result = Some((call.span, variable, Some(symbol)));
             }
             let before = self.out.len();
             self.visit_expression(init);
@@ -1087,7 +1087,7 @@ impl<'a> Lowerer<'_> {
                 other => other,
             };
             if let Expression::CallExpression(call) = inner {
-                self.pending_result = Some((call.span.start, RETURN_VARIABLE.to_owned(), None));
+                self.pending_result = Some((call.span, RETURN_VARIABLE.to_owned(), None));
             }
         }
         self.consume(expression, consumer);
@@ -1581,7 +1581,7 @@ impl<'a> Lowerer<'_> {
         self.next_site += 1;
         let arguments = self.call_arguments(call);
         let binding = match &self.pending_result {
-            Some((start, variable, symbol)) if *start == call.span.start => Some((
+            Some((span, variable, symbol)) if *span == call.span => Some((
                 variable.clone(),
                 // Property facts on the binding are only made where nothing
                 // can have changed it ([`Self::member_variable`]).
@@ -1642,7 +1642,14 @@ impl<'a> Lowerer<'_> {
         for argument in call.arguments.iter().take(call.arguments.len() - 1) {
             self.visit_argument(argument);
         }
-        self.inline_callback(call, callback, execution, false, "<OpenTelemetry callback>")
+        self.inline_callback(
+            call,
+            callback,
+            execution,
+            false,
+            "<OpenTelemetry callback>",
+            None,
+        )
     }
 
     /// Lower the inline function `callback` (an arrow or function
@@ -1658,6 +1665,7 @@ impl<'a> Lowerer<'_> {
         execution: Execution,
         adopts: bool,
         callee: &str,
+        binding: Option<String>,
     ) -> bool {
         let (body, params, is_async, span) = match callback.get_inner_expression() {
             Expression::ArrowFunctionExpression(f) => {
@@ -1680,10 +1688,43 @@ impl<'a> Lowerer<'_> {
             self.havoc_pattern(&param.pattern);
         }
         let saved_async = std::mem::replace(&mut self.is_async, is_async || adopts);
-        let saved_binding = self.return_binding.take();
+        // What the callback returns is the value of `binding`, when the
+        // caller knows a variable it is bound to (a continuation whose
+        // chain initializes a `const`). Returns of nested callbacks are not.
+        let binds = binding.is_some();
+        let saved_binding = std::mem::replace(&mut self.return_binding, binding);
+        let saved_pending = self.pending_result.take();
         self.callback_depth += 1;
-        let nodes = self.collect(|this| this.body(body));
+        let nodes = self.collect(|this| {
+            this.body(body);
+            if !binds {
+                return;
+            }
+            match body {
+                // `() => value`: the value is returned.
+                Body::Arrow(expression) if expression.as_expression().is_some() => {
+                    let returned = expression.as_expression().expect("checked");
+                    let facts = this.return_facts(Some(returned));
+                    if !facts.is_empty() {
+                        this.exit(ExitKind::Return, returned.span(), None, None);
+                        if let Some(Node::Exit(exit)) = this.out.last_mut() {
+                            exit.facts = facts;
+                        }
+                    }
+                }
+                // Reaching the end of the body returns `undefined`.
+                _ if may_fall_through(body) => {
+                    let facts = this.return_facts(None);
+                    this.exit(ExitKind::Return, span, None, None);
+                    if let Some(Node::Exit(exit)) = this.out.last_mut() {
+                        exit.facts = facts;
+                    }
+                }
+                _ => {}
+            }
+        });
         self.callback_depth -= 1;
+        self.pending_result = saved_pending;
         self.return_binding = saved_binding;
         self.is_async = saved_async;
         self.consumed.push(span.start);
@@ -1730,21 +1771,44 @@ impl<'a> Lowerer<'_> {
         }
         let execution = consumer.execution();
         let callee = format!("<.{kind} callback>");
+        // The variable the chain's value is bound to (`const x = await
+        // p.catch(cb)`), and what decides that value:
+        // * `.then(cb)`: what `cb` returns; the receiver's value is consumed;
+        // * `.catch(cb)`: the receiver's value, or what `cb` returns when
+        //   the receiver rejects;
+        // * `.finally(cb)`: the receiver's value; what `cb` returns is
+        //   discarded.
+        let pending = self.pending_result.take();
+        let binding = match &pending {
+            Some((span, variable, _)) if *span == call.span => Some(variable.clone()),
+            _ => None,
+        };
+        let receiver_pending = match (&pending, member.object.get_inner_expression()) {
+            (Some((span, variable, symbol)), Expression::CallExpression(receiver))
+                if *span == call.span =>
+            {
+                Some((receiver.span, variable.clone(), *symbol))
+            }
+            _ => None,
+        };
         match kind {
             "then" => {
                 self.consume(&member.object, consumer);
-                self.inline_callback(call, callback, execution, true, &callee);
+                self.inline_callback(call, callback, execution, true, &callee, binding);
             }
             _ => {
                 let before = self.fork();
+                self.pending_result = receiver_pending;
                 let block = self.collect(|this| this.consume(&member.object, consumer));
+                self.pending_result = None;
                 let after_block = self.vs.clone();
                 if kind == "catch" {
                     // The handler may start at any point of the block.
                     self.rejoin(&before);
                 }
+                let handler_binding = binding.filter(|_| kind == "catch");
                 let body = self.collect(|this| {
-                    this.inline_callback(call, callback, execution, true, &callee);
+                    this.inline_callback(call, callback, execution, true, &callee, handler_binding);
                 });
                 if kind == "catch" {
                     self.rejoin(&after_block);
@@ -1767,6 +1831,7 @@ impl<'a> Lowerer<'_> {
                 }));
             }
         }
+        self.pending_result = pending;
         let value = self.opaque();
         self.call_values.insert(call.span.start, value);
         true
@@ -3561,7 +3626,7 @@ impl<'a> Lowerer<'_> {
         // if the transaction call is the awaited initializer of a `const`;
         // returns of nested callbacks do not.
         let binding = match &self.pending_result {
-            Some((start, variable, _)) if *start == call.span.start => Some(variable.clone()),
+            Some((span, variable, _)) if *span == call.span => Some(variable.clone()),
             _ => None,
         };
         let saved_binding = std::mem::replace(&mut self.return_binding, binding);
