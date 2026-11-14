@@ -694,6 +694,11 @@ pub enum UnknownReason {
     /// where the caller's argument is not a recognized database or
     /// transaction handle.
     UnresolvedHandle,
+    /// A `.then/.catch/.finally` handler that contains a recognized
+    /// operation but is not lowered into the function's sequence (the chain
+    /// is not awaited, or passes several handlers): its operations are not
+    /// ordered with the surrounding code.
+    UnmodeledContinuation,
 }
 
 impl UnknownReason {
@@ -713,6 +718,7 @@ impl fmt::Display for UnknownReason {
             Self::OpaqueTransaction => "transaction body not analyzable",
             Self::UnsupportedReceiver => "unsupported receiver expression",
             Self::UnresolvedHandle => "database handle argument not recognized",
+            Self::UnmodeledContinuation => "promise continuation not modeled",
         })
     }
 }

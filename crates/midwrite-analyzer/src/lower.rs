@@ -1175,7 +1175,12 @@ impl<'a> Lowerer<'_> {
     /// Lower a call. `consumer` is `None` when the call's result is not
     /// awaited, returned or otherwise consumed by this function.
     fn call(&mut self, call: &CallExpression<'a>, consumer: Option<Consumer>) {
+        let gap = self.continuation_gap(call, consumer);
+        let first_effect = self.next_effect;
         self.call_unwrapped(call, consumer);
+        if let Some(gap) = gap {
+            self.push_continuation_gap(call, consumer, gap, first_effect);
+        }
         if let Some(class) = self.declared_instance(call) {
             let id = self.class_id(class);
             let value = self
@@ -1767,6 +1772,154 @@ impl<'a> Lowerer<'_> {
         true
     }
 
+    /// A `.then/.catch/.finally` call that [`Self::continuation`] does not
+    /// lower, with an inline handler whose body contains a recognized
+    /// operation (a database write, a transaction or an external effect):
+    /// the handler's operations are not in this function's sequence.
+    /// `None` when the continuation is lowered, or when no inline handler
+    /// has a recognized operation (handlers that only map or log values).
+    fn continuation_gap(
+        &self,
+        call: &CallExpression<'a>,
+        consumer: Option<Consumer>,
+    ) -> Option<ContinuationGap> {
+        let Expression::StaticMemberExpression(member) = call.callee.get_inner_expression() else {
+            return None;
+        };
+        let kind = match member.property.name.as_str() {
+            "then" => "then",
+            "catch" => "catch",
+            "finally" => "finally",
+            _ => return None,
+        };
+        let handlers: Vec<&Expression<'a>> = call
+            .arguments
+            .iter()
+            .filter_map(Argument::as_expression)
+            .filter(|argument| is_inline_function(argument))
+            .collect();
+        let waited = matches!(
+            consumer,
+            Some(Consumer::Await | Consumer::AsyncReturn | Consumer::Concurrent)
+        );
+        if waited && call.arguments.len() == 1 && handlers.len() == 1 {
+            return None; // lowered by `continuation`
+        }
+        struct Finder<'r, 'c> {
+            recognizer: &'r Recognizer<'c>,
+            locals: &'r LocalBindings,
+            found: Option<String>,
+        }
+        impl<'a> Visit<'a> for Finder<'_, '_> {
+            fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
+                if self.found.is_some() {
+                    return;
+                }
+                let recognized = match self.recognizer.classify(&unwind_call(it), self.locals) {
+                    Classified::Db { builder, .. } => matches!(builder.access, DbAccess::Write(_)),
+                    Classified::Transaction { .. }
+                    | Classified::DbUnknown { .. }
+                    | Classified::External { .. } => true,
+                    _ => false,
+                };
+                if recognized {
+                    self.found = Some(self.recognizer.call_label(it));
+                    return;
+                }
+                walk::walk_call_expression(self, it);
+            }
+        }
+        let mut finder = Finder {
+            recognizer: self.recognizer,
+            locals: &self.locals,
+            found: None,
+        };
+        for handler in &handlers {
+            finder.visit_expression(handler);
+        }
+        let operation = finder.found?;
+        let why = if !waited {
+            match consumer {
+                None => {
+                    "the chain is not awaited here, so its handler runs at an unknown time relative to the operations that follow"
+                }
+                Some(Consumer::Argument) => {
+                    "the chain is passed as an argument, so the code it is passed to decides when its handler runs"
+                }
+                _ => {
+                    "the chain is returned from a function that is not `async`, so each caller decides when its handler runs"
+                }
+            }
+        } else if call.arguments.len() > 1 {
+            "it passes more than one handler (a fulfillment and a rejection handler), which are alternatives Midwrite does not model"
+        } else {
+            "its handler is not a single inline function"
+        };
+        Some(ContinuationGap {
+            span: Span::new(member.property.span.start, call.span.end),
+            kind,
+            why,
+            operation,
+        })
+    }
+
+    /// Record a [`ContinuationGap`] of `call` as an unknown operation after
+    /// whatever the call itself lowered to (its receiver). A generic unknown
+    /// call recorded for the same expression becomes the gap (one notice).
+    fn push_continuation_gap(
+        &mut self,
+        call: &CallExpression<'a>,
+        consumer: Option<Consumer>,
+        gap: ContinuationGap,
+        first_effect: u32,
+    ) {
+        let label = self.recognizer.call_label(call);
+        let detail = format!(
+            "the `.{}` handler contains `{}`, but {}",
+            gap.kind, gap.operation, gap.why
+        );
+        self.facts.refute(format!(
+            "has a promise continuation Midwrite does not model (`{label}`)"
+        ));
+        let location = self.location(gap.span);
+        let whole = self.location(call.span);
+        // A placeholder effect only marks where a call's summary would go
+        // and is removed when the call is not summarized: never this notice.
+        let placeholder = match self.out.last() {
+            Some(Node::Effect(effect)) => self
+                .local_calls
+                .iter()
+                .any(|site| site.effect == effect.id && site.placeholder),
+            _ => false,
+        };
+        if !placeholder
+            && let Some(Node::Effect(effect)) = self.out.last_mut()
+            && effect.id.0 >= first_effect
+            && effect.location == whole
+            && let EffectKind::Unknown {
+                reason: reason @ UnknownReason::UnrecognizedCall,
+                detail: generic,
+                deferred: None,
+            } = &mut effect.kind
+        {
+            *reason = UnknownReason::UnmodeledContinuation;
+            *generic = detail;
+            effect.location = location;
+            return;
+        }
+        let execution = match consumer {
+            None | Some(Consumer::Argument) => Execution::FireAndForget,
+            Some(consumer) => consumer.execution(),
+        };
+        self.push_unknown(
+            UnknownReason::UnmodeledContinuation,
+            detail,
+            label,
+            gap.span,
+            execution,
+        );
+    }
+
     /// The function a plain call `f(...)` names (a function declared in this
     /// file, or an import), or a method call `obj.f(...)` on an object
     /// service of this file, on an imported binding, or on a namespace
@@ -1822,8 +1975,6 @@ impl<'a> Lowerer<'_> {
         }
     }
 
-    /// The database handles a call passes, by argument position. Arguments
-    /// after a spread are unknown.
     /// What the fields a method's class sets from its constructor's
     /// parameters hold, for a call on `receiver`: the handles passed where
     /// the instance was created here, or, for `this.m()`, this method's own
@@ -1886,6 +2037,8 @@ impl<'a> Lowerer<'_> {
         }
     }
 
+    /// The database handles a call passes, by argument position. Arguments
+    /// after a spread are unknown.
     fn call_arguments(&self, call: &CallExpression<'a>) -> Vec<Option<CallArgument>> {
         let mut out = Vec::with_capacity(call.arguments.len());
         for argument in &call.arguments {
@@ -4461,6 +4614,17 @@ fn relative_specifier(from: &str, to: &str) -> String {
 }
 
 /// An arrow function or function expression with a body.
+/// An unmodeled promise continuation ([`Lowerer::continuation_gap`]).
+struct ContinuationGap {
+    /// `.then(...)`: from the method name to the end of the call.
+    span: Span,
+    kind: &'static str,
+    /// Why the handler is not lowered in sequence.
+    why: &'static str,
+    /// A recognized operation in the handler, as written.
+    operation: String,
+}
+
 fn is_inline_function(expression: &Expression<'_>) -> bool {
     match expression.get_inner_expression() {
         Expression::ArrowFunctionExpression(_) => true,

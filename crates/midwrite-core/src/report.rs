@@ -45,6 +45,11 @@ pub struct Summary {
     pub files_failed: usize,
     pub functions_analyzed: usize,
     pub diagnostics: SeverityCounts,
+    /// Reported places where the analysis is known to be incomplete (the
+    /// `MW9001` diagnostics of this report). More than zero: the absence of
+    /// a finding there is not a clean result. Zero does not mean that the
+    /// analysis is complete, only that no gap was recognized.
+    pub known_gaps: usize,
     /// Measured facts about the analysis itself (not about correctness).
     pub analysis: AnalysisCounts,
     /// Set when the run compares against a baseline file.
@@ -77,6 +82,12 @@ pub struct AnalysisCounts {
     pub package_calls: usize,
     /// Calls replaced by the callee's summary.
     pub calls_summarized: usize,
+    /// Promise continuations (`.then/.catch/.finally`) whose handler
+    /// contains a recognized operation but is not analyzed in sequence
+    /// (each is part of an `MW9001` diagnostic). Handlers without a
+    /// recognized operation, and other unmodeled asynchronous code, are
+    /// not counted: zero is not a statement about recall.
+    pub unmodeled_continuations: usize,
 }
 
 /// Comparison with a baseline file.
@@ -149,6 +160,10 @@ impl Report {
         order_findings(&mut items);
         let diagnostics: Vec<Diagnostic> = items.into_iter().map(|(d, ())| d).collect();
         let mut counts = SeverityCounts::default();
+        let known_gaps = diagnostics
+            .iter()
+            .filter(|d| d.kind == crate::diagnostic::DiagnosticKind::AnalysisLimitation)
+            .count();
         for diagnostic in &diagnostics {
             match diagnostic.severity {
                 Severity::Error => counts.error += 1,
@@ -166,6 +181,7 @@ impl Report {
                 files_failed: failures.len(),
                 functions_analyzed,
                 diagnostics: counts,
+                known_gaps,
                 analysis: AnalysisCounts::default(),
                 baseline: None,
             },

@@ -1633,3 +1633,28 @@ same IDs, classifications and limitation counts as before. Dev hazard
 precision is 421/443; held-out is 28/30, gate PASS. No corpus helper has
 this shape with both operations on an unconfigured parameter, so no new
 finding needed a label.
+
+## Promise continuation gaps (2026-11-14, DEV-169)
+
+An inline `.then`, `.catch` or `.finally` handler that contains a
+recognized operation, on a chain that is not analyzed in sequence, is now
+an `MW9001` gap with its own reason (`unmodeledContinuation`). Reports
+also carry `summary.knownGaps` and
+`summary.analysis.unmodeledContinuations`
+([diagnostics](../DIAGNOSTICS.md#promise-continuation-gaps)).
+
+Fixture: `fixtures/unsupported/promise_continuation_gaps.ts`. The CLI test
+`unmodeled_promise_continuations_are_reported_as_gaps_in_every_format`
+checks text, JSON and SARIF.
+
+**Corpus impact: none.** All nine projects report zero continuation gaps,
+and the 476 findings and the `MW9001` counts are unchanged (dev hazard
+precision 421/443; held-out 28/30, gate PASS). The corpus chains that are
+not awaited have handlers that log, swallow or map values
+(`.catch(() => {})`, `.then((m) => m.Component)`), with no recognized
+operation in them.
+
+Known `MW9001` diagnostics per project at this commit (`knownGaps`):
+midday 88, kan 36, dittofeed 44, zero 100, vercel-chatbot 3,
+nextjs-billing 1, petdex 67, next-saas-stripe-starter 0,
+react-starter-kit 0.

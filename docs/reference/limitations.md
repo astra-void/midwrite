@@ -190,7 +190,11 @@ model-checking work left the static analyzer's output unchanged.
 * methods on values of unknown class (parameters, SDK clients, factory
   results), methods with an analyzed override or dynamic reassignment,
   callbacks run by unanalyzed code, `.then/.catch/.finally` continuation
-  bodies;
+  bodies other than one inline handler on an awaited chain. An inline
+  handler with a recognized operation on any other chain is reported as a
+  coverage gap ([MW9001](../DIAGNOSTICS.md#promise-continuation-gaps));
+  handlers passed by reference, and handlers that only call project
+  functions, are not;
 * constructor-set handle fields (`constructor(private db: Database)`)
   are bound only on a receiver constructed in the calling function (or
   `this`), for a method its own class declares; instances held in fields,

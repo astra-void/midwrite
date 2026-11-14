@@ -215,7 +215,11 @@ Execution modes stay `awaited | returned | fireAndForget | concurrent`.
 
 Never assumed: that a callback passed to a function runs (only when the
 callee's summary invokes or leaks it), or that `forEach` awaits. Not
-modeled: `.then/.catch/.finally` continuation bodies, completion order
+modeled: `.then/.catch/.finally` continuation bodies other than one inline
+handler on an awaited chain (a handler with a recognized operation is
+reported as a gap,
+[`unmodeledContinuation`](../DIAGNOSTICS.md#promise-continuation-gaps)),
+completion order
 inside a concurrent group, promises stored and awaited later, `for await`,
 unawaited effects of resolved functions, shared mutable capture contents.
 Exceptions are not crashes: compensation in a `catch` does not

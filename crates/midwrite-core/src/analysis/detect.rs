@@ -220,6 +220,10 @@ enum Key {
     /// Under the recommended policy, every unrecognized call of the function
     /// that is reported only because of its context, reported once.
     UnknownCalls,
+    /// The function's own promise continuations that are not modeled
+    /// ([`crate::ir::UnknownReason::UnmodeledContinuation`]), reported once
+    /// with every location.
+    UnmodeledContinuations,
     Incomplete(Location),
 }
 
@@ -433,11 +437,17 @@ pub(crate) fn detect<'ir>(
                 + u8::from(following.is_some() || inside.is_some());
             let generic = !reason.is_reported_alone();
             let key = match call {
+                None if *reason == crate::ir::UnknownReason::UnmodeledContinuation => {
+                    Key::UnmodeledContinuations
+                }
                 _ if generic && options.policy == Policy::Recommended => Key::UnknownCalls,
                 Some(call) => Key::UnknownInCall(call),
                 None => Key::Unknown(occurrence.effect.id),
             };
-            if matches!(key, Key::UnknownCalls | Key::UnknownInCall(_)) {
+            if matches!(
+                key,
+                Key::UnknownCalls | Key::UnknownInCall(_) | Key::UnmodeledContinuations
+            ) {
                 let effects = grouped_unknowns.entry(key).or_default();
                 if !effects.iter().any(|e| e.id == occurrence.effect.id) {
                     effects.push(occurrence.effect);

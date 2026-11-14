@@ -159,10 +159,50 @@ does not understand and makes no claim about it:
   which);
 * a database operation of an inlined function on a parameter whose argument
   is not a recognized handle (`unresolvedHandle`);
+* a promise continuation that is not analyzed in sequence
+  (`unmodeledContinuation`): a `.then`, `.catch` or `.finally` handler
+  written inline that contains a recognized database write, transaction or
+  external effect, where the chain is not awaited (discarded, passed as an
+  argument, or returned from a function that is not `async`) or passes more
+  than one handler. See [promise continuation gaps](#promise-continuation-gaps);
 * unsupported control flow (labeled `break`/`continue`), or more paths than
   `--max-paths`.
 
 *Mitigation:* if the call is a side effect, configure it; otherwise ignore.
+
+### Promise continuation gaps
+
+An awaited chain with one inline handler (`await p.then(cb)`) is analyzed
+in sequence. Any other chain whose inline handler contains a recognized
+operation is reported as a gap:
+
+```ts
+await db.update(orders).set({ status: "paid" });
+audit(id).then(async () => {
+  await queue.publish("order.paid", { id }); // not ordered with the update
+});
+```
+
+* **What is reported.** One `MW9001` per function, located at a handler
+  (`.then(…)`). The message names the recognized operation in the
+  handler and why the handler is not in sequence. Other continuations of
+  the same function are listed in the notice and keep their own locations
+  as related effects (`role: "unanalyzed"`).
+* **What is not claimed.** No ordering is invented. The handler's
+  operations are still analyzed as a function of their own, but nothing
+  pairs them with the code around the chain, so a hazard through the
+  handler is not reported.
+* **Next step.** Rewrite the chain with `await` (and
+  `try`/`catch`/`finally`), or inspect the handler manually. If its effect
+  is already covered elsewhere, suppress the notice with a reason.
+* **Not gaps.** Handlers without a recognized operation (mapping, logging,
+  `.catch(console.error)`), and handlers passed by reference
+  (`.then(notify)`), which stay ordinary unknown calls. Timer callbacks
+  (`setTimeout`, `setInterval`, `queueMicrotask`) are deferred code, not
+  continuations of the current path, and are never reported this way.
+
+The count `summary.analysis.unmodeledContinuations` covers only these
+recognized gaps. Zero does not mean every continuation was analyzed.
 
 ## Concurrency model checking (MW7001–MW7102)
 
@@ -272,9 +312,11 @@ Report {
   summary: {
     filesDiscovered, filesAnalyzed, filesFailed, functionsAnalyzed: number
     diagnostics: { error, warning, info: number }
+    knownGaps: number                   // MW9001 diagnostics in this report; > 0 = incomplete there, 0 ≠ complete
     analysis: {                         // measured coverage (not correctness)
       functionsWithEffects, truncatedFunctions, prunedPaths, mergedPaths: number
       sameFileCalls, crossFileCallsResolved, crossFileCallsUnresolved, packageCalls, callsSummarized: number
+      unmodeledContinuations: number    // promise continuation gaps (see MW9001); 0 ≠ none exist
     }
     baseline?: { new, existing, resolved: number }   // only with --baseline
   }
@@ -380,6 +422,20 @@ files; `partialFingerprints["midwrite/v1"]` is the fingerprint;
 `function`, `confidence`, `pathCertainty`, `evidenceStrength`, `kind`,
 `reproduced` and `limitations`), and parse or read failures as tool execution
 notifications.
+
+An incomplete analysis is distinguishable from a clean one in every format:
+
+* **Text.** When the report has `MW9001` diagnostics, the summary adds
+  `analysis incomplete at N reported location(s) (MW9001)`, with the number
+  of unmodeled promise continuations when there are any.
+* **JSON.** `summary.knownGaps` is the number of `MW9001` diagnostics.
+* **SARIF.** The run's `properties` carry `knownGaps` and the `analysis`
+  counts, and a `note`-level tool execution notification (descriptor
+  `MW9001`) states that the analysis is incomplete. `executionSuccessful`
+  stays `true`: the tool ran, the coverage is partial.
+
+`knownGaps: 0` and an absent notification mean only that no gap was
+recognized. They are not a claim of complete recall.
 
 Source paths are URI-escaped, including related-effect locations. Absolute
 paths use `file:` URIs; the invocation records the working directory so

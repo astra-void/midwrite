@@ -64,6 +64,17 @@ pub fn text(report: &Report, verbose: bool) -> String {
             summary.files_failed
         );
     }
+    if summary.known_gaps > 0 {
+        let continuations = match summary.analysis.unmodeled_continuations {
+            0 => String::new(),
+            count => format!("; {count} promise continuation(s) are not modeled"),
+        };
+        let _ = writeln!(
+            out,
+            "midwrite: analysis incomplete at {} reported location(s) (MW9001){continuations}. The absence of a finding there is not a clean result.",
+            summary.known_gaps
+        );
+    }
     if !report.diagnostics.is_empty() {
         out.push_str("Findings are potential hazards, not reproduced failures. Run `midwrite explain <CODE>` for details.\n");
     }
@@ -291,6 +302,19 @@ pub fn sarif(report: &Report) -> String {
             })
         })
         .collect();
+    let mut notifications = notifications;
+    if report.summary.known_gaps > 0 {
+        // An incomplete analysis is not a clean run: say so at the run
+        // level too, not only as `note` results.
+        notifications.push(json!({
+            "level": "note",
+            "descriptor": { "id": "MW9001" },
+            "message": { "text": format!(
+                "analysis incomplete at {} reported location(s) (MW9001); the absence of a finding there is not a clean result",
+                report.summary.known_gaps
+            ) },
+        }));
+    }
     let mut invocation = json!({
         "executionSuccessful": report.failures.is_empty(),
         "toolExecutionNotifications": notifications,
@@ -315,6 +339,11 @@ pub fn sarif(report: &Report) -> String {
                 "rules": rules,
             }},
             "invocations": [invocation],
+            "properties": {
+                // Zero known gaps does not mean a complete analysis.
+                "knownGaps": report.summary.known_gaps,
+                "analysis": report.summary.analysis,
+            },
             "results": results,
         }],
     });

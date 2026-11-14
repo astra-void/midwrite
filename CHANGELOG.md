@@ -11,6 +11,17 @@ output formats.
 
 ### Added
 
+- Promise continuations that are not analyzed in sequence are reported as
+  coverage gaps (`MW9001`, reason `unmodeledContinuation`): an inline
+  `.then`, `.catch` or `.finally` handler that contains a recognized
+  operation, on a chain that is not awaited or passes several handlers.
+  The notice gives the location, the reason and a next step, and lists
+  every such continuation of the function. No ordering is invented
+  (DEV-169).
+- Reports say when the analysis is incomplete: `summary.knownGaps` and
+  `summary.analysis.unmodeledContinuations` in JSON, a summary line in
+  text, and run `properties` plus a `note` notification in SARIF. Zero
+  known gaps is not a claim of complete recall (DEV-169).
 - A pair of operations inside a helper whose parameter name is not a
   configured receiver (`async function save(store) { … }`) is reported
   where the caller binds the parameter to a recognized handle

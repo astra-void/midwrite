@@ -1019,7 +1019,18 @@ impl<'a> Inliner<'a> {
                 };
             }
             let mut effect = effect.clone();
-            if let (Some(reason), EffectKind::Unknown { detail, .. }) = (reason, &mut effect.kind) {
+            // Why the call is not summarized explains a generic unknown
+            // call. A more specific notice recorded on the same effect (an
+            // unmodeled promise continuation) keeps its own detail.
+            if let (
+                Some(reason),
+                EffectKind::Unknown {
+                    reason: UnknownReason::UnrecognizedCall,
+                    detail,
+                    ..
+                },
+            ) = (reason, &mut effect.kind)
+            {
                 *detail = reason;
             }
             Outcome {

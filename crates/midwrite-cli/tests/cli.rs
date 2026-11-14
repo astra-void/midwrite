@@ -562,6 +562,89 @@ fn sarif_distinguishes_empty_successful_and_incomplete_scans() {
 }
 
 #[test]
+fn unmodeled_promise_continuations_are_reported_as_gaps_in_every_format() {
+    let file = "unsupported/promise_continuation_gaps.ts";
+
+    let text = stdout(&run(&["check", file]));
+    assert!(
+        text.contains("analysis incomplete at 6 reported location(s) (MW9001); 7 promise continuation(s) are not modeled"),
+        "{text}"
+    );
+    assert!(text.contains("is not a clean result"), "{text}");
+    assert!(
+        text.contains("the chain is not awaited here"),
+        "the reason is given: {text}"
+    );
+    assert!(
+        text.contains("Rewrite the chain with `await`"),
+        "a next step is given: {text}"
+    );
+
+    let report = json(&run(&["check", file, "--format", "json"]));
+    assert_eq!(report["summary"]["knownGaps"], 6);
+    assert_eq!(report["summary"]["analysis"]["unmodeledContinuations"], 7);
+    let diagnostics = report["diagnostics"].as_array().unwrap();
+    assert!(
+        diagnostics
+            .iter()
+            .all(|d| d["code"] == "MW9001" && d["kind"] == "analysisLimitation"),
+        "gaps only, no invented ordering: {diagnostics:#?}"
+    );
+    // Two continuations of one function: one notice, both locations.
+    let several: Vec<&Value> = diagnostics
+        .iter()
+        .filter(|d| d["function"] == "several")
+        .collect();
+    assert_eq!(several.len(), 1);
+    let lines: Vec<u64> = several[0]["effects"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["role"] == "unanalyzed")
+        .map(|e| e["location"]["line"].as_u64().unwrap())
+        .collect();
+    assert_eq!(lines, [55, 56]);
+    // Controls: handlers without a recognized operation, and a timer.
+    assert!(
+        diagnostics
+            .iter()
+            .all(|d| d["function"] != "harmlessHandlers" && d["function"] != "timer")
+    );
+
+    let sarif = json(&run(&["check", file, "--format", "sarif"]));
+    let run_object = &sarif["runs"][0];
+    assert_eq!(run_object["properties"]["knownGaps"], 6);
+    assert_eq!(
+        run_object["properties"]["analysis"]["unmodeledContinuations"],
+        7
+    );
+    let invocation = &run_object["invocations"][0];
+    assert_eq!(invocation["executionSuccessful"], true);
+    assert_eq!(invocation["toolExecutionNotifications"][0]["level"], "note");
+    assert!(
+        invocation["toolExecutionNotifications"][0]["message"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("analysis incomplete at 6 reported location(s)")
+    );
+
+    // A run without known gaps says nothing about completeness.
+    let clean = run(&["check", "safe/transactional_outbox.ts"]);
+    assert!(!stdout(&clean).contains("analysis incomplete"));
+    let clean = json(&run(&[
+        "check",
+        "safe/transactional_outbox.ts",
+        "--format",
+        "sarif",
+    ]));
+    assert_eq!(clean["runs"][0]["properties"]["knownGaps"], 0);
+    assert_eq!(
+        clean["runs"][0]["invocations"][0]["toolExecutionNotifications"],
+        serde_json::json!([])
+    );
+}
+
+#[test]
 fn ir_command_prints_the_effect_ir() {
     let output = run(&["ir", "safe/transactional_outbox.ts"]);
     assert_eq!(output.status.code(), Some(0));

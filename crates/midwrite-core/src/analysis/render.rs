@@ -376,6 +376,13 @@ impl Renderer<'_> {
                 inside,
                 siblings,
             } => {
+                let continuations = matches!(
+                    occurrence.effect.kind,
+                    EffectKind::Unknown {
+                        reason: UnknownReason::UnmodeledContinuation,
+                        ..
+                    }
+                );
                 if !siblings.is_empty() {
                     const SHOWN: usize = 5;
                     let mut names: Vec<String> = siblings
@@ -388,13 +395,37 @@ impl Renderer<'_> {
                     }
                     limitations.insert(
                         0,
-                        format!(
-                            "These other calls in the same function (or in the same inlined call) are also not analyzed and are reported once, here: {}.",
-                            names.join(", ")
-                        ),
+                        if continuations {
+                            format!(
+                                "These other promise continuations of the same function are not analyzed in sequence either and are reported once, here: {}.",
+                                names.join(", ")
+                            )
+                        } else {
+                            format!(
+                                "These other calls in the same function (or in the same inlined call) are also not analyzed and are reported once, here: {}.",
+                                names.join(", ")
+                            )
+                        },
                     );
                 }
-                self.unknown(*occurrence, preceding.as_ref(), following.as_ref(), *inside)
+                let mut parts =
+                    self.unknown(*occurrence, preceding.as_ref(), following.as_ref(), *inside);
+                if continuations {
+                    // Every grouped continuation keeps its own location in
+                    // the structured output.
+                    for (offset, sibling) in siblings.iter().enumerate() {
+                        parts.effects.insert(
+                            1 + offset,
+                            self.related(
+                                EffectRole::Unanalyzed,
+                                &sibling.label,
+                                sibling.kind.describe(),
+                                sibling.location,
+                            ),
+                        );
+                    }
+                }
+                parts
             }
             Shape::Incomplete(exit) => Parts {
                 message: format!(
@@ -752,6 +783,15 @@ impl Renderer<'_> {
                 format!("`{label}`{via} calls a database method that Midwrite does not model"),
                 vec![detail.clone()],
             ),
+            UnknownReason::UnmodeledContinuation => (
+                format!(
+                    "the promise continuation `{label}`{via} is not analyzed in sequence: {detail}"
+                ),
+                vec![
+                    "The handler's operations are analyzed as a function of their own, but they are not ordered with the operations of this function: no finding pairs them with the code around the chain.".to_owned(),
+                    "This is a coverage gap, not a clean result: a partial-completion hazard through this handler would not be reported.".to_owned(),
+                ],
+            ),
             UnknownReason::UnrecognizedCall => {
                 let context = if let Some(point) = preceding {
                     format!(
@@ -825,13 +865,16 @@ impl Renderer<'_> {
             }
         }
 
+        let mitigation = (*reason == UnknownReason::UnmodeledContinuation).then(|| {
+            "Rewrite the chain with `await` (and `try`/`catch`/`finally`) so that the handler's operations are ordered with the rest of the function, or inspect the handler manually. If the handler's effect is already described elsewhere (for example a configured `externalEffects` entry on the function the chain calls), suppress this notice with a reason.".to_owned()
+        });
         Parts {
             message,
             location: effect_site(effect),
             effects,
             failure_sequence,
             evidence,
-            mitigation: None,
+            mitigation,
         }
     }
 

@@ -541,6 +541,20 @@ pub(crate) fn analyze(
             if resolve_parameters(function).has_recognized_effects() {
                 counts.functions_with_effects += 1;
             }
+            counts.unmodeled_continuations += function
+                .effects()
+                .iter()
+                .filter(|effect| {
+                    effect.summary.is_none()
+                        && matches!(
+                            effect.kind,
+                            EffectKind::Unknown {
+                                reason: midwrite_core::ir::UnknownReason::UnmodeledContinuation,
+                                ..
+                            }
+                        )
+                })
+                .count();
             let (result, outcomes) = if with_traces {
                 trace_function_in(function, src, options)
             } else {
@@ -602,6 +616,7 @@ pub(crate) fn analyze(
     let mut analyzed = Vec::with_capacity(results.len());
     for (analysis, file_counts) in results {
         counts.functions_with_effects += file_counts.functions_with_effects;
+        counts.unmodeled_continuations += file_counts.unmodeled_continuations;
         counts.truncated_functions += file_counts.truncated_functions;
         counts.pruned_paths += file_counts.pruned_paths;
         counts.merged_paths += file_counts.merged_paths;
